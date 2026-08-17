@@ -1,0 +1,66 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Caches d'outils
+.vite/
+.cache/
+.temp/
+.eslintcache
+.oxlintcache
+
+# Variables d'environnement — le fichier d'exemple, lui, se committe
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Vérification au navigateur (cf. aicontext/HANDOFF.md §7).
+# Les scripts jetables et leurs captures se préfixent d'un « _ ».
+_*.mjs
+_*.png
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Couverture de tests
+coverage/
+*.lcov
+
+# Éditeurs
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.local
+
+# Réglages personnels d'agent (les réglages partagés se committent)
+.claude/settings.local.json
+
+# Système
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# NE PAS ignorer : les icônes de public/ sont générées par `npm run icons`,
+# mais ce script est manuel — sans elles committées, le manifeste PWA casse
+# au déploiement et l'invite d'installation disparaît.

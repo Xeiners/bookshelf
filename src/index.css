@@ -1,0 +1,180 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   DESIGN TOKENS — « Obsidian & Glow »
+   Tailwind v4 : configuration CSS-first, aucun tailwind.config.js nécessaire.
+   Chaque token génère automatiquement ses utilitaires (bg-void, text-mist…).
+   ========================================================================== */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Instrument Serif', ui-serif, Georgia, 'Times New Roman', serif;
+
+  /* Neutres profonds */
+  --color-void: #06060a;
+  --color-ink: #0b0b12;
+  --color-carbon: #14141d;
+  --color-cream: #f7f5f0;
+  --color-mist: #9d9aab;
+
+  /* Accents sémantiques */
+  --color-glow: #7c5cff; /* marque / focus */
+  --color-like: #3fe0a0; /* swipe droite → wishlist */
+  --color-nope: #ff5c7a; /* swipe gauche → skip */
+  --color-gold: #ffc46b; /* notes / étoiles */
+
+  --radius-4xl: 2rem;
+  --radius-5xl: 2.75rem;
+
+  --shadow-card: 0 48px 88px -24px rgb(0 0 0 / 0.9), 0 12px 28px -12px rgb(0 0 0 / 0.7);
+  --shadow-lift: 0 18px 40px -18px rgb(0 0 0 / 0.8);
+  --shadow-glow: 0 0 48px -12px rgb(124 92 255 / 0.55);
+
+  --animate-shimmer: shimmer 2.2s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(200%);
+  }
+}
+
+/* ==========================================================================
+   UTILITAIRES CUSTOM
+   ========================================================================== */
+
+/* Glassmorphism — pilules & barre de navigation */
+@utility glass {
+  background-color: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+}
+
+@utility glass-strong {
+  background-color: rgb(14 14 20 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+}
+
+/*
+ * Dégagement sous la barre de navigation flottante.
+ *
+ * La barre mesure ~4,25 rem, à quoi s'ajoute la zone sûre du bas (34 px sur un
+ * iPhone à barre d'accueil). Un padding fixe suffisant sur Android passait tout
+ * juste sous iOS : on compose donc les deux.
+ */
+@utility pb-nav {
+  padding-bottom: calc(5rem + max(0.75rem, env(safe-area-inset-bottom)));
+}
+
+/*
+ * Verre « plat » — même allure, sans `backdrop-filter`.
+ *
+ * À utiliser sur TOUT élément qui se déplace (badges de la carte de swipe,
+ * tampons…) : un `backdrop-filter` force le navigateur à ré-échantillonner et
+ * reflouter son arrière-plan à CHAQUE frame du geste. C'est la première cause
+ * de saccade sur mobile.
+ */
+@utility glass-flat {
+  background-color: rgb(10 10 16 / 0.55);
+  border: 1px solid rgb(255 255 255 / 0.14);
+}
+
+/* Grain filmique : texture SVG inline, zéro requête réseau */
+@utility grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Respecte l'encoche / la barre gestuelle iOS & Android */
+@utility pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@utility pt-safe {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+/* Dégradé de texte pour les titres imposants */
+@utility text-gradient {
+  background-image: linear-gradient(
+    170deg,
+    var(--color-cream) 0%,
+    color-mix(in oklab, var(--color-cream) 60%, var(--color-glow)) 100%
+  );
+  background-clip: text;
+  color: transparent;
+}
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    /*
+     * Coquille applicative : le document lui-même ne défile JAMAIS, chaque vue
+     * gère son propre défilement interne.
+     *
+     * Sans ça, la carte éjectée par le swipe (qui part à ±1,25 × la largeur de
+     * l'écran) élargit la zone défilable : barre horizontale qui apparaît,
+     * reflow de toute la page — d'où le scintillement ET le débordement.
+     */
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    @apply bg-void font-sans text-cream antialiased;
+    /* Le swipe ne doit jamais déclencher le pull-to-refresh ni le rubber band */
+    overscroll-behavior: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  #root {
+    isolation: isolate;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display font-normal tracking-tight;
+    text-wrap: balance;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+
+  ::selection {
+    background-color: var(--color-glow);
+    color: #fff;
+  }
+
+  /* GSAP anime des transforms : on prévient tout conflit avec les images */
+  img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+}
