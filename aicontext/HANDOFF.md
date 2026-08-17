@@ -1,8 +1,9 @@
 # Bookshelf — passation
 
-Contexte destiné à la personne (ou à l'agent) qui reprend ce code. Le [README](../README.md)
-explique **comment ça marche** ; ce document rassemble ce qui **ne se lit pas dans le code** :
-les décisions, les pièges déjà payés, et ce qui a été vérifié ou non.
+Contexte destiné à la personne (ou à l'agent) qui reprend ce code. Le
+[README](../README.md) présente le produit, [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
+explique **comment ça marche** ; ce document-ci rassemble ce qui **ne se lit pas dans
+le code** : les décisions, les pièges déjà payés, et ce qui a été vérifié ou non.
 
 ---
 
@@ -230,6 +231,16 @@ pendant l'éjection — où une partie des gestes **doit** être ignorée sans j
 valider la mauvaise carte.
 
 Playwright a été retiré des dépendances après usage ; le binaire reste en cache local.
+
+Les captures du README sont produites par [`scripts/screenshots.mjs`](../scripts/screenshots.mjs)
+(`npm run screenshots`, serveur de dev lancé à part). Il peuple la bibliothèque via
+de vrais gestes avant de photographier, sinon les vues Bibliothèque et Profil
+seraient vides. À relancer dès que l'UI change visiblement.
+
+⚠️ Les couvertures viennent d'un 302 vers `archive.org`, qui **extrait l'image d'une
+archive ZIP à la volée** : le premier chargement prend souvent 5 à 15 s. Ce n'est
+pas une panne, et le script attend explicitement `naturalWidth > 0` avant de
+capturer — sans quoi les cartes ressortent noires.
 
 ---
 
