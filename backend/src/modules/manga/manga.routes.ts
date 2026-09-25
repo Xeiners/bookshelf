@@ -116,10 +116,18 @@ coverRouter.get('/:mangaId/:fileName', async (req, res) => {
   const size = Number(CoverQuery.parse(req.query).size) as 256 | 512
 
   const image = await coverCache.getOrLoad(`${mangaId}/${fileName}/${size}`, async () => {
-    const upstream = await fetchCoverImage(mangaId, fileName, size).catch(() => {
+    // La raison exacte part dans les journaux : côté navigateur, tout échec
+    // amont se ressemble (404), impossible sinon de distinguer un blocage
+    // MangaDex d'un souci réseau ou DNS du serveur.
+    const upstream = await fetchCoverImage(mangaId, fileName, size).catch((error: unknown) => {
+      const cause = error instanceof Error ? `${error.name}: ${error.message} ${String(error.cause ?? '')}` : String(error)
+      console.warn(`[covers] ${mangaId}/${fileName} (${size}) : échec réseau vers MangaDex — ${cause}`)
       throw notFound('Couverture indisponible.')
     })
-    if (!upstream.ok) throw notFound('Couverture indisponible.')
+    if (!upstream.ok) {
+      console.warn(`[covers] ${mangaId}/${fileName} (${size}) : MangaDex a répondu ${upstream.status}`)
+      throw notFound('Couverture indisponible.')
+    }
     return {
       body: Buffer.from(await upstream.arrayBuffer()),
       contentType: upstream.headers.get('content-type') ?? 'image/jpeg',
