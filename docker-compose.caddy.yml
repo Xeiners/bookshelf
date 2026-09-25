@@ -1,0 +1,25 @@
+# Raccorde Bookshelf à un Caddy qui tourne dans UNE AUTRE pile Docker (cas du VPS :
+# le Caddy de la pile myplaylog, qui sert déjà d'autres projets).
+#
+# Le front rejoint le réseau de ce Caddy sous un nom fixe (`bookshelf-frontend`) ;
+# le Caddyfile le vise par ce nom (cf. deploy/Caddyfile, option « Caddy en conteneur »).
+# L'API et PostgreSQL restent sur le réseau interne de Bookshelf, invisibles du Caddy.
+#
+# Activation (une fois, dans .env) :
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.caddy.yml
+#   CADDY_NETWORK=myplaylog_myplaylog
+# puis les commandes habituelles : docker compose up -d --build, ps, logs…
+
+services:
+  frontend:
+    # Nom figé : le Caddyfile en dépend. Sans ça, il suivrait le nom du dossier
+    # du projet, et le renommer casserait le routage par un 502 silencieux.
+    container_name: bookshelf-frontend
+    networks:
+      - default
+      - edge
+
+networks:
+  edge:
+    external: true
+    name: ${CADDY_NETWORK:?Renseigner CADDY_NETWORK dans .env (réseau Docker du Caddy)}

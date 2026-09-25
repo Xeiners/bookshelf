@@ -157,3 +157,41 @@ Les conteneurs redémarrent seuls après un reboot du VPS (`restart: unless-stop
 | 502 Bad Gateway (Caddy) | pile arrêtée ou `PORT` différent de celui du bloc Caddy : `docker compose ps` |
 | `POSTGRES_PASSWORD` refusé après modification | la base garde le mot de passe initial (voir §2) |
 | Le port 8082 répond depuis l'extérieur | il a été republié sans `127.0.0.1:` dans `docker-compose.yml` |
+
+## Variante : Caddy tourne dans un conteneur d'une autre pile
+
+Si `systemctl is-active caddy` répond `inactive` et qu'un conteneur tient les
+ports 80 / 443 (souvent aussi 2019, l'API d'administration de Caddy), Caddy
+appartient à une autre pile Docker. `127.0.0.1:8082` y désignerait le conteneur
+Caddy lui-même : Bookshelf rejoint donc le réseau de ce Caddy.
+
+```bash
+# Réseau et Caddyfile du Caddy existant :
+docker inspect <conteneur-caddy> --format '{{range $n, $_ := .NetworkSettings.Networks}}{{$n}} {{end}}'
+docker inspect <conteneur-caddy> --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+
+# .env : raccordement au réseau, adresse sans port (Caddy n'expose que 80 / 443)
+cat >> .env <<'ENV'
+COMPOSE_FILE=docker-compose.yml:docker-compose.caddy.yml
+CADDY_NETWORK=<réseau-du-caddy>
+ENV
+sed -i "s|^APP_URL=.*|APP_URL=http://$IP|" .env
+docker compose up -d --build
+
+# Caddyfile de l'autre pile : ajout EN FIN de fichier (même inode, le montage suit)
+cat >> <chemin-du-Caddyfile> <<'CADDY'
+
+http://<IP> {
+	reverse_proxy bookshelf-frontend:80 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+CADDY
+docker exec <conteneur-caddy> caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker exec <conteneur-caddy> caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+`TRUST_PROXY=2` reste juste (Caddy puis le Nginx de Bookshelf). Le Nginx vise
+l'API par un nom unique, `bookshelf-api` : relié au réseau partagé, il voit les
+autres projets, et un nom courant comme `backend` pourrait désigner l'un d'eux.

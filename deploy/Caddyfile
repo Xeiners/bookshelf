@@ -49,6 +49,20 @@ http://YOUR_VPS_IP:8080 {
 # 	}
 # }
 
+# ─── Option C : Caddy tourne lui-même dans un conteneur (autre pile Docker) ─────────
+# Le cas du VPS où Caddy appartient à une autre pile : 127.0.0.1 y désignerait le
+# conteneur Caddy lui-même. Bookshelf rejoint alors le réseau de ce Caddy
+# (docker-compose.caddy.yml + COMPOSE_FILE / CADDY_NETWORK dans .env), et le bloc
+# vise le conteneur par son nom. Sur le port 80 par l'IP nue : aucun conflit avec
+# les sites servis par nom de domaine. APP_URL=http://YOUR_VPS_IP dans .env.
+#
+# http://YOUR_VPS_IP {
+# 	reverse_proxy bookshelf-frontend:80 {
+# 		header_up X-Forwarded-For {remote_host}
+# 		header_up X-Real-IP {remote_host}
+# 	}
+# }
+
 # ─── Plus tard, avec un nom de domaine ─────────────────────────────────────────────────
 # Remplacer l'adresse du bloc par le domaine (HTTPS automatique), puis dans le .env :
 # COOKIE_SECURE=true et APP_URL=https://bookshelf.exemple.fr, et relancer la pile.
