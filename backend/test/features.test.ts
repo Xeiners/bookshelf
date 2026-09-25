@@ -89,7 +89,7 @@ describe('favoris et notes personnelles', () => {
 
   before(async () => {
     account = client()
-    await account.request('POST', '/auth/register', { email: `fav-${Date.now()}@example.com`, password: 'motdepasse-test' })
+    await account.signUp({ email: `fav-${Date.now()}@example.com`, password: 'motdepasse-test' })
     userId = (await account.request('GET', '/auth/me')).body.user.id
     const book = (await account.request('GET', `/manga/al-${HUNTER.id}?lang=fr`)).body.book
     await account.request('POST', '/library/swipe', { mangaId: book.id, action: 'read', book })
@@ -132,7 +132,7 @@ describe('favoris et notes personnelles', () => {
   it('fusion invité → compte : favori et note rejoignent le compte', async () => {
     const device = client()
     const book = (await device.request('GET', `/manga/al-${ROMANCE_KR[0]!.id}?lang=fr`)).body.book
-    const register = await device.request('POST', '/auth/register', {
+    const register = await device.signUp({
       email: `merge-fav-${Date.now()}@example.com`,
       password: 'motdepasse-test',
       initialData: { entries: [{ book, status: 'read', progress: 1, favorite: true, userRating: 3.5 }], skipped: [] },

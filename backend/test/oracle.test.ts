@@ -93,7 +93,7 @@ describe('Oracle — API', () => {
 
   it('checkin : série serveur, exposée par /auth/me', async () => {
     const device = client()
-    await device.request('POST', '/auth/register', {
+    await device.signUp({
       email: `oracle-${Date.now()}@example.com`,
       password: 'motdepasse-oracle',
     })
@@ -114,7 +114,7 @@ describe('Oracle — API', () => {
 
   it('checkin : jour invalide, jour trop lointain, invité', async () => {
     const device = client()
-    await device.request('POST', '/auth/register', {
+    await device.signUp({
       email: `oracle-bad-${Date.now()}@example.com`,
       password: 'motdepasse-oracle',
     })

@@ -331,6 +331,8 @@ export const fr = {
     iosShareAfter: 'Partager, en bas de Safari.',
     iosAddToHome: 'Choisis « Sur l’écran d’accueil ».',
     iosConfirm: 'Valide avec « Ajouter ».',
+    insecure:
+      'Installation impossible pour l’instant : le site est servi en HTTP. Les navigateurs n’installent une app (et ne l’activent hors-ligne) qu’en HTTPS.',
     unsupported:
       'Ce navigateur ne propose pas l’installation. Ouvre Bookshelf dans Chrome ou Edge (Android, Windows, macOS) — et vérifie que le site est servi en HTTPS, condition obligatoire côté navigateur.',
   },
@@ -364,6 +366,24 @@ export const fr = {
     passwordPlaceholder: '8 caractères minimum',
     registered: 'Compte créé, bibliothèque sauvegardée',
     loggedIn: 'Bibliothèque synchronisée',
+    sendCode: 'Recevoir mon code',
+    verify: {
+      eyebrow: 'Dernière étape',
+      title: 'Vérifie ta boîte mail',
+      sentTo: 'Code à 6 chiffres envoyé à',
+      changeEmail: 'Modifier',
+      inputLabel: 'Code de vérification à 6 chiffres',
+      hint: 'Tape ou colle le code : la vérification part toute seule.',
+      expiresIn: (minutes: number) => `Valable encore ${minutes} min`,
+      expired: 'Ce code a expiré : demande-en un nouveau.',
+      submit: 'Vérifier',
+      verifying: 'Vérification…',
+      success: 'Adresse vérifiée',
+      resend: 'Renvoyer un code',
+      resendIn: (seconds: number) => `Nouveau code dans ${seconds} s`,
+      resent: 'Nouveau code envoyé',
+      spam: 'Rien reçu ? Jette un œil aux courriers indésirables.',
+    },
   },
 
   errors: {
@@ -375,6 +395,14 @@ export const fr = {
     invalidInput: 'Certaines informations sont invalides.',
     invalidEmail: 'Adresse e-mail invalide.',
     passwordTooShort: 'Le mot de passe doit contenir au moins 8 caractères.',
+    codeInvalid: (remaining: number) =>
+      `Code incorrect — encore ${remaining} ${plural(remaining, 'essai', 'essais')}.`,
+    codeExpired: 'Ce code a expiré : demande-en un nouveau.',
+    codeLocked: 'Trop d’essais : demande un nouveau code.',
+    resendTooSoon: (seconds: number) => `Patiente ${seconds} s avant un nouveau code.`,
+    registrationNotFound: 'Inscription expirée : recommence, c’est rapide.',
+    emailUnavailable: 'Les inscriptions sont momentanément fermées (envoi d’e-mails indisponible).',
+    emailSendFailed: 'L’e-mail n’a pas pu partir. Réessaie dans un instant.',
   },
 }
 

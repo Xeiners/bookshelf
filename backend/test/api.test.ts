@@ -94,7 +94,7 @@ describe('compte — preferredLanguage', () => {
   })
 
   it('l’inscription enregistre la langue choisie en invité', async () => {
-    const response = await device.request('POST', '/auth/register', {
+    const response = await device.signUp({
       email,
       password: 'motdepasse-test',
       preferredLanguage: 'en',
@@ -104,7 +104,7 @@ describe('compte — preferredLanguage', () => {
   })
 
   it('sans langue fournie, le compte est en français (rétrocompatibilité)', async () => {
-    const response = await client().request('POST', '/auth/register', {
+    const response = await client().signUp({
       email: `default-${Date.now()}@example.com`,
       password: 'motdepasse-test',
     })
@@ -152,7 +152,7 @@ describe('compte — preferredLanguage', () => {
 describe('bibliothèque — instantanés multilingues', () => {
   it('accepte et restitue les champs lang / synopsisLanguage', async () => {
     const device = client()
-    await device.request('POST', '/auth/register', {
+    await device.signUp({
       email: `snap-${Date.now()}@example.com`,
       password: 'motdepasse-test',
     })
@@ -169,7 +169,7 @@ describe('bibliothèque — instantanés multilingues', () => {
 describe('bibliothèque — annulation d’un choix du deck', () => {
   it('supprimer une œuvre oublie aussi son « skip » : elle redevient neuve', async () => {
     const device = client()
-    await device.request('POST', '/auth/register', {
+    await device.signUp({
       email: `undo-${Date.now()}@example.com`,
       password: 'motdepasse-test',
     })

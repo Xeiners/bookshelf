@@ -53,6 +53,14 @@ services:
       PUBLIC_API_BASE: ${PUBLIC_API_BASE:-/api}
       CATALOG_SYNC: ${CATALOG_SYNC:-on}
       MANGADEX_USER_AGENT: ${MANGADEX_USER_AGENT:-Bookshelf/0.1 (projet perso)}
+      # E-mails (code de vérification à l'inscription). Sans SMTP_HOST, les
+      # inscriptions sont refusées : aucun compte sans adresse vérifiée.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Bookshelf <no-reply@bookshelf.local>}
     networks:
       default:
         # Nom visé par le Nginx du front : unique, même si le front rejoint le

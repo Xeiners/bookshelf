@@ -9,11 +9,14 @@ export const API_BASE = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/$/, 
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
+  /** Données jointes par l'API (essais restants, délai avant un nouveau code…). */
+  readonly details: Record<string, unknown>
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, details: Record<string, unknown> = {}) {
     super(message)
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -50,11 +53,13 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const payload: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
-    const details = (payload as { error?: { code?: string; message?: string } } | null)?.error
+    const details = (payload as { error?: { code?: string; message?: string } & Record<string, unknown> } | null)?.error
+    const { code, message, ...extra } = details ?? {}
     throw new ApiError(
       response.status,
-      details?.code ?? 'http_error',
-      details?.message ?? `HTTP ${response.status}`,
+      typeof code === 'string' ? code : 'http_error',
+      typeof message === 'string' ? message : `HTTP ${response.status}`,
+      extra,
     )
   }
 

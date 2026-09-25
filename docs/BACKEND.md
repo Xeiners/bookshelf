@@ -198,12 +198,25 @@ continuent de fonctionner. Voir §7.
 
 | Méthode | Route | Corps | Réponse |
 | --- | --- | --- | --- |
-| POST | `/api/auth/register` | `{ email, password, displayName?, preferredLanguage?, initialData? }` | 201 `{ user, library }` + cookie |
+| POST | `/api/auth/register` | `{ email, password, displayName?, preferredLanguage? }` | 202 `{ email, expiresAt, resendAt }` — code envoyé, **aucun compte créé** |
+| POST | `/api/auth/register/verify` | `{ email, code, initialData? }` | 201 `{ user, library }` + cookie — le compte naît ici |
+| POST | `/api/auth/register/resend` | `{ email }` | `{ email, expiresAt, resendAt }` — nouveau code |
 | POST | `/api/auth/login` | `{ email, password, initialData? }` | `{ user, library }` + cookie |
 | GET | `/api/auth/me` | — | `{ user }` ou 401 |
 | PATCH | `/api/auth/me` | `{ displayName?, preferredLanguage? }` | `{ user }` |
 | POST | `/api/auth/logout` | — | 204, cookie effacé |
 
+- **Vérification de l'e-mail** (`modules/auth/verification.ts`, testée) : l'inscription
+  est mise en attente (`PendingRegistration`) et un code à 6 chiffres part par e-mail ;
+  le `User` n'est créé qu'avec le bon code (`emailVerifiedAt` renseigné). Code tiré par
+  `crypto.randomInt`, stocké en HMAC-SHA256 (clé JWT_SECRET, lié à l'e-mail), comparé à
+  temps constant. 15 min de validité, 5 essais par code (`code_invalid` renvoie
+  `remainingAttempts`, puis `code_locked`), 60 s entre deux envois (`resend_too_soon` +
+  `retryAfter`), 5 envois / heure / adresse. E-mail HTML + texte, FR/EN, code en cases 3 + 3.
+- **Transport des e-mails** (`lib/mailer.ts`) : SMTP dès que `SMTP_HOST` est défini ;
+  sinon la console en développement (le code s'affiche dans le terminal de l'API), une
+  boîte en mémoire en test, et rien en production : `register` répond 503
+  `email_unavailable` plutôt que de créer des comptes invérifiables.
 - **Session** : JWT HS256 valable 30 jours, dans le cookie `bookshelf_session`
   (`HttpOnly`, `SameSite=Lax`, `Secure` en production). Le JavaScript de la page
   ne peut pas le lire (XSS), et il n'est pas envoyé sur un POST inter-sites (CSRF).

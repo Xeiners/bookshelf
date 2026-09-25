@@ -62,6 +62,24 @@ Valeurs attendues :
 ⚠️ Ne pas changer `POSTGRES_PASSWORD` après le premier démarrage : la base,
 déjà initialisée dans le volume, garde l'ancien mot de passe.
 
+### E-mails (obligatoire pour les inscriptions)
+
+Chaque inscription est confirmée par un code envoyé par e-mail : **sans SMTP,
+les inscriptions sont refusées** (l'app l'annonce). Renseigner dans `.env` les
+accès d'un serveur SMTP (Brevo, Mailjet, Resend, OVH, Gmail avec mot de passe
+d'application…) :
+
+```bash
+SMTP_HOST=smtp-relay.brevo.com   # exemple
+SMTP_PORT=587                    # 465 : ajouter SMTP_SECURE=true
+SMTP_USER=…
+SMTP_PASS=…
+MAIL_FROM=Bookshelf <no-reply@ton-domaine.fr>   # domaine autorisé chez le fournisseur
+```
+
+Après modification : `docker compose up -d` (l'API redémarre avec les nouveaux réglages).
+Test : créer un compte depuis l'app ; en cas d'échec, `docker compose logs backend | grep mail`.
+
 ## 3. Lancer la pile
 
 ```bash

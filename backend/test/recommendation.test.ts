@@ -353,7 +353,7 @@ describe('deck — catalogue agrégé (intégration)', () => {
 
   it('compte : chaque swipe met à jour le profil (+3 / -2) et « Retour » l’annule', async () => {
     const account = client()
-    await account.request('POST', '/auth/register', { email: `reco-${Date.now()}@example.com`, password: 'motdepasse-test' })
+    await account.signUp({ email: `reco-${Date.now()}@example.com`, password: 'motdepasse-test' })
     const { prisma } = await import('../src/db.js')
     const me = (await account.request('GET', '/auth/me')).body.user
     const scores = async () =>

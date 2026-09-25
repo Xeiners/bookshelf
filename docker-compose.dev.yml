@@ -66,6 +66,13 @@ services:
       CORS_ORIGINS: http://localhost:${DEV_WEB_PORT:-5173}
       CATALOG_SYNC: ${CATALOG_SYNC:-on}
       MANGADEX_USER_AGENT: ${MANGADEX_USER_AGENT:-Bookshelf/0.1 (projet perso)}
+      # E-mails : sans SMTP_HOST, le code de vérification s'affiche dans les
+      # journaux de l'API (docker compose -f docker-compose.dev.yml logs -f backend).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Bookshelf <no-reply@bookshelf.local>}
       # Fichiers montés depuis Windows / macOS : pas d'événements inotify, on scrute.
       CHOKIDAR_USEPOLLING: "true"
     # Clients Prisma (SQLite + PostgreSQL), migrations, puis l'API en rechargement à chaud.

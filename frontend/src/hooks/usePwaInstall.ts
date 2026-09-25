@@ -11,6 +11,7 @@ export type InstallSupport =
   | 'installed' // déjà lancée en mode application
   | 'ready' // le navigateur nous a donné la main : bouton actif
   | 'ios' // iOS/iPadOS : pas d'API, il faut passer par le menu Partager
+  | 'insecure' // site en HTTP (hors localhost) : aucun navigateur n'installe, il faut HTTPS
   | 'unsupported' // navigateur sans installation (Firefox desktop, etc.)
 
 export interface PwaInstall {
@@ -83,9 +84,12 @@ export function usePwaInstall(): PwaInstall {
     ? 'installed'
     : deferred
       ? 'ready'
-      : isIosSafari()
-        ? 'ios'
-        : 'unsupported'
+      : // Contexte non sécurisé : ni Service Worker ni installation, quel que soit le navigateur.
+        typeof window !== 'undefined' && !window.isSecureContext
+        ? 'insecure'
+        : isIosSafari()
+          ? 'ios'
+          : 'unsupported'
 
   return { support, install }
 }

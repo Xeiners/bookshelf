@@ -81,6 +81,21 @@ export function installMangadexMock(): void {
 
 export interface TestClient {
   request: (method: string, route: string, body?: unknown) => Promise<{ status: number; body: any }>
+  /**
+   * Inscription complète, comme un utilisateur : formulaire, code lu dans
+   * l'e-mail (boîte en mémoire), puis vérification. Renvoie la réponse de la
+   * vérification (201 + session), ou celle de la 1ʳᵉ étape si elle échoue.
+   */
+  signUp: (body: { email: string; password: string; initialData?: unknown; [key: string]: unknown }) => Promise<{ status: number; body: any }>
+}
+
+/** Dernier code envoyé à une adresse (e-mails de la boîte en mémoire). */
+export async function lastCodeFor(email: string): Promise<string> {
+  const { outbox } = await import('../src/lib/mailer.js')
+  const mail = [...outbox].reverse().find((message) => message.to === email.trim().toLowerCase())
+  const match = mail?.text.match(/\b(\d{3}) (\d{3})\b/)
+  if (!match) throw new Error(`Aucun code envoyé à ${email}`)
+  return match[1]! + match[2]!
 }
 
 export async function startServer() {
@@ -92,20 +107,27 @@ export async function startServer() {
   /** Chaque client a son propre cookie : un « appareil ». */
   const client = (): TestClient => {
     let cookie = ''
+    const request: TestClient['request'] = async (method, route, body) => {
+      const response = await fetch(`${base}${route}`, {
+        method,
+        headers: {
+          ...(body !== undefined && { 'Content-Type': 'application/json' }),
+          ...(cookie && { Cookie: cookie }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+      const setCookie = response.headers.get('set-cookie')
+      if (setCookie) cookie = setCookie.split(';')[0] ?? ''
+      const text = await response.text()
+      return { status: response.status, body: text ? JSON.parse(text) : null }
+    }
     return {
-      async request(method, route, body) {
-        const response = await fetch(`${base}${route}`, {
-          method,
-          headers: {
-            ...(body !== undefined && { 'Content-Type': 'application/json' }),
-            ...(cookie && { Cookie: cookie }),
-          },
-          body: body === undefined ? undefined : JSON.stringify(body),
-        })
-        const setCookie = response.headers.get('set-cookie')
-        if (setCookie) cookie = setCookie.split(';')[0] ?? ''
-        const text = await response.text()
-        return { status: response.status, body: text ? JSON.parse(text) : null }
+      request,
+      async signUp({ initialData, ...form }) {
+        const started = await request('POST', '/auth/register', form)
+        if (started.status !== 202) return started
+        const code = await lastCodeFor(form.email)
+        return request('POST', '/auth/register/verify', { email: form.email, code, initialData })
       },
     }
   }

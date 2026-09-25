@@ -4,7 +4,13 @@ import { persist } from 'zustand/middleware'
 import { getT } from '../i18n'
 import { outbox } from '../lib/syncOutbox'
 import { ApiError } from '../services/api'
-import { authApi, libraryApi, type AuthUser, type Credentials } from '../services/accountApi'
+import {
+  authApi,
+  libraryApi,
+  type AuthUser,
+  type Credentials,
+  type PendingRegistration,
+} from '../services/accountApi'
 import { librarySnapshot, useLibraryStore } from './useLibraryStore'
 import { useOracleStore } from './useOracleStore'
 import { useSettingsStore } from './useSettingsStore'
@@ -18,7 +24,11 @@ interface AuthState {
 
   /** Au démarrage : valide la session, vide l'outbox, récupère la bibliothèque du compte. */
   bootstrap: () => Promise<void>
-  register: (input: Credentials & { displayName?: string }) => Promise<void>
+  /** Inscription, étape 1 : un code part par e-mail (le compte n'existe pas encore). */
+  startRegistration: (input: Credentials & { displayName?: string }) => Promise<PendingRegistration>
+  /** Étape 2 : le bon code crée le compte et ouvre la session. */
+  confirmRegistration: (email: string, code: string) => Promise<void>
+  resendCode: (email: string) => Promise<PendingRegistration>
   login: (input: Credentials) => Promise<void>
   logout: () => Promise<void>
 }
@@ -85,15 +95,20 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async ({ email, password, displayName }) => {
-        const { user, library } = await authApi.register({
+      startRegistration: ({ email, password, displayName }) =>
+        authApi.register({
           email,
           password,
           displayName: displayName?.trim() || undefined,
-          // La langue choisie en invité devient celle du compte.
+          // La langue choisie en invité devient celle du compte (et celle de l'e-mail).
           preferredLanguage: useSettingsStore.getState().language,
-          initialData: librarySnapshot(),
-        })
+        }),
+
+      resendCode: (email) => authApi.resendCode(email),
+
+      confirmRegistration: async (email, code) => {
+        // Bibliothèque invitée prise AU MOMENT du code : les swipes faits entre-temps suivent.
+        const { user, library } = await authApi.verifyRegistration({ email, code, initialData: librarySnapshot() })
         // L'API a fusionné l'état invité : sa réponse fait désormais foi.
         outbox.clear()
         useLibraryStore.getState().replaceAll(library)

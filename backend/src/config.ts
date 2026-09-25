@@ -24,9 +24,31 @@ const EnvSchema = z.object({
   TRUST_PROXY: z.string().default('loopback'),
   /** Cookie de session `Secure` (HTTPS obligatoire). Par défaut : en production. */
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
+
+  /*
+   * E-mails (code de vérification à l'inscription). SMTP dès que SMTP_HOST est
+   * renseigné. Sinon : la console en développement (le code s'affiche dans le
+   * terminal de l'API), une boîte en mémoire en test, et RIEN en production —
+   * les inscriptions sont alors refusées plutôt que de créer des comptes
+   * qu'aucun code ne pourrait valider.
+   */
+  MAIL_TRANSPORT: z.enum(['smtp', 'console', 'memory']).optional(),
+  SMTP_HOST: z.string().trim().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  /** `true` : TLS dès la connexion (port 465). Par défaut : selon le port. */
+  SMTP_SECURE: z.enum(['true', 'false']).optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  /** Expéditeur affiché, ex. « Bookshelf <no-reply@exemple.fr> ». */
+  MAIL_FROM: z.string().default('Bookshelf <no-reply@bookshelf.local>'),
 })
 
-const env = EnvSchema.parse(process.env)
+/*
+ * Une variable VIDE vaut absente, donc prend sa valeur par défaut. Docker
+ * Compose transmet `VAR=` (ou `${VAR:-}`) comme une chaîne vide : sans ce
+ * filtre, `SMTP_SECURE=` ou `COOKIE_SECURE=` feraient échouer le démarrage.
+ */
+const env = EnvSchema.parse(Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== '')))
 const isProduction = env.NODE_ENV === 'production'
 
 /**
@@ -39,6 +61,18 @@ function parseTrustProxy(value: string): boolean | number | string {
   if (value === 'true') return true
   if (value === 'false') return false
   return /^\d+$/.test(value) ? Number(value) : value
+}
+
+/** `none` : aucun moyen d'envoyer un e-mail (production sans SMTP) → inscriptions refusées. */
+function resolveMailTransport(): 'smtp' | 'console' | 'memory' | 'none' {
+  if (env.MAIL_TRANSPORT) return env.MAIL_TRANSPORT
+  if (env.SMTP_HOST) return 'smtp'
+  if (env.NODE_ENV === 'test') return 'memory'
+  if (isProduction) {
+    console.warn('[config] SMTP_HOST absent : envoi d’e-mails impossible, les inscriptions seront refusées.')
+    return 'none'
+  }
+  return 'console'
 }
 
 function resolveJwtSecret(): string {
@@ -70,4 +104,15 @@ export const config = {
   /** Nombre de sauts (`1`) ou liste de sous-réseaux, tel qu'Express l'attend. */
   trustProxy: parseTrustProxy(env.TRUST_PROXY),
   cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : isProduction,
+  mail: {
+    transport: resolveMailTransport(),
+    from: env.MAIL_FROM,
+    smtp: {
+      host: env.SMTP_HOST ?? '',
+      port: env.SMTP_PORT,
+      secure: env.SMTP_SECURE ? env.SMTP_SECURE === 'true' : env.SMTP_PORT === 465,
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
+    },
+  },
 } as const

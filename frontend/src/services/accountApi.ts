@@ -30,16 +30,30 @@ interface SessionResponse {
   library: LibraryPayload
 }
 
+/** Inscription en attente de son code (aucun compte n'existe encore). */
+export interface PendingRegistration {
+  email: string
+  /** Fin de validité du code (ms). */
+  expiresAt: number
+  /** Premier renvoi possible (ms). */
+  resendAt: number
+}
+
 /* ---- Auth -------------------------------------------------------------- */
 
 export const authApi = {
   me: () => api<{ user: AuthUser }>('/auth/me'),
 
-  /** `initialData` = état invité local, fusionné dans le compte par l'API. */
-  register: (
-    input: Credentials & { displayName?: string; preferredLanguage: Language; initialData: LibraryPayload },
-  ) =>
-    api<SessionResponse>('/auth/register', { method: 'POST', body: input }),
+  /** Étape 1 : envoie un code par e-mail. AUCUN compte n'est créé ici. */
+  register: (input: Credentials & { displayName?: string; preferredLanguage: Language }) =>
+    api<PendingRegistration>('/auth/register', { method: 'POST', body: input }),
+
+  /** Étape 2 : le bon code crée le compte. `initialData` = état invité, fusionné par l'API. */
+  verifyRegistration: (input: { email: string; code: string; initialData: LibraryPayload }) =>
+    api<SessionResponse>('/auth/register/verify', { method: 'POST', body: input }),
+
+  resendCode: (email: string) =>
+    api<PendingRegistration>('/auth/register/resend', { method: 'POST', body: { email } }),
 
   login: (input: Credentials & { initialData: LibraryPayload }) =>
     api<SessionResponse>('/auth/login', { method: 'POST', body: input }),

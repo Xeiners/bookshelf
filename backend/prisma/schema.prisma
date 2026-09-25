@@ -35,6 +35,9 @@ model User {
   /// Jours de tirage d'affilée, et record.
   oracleStreak  Int      @default(0)
   oracleBest    Int      @default(0)
+  /// Adresse confirmée par le code envoyé à l'inscription. `null` : comptes
+  /// créés avant la vérification par e-mail.
+  emailVerifiedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -139,4 +142,25 @@ model CatalogWork {
 model CatalogSync {
   id          String   @id
   completedAt DateTime
+}
+
+/// Inscription en attente de son code de vérification. Le compte (`User`) n'est
+/// créé qu'une fois le code saisi : sans code, pas de compte. Expire seule.
+model PendingRegistration {
+  /// Toujours en minuscules (normalisé par l'API).
+  email             String   @id
+  passwordHash      String
+  displayName       String?
+  preferredLanguage String   @default("fr")
+  /// HMAC-SHA256 du code (jamais le code en clair).
+  codeHash          String
+  expiresAt         DateTime
+  /// Codes faux saisis pour le code courant.
+  attempts          Int      @default(0)
+  /// Codes envoyés pour cette inscription (plafonnés).
+  sends             Int      @default(1)
+  lastSentAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  @@index([expiresAt])
 }

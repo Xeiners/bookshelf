@@ -106,6 +106,9 @@ export function InstallCard() {
           </ol>
         )}
 
+        {support === 'insecure' && (
+          <p className="mt-4 rounded-2xl bg-gold/[0.08] p-3.5 text-[11px] leading-relaxed text-gold/90">{t.install.insecure}</p>
+        )}
         {support === 'unsupported' && (
           <p className="mt-4 rounded-2xl bg-cream/[0.04] p-3.5 text-[11px] leading-relaxed text-mist">
             {t.install.unsupported}
