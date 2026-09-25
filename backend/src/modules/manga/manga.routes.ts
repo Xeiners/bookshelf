@@ -116,7 +116,9 @@ coverRouter.get('/:mangaId/:fileName', async (req, res) => {
   const size = Number(CoverQuery.parse(req.query).size) as 256 | 512
 
   const image = await coverCache.getOrLoad(`${mangaId}/${fileName}/${size}`, async () => {
-    const upstream = await fetchCoverImage(mangaId, fileName, size)
+    const upstream = await fetchCoverImage(mangaId, fileName, size).catch(() => {
+      throw notFound('Couverture indisponible.')
+    })
     if (!upstream.ok) throw notFound('Couverture indisponible.')
     return {
       body: Buffer.from(await upstream.arrayBuffer()),

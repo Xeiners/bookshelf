@@ -13,13 +13,13 @@
  *  - reste de /api   → réseau uniquement (session, bibliothèque : jamais périmés)
  */
 
-const VERSION = 'v2'
+const VERSION = 'v3'
 const SHELL_CACHE = `bookshelf-shell-${VERSION}`
 const ASSET_CACHE = `bookshelf-assets-${VERSION}`
 const IMAGE_CACHE = `bookshelf-covers-${VERSION}`
 
 const SHELL_URLS = ['./', './index.html', './manifest.webmanifest', './favicon.svg']
-const MAX_IMAGES = 80
+const MAX_IMAGES = 200
 
 /** Couvertures des anciennes entrées de bibliothèque. */
 const LEGACY_COVERS_HOST = 'covers.openlibrary.org'
@@ -87,17 +87,27 @@ async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName)
   const cached = await cache.match(request)
 
-  const network = fetch(request)
-    .then((response) => {
-      if (response.ok) {
-        cache.put(request, response.clone())
-        trimCache(cacheName, MAX_IMAGES)
-      }
-      return response
-    })
-    .catch(() => cached)
+  const network = fetch(request).then((response) => {
+    // Seules les vraies images sont gardées : jamais une erreur, ni une
+    // réponse opaque (sans statut lisible, et très coûteuse en quota).
+    const isImage = response.headers.get('content-type')?.startsWith('image/')
+    if (response.ok && response.type !== 'opaque' && isImage) {
+      cache
+        .put(request, response.clone())
+        .then(() => trimCache(cacheName, MAX_IMAGES))
+        .catch(() => {})
+    }
+    return response
+  })
 
-  return cached ?? network
+  if (cached) {
+    // Revalidation en arrière-plan : un échec ici ne concerne pas l'image affichée.
+    network.catch(() => {})
+    return cached
+  }
+  // Pas de copie locale : la réponse (ou l'erreur) du réseau telle quelle.
+  // Avant, un échec réseau résolvait `respondWith` avec `undefined`.
+  return network
 }
 
 self.addEventListener('fetch', (event) => {

@@ -62,13 +62,26 @@ export async function mangadexGet<T>(path: string, params: Record<string, QueryV
   return (await response.json()) as T
 }
 
-/** Téléchargement brut d'une couverture (pas de throttle : CDN distinct). */
+/**
+ * Téléchargement brut d'une couverture (pas de throttle : CDN distinct).
+ * Une seconde tentative couvre les ratés passagers du CDN (coupure, 5xx,
+ * délai dépassé) ; un 404 est définitif et renvoyé tel quel.
+ */
 export async function fetchCoverImage(mangaId: string, fileName: string, size: 256 | 512) {
   const url = `${MANGADEX_UPLOADS}/covers/${mangaId}/${fileName}.${size}.jpg`
-  return fetch(url, {
-    headers: { 'User-Agent': config.mangadexUserAgent },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  })
+  const attempt = () =>
+    fetch(url, {
+      headers: { 'User-Agent': config.mangadexUserAgent },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+
+  try {
+    const response = await attempt()
+    if (response.status < 500) return response
+  } catch {
+    // Réseau ou délai : on retente une fois.
+  }
+  return attempt()
 }
 
 /* ---- Types de réponse (sous-ensemble utilisé) --------------------------- */
