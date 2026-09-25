@@ -1,0 +1,15 @@
+# Contexte (racine du monorepo) pour frontend/Dockerfile : seulement le nécessaire.
+*
+!package.json
+!package-lock.json
+!backend/package.json
+!frontend
+
+# Jamais, même dans les dossiers autorisés
+**/node_modules
+**/dist
+**/.vite
+**/.env
+**/.env.*
+frontend/scripts/screenshots.mjs
+frontend/Dockerfile*

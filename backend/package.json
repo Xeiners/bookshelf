@@ -1,0 +1,41 @@
+{
+  "name": "@bookshelf/backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "predev": "prisma migrate deploy",
+    "dev": "node --watch --watch-preserve-output --import tsx src/index.ts",
+    "build": "npm run db:generate:all && tsc -p tsconfig.build.json",
+    "prestart": "prisma migrate deploy",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate dev && prisma generate && node scripts/prisma-postgres.mjs",
+    "db:studio": "prisma studio",
+    "test": "node scripts/prisma-postgres.mjs --check && node --import tsx --test --test-reporter=spec test/*.test.ts",
+    "db:generate:all": "prisma generate --schema prisma/schema.prisma && prisma generate --schema prisma/postgres/schema.prisma",
+    "db:schema:pg": "node scripts/prisma-postgres.mjs"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "jose": "^6.2.12",
+    "prisma": "7.10.0",
+    "zod": "^4.6.5"
+  },
+  "optionalDependencies": {
+    "@prisma/adapter-better-sqlite3": "7.10.0"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

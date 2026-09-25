@@ -1,0 +1,99 @@
+# Bookshelf — pile de DÉVELOPPEMENT, avec rechargement à chaud.
+#
+#   cp .env.example .env      # POSTGRES_PASSWORD et JWT_SECRET suffisent
+#   npm run docker:dev        # = docker compose -f docker-compose.dev.yml up --build
+#   → front Vite  http://localhost:5173   (DEV_WEB_PORT)
+#   → API         http://localhost:5000   (DEV_API_PORT)
+#   → PostgreSQL  localhost:5432          (DEV_DB_PORT, pour un client SQL / Prisma Studio)
+#
+# Le code source est monté depuis l'hôte : une modification recharge le front
+# (Vite, HMR) ou redémarre l'API (tsx watch). Les node_modules restent dans des
+# volumes Docker : dépendances Linux, jamais mélangées à celles de l'hôte.
+#
+# Alternative plus légère : seulement la base, et `npm run dev` sur l'hôte :
+#   docker compose -f docker-compose.dev.yml up -d postgres
+#   (puis DATABASE_URL=postgresql://bookshelf:<mot de passe>@localhost:5432/bookshelf dans backend/.env)
+
+name: bookshelf-dev
+
+x-node-modules: &node-modules
+  - .:/app
+  - node_modules:/app/node_modules
+  - backend_node_modules:/app/backend/node_modules
+  - frontend_node_modules:/app/frontend/node_modules
+
+services:
+  # Installation unique des dépendances (Linux) dans les volumes, puis sortie.
+  deps:
+    image: node:22-alpine
+    working_dir: /app
+    volumes: *node-modules
+    command: sh -c "npm ci --no-audit --no-fund"
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookshelf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Renseigner POSTGRES_PASSWORD dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-bookshelf}
+    ports:
+      - "${DEV_DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: dev
+    depends_on:
+      deps:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    volumes: *node-modules
+    working_dir: /app/backend
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bookshelf}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bookshelf}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-}
+      CORS_ORIGINS: http://localhost:${DEV_WEB_PORT:-5173}
+      CATALOG_SYNC: ${CATALOG_SYNC:-on}
+      MANGADEX_USER_AGENT: ${MANGADEX_USER_AGENT:-Bookshelf/0.1 (projet perso)}
+      # Fichiers montés depuis Windows / macOS : pas d'événements inotify, on scrute.
+      CHOKIDAR_USEPOLLING: "true"
+    # Clients Prisma (SQLite + PostgreSQL), migrations, puis l'API en rechargement à chaud.
+    command: >
+      sh -c "npm run db:generate:all && npx prisma migrate deploy &&
+             exec npx tsx watch --clear-screen=false src/index.ts"
+    ports:
+      - "${DEV_API_PORT:-5000}:5000"
+
+  frontend:
+    image: node:22-alpine
+    depends_on:
+      deps:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+    volumes: *node-modules
+    working_dir: /app/frontend
+    environment:
+      # Le proxy /api de Vite vise le conteneur de l'API.
+      API_PROXY_TARGET: http://backend:5000
+      VITE_USE_POLLING: "true"
+    command: sh -c "exec npx vite --host 0.0.0.0 --port 5173"
+    ports:
+      - "${DEV_WEB_PORT:-5173}:5173"
+
+volumes:
+  postgres_dev_data:
+  node_modules:
+  backend_node_modules:
+  frontend_node_modules:

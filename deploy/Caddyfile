@@ -1,0 +1,64 @@
+# Bookshelf — bloc à AJOUTER au Caddyfile global du VPS (souvent /etc/caddy/Caddyfile).
+#
+# Accès par l'IP publique, en HTTP, sans nom de domaine. Remplacer YOUR_VPS_IP
+# par l'IP du serveur (ex. 203.0.113.10), puis : sudo caddy reload --config /etc/caddy/Caddyfile
+#
+# La pile Docker écoute sur 127.0.0.1:8082 (variable PORT du .env) : injoignable
+# depuis Internet, seul Caddy y accède. Guide complet : docs/DEPLOY-VPS.md.
+#
+# Pas de certificat HTTPS possible pour une IP nue avec Let's Encrypt : le
+# préfixe `http://` le dit explicitement à Caddy (pas de tentative de certificat,
+# pas de redirection HTTPS forcée). D'où COOKIE_SECURE=false dans le .env.
+
+# ─── Option A (recommandée) : un port dédié ─────────────────────────────────────────
+# → http://YOUR_VPS_IP:8080
+# Aucun conflit avec les autres sites déjà servis sur 80 / 443.
+# Ouvrir le port au pare-feu : sudo ufw allow 8080/tcp
+http://YOUR_VPS_IP:8080 {
+	reverse_proxy 127.0.0.1:8082 {
+		# En-têtes de proxy. Caddy pose déjà X-Forwarded-For / -Proto / -Host, et
+		# IGNORE ceux qu'enverrait un client : ils ne peuvent pas être falsifiés.
+		# Écrits ici explicitement pour la lisibilité ; X-Real-IP, lui, n'est pas posé d'office.
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
+
+	# Journal d'accès dédié (facultatif) : sudo tail -f /var/log/caddy/bookshelf.log
+	log {
+		output file /var/log/caddy/bookshelf.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
+
+# ─── Option B : l'IP nue, sur le port 80 ─────────────────────────────────────────────
+# → http://YOUR_VPS_IP
+# Possible si aucun autre bloc ne capte TOUT le port 80 (`:80 { … }` ou `http:// { … }`) :
+# Caddy aiguille par l'hôte demandé, les autres sites (par nom de domaine) ne
+# sont pas touchés. Utiliser A OU B, pas les deux (même application).
+#
+# http://YOUR_VPS_IP {
+# 	reverse_proxy 127.0.0.1:8082 {
+# 		header_up X-Real-IP {remote_host}
+# 		header_up X-Forwarded-For {remote_host}
+# 		header_up X-Forwarded-Proto {scheme}
+# 		header_up X-Forwarded-Host {host}
+# 	}
+# }
+
+# ─── Plus tard, avec un nom de domaine ─────────────────────────────────────────────────
+# Remplacer l'adresse du bloc par le domaine (HTTPS automatique), puis dans le .env :
+# COOKIE_SECURE=true et APP_URL=https://bookshelf.exemple.fr, et relancer la pile.
+#
+# bookshelf.exemple.fr {
+# 	reverse_proxy 127.0.0.1:8082 {
+# 		header_up X-Real-IP {remote_host}
+# 	}
+# }
+#
+# ⚠️ Pas de sous-dossier (http://YOUR_VPS_IP/bookshelf) : l'app utilise des chemins
+# absolus (/api, /assets, /sw.js). La servir sous un préfixe demanderait de la
+# reconstruire avec une base différente — un port dédié (A) est plus simple et plus sûr.

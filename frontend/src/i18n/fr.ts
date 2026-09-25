@@ -1,0 +1,382 @@
+/**
+ * Dictionnaire de référence (français). `en.ts` doit en reproduire exactement
+ * la forme : le type `Dictionary` est dérivé d'ici, et TypeScript refuse toute
+ * clé manquante ou en trop.
+ *
+ * Les textes variables sont des fonctions : interpolation et pluriels restent
+ * typés, sans moteur de gabarits.
+ */
+const plural = (count: number, one: string, many: string) => (count > 1 ? many : one)
+
+export const fr = {
+  locale: 'fr-FR',
+
+  meta: {
+    description: 'Bookshelf — ta bibliothèque de mangas et manhwas. Swipe, découvre, lis.',
+  },
+
+  common: {
+    close: 'Fermer',
+    retry: 'Réessayer',
+  },
+
+  language: {
+    label: 'Langue',
+    switchTo: (name: string) => `Passer en ${name}`,
+    /** Nom seul (libellé, titre) : majuscule. */
+    names: { fr: 'Français', en: 'Anglais' },
+    /** Nom en cours de phrase : « disponible en anglais ». */
+    inSentence: { fr: 'français', en: 'anglais' },
+  },
+
+  nav: {
+    label: 'Navigation principale',
+    discover: 'Découvrir',
+    oracle: 'Oracle',
+    search: 'Recherche',
+    library: 'Ma biblio',
+    profile: 'Profil',
+  },
+
+  oracle: {
+    introEyebrow: 'Rituel quotidien',
+    introTitle: 'Le tirage de l’ombre',
+    introBody:
+      'Trois cartes scellées, trois indices. Retourne-les dans l’ordre : l’ambiance, le rythme, puis la pépite qui t’attend.',
+    draw: 'Tirer mes cartes',
+    shuffling: 'Les cartes se mélangent…',
+    offline: 'Hors-ligne : les cartes puisent dans le jeu de secours.',
+    cardNames: { mood: 'L’Ambiance', pace: 'Le Rythme', pepite: 'La Pépite' },
+    hints: {
+      mood: 'Retourne la première carte : elle fixe l’ambiance.',
+      pace: 'La deuxième donne le rythme de ta lecture.',
+      pepite: 'La dernière garde ta pépite. À toi.',
+      done: 'Les cartes ont parlé.',
+    },
+    cardAria: (position: string, name: string) => `Carte ${position} — ${name}. Face cachée : retourner.`,
+    sealed: (name: string) => `${name} — scellée : retourne d’abord la carte précédente.`,
+    moods: {
+      'action': { name: 'Action', line: 'Le sang bat plus vite. Ce soir, on se bat.' },
+      'romance': { name: 'Romance', line: 'Un regard, un doute, un cœur qui s’emballe.' },
+      'dark-fantasy': { name: 'Dark fantasy', line: 'La magie a un prix, et quelqu’un va le payer.' },
+      'sci-fi': { name: 'Science-fiction', line: 'Demain arrive plus tôt que prévu.' },
+      'comedy': { name: 'Comédie', line: 'Les astres veulent te voir rire.' },
+      'mystery': { name: 'Mystère', line: 'Une porte fermée, et la clé est ailleurs.' },
+      'slice-of-life': { name: 'Tranche de vie', line: 'La douceur des jours ordinaires.' },
+      'psychological': { name: 'Psychologique', line: 'Le vrai combat se joue dans la tête.' },
+      'martial-arts': { name: 'Arts martiaux', line: 'Mille heures d’entraînement pour un seul coup.' },
+      'isekai': { name: 'Isekai', line: 'Un autre monde t’ouvre ses portes.' },
+      'horror': { name: 'Horreur', line: 'Garde la lumière allumée, cette nuit.' },
+      'sports': { name: 'Sport', line: 'La dernière seconde décide de tout.' },
+      'drama': { name: 'Drame', line: 'Des larmes qui valent chaque page.' },
+      'supernatural': { name: 'Surnaturel', line: 'Ce qui rôde entre les mondes te regarde.' },
+      'adventure': { name: 'Aventure', line: 'La carte s’arrête ici. Toi, non.' },
+    },
+    paces: {
+      short: { name: 'Pépite courte', line: 'Terminée, et lue en une soirée.' },
+      epic: { name: 'Saga épique', line: 'Des centaines de chapitres pour s’y perdre.' },
+      completed: { name: 'Déjà terminée', line: 'Une fin t’attend, sans suspense de parution.' },
+      ongoing: { name: 'En cours de parution', line: 'L’histoire s’écrit encore, chapitre après chapitre.' },
+    },
+    rank: (tier: string) => `Rang ${tier}`,
+    resultEyebrow: 'Ta combinaison du jour',
+    relaxed: 'Peu de titres de ce format : l’ambiance a eu le dernier mot.',
+    companions: 'Dans la même veine',
+    addWishlist: 'Ajouter à ma wishlist',
+    inWishlist: 'Dans ta wishlist',
+    readNow: 'Lire maintenant',
+    readingNow: (title: string) => `« ${title} » passe en lecture`,
+    nextDraw: (time: string) => `Prochain tirage dans ${time}`,
+    streak: (days: number) => `${days} ${plural(days, 'jour', 'jours')} d’affilée`,
+    streakBest: (days: number) => `Record : ${days}`,
+    streakNone: 'Commence ta série aujourd’hui',
+    share: 'Partager mon tirage',
+    reroll: 'Relancer l’oracle',
+    shareTitle: 'Mon tirage du jour',
+    shareText: (title: string, mood: string, pace: string, streak: number) =>
+      `Mon tirage Bookshelf du jour : ${mood} × ${pace} → « ${title} ». Série : ${streak} ${plural(streak, 'jour', 'jours')} ⚡`,
+    shareReady: 'Tirage partagé',
+    shareSaved: 'Image enregistrée, texte copié',
+    shareFailed: 'Impossible de préparer l’image',
+  },
+
+  banner: {
+    message: 'Connecte-toi pour conserver tes données',
+    detail: 'pour l’instant, elles ne vivent que sur cet appareil.',
+    dismiss: 'Masquer ce message',
+  },
+
+  sidebar: {
+    collapse: 'Replier la barre latérale',
+    expand: 'Déplier la barre latérale',
+    library: 'Ma bibliothèque',
+    continueReading: 'Reprendre la lecture',
+    shortcut: (keys: string) => `Raccourci : ${keys}`,
+  },
+
+  header: {
+    discover: { eyebrow: 'Swipe & Match', title: 'Découverte' },
+    oracle: { eyebrow: 'Tirage du jour', title: 'Oracle' },
+    search: { eyebrow: 'Tout le catalogue', title: 'Recherche' },
+    library: { eyebrow: 'Mes lectures', title: 'Bibliothèque' },
+    profile: { eyebrow: 'Mon espace', title: 'Profil' },
+  },
+
+  splash: {
+    eyebrow: 'Bibliothèque vivante',
+    tagline: 'Swipe à droite ce qui t’attire, à gauche ce qui attendra.',
+  },
+
+  shelves: {
+    pickerLabel: 'Étagères thématiques',
+    names: {
+      'pour-toi': 'Pour toi',
+      'tendances': 'Tendances',
+      'manga': 'Manga',
+      'manhwa': 'Manhwa',
+      'action': 'Action',
+      'romance': 'Romance',
+      'fantasy': 'Fantasy',
+      'isekai': 'Isekai',
+      'tranche-de-vie': 'Tranche de vie',
+      'comedie': 'Comédie',
+      'mystere': 'Mystère',
+      'horreur': 'Horreur',
+      'psychologique': 'Psychologique',
+      'arts-martiaux': 'Arts martiaux',
+      'sport': 'Sport',
+    },
+  },
+
+  status: {
+    read: 'Lus',
+    reading: 'En cours',
+    wishlist: 'Wishlist',
+    filterLabel: 'Filtrer par statut',
+  },
+
+  kind: {
+    manga: 'Manga',
+    manhwa: 'Manhwa',
+    manhua: 'Manhua',
+    book: 'Livre',
+  },
+
+  publication: {
+    ongoing: 'En cours',
+    completed: 'Terminé',
+    hiatus: 'En pause',
+    cancelled: 'Abandonné',
+  },
+
+  book: {
+    unknownAuthor: 'Auteur inconnu',
+    fallbackCategory: 'Découverte',
+    coverAlt: (title: string) => `Couverture de ${title}`,
+    noSynopsis: 'Aucun résumé disponible pour ce titre.',
+    favorite: 'Ajouter aux favoris',
+    unfavorite: 'Retirer des favoris',
+    favorited: 'Ajouté à tes coups de cœur',
+    yourRating: 'Ta note',
+    rateLabel: 'Ta note sur 5, par demi-étoiles',
+    rateHint: 'Touche une étoile — sa moitié gauche vaut une demi-étoile.',
+    clearRating: 'Effacer',
+    ratedHint: 'Ta note affine tes recommandations (Découvrir, Recherche).',
+    /** Virgule décimale, à la française. */
+    ratingValue: (value: number) => `${String(value).replace('.', ',')} / 5`,
+    ratingShort: (value: number) => String(value).replace('.', ','),
+    starsLabel: (value: number) => `${String(value).replace('.', ',')} étoile${value > 1 ? 's' : ''}`,
+    /** Le résumé n'existe pas dans la langue choisie : on l'annonce. */
+    synopsisFallback: (language: string) => `Résumé disponible en ${language} uniquement`,
+    viewOn: (source: string) => `Voir sur ${source}`,
+    minutes: (count: number) => `${count} min`,
+    hours: (count: number) => `${count} h`,
+    chaptersShort: (count: number) => `${count} ch.`,
+    pagesShort: (count: number) => `${count} p.`,
+    pagesProgress: (done: number, total: number) => `≈ ${done} / ${total} p.`,
+    progress: 'Progression',
+    stepBack: 'Reculer de 10 %',
+    stepForward: 'Avancer de 10 %',
+    movedTo: (status: string) => `Classé dans « ${status} »`,
+    remove: 'Retirer de ma bibliothèque',
+    removed: 'Retiré de ta bibliothèque',
+  },
+
+  deck: {
+    readShort: 'Lu',
+    alreadyRead: 'Je l’ai déjà lu',
+    readHint: 'Déjà lu — ou glisse la carte vers le haut',
+    skip: 'Passer ce titre',
+    like: 'Ajouter à la wishlist',
+    open: 'Ouvrir la fiche',
+    stampLike: 'Wishlist',
+    stampSkip: 'Passer',
+    stampRead: 'Lu',
+    match: (percent: number) => `${percent} % de match`,
+    matchHint: 'Compatibilité avec tes goûts, calculée d’après tes swipes',
+    discovery: 'À découvrir',
+    discoveryHint: 'Un genre que tu explores peu, parmi les mieux notés',
+    originLabel: 'Origine',
+    filters: 'Filtres',
+    filtersActive: (origin: string) => `Filtres (${origin})`,
+    origins: { all: 'Tous', manga: 'Manga', manhwa: 'Manhwa', manhua: 'Manhua' },
+    undo: 'Annuler le dernier choix',
+    undoHint: 'Retour : annuler le dernier choix (Ctrl + Z)',
+    exhaustedTitle: 'Étagère épuisée',
+    exhaustedBody: 'Tu as passé en revue tout ce rayon. Change de thème ou relance une fournée.',
+    newSelection: 'Nouvelle sélection',
+    offline: 'Mode hors-ligne — jeu de secours local',
+    reload: 'Relancer une sélection',
+    addedToWishlist: (title: string) => `« ${title} » rejoint ta wishlist`,
+  },
+
+  library: {
+    showGrid: 'Afficher en grille',
+    showShelf: 'Afficher en vitrine',
+    featured: 'À la une',
+    resume: 'Reprendre',
+    startReading: 'Commencer',
+    details: 'Voir la fiche',
+    /** Espace insécable fine avant « % », à la française. */
+    percent: (value: number) => `${value} %`,
+    favorites: 'Favoris',
+    empty: {
+      favorites: {
+        title: 'Aucun coup de cœur',
+        body: 'Touche le cœur sur la fiche d’un titre pour le retrouver ici.',
+      },
+      read: {
+        title: 'Aucun titre terminé',
+        body: 'Marque une lecture comme terminée depuis sa fiche et elle atterrira ici.',
+      },
+      reading: {
+        title: 'Pas de lecture en cours',
+        body: 'Ouvre un titre de ta wishlist puis passe-le en « En cours ».',
+      },
+      wishlist: {
+        title: 'Wishlist vide',
+        body: 'Va dans Découvrir et swipe à droite ce qui t’attire.',
+      },
+    },
+  },
+
+  search: {
+    placeholder: 'Solo Leveling, Frieren…',
+    inputLabel: 'Rechercher un manga ou un manhwa',
+    clear: 'Effacer la recherche',
+    results: (query: string) => `Résultats · ${query}`,
+    catalogue: (shelf: string) => `Catalogue · ${shelf}`,
+    retryMore: 'Réessayer de charger la suite',
+    end: (count: number) => `${count} ${plural(count, 'titre', 'titres')} · fin du catalogue`,
+    unreachableTitle: 'Catalogue injoignable',
+    unreachableBody: 'Le serveur ne répond pas. Vérifie ta connexion et réessaie.',
+    noResultsTitle: 'Aucun résultat',
+    noResultsBody: 'Essaie un titre plus court, ou pioche dans une étagère du catalogue.',
+    noMatchBody: 'Aucun titre ne coche tous ces filtres. Retire-en un ou deux.',
+    count: (count: number) => `${count.toLocaleString('fr-FR')} ${plural(count, 'titre', 'titres')}`,
+    filters: 'Filtres',
+    filtersActive: (count: number) => `Filtres (${count} ${plural(count, 'actif', 'actifs')})`,
+    resetFilters: 'Tout réinitialiser',
+    showResults: (count: number) => `Voir ${count.toLocaleString('fr-FR')} ${plural(count, 'titre', 'titres')}`,
+    removeFilter: (label: string) => `Retirer le filtre « ${label} »`,
+    origin: 'Origine',
+    genres: 'Genres',
+    genresHint: 'Cumulables : un titre doit les avoir tous.',
+    status: 'Parution',
+    statuses: { any: 'Toutes', ongoing: 'En cours', completed: 'Terminées' },
+    minScore: 'Note minimale',
+    anyScore: 'Toutes',
+    scoreAtLeast: (stars: number) => `${String(stars).replace('.', ',')}+`,
+    sort: 'Trier',
+    sortBy: (label: string) => `Tri : ${label}`,
+    sorts: {
+      relevance: 'Pertinence',
+      match: 'Pour toi',
+      popularity: 'Popularité',
+      score: 'Mieux notés',
+      recent: 'Récents',
+    },
+    matchHint: 'Trié selon tes goûts : tes swipes, favoris et notes.',
+    add: (title: string) => `Ajouter « ${title} » à la wishlist`,
+  },
+
+  profile: {
+    goalTitle: (year: number) => `Objectif ${year}`,
+    goalUnit: (goal: number) => `/ ${goal} titres`,
+    goalReached: 'Objectif atteint. Chapeau.',
+    goalRemaining: (count: number) =>
+      `Encore ${count} ${plural(count, 'titre', 'titres')} pour tenir le rythme.`,
+    since: (date: string) => `Depuis ${date}`,
+    statFinished: 'Titres terminés',
+    statReading: 'Lectures en cours',
+    statPages: 'Pages avalées',
+    statTime: 'Temps de lecture',
+    hoursSuffix: 'h',
+    dnaTitle: 'ADN de lecture',
+    dnaEmpty: 'Ton ADN se dessinera dès que tu auras commencé quelques lectures.',
+    longest: 'Plus gros pavé terminé',
+    reset: 'Réinitialiser mes données',
+    resetDone: 'Bibliothèque réinitialisée',
+  },
+
+  install: {
+    launched: 'Installation lancée',
+    cancelled: 'Installation annulée',
+    installedTitle: 'Application installée',
+    installedBody: 'Bookshelf tourne en mode app, hors-ligne compris.',
+    title: 'Installer l’app',
+    body: 'Sur l’écran d’accueil, plein écran, sans barre d’adresse.',
+    cta: 'Installer Bookshelf',
+    iosShareBefore: 'Touche',
+    iosShareAfter: 'Partager, en bas de Safari.',
+    iosAddToHome: 'Choisis « Sur l’écran d’accueil ».',
+    iosConfirm: 'Valide avec « Ajouter ».',
+    unsupported:
+      'Ce navigateur ne propose pas l’installation. Ouvre Bookshelf dans Chrome ou Edge (Android, Windows, macOS) — et vérifie que le site est servi en HTTPS, condition obligatoire côté navigateur.',
+  },
+
+  account: {
+    guestTitle: 'Mode invité',
+    guestBody:
+      'Ta bibliothèque vit sur cet appareil. Crée un compte pour la sauvegarder et la retrouver partout.',
+    cta: 'Créer un compte / Se connecter',
+    offline: 'Hors-ligne · synchronisation en attente',
+    pending: (count: number) =>
+      `${count} ${plural(count, 'modification', 'modifications')} en cours d’envoi`,
+    synced: 'Bibliothèque synchronisée',
+    logout: 'Se déconnecter',
+    logoutConfirm: 'Déconnecter quand même',
+    loggedOut: 'Déconnecté · ta bibliothèque reste sur ton compte',
+    sessionExpired: 'Session expirée : reconnecte-toi pour synchroniser.',
+  },
+
+  auth: {
+    register: 'Créer un compte',
+    login: 'Se connecter',
+    localCount: (count: number) =>
+      `Tes ${count} ${plural(count, 'titre enregistré', 'titres enregistrés')} sur cet appareil rejoindront ton compte.`,
+    noLocal: 'Retrouve ta bibliothèque sur tous tes appareils.',
+    displayName: 'Pseudo (optionnel)',
+    displayNamePlaceholder: 'Comment t’appeler ?',
+    email: 'E-mail',
+    emailPlaceholder: 'toi@exemple.fr',
+    password: 'Mot de passe',
+    passwordPlaceholder: '8 caractères minimum',
+    registered: 'Compte créé, bibliothèque sauvegardée',
+    loggedIn: 'Bibliothèque synchronisée',
+  },
+
+  errors: {
+    network: 'Serveur injoignable. Vérifie ta connexion.',
+    unexpected: 'Une erreur inattendue est survenue.',
+    invalidCredentials: 'E-mail ou mot de passe incorrect.',
+    emailTaken: 'Un compte existe déjà avec cet e-mail.',
+    rateLimited: 'Trop de tentatives. Réessaie dans quelques minutes.',
+    invalidInput: 'Certaines informations sont invalides.',
+    invalidEmail: 'Adresse e-mail invalide.',
+    passwordTooShort: 'Le mot de passe doit contenir au moins 8 caractères.',
+  },
+}
+
+/** Forme de tout dictionnaire : mêmes clés, mêmes signatures que le français. */
+export type Dictionary = typeof fr

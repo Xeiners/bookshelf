@@ -1,0 +1,43 @@
+# Contexte de build = racine du monorepo. BuildKit préfère, pour chaque image,
+# le fichier `<Dockerfile>.dockerignore` voisin (backend/, frontend/) ; celui-ci
+# couvre les builds sans fichier dédié.
+
+# Dépendances et builds : réinstallés / recompilés dans l'image
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.vite
+
+# Clients Prisma générés : régénérés dans l'image, pour Linux
+**/src/generated
+
+# Bases locales et données de test
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+**/test/.tmp
+
+# Secrets : JAMAIS dans une image (l'exemple, lui, peut y être)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Outillage, docs, VCS
+.git
+.gitignore
+.github
+.vscode
+.idea
+.claude
+aicontext
+docs
+**/*.log
+**/coverage
+**/test-results
+**/playwright-report
+**/_*.mjs
+**/_*.png
+Dockerfile*
+docker-compose*.yml
+README.md

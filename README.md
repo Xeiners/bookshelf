@@ -1,11 +1,11 @@
 <div align="center">
 
-<img src="public/icon-512.png" width="104" alt="Bookshelf" />
+<img src="frontend/public/icon-512.png" width="104" alt="Bookshelf" />
 
 # Bookshelf
 
 **Swipe. Découvre. Range.**
-Ta bibliothèque personnelle, animée au doigt.
+Tes mangas et manhwas, animés au doigt.
 
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)
@@ -63,10 +63,21 @@ Tes livres sont rangés debout, vus de dos. L'épaisseur d'une tranche suit sa
 pagination — un pavé est visiblement plus large qu'une novella — et quelques piles
 couchées cassent la ligne. Les livres émergent de la planche quand la vue s'ouvre.
 
-🔍 **Le catalogue Open Library**
-Recherche plein texte instantanée, douze étagères thématiques, synopsis chargés à
-la demande, couvertures HD. Aucune clé d'API, aucun quota. Le mode hors-ligne prend
-le relais tout seul.
+🔍 **Le catalogue MangaDex, en français d'abord**
+Mangas (Japon) et manhwas (Corée) lisibles en français ou en anglais, via notre
+propre API : titres et résumés en français quand ils existent, genres traduits,
+notes, couvertures HD relayées et mises en cache. Quatorze étagères thématiques et
+une recherche instantanée. Le mode hors-ligne prend le relais tout seul.
+
+🌍 **Français ou anglais, jusque dans le catalogue**
+Un sélecteur FR / EN dans l'en-tête traduit l'interface ET les œuvres : titres,
+résumés et genres sont servis dans ta langue, avec repli annoncé quand une
+traduction manque. Le choix suit ton compte d'un appareil à l'autre.
+
+☁️ **Sans compte d'abord, synchronisé ensuite**
+Aucune inscription pour commencer : tout vit sur l'appareil. Crée un compte depuis
+le Profil et ta bibliothèque invitée rejoint le compte sans doublon ; chaque swipe
+est ensuite synchronisé, même après une coupure réseau.
 
 ✨ **Tout est animé avec GSAP**
 Pas une transition CSS : `Draggable`, `InertiaPlugin` et des timelines sur mesure,
@@ -93,26 +104,55 @@ large de 900 px n'aurait aucun sens.
 
 ## Démarrer
 
+Node 22 ou plus récent. Une seule commande lance l'API et le front :
+
 ```bash
-npm install
-npm run dev
+npm install        # installe les deux workspaces et génère le client Prisma
+npm run dev        # API → http://localhost:5000/api · front → http://localhost:5173
 ```
 
-L'URL « Network » affichée au démarrage permet d'ouvrir l'app sur un vrai téléphone
-du même Wi-Fi — indispensable pour juger les gestes.
+La base SQLite est créée au premier lancement, rien d'autre à installer. Le front
+appelle `/api`, relayé par Vite vers l'API : l'URL « Network » affichée au démarrage
+permet donc d'ouvrir l'app sur un vrai téléphone du même Wi-Fi, API comprise.
 
 <details>
 <summary>Autres commandes</summary>
 
 ```bash
-npm run build      # tsc --noEmit && vite build
-npm run preview    # sert le build : nécessaire pour tester le service worker
-npm run typecheck
+npm run build                    # API (tsc) puis front (vite build)
+npm start                        # sert l'API compilée
+npm test                         # tests d'intégration API + audit i18n du front
+npm run typecheck                # les deux workspaces
 npm run lint
-npm run icons      # régénère les icônes PWA
+npm run db:migrate               # nouvelle migration après un changement de schéma
+npm run db:studio                # explorer la base
+npm run preview -w frontend      # sert le build du front (tester le service worker)
+npm run icons -w frontend        # régénère les icônes PWA
 ```
 
+Configuration de l'API : copier `backend/.env.example` en `backend/.env`.
+`JWT_SECRET` y est **obligatoire en production**.
+
 </details>
+
+### Avec Docker (PostgreSQL, prêt pour la production)
+
+```bash
+cp .env.example .env     # renseigner POSTGRES_PASSWORD et JWT_SECRET
+npm run docker:up        # PostgreSQL + API + front Nginx → http://localhost:8082
+npm run docker:dev       # variante développement, rechargement à chaud
+```
+
+Tout est détaillé dans [docs/DOCKER.md](docs/DOCKER.md) : images, variables,
+schéma SQLite / PostgreSQL. Déploiement pas à pas sur un VPS derrière Caddy,
+par l'IP publique : [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md).
+
+```
+bookshelf/
+├── frontend/   React 19 · Vite · GSAP · Zustand — la PWA (+ Dockerfile, nginx.conf)
+├── backend/    Express 5 · Prisma · SQLite / PostgreSQL — catalogue, comptes, synchro (+ Dockerfile)
+└── docs/       architecture du front, API, synchronisation, Docker
+```
 
 ---
 
@@ -122,12 +162,17 @@ npm run icons      # régénère les icônes PWA
 | --- | --- |
 | **Interface** | React 19 · TypeScript strict · Tailwind CSS 4 (config CSS-first) |
 | **Animation** | GSAP 3.15 + `@gsap/react` — `Draggable`, `InertiaPlugin` |
-| **État** | Zustand 5 + `persist` (localStorage) |
-| **Données** | Open Library — sans clé, sans quota |
-| **Build** | Vite 8 (rolldown) · React Compiler |
+| **État** | Zustand 5 + `persist` (localStorage) + file de synchronisation persistée |
+| **API** | Express 5 · TypeScript · Zod · JWT en cookie HTTP-only |
+| **Base** | Prisma 7 · SQLite (PostgreSQL en changeant une ligne) |
+| **Données** | MangaDex, via un proxy qui filtre, normalise et met en cache |
+| **Build** | Vite 8 (rolldown) · React Compiler · npm workspaces |
 
 📐 **[Architecture](docs/ARCHITECTURE.md)** — comment le système de swipe est bâti,
 le rangement en rayons, la gestion des contextes GSAP, les choix de performance.
+
+🔌 **[Backend & synchronisation](docs/BACKEND.md)** — l'API, le schéma de base, le
+proxy MangaDex et la stratégie « invité d'abord ».
 
 🧭 **[Passation](aicontext/HANDOFF.md)** — les décisions, les pièges déjà payés et
 la méthode de vérification. À lire en premier si tu reprends le projet.
@@ -135,5 +180,5 @@ la méthode de vérification. À lire en premier si tu reprends le projet.
 ---
 
 <div align="center">
-<sub>Interface en français · Dark mode uniquement · Aucun compte, aucune donnée envoyée</sub>
+<sub>Interface en français et en anglais · Dark mode uniquement · Compte facultatif</sub>
 </div>

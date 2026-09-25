@@ -1,0 +1,144 @@
+// ⚠️ FICHIER GÉNÉRÉ par `npm run db:schema:pg` depuis prisma/schema.prisma.
+// Ne pas modifier à la main : changer le schéma SQLite, puis relancer le script.
+// Schéma de la base Bookshelf.
+//
+// SOURCE UNIQUE des modèles, pour deux bases :
+//  - SQLite (ce fichier) : développement local et tests, zéro service à lancer ;
+//  - PostgreSQL (Docker, production) : prisma/postgres/schema.prisma, GÉNÉRÉ depuis
+//    celui-ci par `npm run db:schema:pg` (seuls le fournisseur et le dossier du
+//    client changent), avec ses propres migrations dans prisma/postgres/migrations.
+// `DATABASE_URL` choisit la base (cf. prisma.config.ts et src/db.ts). Aucun type
+// spécifique à SQLite n'est utilisé.
+//
+// SQLite ne gère pas les `enum` Prisma : les statuts sont des `String`,
+// validés à l'entrée de l'API (cf. `src/modules/library/library.schemas.ts`).
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../../src/generated/prisma-pg"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  /// Toujours stocké en minuscules (normalisé par l'API).
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  /// Langue de l'interface et du catalogue : 'fr' | 'en' (validée par l'API).
+  preferredLanguage String @default("fr")
+  /// Oracle : dernier jour de tirage (YYYY-MM-DD, calendrier local de l'utilisateur).
+  oracleLastDay String?
+  /// Jours de tirage d'affilée, et record.
+  oracleStreak  Int      @default(0)
+  oracleBest    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  entries    LibraryEntry[]
+  skips      SkippedWork[]
+  preference UserPreference?
+}
+
+/// Une œuvre dans la bibliothèque d'un utilisateur.
+/// La clé composite (userId, workId) rend les doublons impossibles par construction.
+model LibraryEntry {
+  userId    String
+  /// Id de la source : UUID MangaDex, ou id Open Library pour les anciennes données.
+  workId    String
+  /// 'wishlist' | 'reading' | 'read'
+  status    String
+  /// Avancement 0 → 1.
+  progress  Float    @default(0)
+  /// Coup de cœur de l'utilisateur.
+  favorite   Boolean @default(false)
+  /// Note personnelle, 0,5 → 5 par demi-étoiles (titres lus). `null` = pas notée.
+  userRating Float?
+  /// Instantané JSON du modèle `Book` du front : la bibliothèque s'affiche sans
+  /// rappeler MangaDex, y compris sur un autre appareil.
+  ///
+  /// Volontairement par utilisateur et non dans une table `Work` partagée :
+  /// l'instantané vient du client, un utilisateur ne doit pas pouvoir modifier
+  /// la fiche vue par un autre.
+  snapshot  String
+  title     String
+  addedAt   DateTime @default(now())
+  /// Horodatage de la dernière modification côté client : arbitre les fusions.
+  updatedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, workId])
+  @@index([userId, status])
+}
+
+/// Swipe gauche : l'œuvre ne sera plus proposée. Sans fiche : un id suffit.
+model SkippedWork {
+  userId    String
+  workId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, workId])
+}
+
+/// Profil de goûts d'un compte, mis à jour à chaque swipe (cf. `src/services/recommendation/`).
+model UserPreference {
+  userId    String   @id
+  /// JSON `{ genres: { Action: 12, … }, tags: { Revenge: 8, … } }`.
+  scores    String   @default("{\"genres\":{},\"tags\":{}}")
+  /// Nombre de swipes pris en compte : mesure la confiance du profil.
+  swipes    Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Catalogue agrégé AniList + MangaDex, en cache local : le deck se sert ici
+/// sans aucun appel réseau. Une ligne par œuvre AniList (clé de dédoublonnage).
+model CatalogWork {
+  anilistId  Int      @id
+  /// UUID MangaDex quand l'œuvre y existe (textes FR/EN, couverture, lecture).
+  /// Unique : deux fiches MangaDex d'une même œuvre ne donnent qu'une carte.
+  mangadexId String?  @unique
+  /// Pays d'origine AniList : JP (manga), KR (manhwa), CN / TW (manhua).
+  country    String
+  /// MANGA | ONE_SHOT
+  format     String
+  /// Note moyenne AniList sur 100.
+  meanScore  Int?
+  popularity Int      @default(0)
+  /// JSON `string[]` : genres AniList.
+  genres     String
+  /// JSON `{ name, rank }[]` : tags AniList avec leur pertinence (%).
+  tags       String
+  /// JSON : fiche AniList (titres, résumé, couverture, auteurs…).
+  anilist    String
+  /// JSON : œuvre MangaDex brute, quand elle est liée.
+  mangadex   String?
+  /// Note bayésienne MangaDex (/10), quand elle est connue.
+  mdRating   Float?
+  /// Statut de parution AniList (FINISHED, RELEASING…), chapitres et année :
+  /// filtres de la recherche et « rythme » de l'Oracle, sans relire la fiche JSON.
+  status     String?
+  chapters   Int?
+  year       Int?
+  /// Titres (toutes langues) et auteurs, en minuscules sans accents : recherche plein texte.
+  searchText String   @default("")
+  updatedAt  DateTime @updatedAt
+
+  @@index([country, popularity])
+}
+
+/// Fin de la dernière indexation COMPLÈTE du catalogue : une indexation
+/// interrompue (redémarrage, source injoignable) n'est jamais prise pour fraîche.
+model CatalogSync {
+  id          String   @id
+  completedAt DateTime
+}

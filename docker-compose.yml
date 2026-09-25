@@ -1,0 +1,77 @@
+# Bookshelf — pile de production : PostgreSQL + API + front (Nginx).
+#
+#   cp .env.example .env      # puis renseigner JWT_SECRET, POSTGRES_PASSWORD, APP_URL
+#   docker compose up -d --build
+#   → http://127.0.0.1:8082   (PORT), sur la machine elle-même seulement
+#
+# Seul le front est publié, et UNIQUEMENT sur 127.0.0.1 : on y accède par le
+# reverse proxy de l'hôte (Caddy, cf. deploy/Caddyfile et docs/DEPLOY-VPS.md),
+# jamais directement depuis Internet. Il sert la PWA et relaie /api vers l'API.
+# PostgreSQL et l'API restent sur le réseau interne de la pile.
+
+name: bookshelf
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookshelf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Renseigner POSTGRES_PASSWORD dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-bookshelf}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: bookshelf-api:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bookshelf}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bookshelf}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Renseigner JWT_SECRET dans .env (32 caractères minimum)}
+      # Proxys devant l'API : Caddy (hôte) puis Nginx (conteneur front) = 2 sauts.
+      # Sans ça, tous les visiteurs auraient l'IP du proxy : le limiteur de
+      # connexion (par IP) les bloquerait tous ensemble.
+      TRUST_PROXY: ${TRUST_PROXY:-2}
+      # `false` tant que le site est servi en HTTP (IP sans certificat) :
+      # un cookie `Secure` n'y serait jamais renvoyé, la connexion échouerait.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-${APP_URL:-http://localhost:8082}}
+      PUBLIC_API_BASE: ${PUBLIC_API_BASE:-/api}
+      CATALOG_SYNC: ${CATALOG_SYNC:-on}
+      MANGADEX_USER_AGENT: ${MANGADEX_USER_AGENT:-Bookshelf/0.1 (projet perso)}
+    # Pas de `ports` : l'API n'est joignable que par le front (réseau interne).
+    # Pour la déboguer depuis l'hôte : `docker compose exec backend wget -qO- 127.0.0.1:5000/api/health`.
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    image: bookshelf-web:latest
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Lié à 127.0.0.1 : injoignable depuis l'extérieur, seul Caddy (sur l'hôte) y
+    # accède. (Docker publie ses ports AVANT le pare-feu de l'hôte, ufw compris :
+    # une liaison sur 0.0.0.0 contournerait Caddy et exposerait le HTTP brut.)
+    ports:
+      - "127.0.0.1:${PORT:-8082}:80"
+
+volumes:
+  postgres_data:

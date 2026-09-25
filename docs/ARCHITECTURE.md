@@ -70,7 +70,7 @@ src/
 ├── lib/
 │   ├── gsap.ts                  registration unique + EASE / DUR
 │   ├── format.ts                durée de lecture, auteurs, couverture procédurale
-│   ├── shelf.ts                 métriques de tranche + rangement en rayons (pur)
+│   ├── coverTone.ts             teinte dominante d'une couverture (canevas + cache)
 │   ├── stats.ts                 agrégats du profil
 │   └── haptics.ts               vibration courte
 │
@@ -93,7 +93,7 @@ src/
     ├── layout/                  AppHeader · AmbientBackdrop · BottomNav · NavRail · SplashIntro
     ├── discover/                SwipeDeck · SwipeCard · DeckActions · ShelfPicker · DiscoverView
     ├── search/                  SearchView · SearchResultRow
-    ├── library/                 LibraryView · SegmentedTabs · ShelfWall · BookSpine · FlatStack · BookTile
+    ├── library/                 LibraryView · SegmentedTabs · FeaturedBook · ShowcaseShelves · Book3D · BookTile
     ├── profile/                 ProfileView · InstallCard
     ├── book/                    BookSheet (fiche modale)
     └── ui/                      Pill · Pressable · BookCover · ToastHost
@@ -158,10 +158,10 @@ Chaque niveau a une position de repos ; les rotations alternées donnent l'effet
 
 ```ts
 const SLOTS = [
-  { y:   0, scale: 1,     rotate:  0,   opacity: 1 },
-  { y: -16, scale: 0.945, rotate:  3,   opacity: 1 },
-  { y: -28, scale: 0.89,  rotate: -3.2, opacity: 1 },
-  { y: -36, scale: 0.85,  rotate:  1.5, opacity: 0 }, // tampon invisible
+  { y:   0, scale: 1,     rotation:  0,   autoAlpha: 1 },
+  { y: -16, scale: 0.945, rotation:  3,   autoAlpha: 1 },
+  { y: -28, scale: 0.89,  rotation: -3.2, autoAlpha: 1 },
+  { y: -36, scale: 0.85,  rotation:  1.5, autoAlpha: 0 }, // tampon invisible
 ]
 ```
 
@@ -169,6 +169,11 @@ Un `useGSAP` dépendant de `stackKey` (les ids visibles concaténés) place les 
 Une carte jamais vue est posée avec `gsap.set` ; une carte déjà placée **glisse** d'un
 cran avec `gsap.to`. Au premier rendu, un `gsap.from` en cascade inversée déploie la
 pile en éventail.
+
+Les slots utilisent `autoAlpha`, jamais `opacity` seul : l'intro fait un
+`from({ autoAlpha: 0 })` sur le tampon dont l'opacité de repos est 0, ce qui laisse
+`visibility: hidden` en fin d'animation. Une promotion en `opacity` seule laissait
+alors la carte invisible jusqu'en haut de la pile.
 
 ### Étape 2 — le rendu du geste
 
@@ -219,49 +224,41 @@ couverture et la carte du dessous en place, puis **réinitialise le proxy**
 
 ### Étape 4 — l'éjection
 
-`commit(direction)` éjecte la carte *et* fait monter la pile **sans attendre React** :
+`commit()` notifie le parent **immédiatement** et garde la carte décidée montée
+dans un état local `exiting` le temps de sa sortie :
 
 ```ts
-gsap.to(top, {
-  x: direction * (stage.offsetWidth * 1.25 + 140),
-  y: currentY + 48,
-  rotate: direction * 26,
-  autoAlpha: 0,
-  duration: 0.52,
-  ease: 'power2.in',
-  onComplete: () => { resetProxy(); onDecision(decided, direction) },
-})
-promote()   // chaque carte restante glisse d'un cran, stagger 0.03 s
+exitingIds.add(decided.id)
+gsap.set(node, { zIndex: EXIT_Z + exitCount })        // devant la pile, sous le proxy
+gsap.to(node, { x, y, rotation, duration, ease,
+  onComplete: () => setExiting(prev => prev.filter(b => b.id !== decided.id)) })
+setExiting(prev => [...prev, decided])
+onDecision(decided, intent)                             // le curseur avance tout de suite
 ```
 
-L'état React n'avance qu'à la fin de l'animation. Comme `promote()` a déjà amené les
-cartes à leur nouvelle position, le `useGSAP` de layout qui se déclenche ensuite
-anime vers des valeurs identiques : **aucun saut visuel**.
+React re-rend dans la foulée : la carte suivante devient `visible[0]` et le
+`useGSAP` de pile la fait monter d'un cran. Il n'y a **aucun verrou** : on peut
+saisir la carte suivante pendant que la précédente s'envole. Les cartes `exiting`
+sont rendues avant la pile, donc l'ordre DOM ne bouge pas quand une carte en sort.
 
-Un drapeau `live.current.animating` fait ignorer tout geste pendant l'éjection.
+L'éjection prolonge l'élan du doigt : si la vitesse au relâchement dépasse
+400 px/s, le mouvement est linéaire (`ease: 'none'`) avec une durée calculée pour
+garder cette vitesse. Une courbe `power2.in` partait de l'arrêt : la carte
+semblait s'immobiliser, voire revenir, avant de partir. Les boutons et le clavier,
+sans vitesse initiale, gardent `power2.in`.
 
-### Étape 5 — le ré-armement du geste (le piège)
+### Étape 5 — saisir une carte en mouvement (le piège)
 
-On ne peut **pas** déverrouiller le geste à la fin de l'animation d'éjection : à
-cet instant React n'a pas encore re-rendu, donc `live.cards[0]` désigne toujours
-la carte qui vient de partir — invisible, mais encore montée. Un appui dans cette
-fenêtre pilotait cette carte fantôme, pendant que la carte réellement visible
-recevait l'animation « carte suivante ». Symptôme : *on swipe celle du dessous*.
+Une carte peut être attrapée en pleine promotion ou en plein retour élastique.
+Si l'animation continue, elle réécrit `x`/`y`/`rotation` à chaque frame par-dessus
+le `quickSetter` du geste : la carte reste au centre sous le doigt puis part au
+relâchement.
 
-Le deck mémorise donc l'id de la carte éjectée (`pendingId`) et ne se ré-arme que
-lorsque la pile React reflète vraiment la décision :
-
-```ts
-if (live.current.pendingId !== null && visible[0]?.id !== live.current.pendingId) {
-  live.current.pendingId = null
-  live.current.animating = false
-}
-```
-
-Vérifié au navigateur : à 650 et 900 ms d'intervalle, la séquence des cartes vues
-et celle des cartes enregistrées sont identiques (6/6) ; à 300 ms — soit pendant
-l'éjection — 3 gestes sur 6 sont ignorés, **sans jamais valider la mauvaise
-carte**.
+À l'appui, `bind()` coupe donc les tweens des propriétés du geste
+(`killTweensOf(top, 'x,y,rotation,rotationX,rotationY')`), mémorise l'écart restant
+dans `base` et le résorbe en 0,3 s (`render` ajoute `base` à la position du doigt).
+`scale` et `autoAlpha` finissent normalement leur promotion. La carte du dessous est
+traitée de même avant de créer ses `quickTo`.
 
 ### Étape 6 — les mêmes rails pour tout
 
@@ -278,10 +275,9 @@ Trois règles, apprises à la dure :
    pas un enfant. Sa structure est identique pour les trois vues (ligne d'accroche +
    titre), donc sa hauteur ne varie jamais. Seul le texte permute, en `transform` +
    `opacity` — zéro reflow.
-2. **Pas de glissement horizontal du contenu.** La barre de navigation est en
-   `backdrop-filter: blur(28px)` : tout contenu qui défile dessous fait scintiller
-   le verre et donne l'illusion que la barre bouge. La transition de vue est donc un
-   fondu avec une élévation de 10 px maximum.
+2. **Pas de glissement horizontal du contenu.** La transition de vue reste un
+   fondu avec une élévation de 10 px maximum : le châssis paraît stable et la
+   navigation flottante reste visuellement ancrée.
 3. **Aucun easing qui dépasse sur les capsules.** `elastic.out` sur un indicateur
    contenu dans un `overflow-hidden` se fait rogner aux extrémités. `power3.out`
    termine pile sur la cible.
@@ -313,51 +309,93 @@ Le dégagement sous la barre passe par l'utilitaire `pb-nav`, qui compose la
 hauteur de la barre **et** la zone sûre du bas (34 px sur un iPhone à barre
 d'accueil — un padding fixe calibré pour Android passait juste en dessous).
 
-## 4 ter. Le mur d'étagères (« Ma biblio »)
+## 4 ter. La vitrine (« Ma biblio »)
 
-La bibliothèque est rendue **comme une vraie étagère** : les livres sont debout,
-vus de dos, quelques-uns couchés en pile. Toute la logique est pure et isolée dans
-[`lib/shelf.ts`](../src/lib/shelf.ts) — aucun DOM, donc lisible et testable.
+La bibliothèque est une **vitrine de libraire** : les vraies couvertures, en
+volume, posées face à nous sur des étagères éclairées. Chaque onglet s'ouvre sur
+un titre **à la une**. Fichiers : `components/library/` (`Book3D`,
+`FeaturedBook`, `ShowcaseShelves`) et `lib/coverTone.ts`.
 
-**Dimensions déterministes.** L'épaisseur d'une tranche suit la pagination
-(`22 + pages/12`, borné à 26–52 px) : un pavé est visiblement plus large qu'une
-novella. La hauteur varie via un hash de l'id — mais avec une **graine distincte
-de la teinte** (`id#h`), sinon tous les livres rouges seraient les plus courts.
-Une bibliothèque garde ainsi exactement la même allure d'une session à l'autre.
+**Un livre en CSS 3D.** `Book3D` construit un pavé à six faces
+(`transform-style: preserve-3d`) : la face avant est la couverture (vernis, pli
+de reliure, signet doré pour une lecture en cours), la tranche prend la teinte de
+la couverture, le bloc de pages est strié comme du papier. L'épaisseur vaut ~13 %
+de la largeur. Le composant ne fait que construire l'objet : son orientation
+appartient aux animations GSAP de l'appelant (`ref` sur la racine).
 
-**Unités puis rangement.** La liste est d'abord découpée en unités — une tranche
-debout, ou une pile de 2–3 livres couchés insérée au rythme d'un hash — puis les
-unités sont rangées en rayons successifs selon la largeur mesurée
-(`ResizeObserver`, pas de valeur devinée). Un rayon incomplet reçoit un
-serre-livres clair, qui tranche joliment sur les dos sombres.
+**La couleur de chaque couverture.** `coverTone()` réduit l'image dans un
+canevas de 24 × 36 et fait une moyenne pondérée par la **saturation²** : un fond
+noir ou blanc ne l'emporte jamais sur la couleur identitaire. Le résultat est
+ramené dans une plage vive et lisible sur fond sombre, puis mis en cache
+(mémoire + `bookshelf:tones:v1`). Les couvertures passent par notre API (même
+origine), donc le canevas reste lisible ; sinon, teinte déterministe dérivée de
+l'id. Cette teinte colore la tranche, le halo de la une et la flaque de lumière
+que chaque livre jette sur sa planche.
 
-**L'astuce d'animation.** La rangée est en `overflow-hidden` et la planche est
-dessinée juste en dessous : le masque coïncide donc pile avec la surface du
-rayon. Les livres entrent par le bas (`y: 34 → 0`) et semblent **émerger de la
-planche** au lieu de tomber du ciel. Au tap, la tranche se soulève et bascule de
-3,5° avec un pivot `origin-bottom` — le geste d'un livre qu'on sort du rayon.
+**À la une.** Le titre touché en dernier (`updatedAt`) : grand volume sur un
+halo de sa couleur, flottement continu du livre, reflet qui balaie la couverture
+toutes les ~6 s, inclinaison qui suit le pointeur (`quickTo`, ignorée au toucher).
+Le halo, lui, est **immobile** et couvre exactement la carte (`inset-0`) : une
+respiration en `scale` faisait zoomer le fond et révélait les bords de sa boîte. Action
+contextuelle : *Reprendre* (en cours), *Commencer* (wishlist → passe le titre en
+lecture et suit le livre dans son onglet), *Voir la fiche* (lus). Sur grand écran,
+le début du résumé occupe la largeur libre.
 
-Un bouton bascule vers la grille de couvertures classique si tu préfères
-naviguer visuellement.
+**Les étagères.** Colonnes calculées sur la largeur mesurée (`ResizeObserver`) :
+3 livres par rayon sur téléphone, de grands volumes centrés sur ordinateur. Chaque
+livre a un angle de repos propre (hash de l'id) qui montre sa tranche. La planche
+est rendue **avant** les livres : ils se tiennent sur son dessus, et leur reflet
+coloré s'y étale au lieu de passer dessous. Entrée : les planches se déroulent,
+les LED s'allument, les livres montent du rayon un à un. Au tap, le livre pivote
+face à nous et se soulève, comme pris en main.
+
+**Ordinateur (conteneur ≥ 900 px).** Deux colonnes : la une, en version
+verticale (fiche technique note · parution · chapitres · année, résumé), est
+épinglée à gauche (`sticky`) pendant qu'on parcourt les étagères à droite, 4 livres
+par rayon. La taille du livre à la une suit aussi la HAUTEUR visible, pour que la
+carte épinglée tienne entière à l'écran (vérifié en 1440 × 900 sur les 3 onglets).
+
+**Pièges évités.**
+- Pas de `content-visibility` sur les rayons : son confinement de peinture
+  rognerait tout ce qui déborde (reflets, lueur des LED, pourcentages).
+- Tout dégradé décoratif (spot, reflets, lueurs) est en `closest-side` ou
+  s'éteint avant les bords de sa boîte : un dégradé coupé par un bord dessine un
+  rectangle pâle, très visible sur fond noir.
+
+Un bouton bascule vers la grille de couvertures classique.
 
 ## 4 quater. Recherche & catalogue
 
-Onglet dédié, alimenté par [`useCatalog`](../src/hooks/useCatalog.ts), qui gère deux
-modes dans un seul cycle de vie :
+Page d'affiches sur tout le catalogue agrégé (AniList + MangaDex, cf. `docs/BACKEND.md` §7 quater).
 
-- **requête libre** — debounce 380 ms, minimum 2 caractères ;
-- **étagère du catalogue** — immédiate, car le tap est déjà une intention ferme.
+- **État** : [`useSearchStore`](../frontend/src/store/useSearchStore.ts) garde recherche, filtres et tri hors du
+  composant : quitter la page puis revenir retrouve la même recherche (non persisté entre sessions).
+- **Données** : [`useCatalog`](../frontend/src/hooks/useCatalog.ts) — clé = langue + tous les filtres ; seule la
+  frappe est temporisée (320 ms), un tap sur un filtre part tout de suite. Chaque changement annule
+  les requêtes en vol (`AbortController`). Défilement infini par sentinelle (`IntersectionObserver`).
+  Recherche maigre (`supplement: true`) : le complément MangaDex est demandé APRÈS l'affichage.
+- **Interface** : champ de recherche, bouton **Filtres** (compteur d'actifs) qui ouvre
+  [`SearchFilters`](../frontend/src/components/search/SearchFilters.tsx) — feuille du bas sur mobile, tiroir
+  latéral sur desktop, rendue en **portail** dans `document.body` (sinon la barre d'onglets, dans un contexte
+  d'empilement plus haut, passait par-dessus). Origine, parution, note minimale, genres cumulables avec
+  leur nombre de titres ; le bouton du bas annonce « Voir N titres » en direct. Menu de **tri**
+  ([`SortMenu`](../frontend/src/components/search/SortMenu.tsx)) : Pertinence (avec texte), Pour toi (% de match),
+  Popularité, Mieux notés, Récents. Les filtres actifs sont des puces qu'un tap retire.
+- **Grille** : [`CatalogCard`](../frontend/src/components/search/CatalogCard.tsx), affiche plein cadre (titre sur
+  dégradé, note, type, année), % de match, ajout express en wishlist ou état du titre (cœur si favori).
+  2 → 6 colonnes selon la largeur.
 
-Chaque changement annule la requête précédente (`AbortController`) : sans ça, une
-réponse lente écrase une réponse plus récente quand on tape vite.
+## 4 quater bis. Favoris & notes
 
-⚠️ La recherche plein texte n'utilise **pas** `sort=rating`. Trier par note écrase
-le classement par pertinence et remonte des titres hors sujet ; l'ordre natif
-d'Open Library est bien meilleur. Vérifié sur l'API : `dune` → *Dune* (Herbert),
-`camus` → *L'étranger*, avec un rendement de 18–20 résultats exploitables sur 20.
-
-Chaque ligne permet l'ajout express en wishlist sans ouvrir la fiche, et affiche
-une coche teintée du statut si le livre est déjà dans la bibliothèque.
+- `LibraryEntry.favorite` et `userRating` (0,5 → 5 par demi-étoiles), synchronisés par l'opération `patch`
+  de la file d'envoi, fusionnés à la connexion comme le reste de l'entrée.
+- Fiche : [`FavoriteButton`](../frontend/src/components/ui/FavoriteButton.tsx) sous le bouton de fermeture (un titre
+  hors bibliothèque y entre en wishlist) ; [`StarRating`](../frontend/src/components/ui/StarRating.tsx) pour un titre lu :
+  tap (moitié gauche = demi-étoile), glisser le doigt, clavier (rôle `slider`). Hauteurs réservées : la
+  feuille est ancrée en bas, rien ne doit faire bouger les étoiles sous le doigt.
+- « Ma biblio » : 4ᵉ onglet **Favoris** (cœur, tous statuts confondus), aussi dans la barre latérale ;
+  cœur et note sur les tuiles et le livre à la une.
+- Favoris et notes pèsent dans le profil de recommandation (`likeWeight`, cf. BACKEND §7 ter).
 
 ## 4 quinquies. Tablette & desktop
 
@@ -366,35 +404,98 @@ Mobile-first, puis deux ruptures :
 | Largeur | Navigation | Contenu |
 | --- | --- | --- |
 | `< md` (768) | capsule flottante en bas | colonne unique, `max-w-md` |
-| `md` → `lg` | rail vertical **en icônes seules** | `max-w-3xl`, grilles 2–4 colonnes |
-| `≥ lg` (1024) | rail vertical **avec libellés** + signature | `xl` : `max-w-5xl`, jusqu'à 6 colonnes |
+| `md` → `lg` | rail vertical **en icônes seules** (`NavRail`) | `max-w-3xl`, grilles 2–4 colonnes |
+| `≥ lg` (1024) | **barre latérale complète** (`Sidebar`), repliable | `xl` : `max-w-5xl`, `2xl` : `max-w-6xl` |
 
-`BottomNav` et `NavRail` partagent une source unique
+`BottomNav`, `NavRail` et `Sidebar` partagent une source unique
 ([`navItems.ts`](../src/components/layout/navItems.ts)) et la même mécanique
-d'indicateur — `xPercent` sur l'axe X en bas, `yPercent` sur l'axe Y dans le
-rail, sans aucune mesure DOM.
+d'indicateur (une capsule translatée par GSAP, sans mesure DOM).
+
+**La barre latérale d'ordinateur** rassemble ce qui sert souvent, à portée de
+clic : navigation (compteur de la bibliothèque, raccourci affiché au survol),
+accès direct aux onglets Wishlist / En cours / Lus, « Reprendre la lecture »
+(couverture + progression du dernier titre en cours), sélecteur de langue (retiré
+de l'en-tête à partir de `lg`) et compte (avatar + état de synchro, ou « Se
+connecter » en invité). Repliée, elle devient un rail de 80 px : les libellés
+s'effacent, la langue passe en pastille compacte ; le choix est mémorisé
+(`useSettingsStore.sidebarCollapsed`). L'onglet de la bibliothèque vit dans
+`useUiStore.libraryTab` pour que la barre puisse y mener.
+
+**Raccourcis** (`useKeyboardShortcuts`) : `1`–`4` pour les vues, `Ctrl/⌘ K` pour
+la recherche (curseur placé dans le champ, même quand la vue n'est montée
+qu'après la transition), `Ctrl/⌘ B` pour replier la barre. Ignorés pendant une
+saisie (pour les chiffres) et quand une feuille modale est ouverte ; les flèches
+restent au deck.
+
+Aucun changement sous `lg` : le mobile garde sa capsule basse, la tablette son
+rail, et le sélecteur de langue reste dans l'en-tête.
+
+**Bandeau invité** (`GuestBanner`, toutes tailles). Tout en haut de l'app, tant
+que l'utilisateur n'a pas de session : « Connecte-toi pour conserver tes
+données ». Le message (et le bouton, à partir de `sm`) ouvre la connexion ; la
+croix le retire, choix mémorisé sur l'appareil
+(`useSettingsStore.guestBannerDismissed`). Il disparaît de lui-même une fois
+connecté. Il porte la zone sûre du haut (encoche) : tant qu'il est affiché, la
+colonne de contenu ne la rajoute pas (`pt-4` au lieu de `pt-safe`).
+
+**Sélecteur de langue.** Ses boutons occupent chacun leur moitié de grille
+(`w-full`) : étiré dans la barre latérale, un bouton à largeur fixe laissait le
+libellé décalé sous la capsule.
 
 Le deck, lui, ne s'étire jamais : sa scène est plafonnée à `26rem` et centrée.
 Une carte de swipe large de 900 px n'aurait aucun sens.
 
+## 4 quinquies bis. L'Oracle (« Le Tirage de l'Ombre »)
+
+Page `src/pages/TarotPage.tsx`, composants `src/components/tarot/`. Parcours :
+paquet flottant → **mélange** (les cartes se croisent pendant l'appel API, au
+moins 1,1 s) → **distribution** (glissé avec gravité, `back.out`) → révélation
+**dans l'ordre** (la carte suivante pulse, les autres sont scellées) → **final**
+(Ambiance et Rythme s'effacent vers la Pépite qui grandit) → résultat, puis
+compte à rebours jusqu'à minuit. Un tirage commencé se reprend ; terminé, il
+reste affiché jusqu'au lendemain.
+
+**`TarotCard3D`** sépare trois transformations sur trois éléments, pour qu'aucune
+animation n'écrase l'autre : enveloppe (distribution, final — pilotée par la
+page), inclinaison (suit la souris, `quickTo` ; pression + vibration au toucher),
+pivot (`rotationY` 0 → 180, `perspective: 1000px`). À la révélation : léger
+soulèvement en Z, pivot, éclair qui balaie la face, halo de la couleur de la
+carte. Une carte déjà face visible **au montage** (reprise) est placée sans
+animation — sans garde « déjà fait », qui sous StrictMode laissait la carte de
+dos après l'annulation du contexte GSAP.
+
+**Esthétique** : dos au sceau doré en SVG (cercles, étoile à huit branches,
+croissant — aucun texte), faces néo-brutalistes (bord franc et ombre dure à la
+couleur de la carte), poussière d'étoiles, fond qui prend la teinte de la
+dernière carte révélée (`--oracle-tone` animé par GSAP ; `coverTone` pour la
+Pépite). `prefers-reduced-motion` coupe les animations d'ambiance.
+
+**Partage** (`lib/oracleShare.ts`) : image 1080 × 1350 dessinée dans un canevas
+(cadre doré, couverture avec ombre néon, rang, combinaison, série). Partage natif
+avec fichier si le navigateur le permet, sinon téléchargement + texte copié.
+
+**Navigation** : 5ᵉ entrée « Oracle » (raccourci `2`), étincelle dorée tant que
+le tirage du jour attend, ⚡ série dans la barre latérale. Les indicateurs de la
+barre basse et du rail calculent désormais leur taille sur `NAV_ITEMS.length`.
+
+**Lint à zéro avertissement** : les `contextSafe(() => … ref.current …)` créés
+au rendu sont désormais créés à l'événement (`() => contextSafe(…)()`), et
+`useDiscoveryQueue` dérive « chargement » et « renfort » au lieu de les poser
+dans un effet.
+
 ## 4 sexies. Performance du swipe
 
-Le geste saccadait. Trois causes, toutes liées au **flou**, et une au **débordement** :
+Le geste saccadait principalement à cause des filtres de flou et du débordement.
+Les filtres CSS ont donc été retirés de toute l'interface :
 
-1. **Les halos du décor étaient animés en `scale`.** Animer l'échelle d'un
-   élément flouté force le navigateur à **re-rastériser le flou à chaque
-   frame**. Désormais : translation seule + `will-change: transform`, donc un
-   calque rendu une fois puis simplement déplacé.
-2. **Tout élément en `backdrop-filter` doit être recomposé dès que quelque
-   chose bouge derrière lui.** Avec un décor animé en permanence, la barre de
-   navigation, les puces et les boutons refloutaient leur arrière-plan en
-   continu — même à l'arrêt. Le décor se met donc en pause pendant le geste
-   (cf. [`lib/ambient.ts`](../src/lib/ambient.ts)), et reprend au relâchement.
-3. **Les badges portés par la carte utilisaient `backdrop-filter`.** Ils se
-   déplacent avec elle : leur arrière-plan était donc recalculé à chaque frame.
-   D'où l'utilitaire `glass-flat` — même allure, sans filtre — obligatoire sur
-   tout élément mobile. Idem pour les `mix-blend-mode`, supprimés du reflet et
-   du grain : un mode de fusion force la recomposition de toute la pile.
+1. **Les halos sont maintenant des dégradés radiaux.** Ils conservent la DA
+   lumineuse sans filtre et leur animation ne touche qu'à `transform`.
+2. **Les surfaces `glass` sont des aplats sombres semi-opaques.** La navigation,
+   les puces, les boutons et la fiche modale n'ont plus besoin de recalculer ce
+   qui se trouve derrière eux.
+3. **Les effets locaux utilisent des dégradés.** Ombre des rayons, lueur de la
+   carte d'installation et voile modal gardent leur fonction visuelle sans flou.
+   Les `mix-blend-mode` restent également exclus des éléments animés.
 
 Enfin, les transforms du geste passent par un unique `gsap.quickSetter(el, 'css')` :
 les cinq propriétés sont écrites en **un seul recalcul** par frame, sans allouer
@@ -443,6 +544,27 @@ d'API — instructions « Partager → Sur l'écran d'accueil »), ou non suppor
 > suivante est [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap) :
 > il emballe cette même PWA dans une **TWA** et produit l'APK signé.
 
+## 4 octies. Deck recommandé (« Pour toi »)
+
+Le deck est servi par `POST /api/discover/deck` (moteur de recommandation,
+catalogue AniList + MangaDex : voir `docs/BACKEND.md` §7 ter).
+
+- `services/discover.ts` : `fetchDeck` envoie l'étagère, l'origine, les cartes
+  déjà en file (`seen`) et l'historique local (titres aimés avec leurs genres,
+  titres passés). Un invité n'a pas de profil en base : le serveur le recalcule
+  depuis cet historique, avec le même algorithme que pour un compte.
+- `useDiscoveryQueue` : une page de 20 cartes par requête, renfort sous 8
+  cartes, `hasMore: false` → étagère épuisée. La clé de requête inclut l'origine :
+  changer de filtre recharge la file (et remonte le deck).
+- `DiscoverView` : rail d'étagères (`DECK_SHELVES`, « Pour toi » en tête) et
+  filtre d'origine Tous / Manga / Manhwa / Manhua (`radiogroup`).
+- `SwipeCard` : badge « 94 % de match » (vert > 80, doré > 60, neutre sinon) et
+  badge « À découvrir » sur la carte 80/20. `withoutDeckFields` retire ces champs
+  avant l'enregistrement en bibliothèque : ils décrivent la carte à un instant donné.
+- Œuvres AniList seules (`al-<id>`) : couverture servie par le CDN AniList
+  (mise en cache par le Service Worker, CORS autorisé pour la teinte de couverture),
+  fiche détaillée via `GET /api/manga/al-<id>`.
+
 ## 5. Nettoyage des contextes GSAP
 
 Le détail que tout le monde rate : avec des **dépendances non vides** et
@@ -479,8 +601,8 @@ Enfin, `SwipeDeck` remet sa comptabilité à zéro au démontage
 | `AppHeader` | permutation du titre en `transform` + `opacity` (aucun reflow) |
 | `App` | transition de vues en fondu + légère élévation |
 | `SegmentedTabs` | même capsule glissante pour les statuts |
-| `ShelfWall` | les livres émergent de la planche en cascade (masque `overflow-hidden`) |
-| `BookSpine` | soulèvement + bascule 3,5° au tap, pivot sur la base du livre |
+| `ShowcaseShelves` | planches qui se déroulent, LED qui s'allument, livres qui montent du rayon ; au tap, le livre pivote face à nous |
+| `FeaturedBook` | entrée en rotation, flottement, halo qui respire, reflet balayé, inclinaison au pointeur |
 | `SearchView` | cascade des résultats à chaque nouvelle réponse |
 | `BookTile` | enfoncement au press, jauge de progression remplie au montage |
 | `BookSheet` | entrée en rideau + cascade de contenu, `Draggable` vertical pour refermer |

@@ -9,21 +9,26 @@ le code** : les décisions, les pièges déjà payés, et ce qui a été vérifi
 
 ## 1. Le projet en trois lignes
 
-Bibliothèque personnelle mobile-first : on découvre des livres en les swipant à la
+Bibliothèque manga / manhwa mobile-first : on découvre des œuvres en les swipant à la
 Tinder, on les range dans une étagère qui les affiche comme de vrais dos de livres,
-on cherche dans le catalogue Open Library. Dark mode, animations 100 % GSAP,
-installable en PWA. Interface entièrement en français.
+on cherche dans le catalogue MangaDex (via notre API). Dark mode, animations 100 % GSAP,
+installable en PWA, compte facultatif avec synchronisation. Interface en français.
+
+> **Monorepo (npm workspaces).** Le front est dans `frontend/` : tous les chemins
+> `src/...` de ce document s'y rapportent. L'API est dans `backend/`, documentée dans
+> [`docs/BACKEND.md`](../docs/BACKEND.md). Les anciennes données Open Library des
+> bibliothèques invitées restent lisibles (`kind` absent, couvertures `-L.jpg`).
 
 ## 2. Démarrer
 
 ```bash
-npm install
-npm run dev        # http://localhost:5173 + une URL réseau pour tester sur mobile
-npm run build      # tsc --noEmit && vite build
-npm run preview    # obligatoire pour tester le service worker (inactif en dev)
+npm install                     # à la racine : les deux workspaces
+npm run dev                     # API :5000 + front :5173 (proxy /api) + URL réseau
+npm run build                   # API puis front
+npm run preview -w frontend     # obligatoire pour tester le service worker (inactif en dev)
 npm run typecheck
 npm run lint
-npm run icons      # régénère les icônes PWA
+npm run icons -w frontend       # régénère les icônes PWA
 ```
 
 Environnement de référence : Node 26, npm 11, Windows. Aucun test automatisé
@@ -112,14 +117,14 @@ elle élargit la zone défilable : barre horizontale, reflow de toute la page, e
 scintillement très visible. Le document ne défile jamais ; chaque vue gère son
 propre défilement interne.
 
-### 5.4 Le geste ne se ré-arme pas à la fin de l'animation
+### 5.4 Pas de verrou d'éjection : la carte sortante vit dans `exiting`
 
-`SwipeDeck` mémorise `pendingId` et n'autorise un nouveau geste qu'une fois la pile
-React à jour. Déverrouiller dans le `onComplete` de l'éjection semble naturel mais
-est faux : React n'a pas encore re-rendu, `live.cards[0]` désigne encore la carte
-partie (invisible mais montée). Un appui dans cette fenêtre pilote la carte fantôme
-pendant que la carte visible reçoit l'animation « suivante » — l'utilisateur a
-l'impression de swiper celle du dessous.
+`SwipeDeck` notifie la décision dès le `commit()` et garde la carte éjectée dans un
+état local `exiting` jusqu'à la fin de son animation. L'ancien verrou
+(`animating` + `pendingId`) a disparu. Corollaire : une carte peut être saisie
+pendant sa promotion, donc `bind()` doit couper les tweens de `x,y,rotation…` avant
+que le geste n'écrive, sinon les deux écrivains se battent (symptôme : la carte
+revient au centre puis part).
 
 ### 5.5 `Draggable` est sur un proxy, pas sur les cartes
 
@@ -128,16 +133,14 @@ qui couvre la scène. Les transforms des cartes restent la propriété exclusive
 timelines : le geste ne peut pas entrer en conflit avec l'animation de la pile.
 Ne pas « simplifier » en attachant `Draggable` à la carte du dessus.
 
-### 5.6 `backdrop-filter` et performance
+### 5.6 Surfaces translucides et performance
 
-Un élément en `backdrop-filter` est recomposé **dès que quelque chose bouge derrière
-lui**. Trois règles qui en découlent :
-
-- tout élément qui **se déplace** utilise `glass-flat` (même allure, sans filtre) —
-  c'est le cas des badges portés par la carte de swipe ;
-- le décor animé se met en pause pendant les gestes (`lib/ambient.ts`) ;
-- pas de `mix-blend-mode`, et jamais d'animation de `scale` sur un élément flouté
-  (cela force la re-rastérisation du flou à chaque frame ; une translation, non).
+Les filtres de flou CSS ont été retirés de l'interface : ils provoquaient des
+recompositions coûteuses pendant les gestes, particulièrement sur mobile. Les
+utilitaires `glass`, `glass-strong` et `glass-flat` reposent désormais sur des fonds
+sombres plus opaques et une bordure claire. Les halos sont des dégradés radiaux,
+et seules leurs translations sont animées. Ne pas réintroduire de filtre de flou
+sur une surface animée ou placée au-dessus d'un contenu animé.
 
 ### 5.7 `useGSAP` ne nettoie pas comme on croit
 
@@ -222,13 +225,12 @@ await page.evaluate(() => {
 ```
 
 Pour le deck, le seul observateur fiable de « quelle carte est au-dessus » est
-**l'ordre du DOM** (`document.querySelector('[data-card]')`) : React rend la pile
-dans l'ordre. Le z-index ne convient pas — `promote()` l'égalise temporairement, ce
-qui produit de faux positifs.
+**l'ordre du DOM** en excluant les cartes en sortie
+(`document.querySelector('[data-card]:not([data-exiting])')`) : les cartes
+`exiting` sont rendues avant la pile.
 
-Cadences de test utiles : 900 ms et 650 ms (tout doit passer, 6/6), et 300 ms —
-pendant l'éjection — où une partie des gestes **doit** être ignorée sans jamais
-valider la mauvaise carte.
+Cadences de test utiles : 900, 650 et 300 ms. Plus aucun geste n'est ignoré
+pendant l'éjection : toutes les cadences doivent passer (6/6), dans le bon ordre.
 
 Playwright a été retiré des dépendances après usage ; le binaire reste en cache local.
 

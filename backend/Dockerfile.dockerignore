@@ -1,0 +1,22 @@
+# Contexte (racine du monorepo) pour backend/Dockerfile : seulement le nécessaire.
+*
+!package.json
+!package-lock.json
+!frontend/package.json
+!backend/package.json
+!backend/prisma.config.ts
+!backend/tsconfig.json
+!backend/tsconfig.build.json
+!backend/prisma
+!backend/scripts
+!backend/src
+
+# Jamais, même dans les dossiers autorisés
+**/node_modules
+**/src/generated
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+**/.env
+**/.env.*

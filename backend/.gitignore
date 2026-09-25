@@ -1,0 +1,11 @@
+# Client Prisma généré (`prisma generate`, lancé au `npm install`)
+src/generated/
+
+# Base SQLite locale
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Bases temporaires des tests d’intégration
+test/.tmp/
