@@ -15,12 +15,36 @@ export const UserRatingSchema = z
 /** Horodatage client en millisecondes. Borné pour rejeter les valeurs absurdes. */
 const Timestamp = z.number().int().min(0).max(8_640_000_000_000)
 
+/**
+ * Position dans le lecteur intégré. `page` est l'index (0-based) de la page
+ * affichée, `offset` la part déjà défilée de cette page (mode webtoon) : la
+ * reprise se fait au pixel près, quelle que soit la hauteur de l'écran.
+ */
+export const ReadingPositionSchema = z.object({
+  chapterId: z.string().min(1).max(64),
+  /** Numéro affiché (« 12.5 »), `null` pour un one-shot. */
+  chapter: z.string().max(16).nullable(),
+  page: z.number().int().min(0).max(5000),
+  pageCount: z.number().int().min(1).max(5000),
+  offset: z.number().min(0).max(1).default(0),
+  /** Avancement dans le chapitre, 0 → 1. */
+  ratio: z.number().min(0).max(1),
+  at: Timestamp,
+})
+export type ReadingPosition = z.infer<typeof ReadingPositionSchema>
+
+/** Compteur de chapitres lus : borné large (les plus longues séries dépassent 1 000). */
+const ChaptersRead = z.number().int().min(0).max(100_000)
+
 export const EntryInputSchema = z.object({
   book: BookSchema,
   status: ReadingStatusSchema,
   progress: z.number().min(0).max(1).default(0),
   favorite: z.boolean().default(false),
   userRating: UserRatingSchema.nullable().default(null),
+  chaptersRead: ChaptersRead.default(0),
+  /** Une position illisible (ancien format) est oubliée, pas bloquante. */
+  position: ReadingPositionSchema.nullable().catch(null).default(null),
   addedAt: Timestamp.optional(),
   updatedAt: Timestamp.optional(),
 })
@@ -90,3 +114,18 @@ export const PatchEntrySchema = z
     { message: 'Rien à modifier.' },
   )
 export type PatchEntryInput = z.infer<typeof PatchEntrySchema>
+
+/**
+ * `PATCH /library/progress` : position du lecteur, envoyée en rafale pendant la
+ * lecture (le front ne garde que la dernière de la file). `chaptersRead`,
+ * `progress` et `status` accompagnent la fin d'un chapitre.
+ */
+export const ProgressSchema = z.object({
+  workId: z.string().min(1).max(128),
+  position: ReadingPositionSchema,
+  chaptersRead: ChaptersRead.optional(),
+  progress: z.number().min(0).max(1).optional(),
+  status: ReadingStatusSchema.optional(),
+  at: Timestamp.optional(),
+})
+export type ProgressInput = z.infer<typeof ProgressSchema>

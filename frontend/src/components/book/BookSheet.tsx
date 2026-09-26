@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { Clock, ExternalLink, Languages, Minus, Plus, Star, Trash2, X } from 'lucide-react'
+import { BookOpenText, Clock, ExternalLink, Languages, Minus, Plus, Star, Trash2, X } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
 import { sourceOfLink } from '../../lib/brand'
 import { DUR, Draggable, EASE, InertiaPlugin, gsap, useGSAP } from '../../lib/gsap'
 import { formatAuthors, formatReadingTime } from '../../lib/format'
+import { isReadable } from '../../lib/reader/readable'
 import { vibrate } from '../../lib/haptics'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -38,6 +39,7 @@ export function BookSheet({ book }: BookSheetProps) {
   const remove = useLibraryStore((state) => state.remove)
   const setFavorite = useLibraryStore((state) => state.setFavorite)
   const rate = useLibraryStore((state) => state.rate)
+  const openReader = useUiStore((state) => state.openReader)
 
   const backdropRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -326,6 +328,23 @@ export function BookSheet({ book }: BookSheetProps) {
         )}
 
         <div className="shrink-0 px-6 pt-4 pb-2" data-sheet-item>
+          {isReadable(book) && (
+            // Lecteur intégré : reprend la dernière position, sinon le premier chapitre non lu.
+            <Pressable
+              onClick={() => {
+                vibrate(10)
+                openReader({ source: 'mangadex', book: entry?.book ?? book })
+              }}
+              className="mb-2 flex w-full items-center justify-center gap-2 rounded-full bg-gold py-3 text-sm font-medium text-void"
+            >
+              <BookOpenText size={16} />
+              {entry?.position?.chapter
+                ? t.reader.resumeAt(t.reader.chapterShort(entry.position.chapter))
+                : entry?.position
+                  ? t.reader.resume
+                  : t.reader.read}
+            </Pressable>
+          )}
           <div className="flex gap-2">
             {STATUS_ORDER.map((status) => {
               const isActive = entry?.status === status

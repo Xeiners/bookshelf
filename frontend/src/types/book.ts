@@ -1,3 +1,5 @@
+import type { ReadingPosition } from './reader'
+
 /** Statuts de lecture — pilote le tri de la bibliothèque. */
 export type ReadingStatus = 'wishlist' | 'reading' | 'read'
 
@@ -70,6 +72,10 @@ export interface LibraryEntry {
   favorite?: boolean
   /** Note personnelle, 0,5 → 5 par demi-étoiles (titres lus). */
   userRating?: number | null
+  /** Chapitres lus dans le lecteur intégré (ne fait que croître). */
+  chaptersRead?: number
+  /** Dernière position dans le lecteur intégré. */
+  position?: ReadingPosition | null
 }
 
 /** Onglets de « Ma biblio » : les trois statuts, plus les coups de cœur (tous statuts confondus). */

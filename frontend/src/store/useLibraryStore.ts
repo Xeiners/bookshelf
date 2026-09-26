@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { outbox } from '../lib/syncOutbox'
 import type { LibraryPayload } from '../services/accountApi'
+import { chaptersReadAfter, overallProgress } from '../lib/reader/progress'
 import type { Book, LibraryEntry, ReadingStatus } from '../types/book'
+import type { ReadingPosition } from '../types/reader'
 
 /** On borne l'historique des « skip » pour ne pas gonfler le localStorage. */
 const MAX_SKIPPED = 400
@@ -25,6 +27,15 @@ interface LibraryState {
   setFavorite: (book: Book, favorite: boolean) => void
   /** Note personnelle 0,5 → 5 (demi-étoiles), `null` pour l'effacer. */
   rate: (id: string, rating: number | null) => void
+  /**
+   * Lecteur intégré : enregistre la position (et, en fin de chapitre, le
+   * compteur de chapitres lus). Un titre absent entre en « En cours ».
+   */
+  recordReading: (
+    book: Book,
+    position: Omit<ReadingPosition, 'at'>,
+    finished?: { number: string | null; orderIndex: number },
+  ) => void
   remove: (id: string) => void
   /** Swipe gauche : on mémorise pour ne plus jamais le proposer. */
   skip: (book: Book) => void
@@ -156,6 +167,33 @@ export const useLibraryStore = create<LibraryState>()(
             return { entries: { ...state.entries, [id]: { ...entry, userRating: value, updatedAt: Date.now() } } }
           })
           pushPatch(id)
+        },
+
+        recordReading: (book, where, finished) => {
+          const position: ReadingPosition = { ...where, at: Date.now() }
+          // Première lecture : le titre rejoint la bibliothèque (« En cours »).
+          if (!get().entries[book.id]) get().save(book, 'reading')
+          const entry = get().entries[book.id]
+          if (!entry) return
+
+          const chaptersRead = finished
+            ? chaptersReadAfter(entry.chaptersRead ?? 0, finished)
+            : (entry.chaptersRead ?? 0)
+          // Compteur connu : l'avancement global suit. Sinon, il reste tel quel.
+          const global = finished ? overallProgress(chaptersRead, entry.book.chapters, entry.book.publicationStatus) : null
+          const progress = global ?? entry.progress
+          // Lire fait passer une wishlist « En cours » ; « Lu » le reste (relecture),
+          // sauf si l'avancement retombe à la fin d'une série terminée.
+          const status: ReadingStatus =
+            progress >= 1 ? 'read' : entry.status === 'wishlist' ? 'reading' : entry.status
+
+          set((state) => ({
+            entries: {
+              ...state.entries,
+              [book.id]: { ...entry, position, chaptersRead, progress, status, updatedAt: position.at },
+            },
+          }))
+          outbox.push({ type: 'progress', id: book.id, position, chaptersRead, progress, status, at: position.at })
         },
 
         remove: (id) => {

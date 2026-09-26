@@ -621,7 +621,7 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
     const onKeyDown = (event: KeyboardEvent) => {
       // Une feuille modale est au-dessus : elle capte les touches.
       const ui = useUiStore.getState()
-      if (ui.detail !== null || ui.authOpen) return
+      if (ui.detail !== null || ui.authOpen || ui.reader !== null || ui.filesOpen) return
       // Les flèches déplacent le curseur d'un champ, elles ne jugent pas une carte.
       if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select')) return
       if (event.repeat) return
@@ -671,7 +671,7 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'z') return
       const ui = useUiStore.getState()
-      if (ui.detail !== null || ui.authOpen) return
+      if (ui.detail !== null || ui.authOpen || ui.reader !== null || ui.filesOpen) return
       // Dans un champ de saisie, Ctrl+Z annule la frappe, pas un swipe.
       if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select')) return
       event.preventDefault()

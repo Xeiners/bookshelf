@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { EASE, gsap, useGSAP } from './lib/gsap'
 import { BookSheet } from './components/book/BookSheet'
 import { DiscoverView } from './components/discover/DiscoverView'
@@ -21,6 +21,12 @@ import { useLibraryLocalization } from './hooks/useLibraryLocalization'
 import { useLanguage, useT } from './i18n'
 import { useAuthStore } from './store/useAuthStore'
 import { useUiStore } from './store/useUiStore'
+import { LocalFilesSheet } from './components/reader/LocalFilesSheet'
+
+// Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
+const UniversalReader = lazy(() =>
+  import('./components/reader/UniversalReader').then((module) => ({ default: module.UniversalReader })),
+)
 
 const SPLASH_KEY = 'bookshelf:splash-seen'
 
@@ -38,6 +44,8 @@ export default function App() {
   const setView = useUiStore((state) => state.setView)
   const detail = useUiStore((state) => state.detail)
   const authOpen = useUiStore((state) => state.authOpen)
+  const reader = useUiStore((state) => state.reader)
+  const filesOpen = useUiStore((state) => state.filesOpen)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
   useEffect(() => {
@@ -159,6 +167,12 @@ export default function App() {
 
       {detail && <BookSheet key={detail.id} book={detail} />}
       {authOpen && <AuthSheet />}
+      {filesOpen && <LocalFilesSheet />}
+      {reader && (
+        <Suspense fallback={<div className="fixed inset-0 z-[100] bg-black" />}>
+          <UniversalReader session={reader} />
+        </Suspense>
+      )}
       {showSplash && <SplashIntro onDone={finishSplash} />}
     </>
   )

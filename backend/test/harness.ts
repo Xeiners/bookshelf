@@ -65,10 +65,30 @@ function mangadexResponse(url: URL): Response {
   return new Response('{}', { status: 404 })
 }
 
+/**
+ * Réponses supplémentaires, propres à un fichier de test (flux de chapitres,
+ * nœuds MD@Home…). Consultées avant le simulateur par défaut, pour tout hôte
+ * MangaDex ; `undefined` laisse la main au suivant.
+ */
+export type MockHandler = (url: URL, init?: RequestInit) => Response | undefined
+export const extraMocks: MockHandler[] = []
+
+const isMangadexHost = (hostname: string) =>
+  hostname === 'api.mangadex.org' || hostname.endsWith('.mangadex.network') || hostname === 'uploads.mangadex.org'
+
 export function installMangadexMock(): void {
   const realFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+    if (isMangadexHost(url.hostname)) {
+      for (const handler of extraMocks) {
+        const response = handler(url, init)
+        if (response) {
+          upstreamCalls.push(`${url.hostname}${url.pathname}?${url.searchParams.toString()}`)
+          return response
+        }
+      }
+    }
     if (url.hostname === 'api.mangadex.org') {
       upstreamCalls.push(`${url.pathname}?${url.searchParams.toString()}`)
       return mangadexResponse(url)
@@ -138,5 +158,6 @@ export async function startServer() {
     await prisma.$disconnect()
   }
 
-  return { client, close }
+  /** `base` : URL de l'API, pour les requêtes binaires (images) que le client JSON ne lit pas. */
+  return { client, close, base }
 }

@@ -7,12 +7,15 @@ import {
 } from '../../services/recommendation/preference.service.js'
 import { likeWeight } from '../../services/recommendation/scoring.js'
 import { BookSchema, type Book } from '../books/book.schema.js'
-import type {
-  EntryInput,
-  LibrarySnapshot,
-  PatchEntryInput,
-  ReadingStatus,
-  SwipeInput,
+import {
+  ReadingPositionSchema,
+  type EntryInput,
+  type LibrarySnapshot,
+  type PatchEntryInput,
+  type ProgressInput,
+  type ReadingPosition,
+  type ReadingStatus,
+  type SwipeInput,
 } from './library.schemas.js'
 
 /** Format renvoyé au front : identique à son `LibraryEntry`, dates en ms. */
@@ -23,6 +26,10 @@ export interface LibraryEntryDto {
   favorite: boolean
   /** Note personnelle 0,5 → 5, ou `null`. */
   userRating: number | null
+  /** Chapitres lus dans le lecteur intégré. */
+  chaptersRead: number
+  /** Dernière position dans le lecteur, `null` s'il n'a jamais servi. */
+  position: ReadingPosition | null
   addedAt: number
   updatedAt: number
 }
@@ -38,6 +45,8 @@ interface EntryRow {
   progress: number
   favorite: boolean
   userRating: number | null
+  chaptersRead: number
+  position: string | null
   snapshot: string
   addedAt: Date
   updatedAt: Date
@@ -55,6 +64,17 @@ function bookOf(snapshot: string): Book | null {
   return book.success ? book.data : null
 }
 
+/** Position stockée → objet validé, ou `null` (absente ou illisible). */
+function positionOf(raw: string | null): ReadingPosition | null {
+  if (!raw) return null
+  try {
+    const parsed = ReadingPositionSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
 function toDto(row: EntryRow): LibraryEntryDto | null {
   // Un instantané illisible est ignoré plutôt que de faire échouer toute la bibliothèque.
   const book = bookOf(row.snapshot)
@@ -66,6 +86,8 @@ function toDto(row: EntryRow): LibraryEntryDto | null {
     progress: row.progress,
     favorite: row.favorite,
     userRating: row.userRating,
+    chaptersRead: row.chaptersRead,
+    position: positionOf(row.position),
     addedAt: row.addedAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
   }
@@ -119,7 +141,7 @@ export async function mergeLibrary(userId: string, snapshot: LibrarySnapshot): P
         (
           await tx.libraryEntry.findMany({
             where: { userId },
-            select: { workId: true, addedAt: true, updatedAt: true },
+            select: { workId: true, addedAt: true, updatedAt: true, chaptersRead: true },
           })
         ).map((row) => [row.workId, row]),
       )
@@ -138,6 +160,8 @@ export async function mergeLibrary(userId: string, snapshot: LibrarySnapshot): P
               progress: entry.progress,
               favorite: entry.favorite,
               userRating: entry.userRating,
+              chaptersRead: entry.chaptersRead,
+              position: entry.position ? JSON.stringify(entry.position) : null,
               addedAt,
               updatedAt,
               ...snapshotOf(entry.book),
@@ -148,7 +172,9 @@ export async function mergeLibrary(userId: string, snapshot: LibrarySnapshot): P
 
         const newer = updatedAt > current.updatedAt
         const older = addedAt < current.addedAt
-        if (!newer && !older) continue
+        // Le compteur de chapitres ne recule jamais, même face à un état plus récent.
+        const moreChapters = entry.chaptersRead > current.chaptersRead
+        if (!newer && !older && !moreChapters) continue
 
         await tx.libraryEntry.update({
           where: { userId_workId: { userId, workId } },
@@ -158,10 +184,12 @@ export async function mergeLibrary(userId: string, snapshot: LibrarySnapshot): P
               progress: entry.progress,
               favorite: entry.favorite,
               userRating: entry.userRating,
+              position: entry.position ? JSON.stringify(entry.position) : null,
               updatedAt,
               ...snapshotOf(entry.book),
             }),
             ...(older && { addedAt }),
+            ...(moreChapters && { chaptersRead: entry.chaptersRead }),
           },
         })
       }
@@ -282,6 +310,45 @@ export async function patchEntry(
   if (before.favorite !== row.favorite || before.userRating !== row.userRating) {
     await recordReappraisal(userId, workId, before, row, dto.book)
   }
+  return dto
+}
+
+/**
+ * Position du lecteur intégré (`PATCH /library/progress`).
+ *
+ * - La position la plus récente gagne : un envoi en retard (file hors-ligne
+ *   d'un autre appareil) ne ramène pas le lecteur en arrière.
+ * - `chaptersRead` ne fait que croître, quel que soit l'ordre d'arrivée.
+ * - L'œuvre doit déjà être en bibliothèque : le front l'y ajoute (« En cours »)
+ *   dès l'ouverture du lecteur, et sa file d'envoi garde l'ordre des opérations.
+ */
+export async function saveProgress(userId: string, input: ProgressInput): Promise<LibraryEntryDto> {
+  const where = { userId_workId: { userId, workId: input.workId } }
+  const before = await prisma.libraryEntry.findUnique({
+    where,
+    select: { chaptersRead: true, updatedAt: true },
+  })
+  if (!before) throw notFound('Cette œuvre n’est pas dans ta bibliothèque.')
+
+  const at = clientTime(input.at ?? input.position.at)
+  const fresh = at >= before.updatedAt
+  const chaptersRead = Math.max(before.chaptersRead, input.chaptersRead ?? 0)
+
+  const row = await prisma.libraryEntry.update({
+    where,
+    data: {
+      chaptersRead,
+      ...(fresh && {
+        position: JSON.stringify(input.position),
+        ...(input.progress !== undefined && { progress: input.progress }),
+        ...(input.status !== undefined && { status: input.status }),
+        updatedAt: at,
+      }),
+    },
+  })
+
+  const dto = toDto(row)
+  if (!dto) throw notFound()
   return dto
 }
 

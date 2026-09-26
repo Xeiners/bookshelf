@@ -10,16 +10,24 @@
  *  - navigation      → réseau d'abord, repli sur la coquille en cache
  *  - /assets/* (hachés) → cache d'abord (immuables par construction)
  *  - couvertures (/api/covers, Open Library, AniList) → stale-while-revalidate, cache plafonné
+ *  - pages de chapitre (/api/chapters/…/image/…) → cache d'abord (nom = empreinte du contenu) :
+ *    le chapitre en cours, préchargé en entier, reste lisible hors-ligne
+ *  - listes de chapitres et de pages → réseau d'abord, repli sur la dernière copie
  *  - reste de /api   → réseau uniquement (session, bibliothèque : jamais périmés)
  */
 
-const VERSION = 'v3'
+const VERSION = 'v4'
 const SHELL_CACHE = `bookshelf-shell-${VERSION}`
 const ASSET_CACHE = `bookshelf-assets-${VERSION}`
 const IMAGE_CACHE = `bookshelf-covers-${VERSION}`
+const PAGES_CACHE = `bookshelf-pages-${VERSION}`
+const READER_DATA_CACHE = `bookshelf-reader-data-${VERSION}`
 
 const SHELL_URLS = ['./', './index.html', './manifest.webmanifest', './favicon.svg']
 const MAX_IMAGES = 200
+/** Quelques chapitres complets (une page pèse 100 à 500 Ko). */
+const MAX_PAGES = 400
+const MAX_READER_DATA = 80
 
 /** Couvertures des anciennes entrées de bibliothèque. */
 const LEGACY_COVERS_HOST = 'covers.openlibrary.org'
@@ -27,23 +35,45 @@ const LEGACY_COVERS_HOST = 'covers.openlibrary.org'
 const ANILIST_COVERS_HOST = 's4.anilist.co'
 const API_PREFIX = '/api/'
 const COVERS_PREFIX = '/api/covers/'
+/** `/api/chapters/<id>/image/<qualité>/<fichier>` */
+const CHAPTER_IMAGE = /^\/api\/chapters\/[\w-]+\/image\//
+/** `/api/chapters/<id>/pages` et `/api/manga/<id>/chapters` */
+const READER_DATA = /^\/api\/(chapters\/[\w-]+\/pages|manga\/[\w-]+\/chapters)$/
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) =>
-      // `reload` court-circuite le cache HTTP : on veut la version fraîche.
-      cache.addAll(SHELL_URLS.map((url) => new Request(url, { cache: 'reload' }))),
-    ),
+    Promise.all([
+      caches.open(SHELL_CACHE).then((cache) =>
+        // `reload` court-circuite le cache HTTP : on veut la version fraîche.
+        cache.addAll(SHELL_URLS.map((url) => new Request(url, { cache: 'reload' }))),
+      ),
+      // Échec sans gravité : ces fichiers seront mis en cache au prochain passage.
+      precacheEntryAssets().catch(() => {}),
+    ]),
   )
   // Pas de skipWaiting : la nouvelle version prend la main au prochain
   // démarrage, jamais en plein milieu d'une session.
 })
 
+/**
+ * JS et CSS d'entrée (noms hachés), lus dans `index.html`. À la première visite,
+ * la page les charge AVANT que le Service Worker n'en prenne le contrôle : sans
+ * ce précache, ils ne passeraient jamais par lui et l'application ne pourrait
+ * pas démarrer hors-ligne (le chapitre en cache serait alors inaccessible).
+ */
+async function precacheEntryAssets() {
+  const response = await fetch('./index.html', { cache: 'reload' })
+  const html = await response.text()
+  const urls = [...new Set(html.match(/\/assets\/[^"'\s>]+/g) ?? [])]
+  const cache = await caches.open(ASSET_CACHE)
+  await cache.addAll(urls)
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys()
-      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE])
+      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE])
       await Promise.all(keys.filter((key) => !current.has(key)).map((key) => caches.delete(key)))
       await self.clients.claim()
     })(),
@@ -72,7 +102,9 @@ async function networkFirstShell(request) {
 }
 
 async function cacheFirst(request, cacheName) {
-  const cached = await caches.match(request)
+  // `ignoreVary` : un fichier haché est immuable. Sans ça, une copie précachée
+  // (sans en-tête Origin) ne sert jamais une balise `crossorigin` (avec).
+  const cached = await caches.match(request, { ignoreVary: true })
   if (cached) return cached
 
   const response = await fetch(request)
@@ -110,6 +142,46 @@ async function staleWhileRevalidate(request, cacheName) {
   return network
 }
 
+/**
+ * Page de chapitre : immuable (le nom de fichier est l'empreinte de l'image),
+ * donc servie depuis le cache dès qu'elle y est. Un repli « Data Saver » servi
+ * à la place de l'originale (en-tête `X-Reader-Quality`) n'est pas gardé.
+ */
+async function chapterImage(request) {
+  const cache = await caches.open(PAGES_CACHE)
+  const cached = await cache.match(request)
+  if (cached) return cached
+
+  const response = await fetch(request)
+  const isImage = response.headers.get('content-type')?.startsWith('image/')
+  if (response.ok && isImage && !response.headers.has('x-reader-quality')) {
+    cache
+      .put(request, response.clone())
+      .then(() => trimCache(PAGES_CACHE, MAX_PAGES))
+      .catch(() => {})
+  }
+  return response
+}
+
+/** Listes du lecteur : toujours fraîches en ligne, dernière copie connue hors-ligne. */
+async function networkFirstData(request) {
+  const cache = await caches.open(READER_DATA_CACHE)
+  try {
+    const response = await fetch(request)
+    if (response.ok) {
+      cache
+        .put(request, response.clone())
+        .then(() => trimCache(READER_DATA_CACHE, MAX_READER_DATA))
+        .catch(() => {})
+    }
+    return response
+  } catch (error) {
+    const cached = await cache.match(request)
+    if (cached) return cached
+    throw error
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event
   if (request.method !== 'GET') return
@@ -125,6 +197,16 @@ self.addEventListener('fetch', (event) => {
   // Couvertures : immuables par nom de fichier, idéales pour le hors-ligne.
   if (url.pathname.startsWith(COVERS_PREFIX) || url.hostname === LEGACY_COVERS_HOST || url.hostname === ANILIST_COVERS_HOST) {
     event.respondWith(staleWhileRevalidate(request, IMAGE_CACHE))
+    return
+  }
+
+  // Lecteur : pages de chapitre et listes, pour lire hors-ligne le chapitre en cours.
+  if (url.origin === self.location.origin && CHAPTER_IMAGE.test(url.pathname)) {
+    event.respondWith(chapterImage(request))
+    return
+  }
+  if (url.origin === self.location.origin && READER_DATA.test(url.pathname)) {
+    event.respondWith(networkFirstData(request))
     return
   }
 

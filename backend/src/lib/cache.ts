@@ -41,6 +41,11 @@ export class TtlCache<V> {
     }
   }
 
+  /** Oublie une entrée (valeur devenue fausse : nœud tombé, ressource remplacée…). */
+  delete(key: string): void {
+    this.slots.delete(key)
+  }
+
   /** Renvoie la valeur en cache, ou la charge une seule fois pour tous les appelants. */
   async getOrLoad(key: string, load: () => Promise<V>, ttlMs = this.defaultTtlMs): Promise<V> {
     const cached = this.get(key)

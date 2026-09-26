@@ -69,6 +69,8 @@ model LibraryEntry {
   progress  Float    @default(0)
   favorite   Boolean @default(false)   // coup de cœur
   userRating Float?                    // note perso 0,5 → 5 (demi-étoiles)
+  chaptersRead Int @default(0)         // lecteur intégré : ne fait que croître
+  position  String?                    // JSON ReadingPosition (chapitre, page, décalage)
   snapshot  String                     // JSON du `Book` affiché par le front
   title     String
   addedAt   DateTime
@@ -168,6 +170,49 @@ page existante : le deck n'affiche jamais « étagère épuisée » à tort.
 
 ---
 
+## 3 bis. Lecteur : chapitres et pages (MangaDex At-Home)
+
+`modules/chapters/` sert le lecteur intégré du front.
+
+**Chapitres.** `GET /api/manga/:id/chapters?lang=fr|en` lit `/manga/:id/feed`
+(pages de 500, fr + en en une seule passe, équipes de traduction incluses) et
+exclut côté MangaDex les chapitres **externes** (`includeExternalUrl=0`), vides
+ou à paraître. Le flux brut est gardé 10 min, indépendant de la langue : basculer
+FR ↔ EN ne coûte aucun appel. Tri numérique (`9` avant `10`, one-shots en tête),
+puis volume, puis date (`chapters.normalize.ts`). Sans chapitre dans la langue
+demandée, l'autre est servie (`language` dans la réponse, `available` compte les deux).
+
+> ⚠️ Beaucoup de titres sous licence n'ont sur MangaDex **que des liens
+> officiels externes** (MANGA Plus, Tappytoon, Webnovel…) sans aucune page
+> hébergée : ils ressortent avec 0 chapitre et le lecteur l'annonce. Ex. :
+> *Solo Leveling*. Ce n'est pas un bug.
+
+**Pages.** `GET /api/chapters/:chapterId/pages?quality=data|data-saver` appelle
+`/at-home/server/:chapterId` et renvoie des URL **vers notre relais**, avec pour
+chaque page l'URL « Data Saver » de repli. Le nœud MD@Home est gardé 10 min (son
+jeton vit ~15 min). Ce point est limité à **30 appels/min par IP** : MangaDex
+plafonne `/at-home/server` à 40/min pour TOUT notre serveur.
+
+**Images.** `GET /api/chapters/:chapterId/image/:quality/:file` relaie l'image
+(même logique que les couvertures : même origine, donc cache du Service Worker et
+lecture hors-ligne). Replis successifs : nœud en panne → oubli du nœud, nouveau
+nœud, nouvel essai → sinon la même page en `data-saver` (en-tête
+`X-Reader-Quality: data-saver`, cache 5 min seulement). Nom de fichier =
+empreinte : réponse `immutable` 30 jours. Rien n'est gardé en mémoire (RAM du VPS
+partagée) ; chaque téléchargement est **rapporté à MangaDex**
+(`api.mangadex.network/report`), comme l'exigent ses conditions, sauf pour
+`uploads.mangadex.org`.
+
+**Progression.** `PATCH /api/library/progress` (déclarée AVANT `/:workId`) :
+la position la plus récente gagne (un envoi en retard d'un autre appareil ne
+recule pas le lecteur), `chaptersRead` ne fait que croître. La fusion invité →
+compte applique les mêmes règles.
+
+Tests : `backend/test/reader.test.ts` (MangaDex et nœuds MD@Home simulés via
+`extraMocks` du banc d'essai).
+
+---
+
 ## 4. Référence de l'API
 
 Les erreurs sont toujours renvoyées au format `{ "error": { "code", "message" } }`.
@@ -193,6 +238,14 @@ continuent de fonctionner. Voir §7.
 | GET | `/api/discover/genres?lang=` | `{ genres: { id, label, count }[] }` — filtres de genre |
 | GET | `/api/covers/:mangaId/:fileName?size=512\|256` | image |
 | GET | `/api/health` | `{ status: 'ok' }` |
+
+### Lecteur (public)
+
+| Méthode | Route | Réponse |
+| --- | --- | --- |
+| GET | `/api/manga/:id/chapters?lang=fr|en` | `{ mangaId, language, available: { fr, en }, chapters[] }` |
+| GET | `/api/chapters/:chapterId/pages?quality=data|data-saver` | `{ chapterId, quality, pages: [{ index, url, fallbackUrl }] }` |
+| GET | `/api/chapters/:chapterId/image/:quality/:file` | l'image (relais MD@Home) |
 
 ### Authentification
 
@@ -240,6 +293,8 @@ continuent de fonctionner. Voir §7.
 | DELETE | `/api/library/:workId` | — | retire une œuvre (idempotent) |
 | DELETE | `/api/library` | — | réinitialise tout |
 | POST | `/api/library/sync` | `{ entries, skipped }` | fusion d'un état complet |
+
+| PATCH | `/api/library/progress` | `{ workId, position, chaptersRead?, progress?, status?, at? }` | position du lecteur ; compteur de chapitres (ne recule jamais) |
 
 `book` est obligatoire sauf pour `skipped`, et `book.id` doit valoir `mangaId`.
 Toutes ces opérations sont idempotentes : la file du front peut les rejouer sans

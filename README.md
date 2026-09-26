@@ -74,6 +74,15 @@ Un sélecteur FR / EN dans l'en-tête traduit l'interface ET les œuvres : titre
 résumés et genres sont servis dans ta langue, avec repli annoncé quand une
 traduction manque. Le choix suit ton compte d'un appareil à l'autre.
 
+📖 **Un lecteur intégré, pour tout ce qui se lit**
+Chapitres MangaDex en défilement vertical (webtoon) ou page par page (simple ou
+double page, sens japonais ou occidental), basculables en un tap. Pages préchargées
+en arrière-plan, chapitre en cours lisible hors-ligne, reprise exacte là où tu
+t'es arrêté et compteur de chapitres lus mis à jour tout seul. Tes propres PDF,
+EPUB et CBZ s'importent dans « Mes fichiers » et restent sur l'appareil ; les
+romans ont leur typographie réglable (dont une police pour la dyslexie) et quatre
+thèmes de lecture.
+
 ☁️ **Sans compte d'abord, synchronisé ensuite**
 Aucune inscription pour commencer : tout vit sur l'appareil. Crée un compte depuis
 le Profil et ta bibliothèque invitée rejoint le compte sans doublon ; chaque swipe

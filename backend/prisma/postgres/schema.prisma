@@ -58,6 +58,11 @@ model LibraryEntry {
   status    String
   /// Avancement 0 → 1.
   progress  Float    @default(0)
+  /// Chapitres lus dans le lecteur intégré : ne fait que croître, d'un appareil à l'autre.
+  chaptersRead Int   @default(0)
+  /// Position de lecture, JSON `ReadingPosition` (cf. `library.schemas.ts`).
+  /// `null` : jamais ouvert dans le lecteur.
+  position  String?
   /// Coup de cœur de l'utilisateur.
   favorite   Boolean @default(false)
   /// Note personnelle, 0,5 → 5 par demi-étoiles (titres lus). `null` = pas notée.

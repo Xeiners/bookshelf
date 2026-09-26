@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import { FolderOpen } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
-import type { ViewId } from '../../store/useUiStore'
+import { vibrate } from '../../lib/haptics'
+import { useUiStore, type ViewId } from '../../store/useUiStore'
 import { LanguageToggle } from '../ui/LanguageToggle'
+import { Pressable } from '../ui/Pressable'
 
 interface AppHeaderProps {
   view: ViewId
@@ -20,6 +23,7 @@ export function AppHeader({ view }: AppHeaderProps) {
   const t = useT()
   const [shownView, setShownView] = useState(view)
   const copy = t.header[shownView]
+  const openFiles = useUiStore((state) => state.openFiles)
 
   useGSAP(
     () => {
@@ -63,9 +67,25 @@ export function AppHeader({ view }: AppHeaderProps) {
         </h1>
       </div>
 
-      {/* Sur ordinateur, la langue se règle dans la barre latérale. */}
-      <div className="pt-1 lg:hidden">
-        <LanguageToggle />
+      <div className="flex shrink-0 items-center gap-2 pt-1">
+        {/* Bibliothèque : fichiers personnels (PDF, EPUB, CBZ), lus avec le même lecteur. */}
+        {view === 'library' && (
+          <Pressable
+            onClick={() => {
+              vibrate(6)
+              openFiles()
+            }}
+            aria-label={t.reader.files.open}
+            title={t.reader.files.open}
+            className="glass grid size-11 place-items-center rounded-full text-cream/70"
+          >
+            <FolderOpen size={17} />
+          </Pressable>
+        )}
+        {/* Sur ordinateur, la langue se règle dans la barre latérale. */}
+        <div className="lg:hidden">
+          <LanguageToggle />
+        </div>
       </div>
     </header>
   )

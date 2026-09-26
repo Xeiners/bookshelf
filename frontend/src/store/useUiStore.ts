@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Book, LibraryTab } from '../types/book'
+import type { ReaderSession } from '../types/reader'
 
 export type ViewId = 'discover' | 'oracle' | 'search' | 'library' | 'profile'
 export type ToastTone = 'like' | 'nope' | 'neutral'
@@ -22,6 +23,10 @@ interface UiState {
   libraryTab: LibraryTab
   /** Incrémenté pour demander le focus du champ de recherche (raccourci Ctrl/⌘ K). */
   searchFocusTick: number
+  /** Lecteur plein écran ouvert (œuvre MangaDex ou fichier importé), `null` = fermé. */
+  reader: ReaderSession | null
+  /** Feuille « Mes fichiers » (PDF, EPUB, CBZ importés). */
+  filesOpen: boolean
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -33,6 +38,11 @@ interface UiState {
   openLibrary: (tab: LibraryTab) => void
   /** Va sur Recherche et place le curseur dans le champ. */
   focusSearch: () => void
+  /** Ouvre le lecteur ; la fiche éventuellement ouverte se ferme (le lecteur la recouvre). */
+  openReader: (session: ReaderSession) => void
+  closeReader: () => void
+  openFiles: () => void
+  closeFiles: () => void
   notify: (message: string, tone?: ToastTone) => void
   dismissToast: () => void
 }
@@ -46,6 +56,8 @@ export const useUiStore = create<UiState>((set) => ({
   authOpen: false,
   libraryTab: 'wishlist',
   searchFocusTick: 0,
+  reader: null,
+  filesOpen: false,
 
   setView: (view) => set({ view }),
   openDetail: (detail) => set({ detail }),
@@ -55,6 +67,10 @@ export const useUiStore = create<UiState>((set) => ({
   setLibraryTab: (libraryTab) => set({ libraryTab }),
   openLibrary: (libraryTab) => set({ view: 'library', libraryTab }),
   focusSearch: () => set((state) => ({ view: 'search', searchFocusTick: state.searchFocusTick + 1 })),
+  openReader: (reader) => set({ reader, detail: null, filesOpen: false }),
+  closeReader: () => set({ reader: null }),
+  openFiles: () => set({ filesOpen: true }),
+  closeFiles: () => set({ filesOpen: false }),
 
   notify: (message, tone = 'neutral') => {
     toastId += 1

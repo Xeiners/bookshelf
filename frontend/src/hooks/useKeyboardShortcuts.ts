@@ -21,7 +21,7 @@ export function useKeyboardShortcuts(): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const ui = useUiStore.getState()
-      if (ui.detail !== null || ui.authOpen || event.repeat) return
+      if (ui.detail !== null || ui.authOpen || ui.reader !== null || ui.filesOpen || event.repeat) return
 
       const command = event.metaKey || event.ctrlKey
       const key = event.key.toLowerCase()

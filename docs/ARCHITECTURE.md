@@ -565,6 +565,78 @@ catalogue AniList + MangaDex : voir `docs/BACKEND.md` §7 ter).
   (mise en cache par le Service Worker, CORS autorisé pour la teinte de couverture),
   fiche détaillée via `GET /api/manga/al-<id>`.
 
+## 4 nonies. Lecteur universel
+
+Plein écran, par-dessus toute l'application (`z-[100]`, fond `#000`), ouvert par
+`useUiStore.openReader(session)` : bouton **Lire / Reprendre** de la fiche,
+« Reprendre » de la vitrine, ou un fichier de « Mes fichiers » (bouton dossier de
+l'en-tête de « Ma biblio »). Chargé à la demande (`React.lazy`) : le lecteur, puis
+epub.js et pdf.js, ne pèsent rien tant qu'on ne lit pas.
+
+```
+components/reader/
+  UniversalReader   choisit le moteur ; crée l'état d'interface (contexte ReaderUiContext)
+  MangaReader       MangaDex : chapitres, pages, suivi de progression → ImageReader
+  ArchiveReader     CBZ importé (fflate) → ImageReader
+  ImageReader       moteur « images » : WebtoonView ou PagedView, commandes, tiroirs
+  WebtoonView       défilement vertical continu, pages bord à bord, reprise au pixel
+  PagedView         simple / double page, RTL / LTR, swipe, tiers de l'écran, pincement
+  EpubReader        moteur « texte » (epub.js) : typographie, thèmes, temps restant
+  PdfReader         moteur « document » (pdf.js, canevas) : pincement, Ctrl + molette
+  ReaderControls    en-tête + pied de page en surimpression ; ReaderStatus (heure, batterie)
+  ChapterDrawer / SidePanel / ReaderSettings / ChapterEnd / PageImage / ReaderMessage
+  LocalFilesSheet   « Mes fichiers » : import, liste, suppression
+lib/reader/         progress, prefetch, navigation, formats (purs, testés : frontend/test/)
+                    archive (CBZ), localFiles (IndexedDB), quality, readable
+hooks/reader/       useReaderUi, usePrefetch, usePinch, useLocalPosition, useReaderEnvironment
+workers/            prefetch.worker.ts
+store/useReaderStore  préférences propres à l'appareil (bookshelf:reader:v1)
+```
+
+**Gestes.** Tap au centre : commandes ; tiers gauche / droit : page précédente /
+suivante (inversés en sens japonais) ; swipe horizontal en mode pages ; flèches,
+Espace, Page ↑↓ au clavier ; Échap ferme d'abord le tiroir ouvert, puis le lecteur ;
+le geste « retour » du téléphone ferme le lecteur (entrée d'historique dédiée). Les
+règles sont des fonctions pures (`navigation.ts`), identiques pour les trois moteurs.
+
+**Modes.** Manhwa / manhua → webtoon par défaut, manga → pages en sens japonais ;
+le choix est mémorisé par œuvre. Double page automatique à partir de 900 px de
+large en paysage, couverture seule. Le mode se bascule en un tap depuis le pied de
+page, sans perdre sa page.
+
+**Préchargement.** `usePrefetch` confie les téléchargements à un Web Worker
+(`PrefetchQueue` : priorité, concurrence 2, annulation quand on saute des pages) :
+les 5 pages suivantes, la précédente, puis tout le reste du chapitre (sauf
+connexion lente / économie de données), plus le début du chapitre suivant passé
+60 %. Les deux prochaines pages sont aussi décodées sur le fil principal.
+
+**Progression.** `useLibraryStore.recordReading` : position (page + part défilée,
+au pixel près en webtoon), écrite ~1 s après le dernier mouvement et
+immédiatement quand l'app passe en arrière-plan. Fin de chapitre →
+`chaptersRead` (numéro du chapitre, ne recule jamais), avancement global si le
+nombre de chapitres est connu (plafonné à 99 % pour une série en cours), et le
+titre entre en « En cours » s'il n'était pas en bibliothèque. Compte connecté :
+opération `progress` de la file d'envoi → `PATCH /api/library/progress`.
+
+**Hors-ligne.** Le Service Worker garde les pages de chapitre (cache d'abord, 400
+max) et les listes de chapitres / pages (réseau d'abord) : le chapitre préchargé
+se relit sans réseau. Fichiers importés : IndexedDB (`bookshelf-reader`), jamais
+envoyés à l'API.
+
+**Pièges.**
+
+- Un seul `useReaderUi()` par lecteur (dans `UniversalReader`) : chaque instance
+  ajoute une entrée d'historique et un écouteur d'Échap. Les moteurs lisent
+  `useReaderChrome()`.
+- Webtoon : la reprise est réappliquée à chaque image qui prend sa hauteur, tant
+  que l'utilisateur n'a pas touché l'écran ou fait défiler (cf. `appliedTop`).
+- EPUB : l'iframe d'epub.js reste en bac à sable (`allowScriptedContent: false`) ;
+  la console affiche « Blocked script execution in 'about:srcdoc' » : c'est voulu.
+  Les touches frappées dans l'iframe arrivent par un écouteur passif : pas de
+  `preventDefault` sur ce chemin.
+- CBR : seuls les « .cbr » qui sont en réalité des ZIP s'ouvrent (signature lue) ;
+  un vrai RAR est refusé avec un message.
+
 ## 5. Nettoyage des contextes GSAP
 
 Le détail que tout le monde rate : avec des **dépendances non vides** et

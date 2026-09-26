@@ -11,9 +11,11 @@
  */
 import type { Language } from '../i18n/languages'
 import type { Book, ReadingStatus } from '../types/book'
+import type { ReadingPosition } from '../types/reader'
 import { ApiError } from '../services/api'
 import { authApi, libraryApi, type SwipeAction } from '../services/accountApi'
 import { oracleApi } from '../services/oracleApi'
+import { readerApi } from '../services/readerApi'
 
 export type SyncOp =
   | { type: 'swipe'; id: string; action: SwipeAction; book?: Book; at: number }
@@ -24,6 +26,16 @@ export type SyncOp =
       progress: number
       favorite?: boolean
       userRating?: number | null
+      at: number
+    }
+  /** Position du lecteur intégré (rafales : seule la dernière part). */
+  | {
+      type: 'progress'
+      id: string
+      position: ReadingPosition
+      chaptersRead: number
+      progress: number
+      status: ReadingStatus
       at: number
     }
   | { type: 'remove'; id: string; at: number }
@@ -80,6 +92,15 @@ function send(op: SyncOp): Promise<unknown> {
         progress: op.progress,
         favorite: op.favorite,
         userRating: op.userRating,
+        at: op.at,
+      })
+    case 'progress':
+      return readerApi.progress({
+        workId: op.id,
+        position: op.position,
+        chaptersRead: op.chaptersRead,
+        progress: op.progress,
+        status: op.status,
         at: op.at,
       })
     case 'remove':
@@ -156,10 +177,11 @@ function enqueue(op: SyncOp) {
     return
   }
 
-  // Un curseur de progression émet une rafale de patchs : seul le dernier compte.
+  // Un curseur de progression (ou le lecteur, page après page) émet une rafale :
+  // seul le dernier état compte — il porte le compteur de chapitres cumulé.
   // Uniquement s'il est en fin de file, sinon on réordonnerait les opérations.
   const last = queue[queue.length - 1]
-  if (op.type === 'patch' && last?.type === 'patch' && last.id === op.id && !flushing) {
+  if ((op.type === 'patch' || op.type === 'progress') && last?.type === op.type && last.id === op.id && !flushing) {
     queue[queue.length - 1] = op
     return
   }

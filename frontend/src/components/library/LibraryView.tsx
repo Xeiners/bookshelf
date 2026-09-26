@@ -3,6 +3,7 @@ import { BookMarked, BookOpen, Heart, LayoutGrid, Rows3, Sparkles } from 'lucide
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
+import { isReadable } from '../../lib/reader/readable'
 import { getT } from '../../i18n'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -48,6 +49,7 @@ export function LibraryView() {
   const t = useT()
   const entries = useLibraryStore((state) => state.entries)
   const openDetail = useUiStore((state) => state.openDetail)
+  const openReader = useUiStore((state) => state.openReader)
   const notify = useUiStore((state) => state.notify)
   const setStatus = useLibraryStore((state) => state.setStatus)
   // Dans le store : la barre latérale d'ordinateur ouvre la biblio sur un onglet précis.
@@ -108,6 +110,13 @@ export function LibraryView() {
     notify(getT().book.movedTo(getT().status.reading), 'like')
     // On suit le livre dans son nouvel onglet.
     setTab('reading')
+    if (isReadable(entry.book)) openReader({ source: 'mangadex', book: entry.book })
+  }
+
+  /** « Reprendre » : directement dans le lecteur quand le titre s'y lit, sinon sa fiche. */
+  const resume = (entry: LibraryEntry) => {
+    if (entry.status === 'reading' && isReadable(entry.book)) openReader({ source: 'mangadex', book: entry.book })
+    else openDetail(entry.book)
   }
 
   // Cascade de la grille. En mode vitrine, ce sont `FeaturedBook` et `ShowcaseShelves` qui animent.
@@ -178,7 +187,7 @@ export function LibraryView() {
                   entry={featured}
                   width={heroWidth}
                   layout={wide ? 'stacked' : 'row'}
-                  onOpen={() => openDetail(featured.book)}
+                  onOpen={() => resume(featured)}
                   onStart={() => startReading(featured)}
                 />
               </div>

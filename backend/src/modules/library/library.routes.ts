@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
-import { LibrarySnapshotSchema, PatchEntrySchema, SwipeSchema } from './library.schemas.js'
+import { LibrarySnapshotSchema, PatchEntrySchema, ProgressSchema, SwipeSchema } from './library.schemas.js'
 import {
   applySwipe,
   getLibrary,
@@ -9,6 +9,7 @@ import {
   patchEntry,
   removeEntry,
   resetLibrary,
+  saveProgress,
 } from './library.service.js'
 
 const WorkIdParam = z.string().min(1).max(128)
@@ -30,6 +31,14 @@ libraryRouter.post('/swipe', async (req, res) => {
 /** Fusion d'un état local complet (reprise après une longue période hors-ligne). */
 libraryRouter.post('/sync', async (req, res) => {
   res.json(await mergeLibrary(currentUserId(req), LibrarySnapshotSchema.parse(req.body)))
+})
+
+/**
+ * Position du lecteur intégré. Déclarée AVANT `/:workId` : sinon « progress »
+ * serait pris pour un identifiant d'œuvre.
+ */
+libraryRouter.patch('/progress', async (req, res) => {
+  res.json({ entry: await saveProgress(currentUserId(req), ProgressSchema.parse(req.body)) })
 })
 
 libraryRouter.patch('/:workId', async (req, res) => {

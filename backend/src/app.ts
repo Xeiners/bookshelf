@@ -5,6 +5,7 @@ import { ZodError, z } from 'zod'
 import { config } from './config.js'
 import { HttpError } from './lib/errors.js'
 import { authRouter } from './modules/auth/auth.routes.js'
+import { chaptersRouter, mangaChaptersRouter } from './modules/chapters/chapters.routes.js'
 import { discoverRouter } from './modules/discover/discover.routes.js'
 import { libraryRouter } from './modules/library/library.routes.js'
 import { coverRouter, mangaRouter } from './modules/manga/manga.routes.js'
@@ -32,7 +33,10 @@ export function createApp() {
 
   app.use('/api/auth', authRouter)
   app.use('/api/library', libraryRouter)
+  // Avant `mangaRouter` : `/:id/chapters` ne doit pas dépendre de l'ordre de ses routes.
+  app.use('/api/manga', mangaChaptersRouter)
   app.use('/api/manga', mangaRouter)
+  app.use('/api/chapters', chaptersRouter)
   app.use('/api/covers', coverRouter)
   app.use('/api/oracle', oracleRouter)
   app.use('/api/discover', discoverRouter)
