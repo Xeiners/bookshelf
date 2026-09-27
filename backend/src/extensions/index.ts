@@ -1,6 +1,5 @@
 import { config } from '../config.js'
 import { titleAliases } from '../modules/manga/manga.service.js'
-import { anilistTitles } from '../services/catalog.service.js'
 import { SourceAggregatorService } from './aggregator.js'
 import { createConsumetProvider } from './providers/consumet.provider.js'
 import { createKavitaProvider } from './providers/kavita.provider.js'
@@ -52,18 +51,14 @@ if (tachiyomi.enabled) {
 }
 
 /**
- * Tous les noms connus d'une œuvre : AniList (anglais, romaji, synonymes —
- * souvent ceux qu'emploient les sites tiers) puis MangaDex (titres de toutes
- * langues : « L'Attaque des Titans », « Shingeki no Kyojin »…). Une panne
- * d'une des deux listes n'empêche pas l'autre de servir.
+ * Tous les noms connus d'une œuvre sur MangaDex (titre principal et
+ * alternatifs de toutes langues : « L'Attaque des Titans », « Shingeki no
+ * Kyojin »…), dédoublonnés après normalisation.
  */
 async function allTitles(mangaId: string): Promise<string[]> {
-  const [anilist, mangadex] = await Promise.all([
-    anilistTitles(mangaId).catch(() => []),
-    titleAliases(mangaId).catch(() => []),
-  ])
+  const titles = await titleAliases(mangaId).catch(() => [])
   const seen = new Set<string>()
-  return [...anilist, ...mangadex].filter((title) => {
+  return titles.filter((title) => {
     const key = normalizeTitle(title)
     if (!key || seen.has(key)) return false
     seen.add(key)

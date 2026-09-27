@@ -1,6 +1,6 @@
 import type { Language } from '../../lib/language.js'
 import { pick, seededRandom, shuffle } from '../../lib/seeded.js'
-import { getPool, loadDocuments, toBook, type CatalogItem } from '../../services/catalog.service.js'
+import { booksFor, getPool, type CatalogItem } from '../../services/catalog.service.js'
 import type { Book } from '../books/book.schema.js'
 import { localize, topRated } from '../manga/manga.service.js'
 import { MOODS, PACES, matchesCatalogPace, matchesMood, matchesPace, type Mood, type Pace } from './decks.js'
@@ -21,7 +21,7 @@ const MIN_CATALOG = 40
  * Répartition des origines de la Pépite, parmi celles disponibles pour
  * l'ambiance et le rythme tirés : au fil des jours, manga, manhwa ET manhua.
  */
-const ORIGIN_WEIGHTS: Record<string, number> = { JP: 0.5, KR: 0.3, CN: 0.2, TW: 0.2 }
+const ORIGIN_WEIGHTS: Record<string, number> = { JP: 0.5, KR: 0.3, CN: 0.2 }
 
 export interface OracleDraw {
   mood: string
@@ -63,7 +63,7 @@ function pickOrigin(available: Set<string>, random: () => number): string | null
 }
 
 /**
- * Tirage sur le catalogue agrégé (≈ 3 000 œuvres, manga / manhwa / manhua).
+ * Tirage sur le catalogue MangaDex en cache (≈ 3 000 œuvres, manga / manhwa / manhua).
  * `null` si le catalogue n'est pas prêt ou trop pauvre pour cette ambiance.
  */
 async function catalogDraw(
@@ -93,8 +93,8 @@ async function catalogDraw(
   const companion = rest.find((item) => item.country !== pepite.country)
   const chosen = [pepite, ...(companion ? [companion] : []), ...rest.filter((item) => item !== companion)].slice(0, PICKS)
 
-  const documents = await loadDocuments(chosen)
-  return { relaxed, picks: chosen.map((item) => toBook(item, language, documents.get(item.anilistId))) }
+  const served = await booksFor(chosen.map((item) => ({ item })), language)
+  return { relaxed, picks: served.map(({ book }) => book) }
 }
 
 /** Repli historique : les 100 mieux notés de MangaDex pour l'ambiance. */

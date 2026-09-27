@@ -141,8 +141,8 @@ sudo journalctl -u caddy -n 50 --no-pager           # journaux de Caddy
 sudo tail -f /var/log/caddy/bookshelf.log           # accès à Bookshelf
 ```
 
-Au premier démarrage, l'API indexe le catalogue AniList + MangaDex en tâche de
-fond (≈ 4 min) ; le suivi : `docker compose logs -f backend | grep catalogue`.
+Au premier démarrage, l'API indexe le catalogue MangaDex en tâche de fond
+(≈ 1 min) ; le suivi : `docker compose logs -f backend | grep catalogue`.
 
 ## 6. Exploitation
 

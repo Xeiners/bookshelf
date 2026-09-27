@@ -3,14 +3,11 @@ import { z } from 'zod'
 import { TtlCache } from '../../lib/cache.js'
 import { badRequest, notFound } from '../../lib/errors.js'
 import { LangQuerySchema } from '../../lib/language.js'
-import { bookFor, findWork } from '../../services/catalog.service.js'
 import { fetchCoverImage } from './mangadex.client.js'
 import { BATCH_LIMIT, getManga, getMangas, listShelf, searchManga } from './manga.service.js'
 import { SHELVES, findShelf } from './shelves.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** Œuvre connue d'AniList seulement (catalogue agrégé du deck). */
-const ANILIST_ID = /^al-\d{1,9}$/
 const COVER_FILE = /^[\w-]+\.(?:jpe?g|png|webp|gif)$/i
 
 const OriginSchema = z.enum(['all', 'manga', 'manhwa']).default('all')
@@ -79,13 +76,6 @@ mangaRouter.get('/batch', async (req, res) => {
 mangaRouter.get('/:id', async (req, res) => {
   const { id } = req.params
   const { lang } = LangQuery.parse(req.query)
-  if (ANILIST_ID.test(id)) {
-    const work = await findWork(id)
-    if (!work) throw notFound()
-    res.set('Cache-Control', 'public, max-age=3600')
-    res.json({ book: await bookFor(work, lang) })
-    return
-  }
   if (!UUID.test(id)) throw badRequest('Identifiant MangaDex invalide.')
   res.set('Cache-Control', 'public, max-age=3600')
   res.json({ book: await getManga(id, lang) })

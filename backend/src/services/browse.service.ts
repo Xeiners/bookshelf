@@ -2,11 +2,10 @@ import type { Language } from '../lib/language.js'
 import { localize, searchMangaRaw } from '../modules/manga/manga.service.js'
 import { tagLabel } from '../modules/manga/tags.js'
 import {
+  booksFor,
   featuresFromBook,
   getPool,
-  loadDocuments,
   normalizeText,
-  toBook,
   type CatalogItem,
   type DeckBook,
   type DeckOrigin,
@@ -14,7 +13,7 @@ import {
 import { matchPercentage, type TasteProfile } from './recommendation/scoring.js'
 
 /*
- * Recherche et exploration du catalogue agrégé (page « Recherche »).
+ * Recherche et exploration du catalogue MangaDex en cache (page « Recherche »).
  *
  * Tout se passe en mémoire sur le pool (≈ 3 000 œuvres) : filtres combinables,
  * recherche plein texte sur les titres de toutes les langues et les auteurs,
@@ -32,7 +31,7 @@ export type BrowseStatus = 'any' | 'ongoing' | 'completed'
 export interface BrowseRequest {
   query: string
   origin: DeckOrigin
-  /** Genres AniList, combinés en ET. */
+  /** Genres MangaDex (noms anglais), combinés en ET. */
   genres: string[]
   status: BrowseStatus
   /** Note moyenne minimale sur 100 (0 = pas de filtre). */
@@ -57,15 +56,16 @@ const ORIGIN_COUNTRIES: Record<DeckOrigin, readonly string[] | null> = {
   all: null,
   manga: ['JP'],
   manhwa: ['KR'],
-  manhua: ['CN', 'TW'],
+  manhua: ['CN'],
 }
 
 /** Sous ce nombre de résultats, une recherche textuelle interroge aussi MangaDex. */
 const MANGADEX_SUPPLEMENT_BELOW = 8
 
+/** Statuts de parution MangaDex. */
 const STATUS_VALUES: Record<Exclude<BrowseStatus, 'any'>, string> = {
-  ongoing: 'RELEASING',
-  completed: 'FINISHED',
+  ongoing: 'ongoing',
+  completed: 'completed',
 }
 
 /**
@@ -128,13 +128,8 @@ export async function browseCatalog(request: BrowseRequest): Promise<BrowsePage>
   hits.sort(comparators[sort])
 
   const start = (request.page - 1) * request.limit
-  const pageHits = hits.slice(start, start + request.limit)
-  const documents = await loadDocuments(pageHits.map((hit) => hit.item))
-  const books: DeckBook[] = pageHits.map(({ item, match }) => ({
-    ...toBook(item, request.language, documents.get(item.anilistId)),
-    matchPercentage: match,
-    discovery: false,
-  }))
+  const served = await booksFor(hits.slice(start, start + request.limit), request.language)
+  const books: DeckBook[] = served.map(({ book, match }) => ({ ...book, matchPercentage: match, discovery: false }))
 
   return {
     books,
@@ -147,8 +142,7 @@ export async function browseCatalog(request: BrowseRequest): Promise<BrowsePage>
 
 /**
  * Complément MangaDex d'une recherche textuelle : titres absents du catalogue.
- * Une œuvre que le catalogue connaît déjà (même sous une autre fiche MangaDex,
- * reconnue par son id AniList `links.al`) n'est jamais proposée deux fois.
+ * Une œuvre que le catalogue connaît déjà n'est jamais proposée deux fois.
  */
 export async function browseMangadex(request: BrowseRequest): Promise<DeckBook[]> {
   const pool = await getPool()
@@ -156,11 +150,7 @@ export async function browseMangadex(request: BrowseRequest): Promise<DeckBook[]
   try {
     const origin = request.origin === 'manga' || request.origin === 'manhwa' ? request.origin : 'all'
     const { mangas } = await searchMangaRaw(request.query, 1, 12, origin, request.language)
-    const unknown = mangas.filter((manga) => {
-      if (pool.byId.has(manga.id)) return false
-      const anilistId = manga.attributes.links?.al
-      return !(anilistId && pool.byId.has(`al-${anilistId}`))
-    })
+    const unknown = mangas.filter((manga) => !pool.byId.has(manga.id))
     const kinds = countries
       ? new Set<string>(countries.map((country) => (country === 'KR' ? 'manhwa' : country === 'JP' ? 'manga' : 'manhua')))
       : null
@@ -175,29 +165,24 @@ export async function browseMangadex(request: BrowseRequest): Promise<DeckBook[]
   }
 }
 
-/** Genres AniList proposés comme filtres (le contenu adulte n'en fait pas partie). */
-const HIDDEN_GENRES = new Set(['Ecchi', 'Hentai'])
-const GENRE_ALIASES: Record<string, string> = { 'Mahou Shoujo': 'Magical Girls' }
-
 export interface GenreFacet {
-  /** Nom AniList : la valeur à renvoyer dans `genres`. */
+  /** Nom anglais MangaDex : la valeur à renvoyer dans `genres`. */
   id: string
   label: string
   count: number
 }
 
-/** Genres présents dans le catalogue, libellés dans la langue demandée, les plus fournis d'abord. */
+/**
+ * Genres présents dans le catalogue, libellés dans la langue demandée, les
+ * plus fournis d'abord. Le contenu adulte est un groupe de tags à part chez
+ * MangaDex (`content`) : il n'est jamais indexé comme genre.
+ */
 export async function genreFacets(language: Language): Promise<GenreFacet[]> {
   const counts = new Map<string, number>()
   for (const item of (await getPool()).items) {
     for (const genre of item.features.genres) counts.set(genre, (counts.get(genre) ?? 0) + 1)
   }
   return [...counts]
-    .filter(([genre]) => !HIDDEN_GENRES.has(genre))
-    .map(([genre, count]) => ({
-      id: genre,
-      label: tagLabel(GENRE_ALIASES[genre] ?? genre, language) ?? genre,
-      count,
-    }))
+    .map(([genre, count]) => ({ id: genre, label: tagLabel(genre, language) ?? genre, count }))
     .sort((a, b) => b.count - a.count)
 }

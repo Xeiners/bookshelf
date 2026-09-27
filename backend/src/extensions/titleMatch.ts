@@ -1,10 +1,10 @@
 /**
- * Rapprochement par titre (« TitleResolver »), pour les sources qui ne
- * connaissent ni l'id MangaDex ni l'id AniList — fonctions pures, testées
+ * Rapprochement par titre (« TitleResolver »), pour les sources qui
+ * ne connaissent pas l'id MangaDex — fonctions pures, testées
  * (`backend/test/extensions.test.ts`).
  *
  * Deux étapes : fabriquer quelques requêtes de recherche à partir des titres
- * connus (principal, alternatifs, synonymes AniList, variantes nettoyées),
+ * connus (principal, alternatifs de toutes langues, variantes nettoyées),
  * puis choisir le résultat le plus proche, avec un seuil de similarité ET un
  * garde-fou contre les suites et spin-offs : mieux vaut aucun chapitre qu'une
  * autre série affichée sous ce titre.

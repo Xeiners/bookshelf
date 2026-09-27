@@ -9,7 +9,7 @@ import { after, describe, it } from 'node:test'
 import { SourceAggregatorService } from '../src/extensions/aggregator.js'
 import { encodeChapterKey } from '../src/extensions/chapterKey.js'
 import { SourceRegistry } from '../src/extensions/registry.js'
-import { createSuwayomiClient } from '../src/extensions/providers/suwayomi.client.js'
+import { createSuwayomiClient, graphqlErrorMessage } from '../src/extensions/providers/suwayomi.client.js'
 import {
   bridgeChapterNumber,
   bridgeChapterTitle,
@@ -273,6 +273,17 @@ describe('pont Tachiyomi — client GraphQL', () => {
     }
     assert.ok(logs.some((line) => line.includes('sources : format de réponse inattendu')))
     assert.ok(logs.some((line) => line.includes('erreur GraphQL (Source not found)')))
+  })
+
+  it('message d’erreur : première ligne sans préfixe ni pile Java ; Cloudflare → piste FlareSolverr', () => {
+    const cloudflare = [
+      'Exception while fetching data (/fetchSourceManga) : Cloudflare bypass currently disabled',
+      '   at eu.kanade.tachiyomi.b.a.k.a(Unknown Source)',
+      '   at eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor.intercept(CloudflareInterceptor.kt:52)',
+    ].join('\n')
+    assert.equal(graphqlErrorMessage(cloudflare), 'Cloudflare bypass currently disabled — site protégé par Cloudflare : activer FlareSolverr (docs/BACKEND.md)')
+    assert.equal(graphqlErrorMessage('Exception while fetching data (/fetchChapters) : HTTP error 503'), 'HTTP error 503')
+    assert.equal(graphqlErrorMessage('\n'), 'erreur inconnue')
   })
 
   it('pages : URL absolues sur l’origine du pont', async () => {

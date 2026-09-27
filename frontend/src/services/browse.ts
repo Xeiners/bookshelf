@@ -1,5 +1,5 @@
 /**
- * Recherche et exploration du catalogue agrégé (AniList + MangaDex), avec le
+ * Recherche et exploration du catalogue MangaDex (en cache côté API), avec le
  * % de match de chaque titre. Cf. `POST /api/discover/browse`.
  */
 import type { Language } from '../i18n/languages'
@@ -84,7 +84,7 @@ export async function browse(
 }
 
 export interface GenreFacet {
-  /** Nom AniList : la valeur de filtre. */
+  /** Nom anglais MangaDex : la valeur de filtre. */
   id: string
   label: string
   count: number

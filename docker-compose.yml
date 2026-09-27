@@ -119,6 +119,9 @@ services:
       AUTH_MODE: ${TACHIYOMI_BRIDGE_AUTH_MODE:-none}
       AUTH_USERNAME: ${TACHIYOMI_BRIDGE_USER:-}
       AUTH_PASSWORD: ${TACHIYOMI_BRIDGE_PASSWORD:-}
+      # Sites derrière Cloudflare : passés par FlareSolverr (profil `flaresolverr`, plus bas).
+      FLARESOLVERR_ENABLED: ${TACHIYOMI_FLARESOLVERR_ENABLED:-false}
+      FLARESOLVERR_URL: http://flaresolverr:8191
       # Tas Java borné : la RAM du VPS est partagée avec d'autres projets.
       JAVA_TOOL_OPTIONS: -Xmx${SUWAYOMI_MAX_HEAP:-512m}
     volumes:
@@ -128,6 +131,19 @@ services:
     # Pas de `ports` : joignable par l'API seule, sur le réseau interne
     # (`http://suwayomi:4567`). Rien n'est publié, pas même sur 127.0.0.1.
     # Extensions (catalogue, installation) : `docker compose exec backend node dist/extensions/tachiyomi.cli.js`.
+
+  # Résout les défis Cloudflare pour le pont (Chromium sans écran), qui garde
+  # ensuite le cookie `cf_clearance`. FACULTATIF : profil `flaresolverr`
+  # (`COMPOSE_PROFILES=tachiyomi,flaresolverr`) + TACHIYOMI_FLARESOLVERR_ENABLED=true.
+  # Compter ~300-600 Mo de RAM. Réseau interne seulement, aucun port publié.
+  flaresolverr:
+    image: ${FLARESOLVERR_IMAGE:-ghcr.io/flaresolverr/flaresolverr:v3.5.2}
+    profiles: [flaresolverr]
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      LOG_LEVEL: info
+    mem_limit: ${FLARESOLVERR_MEM_LIMIT:-1g}
 
 volumes:
   postgres_data:

@@ -15,7 +15,7 @@ const EnvSchema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   PUBLIC_API_BASE: z.string().default('/api'),
   MANGADEX_USER_AGENT: z.string().default('Bookshelf/0.1 (projet perso)'),
-  /** Alimentation du catalogue AniList + MangaDex en tâche de fond (désactivée en test). */
+  /** Alimentation du catalogue MangaDex en tâche de fond (désactivée en test). */
   CATALOG_SYNC: z.enum(['on', 'off']).optional(),
   /**
    * Proxys de confiance devant l'API (Express `trust proxy`) : `loopback` en

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import type { MdManga } from '../src/modules/manga/mangadex.client.js'
 import { matchesCatalogPace, matchesMood, MOODS, PACES } from '../src/modules/oracle/decks.js'
-import type { AlMedia } from '../src/services/anilist.service.js'
+import type { WorkStatistics } from '../src/services/catalog.service.js'
 import { likeWeight } from '../src/services/recommendation/scoring.js'
+import { CATALOG_ID_PREFIX, catalogManga } from './fixtures.js'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
 prepareEnvironment('features')
@@ -12,61 +14,71 @@ after(close)
 
 /* ---- Catalogue de test ------------------------------------------------------ */
 
-let nextId = 50_000
-type Overrides = Partial<Omit<AlMedia, 'tags'>> & { genres: string[]; tags?: [string, number][] }
-function media({ tags = [], ...overrides }: Overrides): AlMedia {
-  nextId += 1
-  return {
-    id: nextId,
-    title: { romaji: `Romaji ${nextId}`, english: `English ${nextId}`, native: null },
-    countryOfOrigin: 'JP',
-    format: 'MANGA',
-    status: 'FINISHED',
-    chapters: 100,
-    meanScore: 80,
-    popularity: 10_000,
-    isAdult: false,
-    description: 'Story.',
-    coverImage: { extraLarge: null, large: null, color: null },
-    startDate: { year: 2015 },
-    siteUrl: `https://anilist.co/manga/${nextId}`,
-    staff: { edges: [{ role: 'Story & Art', node: { name: { full: `Author ${nextId}` } } }] },
-    ...overrides,
-    tags: tags.map(([name, rank]) => ({ name, rank, isMediaSpoiler: false, isAdult: false })),
-  }
+const statistics = new Map<string, WorkStatistics>()
+/** Œuvre + ses statistiques MangaDex (suivis, note bayésienne /10). */
+function work(manga: MdManga, stats: Partial<WorkStatistics> = {}): MdManga {
+  statistics.set(manga.id, { follows: 10_000, rating: 8, ...stats })
+  return manga
 }
 
-const HUNTER = media({
-  genres: ['Action', 'Adventure'],
-  title: { romaji: 'Hunter x Hunter', english: 'Hunter × Hunter', native: 'ハンター×ハンター' },
-  staff: { edges: [{ role: 'Story & Art', node: { name: { full: 'Yoshihiro Togashi' } } }] },
-  popularity: 200_000,
-  meanScore: 90,
-  status: 'RELEASING',
-  chapters: null,
-  startDate: { year: 1998 },
-})
+const HUNTER = work(
+  catalogManga({
+    genres: ['Action', 'Adventure'],
+    title: 'Hunter × Hunter',
+    altTitles: [{ 'ja-ro': 'Hunter x Hunter' }, { ja: 'ハンター×ハンター' }],
+    author: 'Yoshihiro Togashi',
+    status: 'ongoing',
+    year: 1998,
+  }),
+  { follows: 200_000, rating: 9 },
+)
 const ROMANCE_KR = Array.from({ length: 12 }, (_, index) =>
-  media({ genres: ['Romance', 'Drama'], countryOfOrigin: 'KR', meanScore: 70 + index, startDate: { year: 2010 + index } }),
+  work(catalogManga({ genres: ['Romance', 'Drama'], originalLanguage: 'ko', year: 2010 + index }), { rating: 7 + index / 10 }),
 )
 const HORROR = Array.from({ length: 12 }, (_, index) =>
-  media({
-    genres: ['Horror', 'Mystery'],
-    countryOfOrigin: (['JP', 'KR', 'CN'] as const)[index % 3],
-    meanScore: 76 + (index % 10),
-    status: index % 2 ? 'FINISHED' : 'RELEASING',
-    chapters: index % 2 ? 40 : null,
-  }),
+  work(
+    catalogManga({
+      genres: ['Horror', 'Mystery'],
+      originalLanguage: (['ja', 'ko', 'zh'] as const)[index % 3],
+      status: index % 2 ? 'completed' : 'ongoing',
+      lastChapter: index % 2 ? '40' : null,
+    }),
+    { rating: 7.6 + (index % 10) / 10 },
+  ),
 )
 const ACTION = Array.from({ length: 30 }, (_, index) =>
-  media({ genres: ['Action'], countryOfOrigin: index % 5 === 0 ? 'CN' : 'JP', meanScore: 74 + (index % 15), popularity: 1000 * (index + 1) }),
+  work(catalogManga({ genres: ['Action'], originalLanguage: index % 5 === 0 ? 'zh' : 'ja' }), {
+    rating: 7.4 + (index % 15) / 10,
+    follows: 1000 * (index + 1),
+  }),
 )
 
 before(async () => {
-  const { upsertMedia, reloadPool } = await import('../src/services/catalog.service.js')
-  await upsertMedia([HUNTER, ...ROMANCE_KR, ...HORROR, ...ACTION])
+  const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
+  await upsertWorks([HUNTER, ...ROMANCE_KR, ...HORROR, ...ACTION], statistics)
   await reloadPool()
 })
+
+describe('catalogue — caractéristiques MangaDex', () => {
+  it('genres et thèmes séparés, tags de format ignorés, note bayésienne ramenée sur 100', async () => {
+    const { featuresOfManga } = await import('../src/services/catalog.service.js')
+    const { BILINGUAL } = await import('./fixtures.js')
+    // BILINGUAL : Action (genre), Martial Arts (thème), Long Strip (format).
+    assert.deepEqual(featuresOfManga(BILINGUAL, 8.43), {
+      genres: ['Action'],
+      tags: [{ name: 'Martial Arts', rank: 100 }],
+      meanScore: 84,
+    })
+    assert.equal(featuresOfManga(BILINGUAL, null).meanScore, null)
+  })
+
+  it('pays d’origine d’après la langue originale ; les autres origines sont écartées', async () => {
+    const { countryOf } = await import('../src/services/catalog.service.js')
+    assert.deepEqual(['ja', 'ko', 'zh', 'zh-hk', 'en'].map(countryOf), ['JP', 'KR', 'CN', 'CN', null])
+  })
+})
+
+const browseAs = (who: TestClient, body: Record<string, unknown>) => who.request('POST', '/discover/browse', { lang: 'fr', ...body })
 
 /* ---- Favoris et notes ------------------------------------------------------- */
 
@@ -91,12 +103,13 @@ describe('favoris et notes personnelles', () => {
     account = client()
     await account.signUp({ email: `fav-${Date.now()}@example.com`, password: 'motdepasse-test' })
     userId = (await account.request('GET', '/auth/me')).body.user.id
-    const book = (await account.request('GET', `/manga/al-${HUNTER.id}?lang=fr`)).body.book
+    const book = (await browseAs(account, { q: 'togashi' })).body.books[0]
+    assert.equal(book.id, HUNTER.id)
     await account.request('POST', '/library/swipe', { mangaId: book.id, action: 'read', book })
   })
 
   it('favori et note sont enregistrés, relus avec la bibliothèque', async () => {
-    const patched = await account.request('PATCH', `/library/al-${HUNTER.id}`, { favorite: true, userRating: 4.5 })
+    const patched = await account.request('PATCH', `/library/${HUNTER.id}`, { favorite: true, userRating: 4.5 })
     assert.equal(patched.status, 200)
     assert.equal(patched.body.entry.favorite, true)
     assert.equal(patched.body.entry.userRating, 4.5)
@@ -110,28 +123,28 @@ describe('favoris et notes personnelles', () => {
   })
 
   it('baisser la note ou retirer le favori n’applique que l’écart', async () => {
-    await account.request('PATCH', `/library/al-${HUNTER.id}`, { userRating: 1, favorite: false })
+    await account.request('PATCH', `/library/${HUNTER.id}`, { userRating: 1, favorite: false })
     assert.equal((await scores()).genres.Action, -1)
-    await account.request('PATCH', `/library/al-${HUNTER.id}`, { userRating: null })
+    await account.request('PATCH', `/library/${HUNTER.id}`, { userRating: null })
     assert.equal((await scores()).genres.Action, 3)
   })
 
   it('note refusée hors des demi-étoiles 0,5 → 5', async () => {
     for (const userRating of [0, 0.3, 5.5, 3.25]) {
-      const response = await account.request('PATCH', `/library/al-${HUNTER.id}`, { userRating })
+      const response = await account.request('PATCH', `/library/${HUNTER.id}`, { userRating })
       assert.equal(response.status, 400, String(userRating))
     }
   })
 
   it('retirer le titre annule tout son poids (favori et note compris)', async () => {
-    await account.request('PATCH', `/library/al-${HUNTER.id}`, { favorite: true, userRating: 5 })
-    await account.request('DELETE', `/library/al-${HUNTER.id}`)
+    await account.request('PATCH', `/library/${HUNTER.id}`, { favorite: true, userRating: 5 })
+    await account.request('DELETE', `/library/${HUNTER.id}`)
     assert.equal((await scores()).genres.Action, undefined)
   })
 
   it('fusion invité → compte : favori et note rejoignent le compte', async () => {
     const device = client()
-    const book = (await device.request('GET', `/manga/al-${ROMANCE_KR[0]!.id}?lang=fr`)).body.book
+    const book = (await browseAs(device, { origin: 'manhwa', genres: ['Romance'] })).body.books[0]
     const register = await device.signUp({
       email: `merge-fav-${Date.now()}@example.com`,
       password: 'motdepasse-test',
@@ -148,18 +161,18 @@ describe('favoris et notes personnelles', () => {
 
 describe('recherche dans le catalogue', () => {
   const guest = client()
-  const browse = (body: Record<string, unknown>) => guest.request('POST', '/discover/browse', { lang: 'fr', ...body })
+  const browse = (body: Record<string, unknown>) => browseAs(guest, body)
 
   it('titres de toutes les langues, sans accents ni ponctuation, et auteurs', async () => {
     for (const q of ['hunter x', 'HUNTER × HUNTER', 'ハンター', 'togashi']) {
       const { body } = await browse({ q })
-      assert.equal(body.books[0]?.id, `al-${HUNTER.id}`, q)
+      assert.equal(body.books[0]?.id, HUNTER.id, q)
     }
   })
 
   it('filtres combinés : origine + genres (ET) + note minimale', async () => {
     const { body } = await browse({ origin: 'manhwa', genres: ['Romance', 'Drama'], minScore: 78, limit: 48 })
-    assert.equal(body.total, ROMANCE_KR.filter((work) => (work.meanScore ?? 0) >= 78).length)
+    assert.equal(body.total, ROMANCE_KR.filter((manga) => Math.round((statistics.get(manga.id)?.rating ?? 0) * 10) >= 78).length)
     assert.ok(body.books.every((book: { kind: string; rating: number }) => book.kind === 'manhwa' && book.rating >= 3.9))
   })
 
@@ -170,17 +183,17 @@ describe('recherche dans le catalogue', () => {
     assert.ok(ongoing.books.every((book: { publicationStatus: string }) => book.publicationStatus === 'ongoing'))
   })
 
-  it('tris : note, récents, popularité', async () => {
+  it('tris : note, récents, popularité (suivis MangaDex)', async () => {
     const byScore = (await browse({ genres: ['Romance'], sort: 'score' })).body.books.map((book: { rating: number }) => book.rating)
     assert.deepEqual(byScore, [...byScore].sort((a, b) => b - a))
     const byYear = (await browse({ genres: ['Romance'], sort: 'recent' })).body.books.map((book: { year: number }) => book.year)
     assert.deepEqual(byYear, [...byYear].sort((a, b) => b - a))
     const popular = (await browse({ sort: 'popularity' })).body.books[0]
-    assert.equal(popular.id, `al-${HUNTER.id}`)
+    assert.equal(popular.id, HUNTER.id)
   })
 
   it('« Pour toi » : trié par % de match d’après l’historique', async () => {
-    const liked = HORROR.slice(0, 4).map((work) => ({ id: `al-${work.id}`, favorite: true }))
+    const liked = HORROR.slice(0, 4).map((manga) => ({ id: manga.id, favorite: true }))
     const { body } = await browse({ sort: 'match', liked, limit: 10 })
     assert.equal(body.personalized, true)
     const matches = body.books.map((book: { matchPercentage: number }) => book.matchPercentage)
@@ -205,23 +218,18 @@ describe('recherche dans le catalogue', () => {
     const extra = (await browse({ q: 'blade road', source: 'mangadex' })).body
     assert.ok(extra.books.some((book: { id: string }) => book.id === '11111111-1111-4111-8111-111111111111'))
     // Une recherche fournie ne déclenche pas de complément.
-    assert.equal((await browse({ q: 'romaji' })).body.supplement, false)
+    assert.equal((await browse({ q: 'title' })).body.supplement, false)
   })
 
-  it('complément MangaDex : une œuvre déjà au catalogue (même id AniList) n’est pas doublée', async () => {
-    const { reloadPool } = await import('../src/services/catalog.service.js')
-    const { prisma } = await import('../src/db.js')
+  it('complément MangaDex : une œuvre déjà au catalogue n’est pas doublée', async () => {
+    const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
     const { BILINGUAL } = await import('./fixtures.js')
-    // Une autre fiche MangaDex, liée à l'œuvre AniList HUNTER, est déjà au catalogue…
-    await prisma.catalogWork.update({ where: { anilistId: HUNTER.id }, data: { mangadexId: '99999999-0000-4000-8000-000000000000' } })
+    await upsertWorks([BILINGUAL], new Map([[BILINGUAL.id, { follows: 10, rating: 8 }]]))
     await reloadPool()
-    // … la fiche BILINGUAL de la même œuvre (links.al) ne doit pas ressortir en complément.
-    BILINGUAL.attributes.links = { al: String(HUNTER.id) }
-    // Autre texte : autre clé de cache, la réponse MangaDex (simulée) porte le lien.
-    const extra = (await browse({ q: 'la voie du sabre', source: 'mangadex' })).body
-    const ids = extra.books.map((book: { id: string }) => book.id)
+    // Autre texte : autre clé de cache ; la réponse MangaDex (simulée) contient BILINGUAL.
+    const ids = (await browse({ q: 'la voie du sabre', source: 'mangadex' })).body.books.map((book: { id: string }) => book.id)
     assert.equal(ids.includes(BILINGUAL.id), false)
-    // Les fiches sans équivalent au catalogue, elles, sont bien proposées.
+    // Les fiches absentes du catalogue, elles, sont bien proposées.
     assert.ok(ids.includes('22222222-2222-4222-8222-222222222222'))
   })
 
@@ -237,18 +245,21 @@ describe('recherche dans le catalogue', () => {
 describe('Oracle — tirage sur le catalogue', () => {
   it('rythme « épique » : chapitres connus ≥ 150, OU série en cours depuis 6 ans', () => {
     const epic = PACES.find((pace) => pace.id === 'epic')!
-    assert.equal(matchesCatalogPace(epic, { status: 'FINISHED', chapters: 200, year: 2010 }, 2026), true)
-    assert.equal(matchesCatalogPace(epic, { status: 'RELEASING', chapters: null, year: 2015 }, 2026), true)
-    assert.equal(matchesCatalogPace(epic, { status: 'RELEASING', chapters: null, year: 2024 }, 2026), false)
+    assert.equal(matchesCatalogPace(epic, { status: 'completed', chapters: 200, year: 2010 }, 2026), true)
+    assert.equal(matchesCatalogPace(epic, { status: 'ongoing', chapters: null, year: 2015 }, 2026), true)
+    assert.equal(matchesCatalogPace(epic, { status: 'ongoing', chapters: null, year: 2024 }, 2026), false)
     const short = PACES.find((pace) => pace.id === 'short')!
-    assert.equal(matchesCatalogPace(short, { status: 'FINISHED', chapters: 40, year: 2020 }, 2026), true)
-    assert.equal(matchesCatalogPace(short, { status: 'FINISHED', chapters: null, year: 2020 }, 2026), false)
+    assert.equal(matchesCatalogPace(short, { status: 'completed', chapters: 40, year: 2020 }, 2026), true)
+    assert.equal(matchesCatalogPace(short, { status: 'completed', chapters: null, year: 2020 }, 2026), false)
   })
 
-  it('ambiance à tags : il faut un tag pertinent (≥ 50 %)', () => {
+  it('ambiance à marqueurs : genre OU thème MangaDex (un thème pondéré doit être pertinent, ≥ 50 %)', () => {
     const isekai = MOODS.find((mood) => mood.id === 'isekai')!
-    assert.equal(matchesMood(isekai, { genres: ['Fantasy'], tags: [{ name: 'Isekai', rank: 80 }] }), true)
-    assert.equal(matchesMood(isekai, { genres: ['Fantasy'], tags: [{ name: 'Isekai', rank: 20 }] }), false)
+    // « Isekai » est un genre chez MangaDex, « Reincarnation » un thème.
+    assert.equal(matchesMood(isekai, { genres: ['Fantasy', 'Isekai'], tags: [] }), true)
+    assert.equal(matchesMood(isekai, { genres: ['Fantasy'], tags: [{ name: 'Reincarnation', rank: 100 }] }), true)
+    assert.equal(matchesMood(isekai, { genres: ['Fantasy'], tags: [{ name: 'Reincarnation', rank: 20 }] }), false)
+    assert.equal(matchesMood(isekai, { genres: ['Fantasy'], tags: [] }), false)
   })
 
   it('les titres tirés portent l’ambiance, le tirage est déterministe', async () => {
@@ -273,7 +284,8 @@ describe('Oracle — tirage sur le catalogue', () => {
     for (let day = 1; day <= 60; day += 1) {
       const seed = `device-y:2026-02-${String(day).padStart(2, '0')}`
       const draw = (await guest.request('GET', `/oracle/draw?seed=${seed}&lang=fr`)).body
-      if (draw.picks[0]?.id.startsWith('al-')) kinds.add(draw.picks[0].kind)
+      // Seulement les tirages sur le catalogue (pas le repli MangaDex direct).
+      if (draw.picks[0]?.id.startsWith(CATALOG_ID_PREFIX)) kinds.add(draw.picks[0].kind)
     }
     assert.ok(kinds.size >= 2, [...kinds].join(','))
   })

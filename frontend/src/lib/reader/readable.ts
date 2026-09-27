@@ -4,10 +4,10 @@ const MANGADEX_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 /**
  * Le lecteur intégré sait-il ouvrir ce titre ? Il faut une fiche MangaDex (les
- * œuvres connues d'AniList seulement, `al-…`, et les anciens livres Open
- * Library n'ont pas de chapitres à lire).
+ * anciens livres Open Library et autres fiches historiques restées en
+ * bibliothèque n'ont pas de chapitres à lire).
  */
 export const isReadable = (book: Book) => MANGADEX_ID.test(book.id) && book.kind !== 'book'
 
-/** Œuvre du catalogue (MangaDex ou AniList) : elle peut avoir des plateformes de lecture officielles. */
-export const hasOfficialLinks = (book: Book) => (MANGADEX_ID.test(book.id) || /^al-\d+$/.test(book.id)) && book.kind !== 'book'
+/** Œuvre MangaDex : elle peut avoir des plateformes de lecture officielles. */
+export const hasOfficialLinks = (book: Book) => isReadable(book)

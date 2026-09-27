@@ -135,8 +135,8 @@ export function createTachiyomiBridgeProvider(options: TachiyomiBridgeOptions): 
     )
 
   /**
-   * Œuvre MangaDex → œuvre chez ce site. Les requêtes (titres AniList et
-   * MangaDex) partent ensemble ; le meilleur résultat au-dessus de 80 % est
+   * Œuvre MangaDex → œuvre chez ce site. Les requêtes (titres MangaDex de
+   * toutes langues) partent ensemble ; le meilleur résultat au-dessus de 80 % est
    * retenu (`bestTitleMatch`). Une absence tient 30 min, une correspondance
    * 6 h ; un échec (délai, panne) n'est jamais retenu comme une absence.
    */

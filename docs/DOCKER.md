@@ -33,8 +33,8 @@ PostgreSQL prêt → migrations appliquées puis API prête → front démarré.
 | `npm run docker:down` | arrêt (les données restent dans le volume `postgres_data`) |
 | `docker compose down -v` | arrêt **et suppression des données** |
 
-Au premier démarrage, l'API indexe le catalogue AniList + MangaDex en tâche de
-fond (≈ 4 minutes, ~3 000 œuvres, directement dans PostgreSQL). Le deck est
+Au premier démarrage, l'API indexe le catalogue MangaDex en tâche de fond
+(≈ 1 minute, ~3 000 œuvres, directement dans PostgreSQL). Le deck est
 utilisable après quelques secondes ; `CATALOG_SYNC=off` coupe l'indexation.
 
 ### Vérifier que tout fonctionne

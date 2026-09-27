@@ -366,7 +366,7 @@ Un bouton bascule vers la grille de couvertures classique.
 
 ## 4 quater. Recherche & catalogue
 
-Page d'affiches sur tout le catalogue agrégé (AniList + MangaDex, cf. `docs/BACKEND.md` §7 quater).
+Page d'affiches sur tout le catalogue MangaDex (en cache côté API, cf. `docs/BACKEND.md` §7 quater).
 
 - **État** : [`useSearchStore`](../frontend/src/store/useSearchStore.ts) garde recherche, filtres et tri hors du
   composant : quitter la page puis revenir retrouve la même recherche (non persisté entre sessions).
@@ -547,7 +547,7 @@ d'API — instructions « Partager → Sur l'écran d'accueil »), ou non suppor
 ## 4 octies. Deck recommandé (« Pour toi »)
 
 Le deck est servi par `POST /api/discover/deck` (moteur de recommandation,
-catalogue AniList + MangaDex : voir `docs/BACKEND.md` §7 ter).
+catalogue MangaDex en cache : voir `docs/BACKEND.md` §7 ter).
 
 - `services/discover.ts` : `fetchDeck` envoie l'étagère, l'origine, les cartes
   déjà en file (`seen`) et l'historique local (titres aimés avec leurs genres,
@@ -561,9 +561,6 @@ catalogue AniList + MangaDex : voir `docs/BACKEND.md` §7 ter).
 - `SwipeCard` : badge « 94 % de match » (vert > 80, doré > 60, neutre sinon) et
   badge « À découvrir » sur la carte 80/20. `withoutDeckFields` retire ces champs
   avant l'enregistrement en bibliothèque : ils décrivent la carte à un instant donné.
-- Œuvres AniList seules (`al-<id>`) : couverture servie par le CDN AniList
-  (mise en cache par le Service Worker, CORS autorisé pour la teinte de couverture),
-  fiche détaillée via `GET /api/manga/al-<id>`.
 
 ## 4 nonies. Lecteur universel
 

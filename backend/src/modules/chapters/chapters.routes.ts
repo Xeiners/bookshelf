@@ -40,11 +40,7 @@ mangaChaptersRouter.get('/:id/chapters', async (req, res) => {
   res.json(await listChapters(id, lang))
 })
 
-/**
- * `GET /api/manga/:id/platforms?lang=` : où lire l'œuvre officiellement.
- * Accepte aussi les œuvres connues d'AniList seulement (`al-<id>`), que le
- * lecteur intégré ne sait pas ouvrir.
- */
+/** `GET /api/manga/:id/platforms?lang=` : où lire l'œuvre officiellement. */
 mangaChaptersRouter.get('/:id/platforms', async (req, res) => {
   const { id } = req.params
   if (!OFFICIAL_WORK_ID.test(id)) throw badRequest('Identifiant d’œuvre invalide.')

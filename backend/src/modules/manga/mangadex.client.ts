@@ -118,7 +118,7 @@ export interface MdManga {
     contentRating: string
     tags: MdTag[]
     availableTranslatedLanguages: (string | null)[]
-    /** Liens externes ; 'al' = id AniList (clé de jointure du catalogue agrégé). */
+    /** Liens externes (`raw`, `engtl` : plateformes officielles). */
     links?: Record<string, string | undefined> | null
   }
   relationships: MdRelationship[]

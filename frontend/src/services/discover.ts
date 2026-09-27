@@ -1,6 +1,6 @@
 /**
  * Deck « Swipe & Match » : cartes classées par le moteur de recommandation de
- * l'API (catalogue agrégé AniList + MangaDex, cf. `backend/src/services/`).
+ * l'API (catalogue MangaDex en cache, cf. `backend/src/services/`).
  *
  * Invité : l'historique local (titres aimés avec leurs genres, titres passés)
  * part avec la requête, le profil de goûts est calculé côté serveur à la volée.

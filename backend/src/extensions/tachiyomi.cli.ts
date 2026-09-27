@@ -16,6 +16,8 @@ import { ensureExtensions, extensionsForLanguages } from './providers/tachiyomiE
 
 const settings = config.sources.tachiyomi
 const print = (line: string) => process.stdout.write(`${line}\n`)
+/** Comment on a été lancé : compilé (image Docker) ou depuis les sources (npm). */
+const invocation = process.argv[1]?.endsWith('.js') ? 'node dist/extensions/tachiyomi.cli.js' : 'npm run tachiyomi -w backend --'
 const client = createSuwayomiClient({
   ...settings,
   // Installer ou relire le catalogue prend du temps : la CLI n'a pas l'impatience de l'API.
@@ -34,7 +36,7 @@ async function main(command: string | undefined, args: string[]): Promise<number
         const short = extension.pkgName.replace(/^eu\.kanade\.tachiyomi\.extension\./, '')
         print(`${state}${short.padEnd(34)} ${extension.name}${extension.isNsfw ? ' (18+)' : ''}`)
       }
-      print(`\n${catalog.length} extension(s). Installer : npm run tachiyomi -w backend -- install <paquet>`)
+      print(`\n${catalog.length} extension(s). Installer : ${invocation} install <paquet>`)
       return 0
     }
     case 'install': {

@@ -98,7 +98,18 @@ export interface SuwayomiClient {
 const INSTALL_TIMEOUT_MS = 120_000
 const REFRESH_TIMEOUT_MS = 30_000
 
-const assertInt = (value: number, what: string) => {
+/**
+ * Message d'erreur GraphQL lisible : Suwayomi y colle la pile Java entière et
+ * un préfixe technique. On garde la première ligne, sans le préfixe, et on dit
+ * quoi faire quand c'est Cloudflare qui bloque.
+ */
+export function graphqlErrorMessage(raw: string): string {
+  const line = (raw.split('\n', 1)[0] ?? '').replace(/^Exception while fetching data \([^)]*\)\s*:\s*/, '').trim().slice(0, 200)
+  if (/cloudflare/i.test(line)) return `${line} — site protégé par Cloudflare : activer FlareSolverr (docs/BACKEND.md)`
+  return line || 'erreur inconnue'
+}
+
+const assertInt =(value: number, what: string) => {
   if (!Number.isSafeInteger(value) || value < 0) throw upstreamError(`Pont Tachiyomi : ${what} invalide.`)
   return value
 }
@@ -124,7 +135,7 @@ export function createSuwayomiClient(options: SuwayomiClientOptions): SuwayomiCl
       authHint: 'TACHIYOMI_BRIDGE_USER / TACHIYOMI_BRIDGE_PASSWORD',
     })
     if (!envelope) throw upstreamError('Pont Tachiyomi : /api/graphql introuvable (Suwayomi trop ancien ?).')
-    const firstError = envelope.errors?.[0]?.message
+    const firstError = envelope.errors?.[0]?.message ? graphqlErrorMessage(envelope.errors[0].message) : null
     if (firstError) {
       options.log?.(`${name} : erreur GraphQL (${firstError})`)
       throw upstreamError(`Pont Tachiyomi : ${firstError}`)

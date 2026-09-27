@@ -3,19 +3,20 @@
  *
  * Un profil de goûts est un score par genre et par tag, nourri par les swipes :
  * aimer (wishlist / lu / en cours) ajoute `LIKE_DELTA`, passer ajoute
- * `SKIP_DELTA`. Les tags AniList portent une pertinence (0-100 %) : un tag
- * « Revenge » à 95 % compte presque plein, un tag anecdotique à 40 % compte peu.
+ * `SKIP_DELTA`. Un tag porte une pertinence (0-100 %) : un tag à 95 % compte
+ * presque plein, un tag anecdotique à 40 % compte peu. Les tags MangaDex ne
+ * sont pas pondérés : ils comptent tous plein (100 %).
  *
  * La compatibilité d'un titre (0-100 %) combine :
  *  - l'affinité : moyenne des scores de ses genres, moyenne pondérée (par
  *    pertinence) de ses tags, écrasée par `tanh` pour rester bornée ;
- *  - la qualité : sa note moyenne AniList, en léger bonus / malus.
+ *  - la qualité : sa note (bayésienne MangaDex, sur 100), en léger bonus / malus.
  * Sans profil (premier lancement), seule la qualité départage : 45-65 %.
  */
 
 export interface TagWeight {
   name: string
-  /** Pertinence du tag pour l'œuvre, en % (AniList). */
+  /** Pertinence du tag pour l'œuvre, en %. */
   rank: number
 }
 
@@ -154,8 +155,8 @@ export function isUnexplored(profile: TasteProfile, features: WorkFeatures): boo
 
 export interface Candidate {
   /** Clé unique du catalogue (dédoublonnage). */
-  key: number
-  /** Tous les identifiants sous lesquels l'œuvre a pu être enregistrée (MangaDex, AniList). */
+  key: string
+  /** Tous les identifiants sous lesquels l'œuvre a pu être enregistrée. */
   ids: string[]
   features: WorkFeatures
   popularity: number
@@ -183,7 +184,7 @@ export function isExcluded(candidate: Pick<Candidate, 'ids'>, excluded: Readonly
   return candidate.ids.some((id) => excluded.has(id))
 }
 
-/** log10(popularité) ramené à [0, 1] (AniList : jusqu'à ~300 000 membres). */
+/** log10(popularité) ramené à [0, 1] (suivis MangaDex : jusqu'à ~300 000). */
 const popularityNorm = (popularity: number) => clamp(Math.log10(popularity + 1) / 5.5, 0, 1)
 
 /**
@@ -201,7 +202,7 @@ export function rankDeck<C extends Candidate>(
   const excludedKeys = new Set(
     candidates.filter((candidate) => isExcluded(candidate, options.excluded)).map((candidate) => candidate.key),
   )
-  const seen = new Set<number>()
+  const seen = new Set<string>()
 
   interface Scored {
     candidate: C
@@ -232,7 +233,7 @@ export function rankDeck<C extends Candidate>(
     .sort((a, b) => b.key - a.key)
     .map(({ item }) => item)
 
-  const used = new Set<number>()
+  const used = new Set<string>()
   const result: RankedCandidate<C>[] = []
   let mainIndex = 0
   let exploreIndex = 0

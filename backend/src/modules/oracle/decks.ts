@@ -6,11 +6,11 @@
 
 export interface Mood {
   id: string
-  /** Genres AniList exigés (ET) — tirage sur le catalogue agrégé. */
+  /** Genres MangaDex exigés (ET) — tirage sur le catalogue en cache. */
   genres: string[]
-  /** Au moins un de ces tags AniList (pertinence ≥ 50 %). */
+  /** Au moins un de ces genres ou thèmes MangaDex (pertinence ≥ 50 %). */
   anyTags?: string[]
-  /** Noms anglais des tags MangaDex, combinés en ET — repli si le catalogue est vide. */
+  /** Noms anglais des tags MangaDex, combinés en ET — repli si le catalogue est vide (requête MangaDex directe). */
   tags: string[]
 }
 
@@ -21,7 +21,7 @@ export const MOODS: Mood[] = [
   {
     id: 'dark-fantasy',
     genres: ['Fantasy'],
-    anyTags: ['Tragedy', 'Gore', 'Revenge', 'Demons', 'Death Game', 'Anti-Hero'],
+    anyTags: ['Tragedy', 'Demons', 'Monsters', 'Vampires', 'Zombies'],
     tags: ['Fantasy', 'Tragedy'],
   },
   { id: 'sci-fi', genres: ['Sci-Fi'], tags: ['Sci-Fi'] },
@@ -29,12 +29,13 @@ export const MOODS: Mood[] = [
   { id: 'mystery', genres: ['Mystery'], tags: ['Mystery'] },
   { id: 'slice-of-life', genres: ['Slice of Life'], tags: ['Slice of Life'] },
   { id: 'psychological', genres: ['Psychological'], tags: ['Psychological'] },
-  { id: 'martial-arts', genres: [], anyTags: ['Martial Arts', 'Cultivation', 'Wuxia'], tags: ['Martial Arts'] },
-  { id: 'isekai', genres: [], anyTags: ['Isekai', 'Reincarnation', 'Transmigration'], tags: ['Isekai'] },
+  { id: 'martial-arts', genres: [], anyTags: ['Martial Arts', 'Wuxia'], tags: ['Martial Arts'] },
+  { id: 'isekai', genres: [], anyTags: ['Isekai', 'Reincarnation'], tags: ['Isekai'] },
   { id: 'horror', genres: ['Horror'], tags: ['Horror'] },
   { id: 'sports', genres: ['Sports'], tags: ['Sports'] },
   { id: 'drama', genres: ['Drama'], tags: ['Drama'] },
-  { id: 'supernatural', genres: ['Supernatural'], tags: ['Supernatural'] },
+  // « Supernatural » est un thème chez MangaDex, pas un genre.
+  { id: 'supernatural', genres: [], anyTags: ['Supernatural'], tags: ['Supernatural'] },
   { id: 'adventure', genres: ['Adventure'], tags: ['Adventure'] },
 ]
 
@@ -69,29 +70,36 @@ export function matchesPace(pace: Pace, lastChapter: string | null): boolean {
 /** Parution depuis au moins 6 ans : ≈ 150 chapitres et plus au rythme hebdomadaire. */
 const EPIC_RUNNING_YEARS = 6
 
-/** Une œuvre du catalogue (AniList) respecte-t-elle le rythme ? */
+/** Une œuvre du catalogue respecte-t-elle le rythme ? (statuts MangaDex) */
 export function matchesCatalogPace(
   pace: Pace,
   work: { status: string | null; chapters: number | null; year: number | null },
   currentYear = new Date().getFullYear(),
 ): boolean {
-  if (pace.status === 'completed' && work.status !== 'FINISHED') return false
-  if (pace.status === 'ongoing' && work.status !== 'RELEASING') return false
+  if (pace.status === 'completed' && work.status !== 'completed') return false
+  if (pace.status === 'ongoing' && work.status !== 'ongoing') return false
   if (pace.maxChapters !== undefined && !(work.chapters && work.chapters <= pace.maxChapters)) return false
   if (pace.minChapters !== undefined) {
-    // AniList ne connaît le nombre de chapitres que des séries terminées :
+    // MangaDex ne donne souvent le dernier chapitre que des séries terminées :
     // une série en cours depuis longtemps compte comme une saga.
     const long = work.chapters !== null && work.chapters >= pace.minChapters
-    const longRunning = work.status === 'RELEASING' && work.year !== null && currentYear - work.year >= EPIC_RUNNING_YEARS
+    const longRunning = work.status === 'ongoing' && work.year !== null && currentYear - work.year >= EPIC_RUNNING_YEARS
     if (!long && !longRunning) return false
   }
   return true
 }
 
-/** L'œuvre porte-t-elle l'ambiance ? (catalogue) */
+/**
+ * L'œuvre porte-t-elle l'ambiance ? (catalogue) Chez MangaDex, un même
+ * marqueur peut être un genre (« Isekai », « Wuxia ») ou un thème
+ * (« Reincarnation ») : `anyTags` cherche dans les deux.
+ */
 export function matchesMood(mood: Mood, features: { genres: string[]; tags: { name: string; rank: number }[] }): boolean {
   if (!mood.genres.every((genre) => features.genres.includes(genre))) return false
-  if (mood.anyTags && !mood.anyTags.some((name) => features.tags.some((tag) => tag.name === name && tag.rank >= 50))) {
+  if (
+    mood.anyTags &&
+    !mood.anyTags.some((name) => features.genres.includes(name) || features.tags.some((tag) => tag.name === name && tag.rank >= 50))
+  ) {
     return false
   }
   return true

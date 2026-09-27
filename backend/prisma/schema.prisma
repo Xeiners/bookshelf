@@ -106,32 +106,25 @@ model UserPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/// Catalogue agrégé AniList + MangaDex, en cache local : le deck se sert ici
-/// sans aucun appel réseau. Une ligne par œuvre AniList (clé de dédoublonnage).
+/// Catalogue MangaDex en cache local : le deck, la recherche et l'Oracle s'y
+/// servent sans aucun appel réseau. Une ligne par œuvre MangaDex.
 model CatalogWork {
-  anilistId  Int      @id
-  /// UUID MangaDex quand l'œuvre y existe (textes FR/EN, couverture, lecture).
-  /// Unique : deux fiches MangaDex d'une même œuvre ne donnent qu'une carte.
-  mangadexId String?  @unique
-  /// Pays d'origine AniList : JP (manga), KR (manhwa), CN / TW (manhua).
+  mangadexId String   @id
+  /// Pays d'origine, d'après la langue originale : JP (manga), KR (manhwa), CN (manhua).
   country    String
-  /// MANGA | ONE_SHOT
-  format     String
-  /// Note moyenne AniList sur 100.
-  meanScore  Int?
-  popularity Int      @default(0)
-  /// JSON `string[]` : genres AniList.
-  genres     String
-  /// JSON `{ name, rank }[]` : tags AniList avec leur pertinence (%).
-  tags       String
-  /// JSON : fiche AniList (titres, résumé, couverture, auteurs…).
-  anilist    String
-  /// JSON : œuvre MangaDex brute, quand elle est liée.
-  mangadex   String?
   /// Note bayésienne MangaDex (/10), quand elle est connue.
-  mdRating   Float?
-  /// Statut de parution AniList (FINISHED, RELEASING…), chapitres et année :
-  /// filtres de la recherche et « rythme » de l'Oracle, sans relire la fiche JSON.
+  rating     Float?
+  /// Lecteurs qui suivent l'œuvre sur MangaDex.
+  popularity Int      @default(0)
+  /// JSON `string[]` : tags MangaDex du groupe « genre » (noms anglais).
+  genres     String
+  /// JSON `{ name, rank }[]` : tags MangaDex du groupe « theme » (noms anglais).
+  tags       String
+  /// JSON : œuvre MangaDex brute (titres, résumés, couverture, auteurs).
+  mangadex   String
+  /// Statut de parution MangaDex (ongoing, completed, hiatus, cancelled),
+  /// dernier chapitre et année : filtres de la recherche et « rythme » de
+  /// l'Oracle, sans relire la fiche JSON.
   status     String?
   chapters   Int?
   year       Int?

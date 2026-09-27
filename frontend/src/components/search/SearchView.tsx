@@ -55,7 +55,7 @@ function ActiveChip({ label, removeLabel, onRemove }: { label: string; removeLab
 }
 
 /**
- * Page « Recherche » : tout le catalogue agrégé (AniList + MangaDex), en
+ * Page « Recherche » : tout le catalogue MangaDex (en cache côté API), en
  * grille d'affiches. Recherche plein texte (titres de toutes les langues,
  * auteurs), filtres combinables dans un panneau, tri, et le % de match de
  * chaque titre avec tes goûts.

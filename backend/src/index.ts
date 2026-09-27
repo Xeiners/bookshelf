@@ -5,7 +5,7 @@ import { startCatalogSync } from './services/catalog.service.js'
 
 const app = createApp()
 
-// Catalogue AniList + MangaDex : indexé en tâche de fond, le serveur répond déjà.
+// Catalogue MangaDex : indexé en tâche de fond, le serveur répond déjà.
 if (config.catalogSync) startCatalogSync()
 
 const server = app.listen(config.port, () => {

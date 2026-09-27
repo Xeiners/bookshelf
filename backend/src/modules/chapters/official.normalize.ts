@@ -1,36 +1,18 @@
 /**
  * Plateformes de lecture officielles d'une œuvre — fonctions pures, testées
- * (`backend/test/official.test.ts`). Sources : les liens AniList de type
- * `STREAMING` (MANGA Plus, WEBTOON, Tappytoon, KakaoPage…), complétés par les
- * liens officiels de MangaDex (`raw` : éditeur d'origine, `engtl` : édition
- * anglaise) quand AniList ne les connaît pas.
+ * (`backend/test/official.test.ts`). Source : les liens officiels de la fiche
+ * MangaDex (`raw` : éditeur d'origine, `engtl` : édition anglaise).
  */
 import type { Language } from '../../lib/language.js'
 
 export interface OfficialPlatform {
   name: string
   url: string
-  /** Icône du service (hébergée par AniList), à afficher si elle charge. */
-  logo?: string
-  /** Couleur de marque, `#rrggbb`. */
-  color?: string
   /** Langue de lecture (code ISO 639-1), `null` si inconnue. */
   language: string | null
 }
 
-/** Lien externe tel qu'AniList le décrit (sous-ensemble utile). */
-export interface ExternalLinkInput {
-  url: string
-  site: string
-  type: string | null
-  language: string | null
-  icon: string | null
-  color: string | null
-  isDisabled: boolean | null
-}
-
 export interface PlatformSources {
-  anilist: ExternalLinkInput[]
   /** `attributes.links` de MangaDex. */
   mangadexLinks: Record<string, string | undefined> | null
   /** Langue d'origine MangaDex (`ja`, `ko`, `zh-hk`…). */
@@ -40,26 +22,7 @@ export interface PlatformSources {
 /** Au-delà, la section devient une liste : on garde les plus utiles. */
 export const MAX_PLATFORMS = 8
 
-const LANGUAGE_CODES: Record<string, string> = {
-  english: 'en',
-  french: 'fr',
-  japanese: 'ja',
-  korean: 'ko',
-  chinese: 'zh',
-  spanish: 'es',
-  german: 'de',
-  italian: 'it',
-  portuguese: 'pt',
-  thai: 'th',
-  indonesian: 'id',
-  vietnamese: 'vi',
-  russian: 'ru',
-}
-
-export const languageCode = (value: string | null | undefined): string | null =>
-  value ? (LANGUAGE_CODES[value.trim().toLowerCase()] ?? null) : null
-
-/** Noms lisibles des plateformes connues, pour les liens MangaDex (qui n'ont qu'une URL). */
+/** Noms lisibles des plateformes connues : les liens MangaDex n'ont qu'une URL. */
 const KNOWN_HOSTS: [RegExp, string][] = [
   [/(^|\.)mangaplus\.shueisha\.co\.jp$/, 'MANGA Plus'],
   [/(^|\.)webtoons\.com$/, 'WEBTOON'],
@@ -116,15 +79,7 @@ export function buildOfficialPlatforms(sources: PlatformSources, language: Langu
   const original = sources.originalLanguage?.slice(0, 2).toLowerCase() || null
   const candidates: OfficialPlatform[] = []
 
-  for (const link of sources.anilist) {
-    const url = safeUrl(link.url)
-    if (!url || link.type !== 'STREAMING' || link.isDisabled) continue
-    const logo = safeUrl(link.icon) ?? undefined
-    const color = link.color && /^#[0-9a-f]{6}$/i.test(link.color) ? link.color : undefined
-    candidates.push({ name: link.site.trim() || platformName(url), url, language: languageCode(link.language), ...(logo && { logo }), ...(color && { color }) })
-  }
-
-  // MangaDex : l'éditeur d'origine et l'édition anglaise officielle, s'ils manquent encore.
+  // L'éditeur d'origine et l'édition anglaise officielle.
   const fromMangadex: [string | undefined, string | null][] = [
     [sources.mangadexLinks?.raw, original],
     [sources.mangadexLinks?.engtl, 'en'],

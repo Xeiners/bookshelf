@@ -90,17 +90,15 @@ model UserPreference {                 // profil de goûts, cf. §7 ter
   swipes Int
 }
 
-model CatalogWork {                    // catalogue agrégé AniList + MangaDex, cf. §7 ter
-  anilistId  Int     @id               // clé de dédoublonnage
-  mangadexId String? @unique           // jointure MangaDex (links.al)
-  country    String                    // JP | KR | CN | TW
-  meanScore  Int?
-  popularity Int
-  genres     String                    // JSON string[]
-  tags       String                    // JSON { name, rank }[]
-  anilist    String                    // JSON fiche AniList
-  mangadex   String?                   // JSON œuvre MangaDex brute
-  status     String?                   // FINISHED | RELEASING… (recherche, Oracle)
+model CatalogWork {                    // catalogue MangaDex en cache, cf. §7 ter
+  mangadexId String  @id               // UUID MangaDex
+  country    String                    // JP | KR | CN (d'après la langue originale)
+  rating     Float?                    // note bayésienne MangaDex (/10)
+  popularity Int                       // suivis MangaDex
+  genres     String                    // JSON string[] : tags « genre »
+  tags       String                    // JSON { name, rank }[] : tags « theme »
+  mangadex   String                    // JSON œuvre MangaDex brute
+  status     String?                   // ongoing | completed | hiatus | cancelled (recherche, Oracle)
   chapters   Int?
   year       Int?
   searchText String                    // titres toutes langues + auteurs, normalisés
@@ -246,14 +244,13 @@ quelle source, et quelle route, renvoie vide ou échoue. Si **toutes** échouent
 au lieu de 10.
 
 **Titres** (`titleMatch.ts`, pur). Les sources par titre reçoivent tous les noms
-connus : AniList (anglais, romaji, `synonyms`, lus dans `CatalogWork`) puis
-MangaDex (toutes langues). On en tire 4 requêtes au plus : titres latins
+connus sur MangaDex (titre principal et alternatifs, toutes langues). On en
+tire 4 requêtes au plus : titres latins
 d'abord, chacun suivi de sa variante sans ponctuation, dédoublonnés, sans les
 sigles (« SnK »). Un résultat est retenu si sa similarité (Levenshtein
 normalisée) avec un des noms atteint **80 %** — et jamais si les nombres
 diffèrent (« Blade Road 2 », « Season 3 ») : une suite n'est pas l'œuvre. Une
-absence de correspondance n'est gardée que 30 min. Les `synonyms` AniList
-n'existent que dans les fiches indexées après leur ajout à la requête.
+absence de correspondance n'est gardée que 30 min.
 
 **Fusion** (`merge.ts`, pure). Groupes par langue + numéro canonique (`012` =
 `12.0` = `12`). Dans un groupe, la meilleure version (priorité de la source, puis
@@ -348,7 +345,7 @@ elle ne peut pas se faire passer pour `mangadex` ni pour une autre source.
 `TACHIYOMI_BRIDGE_LANGUAGES`, sans les sites « adultes » (sauf
 `TACHIYOMI_BRIDGE_NSFW=true`), filtrés par `TACHIYOMI_SOURCES`, plafonnés à
 `TACHIYOMI_BRIDGE_MAX_SOURCES` (liste gardée 10 min, 1 min si vide). Pour chaque
-site, **en parallèle** : 2 recherches (titres AniList puis MangaDex, cf.
+site, **en parallèle** : 2 recherches (titres MangaDex, cf.
 *Titres*), meilleur résultat ≥ 80 % (suites refusées), puis ses chapitres.
 Correspondance gardée 6 h, absence 30 min ; un échec (délai, panne) n'est
 jamais retenu comme une absence. Chapitres : `chapterNumber` (Float Kotlin,
@@ -389,6 +386,16 @@ de Mihon), annoncé par `repo.json`. Suwayomi le suit seul **à partir de v2.3**
 — d'où l'image épinglée `v2.3.2243` (`stable`). Catalogue vide après
 `extensions` : vérifier la version de l'image et `TACHIYOMI_EXTENSION_STORES`.
 
+**Cloudflare.** Certains sites (Manga-Scantrad, Mangakakalot…) exigent un défi
+Cloudflare : sans aide, Suwayomi répond `Cloudflare bypass currently disabled`
+(journalisé tel quel, avec la piste ci-dessous). Service `flaresolverr` (Chromium
+sans écran, profil `flaresolverr`) : `COMPOSE_PROFILES=tachiyomi,flaresolverr` et
+`TACHIYOMI_FLARESOLVERR_ENABLED=true`. Le premier passage d'un site résout le défi
+(5 à 20 s : au-delà du délai de 3 s, ce site manque à cette requête-là) ; le
+cookie `cf_clearance` obtenu sert ensuite aux requêtes suivantes. Si un site
+reste en échec, relever `TACHIYOMI_BRIDGE_TIMEOUT_MS` (ex. 20000) le temps d'un
+premier chargement, puis revenir à 3000.
+
 **Déploiement.** `.env` : `COMPOSE_PROFILES=tachiyomi`, `TACHIYOMI_BRIDGE_ENABLED=true`,
 `TACHIYOMI_EXTENSIONS=…`, puis `docker compose up -d`. RAM : tas Java borné
 (`SUWAYOMI_MAX_HEAP=512m`, conteneur `SUWAYOMI_MEM_LIMIT=1g`). Compte facultatif :
@@ -404,16 +411,14 @@ une instance réelle** avant d'ouvrir le pont en production.
 Un titre sous licence (*Solo Leveling*, *L'Attaque des Titans*…) n'a aucun chapitre
 hébergé. `modules/chapters/official.*` rassemble où le lire **officiellement** :
 
-- AniList `externalLinks` de type **`STREAMING`** (Lezhin, Tappytoon, K MANGA,
-  MANGA Plus, KakaoPage…), actifs, en https, avec icône et couleur de marque ;
-- complétés par MangaDex `links.raw` (éditeur d'origine) et `links.engtl`
-  (édition anglaise) quand AniList ne les a pas. Id AniList : `links.al` de
-  MangaDex, sinon la jointure du catalogue (`CatalogWork`).
+- les liens officiels de la fiche MangaDex : `links.raw` (éditeur d'origine :
+  KakaoPage, Pocket Magazine…) et `links.engtl` (édition anglaise : Tappytoon,
+  VIZ…), en https, nommés d'après la plateforme ; les autres liens (boutiques,
+  bases de données) sont ignorés ;
 - Tri : langue de l'interface, puis l'autre (fr / en), puis la langue
-  d'origine ; les autres langues sont écartées ; 8 au plus. Liens bruts gardés
-  24 h (10 min si AniList ou MangaDex a manqué).
+  d'origine ; 8 au plus. Liens bruts gardés 24 h (10 min si MangaDex a manqué).
 
-Exposés par `GET /api/manga/:id/platforms?lang=` (UUID ou `al-<id>`, pour la fiche
+Exposés par `GET /api/manga/:id/platforms?lang=` (UUID MangaDex, pour la fiche
 livre) et dans `officialPlatforms` de la liste des chapitres (écran « aucun
 chapitre » du lecteur ; 4 s au plus, jamais d'erreur).
 
@@ -444,7 +449,7 @@ continuent de fonctionner. Voir §7.
 | GET | `/api/manga/shelves/:id?page=1&limit=24&lang=` | `{ books, total, page, hasMore }` |
 | GET | `/api/manga/search?q=&page=1&limit=24&origin=all\|manga\|manhwa&lang=` | `{ books, total, page, hasMore }` |
 | GET | `/api/manga/batch?ids=a,b,c&lang=` | `{ books }` — 100 ids max, inconnus ignorés |
-| GET | `/api/manga/:id?lang=` | `{ book }` — `:id` = UUID MangaDex ou `al-<id>` (catalogue AniList) |
+| GET | `/api/manga/:id?lang=` | `{ book }` — `:id` = UUID MangaDex |
 | POST | `/api/discover/deck` | deck recommandé, voir §7 ter |
 | POST | `/api/discover/browse` | recherche et filtres du catalogue, voir §7 quater |
 | GET | `/api/discover/genres?lang=` | `{ genres: { id, label, count }[] }` — filtres de genre |
@@ -459,7 +464,7 @@ continuent de fonctionner. Voir §7.
 | GET | `/api/chapters/:chapterId/pages?quality=data|data-saver&alt=k1,k2` | `{ chapterId, servedBy, source, fallback, quality, pages: [{ index, url, fallbackUrl }] }` |
 | GET | `/api/chapters/:chapterId/image/:quality/:file` | l'image (relais MD@Home) |
 | GET | `/api/proxy/page/:chapterKey/:index?n=&alt=` | l'image (relais des autres sources, cf. §3 ter) |
-| GET | `/api/manga/:id/platforms?lang=` | `{ platforms: [{ name, url, logo?, color?, language }] }` — `:id` = UUID ou `al-<id>` |
+| GET | `/api/manga/:id/platforms?lang=` | `{ platforms: [{ name, url, language }] }` — `:id` = UUID MangaDex |
 
 ### Authentification
 
@@ -654,17 +659,17 @@ statut), **Pépite** (titre très bien noté répondant aux deux).
 | GET | `/api/oracle/draw` | `?seed=<compte ou appareil>:<AAAA-MM-JJ>&lang=` | `{ mood, pace, relaxed, picks }` |
 | POST | `/api/oracle/checkin` (auth) | `{ day, streak? }` | `{ oracle: { lastDay, streak, best } }` |
 
-- **Paquets** (`modules/oracle/decks.ts`) : 15 ambiances (genres AniList exigés,
-  ou un tag pertinent ≥ 50 % : « isekai » = Isekai / Reincarnation /
-  Transmigration) et 4 rythmes (courte ≤ 60 ch. terminée, épique, terminée, en
-  cours). AniList ne connaît le nombre de chapitres que des séries terminées :
+- **Paquets** (`modules/oracle/decks.ts`) : 15 ambiances (genres MangaDex exigés,
+  ou un marqueur parmi les genres et thèmes : « isekai » = Isekai / Reincarnation)
+  et 4 rythmes (courte ≤ 60 ch. terminée, épique, terminée, en cours). MangaDex
+  ne donne souvent le dernier chapitre que des séries terminées :
   « épique » = ≥ 150 ch. connus OU en cours depuis au moins 6 ans. Les ids sont
   le contrat avec le front, qui porte libellés, icônes et couleurs.
 - **Déterministe** : la graine `<id>:<jour>` fixe ambiance, rythme et ordre des
   titres (FNV-1a + Mulberry32, `lib/seeded.ts`). Connecté, la graine est l'id du
   compte : même tirage sur tous les appareils ; on ne « relance » pas en
   rechargeant. Le client applique le même algorithme pour son tirage hors-ligne.
-- **Sélection** (catalogue agrégé, §7 ter) : œuvres de l'ambiance notées ≥ 72,
+- **Sélection** (catalogue MangaDex, §7 ter) : œuvres de l'ambiance notées ≥ 72,
   filtrées par le rythme (relâché sous 6 candidats, `relaxed: true`). La Pépite :
   une origine tirée (JP 50 %, KR 30 %, CN 20 %, parmi celles disponibles), puis
   un titre par tirage pondéré sans remise (Efraimidis-Spirakis), poids =
@@ -687,30 +692,29 @@ statut), **Pépite** (titre très bien noté répondant aux deux).
 ## 7 ter. Moteur de recommandation (deck « Swipe & Match »)
 
 Le deck ne lit plus les étagères MangaDex : il est composé par un moteur de
-recommandation sur un **catalogue agrégé AniList + MangaDex**, en cache local.
+recommandation sur un **catalogue MangaDex**, en cache local. MangaDex est la
+seule source de métadonnées (AniList a été retiré).
 
 | Méthode | Route | Corps | Réponse |
 | --- | --- | --- | --- |
 | POST | `/api/discover/deck` (session facultative) | `{ shelf, origin, lang, limit, seen[], liked[{ id, categories, rating, favorite, userRating }], skipped[] }` | `{ books: (Book & { matchPercentage, discovery })[], hasMore, source, personalized }` |
-| GET | `/api/manga/al-<id>` | `?lang=` | `{ book }` — œuvre connue d'AniList seulement |
 
-**Sources** (`src/services/`)
+**Catalogue** (`src/services/catalog.service.ts`)
 
-- `anilist.service.ts` : client GraphQL (genres, tags avec pertinence %,
-  `meanScore`, `popularity`, `format`, `countryOfOrigin` JP / KR / CN). Appels
-  espacés de 2,1 s, 429 réessayé après `Retry-After`. Jamais appelé pendant un swipe.
-- `catalog.service.ts` : agrégateur. Une ligne `CatalogWork` par œuvre AniList
-  (clé de dédoublonnage) ; jointure MangaDex par `links.al`, `mangadexId` unique :
-  deux fiches MangaDex d'une même œuvre ne donnent jamais deux cartes (la plus
-  suivie gagne). Œuvre liée → textes FR/EN, couverture et id MangaDex (la
-  bibliothèque, la traduction et la lecture marchent comme avant). Sinon → fiche
-  AniList, id `al-<id>`, textes anglais (`synopsisLanguage: 'en'`).
-- **Indexeur** (au démarrage si le cache a plus de 24 h ou moins de 1 000
-  œuvres, puis chaque jour ; `CATALOG_SYNC=off` le coupe, toujours coupé en test) :
-  ~44 pages AniList par popularité (JP 24, KR 14, CN 6) + 6 pages « mieux notées »,
-  19 pages MangaDex par suivis pour la jointure, puis rattrapage des fiches
-  AniList manquantes. ≈ 2 500-3 000 œuvres en quelques minutes, en arrière-plan ;
-  une première vague (une page par pays) sert le deck après quelques secondes.
+- Une ligne `CatalogWork` par œuvre MangaDex (clé : son UUID). Caractéristiques
+  tirées de la fiche : tags du groupe `genre` → genres, du groupe `theme` →
+  thèmes (MangaDex ne pondère pas ses tags : chacun compte à 100 %), tags de
+  format et de contenu ignorés. Note = note bayésienne MangaDex (/10, ramenée
+  sur 100 pour le moteur), popularité = nombre de suivis (`/statistics/manga`),
+  pays = langue originale (`ja` → JP, `ko` → KR, `zh` / `zh-hk` → CN).
+  Contenu adulte (`erotica`, `pornographic`) jamais indexé.
+- **Indexeur** (au démarrage si la dernière indexation complète a plus de 24 h,
+  puis chaque jour ; `CATALOG_SYNC=off` le coupe, toujours coupé en test) :
+  les œuvres les plus suivies par langue d'origine (japonais 16 pages, coréen 9,
+  chinois 5, 100 œuvres par page) puis 3 pages « mieux notées », avec leurs
+  statistiques par lots de 100. ≈ 3 000 œuvres, une soixantaine de requêtes
+  espacées par le limiteur MangaDex : environ une minute, en arrière-plan.
+  Une première vague (une page par origine) sert le deck après quelques secondes.
   Tant que le catalogue a moins de 40 œuvres, le deck se replie sur l'étagère
   MangaDex équivalente, notée par le même moteur.
 - **Performance** : le pool (genres, tags, notes, ids — sans les fiches JSON)
@@ -735,12 +739,11 @@ recommandation sur un **catalogue agrégé AniList + MangaDex**, en cache local.
   tags pondérée par leur pertinence. Qualité = (meanScore − 70) / 20, bornée ±1.
   Sans profil : 45-65 %, selon la note seule.
 - **Anti-répétition** : bibliothèque + swipes « Passer » du compte, historique
-  envoyé et cartes déjà en file (`seen`) sont exclus. Une œuvre vue sous un de
-  ses ids (UUID MangaDex ou `al-<id>`) est exclue sous tous.
+  envoyé et cartes déjà en file (`seen`) sont exclus.
 - **80/20** : une carte sur cinq (`discovery: true`) vient d'un genre peu
   exploré (aucun de ses genres à |score| ≥ 3) et très bien noté (> 80 %).
 - **Étagères** : « Pour toi » (tout le catalogue), « Tendances » (popularité
-  d'abord), genres AniList (Action, Romance…) ; `origin` filtre JP / KR / CN.
+  d'abord), genres MangaDex (Action, Romance…) ; `origin` filtre JP / KR / CN.
 
 ## 7 quater. Recherche dans le catalogue
 
@@ -752,24 +755,24 @@ sort: relevance|match|popularity|score|recent, page, limit, lang, source }` →
 - **En mémoire** sur le pool (champs `status`, `chapters`, `year`,
   `searchText` ajoutés au pool et à `CatalogWork`, calculés à l'indexation et
   une fois pour un catalogue existant) : 3-5 ms mesurés.
-- **Texte** : `searchText` = titres AniList et MangaDex de toutes les langues,
+- **Texte** : `searchText` = titres MangaDex de toutes les langues,
   titres alternatifs et auteurs, en minuscules sans accents ni ponctuation.
   Chaque mot doit apparaître ; un titre qui commence par la requête passe devant.
-- **Genres** combinés en ET ; note, statut et tri comparent la note AniList —
-  celle que les cartes affichent (une œuvre liée ne montre plus la note MangaDex).
+- **Genres** (MangaDex) combinés en ET ; note, statut et tri comparent la note
+  bayésienne MangaDex, celle que les cartes affichent.
 - **Complément MangaDex** : si une recherche textuelle a moins de 8 résultats,
   `supplement: true` ; le front demande alors `source: 'mangadex'` APRÈS avoir
   affiché le catalogue (la réponse principale ne dépend jamais du réseau).
-  Doujinshi exclus ; une fiche dont l'œuvre (`links.al`) est déjà au catalogue
-  n'est pas proposée deux fois.
+  Doujinshi exclus ; une œuvre déjà au catalogue n'est pas proposée deux fois.
 
 ## 8. Limites connues et suites possibles
 
-- Une œuvre servie d'abord sous `al-<id>` puis liée à MangaDex par une
-  indexation ultérieure change d'id. L'anti-répétition la reconnaît sous ses
-  deux ids, mais une entrée de bibliothèque déjà créée garde l'id `al-`.
-- AniList n'a de résumés qu'en anglais : les œuvres absentes de MangaDex restent
-  en anglais en mode français (signalé par `synopsisLanguage`).
+- Les entrées de bibliothèque créées du temps d'AniList depuis une carte
+  « AniList seule » gardent leur id `al-<id>` et leur instantané : elles
+  s'affichent toujours, sans fiche détaillée, lecture ni plateformes officielles.
+- Sans AniList, les plateformes officielles se limitent aux liens de la fiche
+  MangaDex (éditeur d'origine, édition anglaise) : moins de plateformes
+  françaises (Delitoon, ONO…) qu'avant.
 
 - Le cache, le limiteur de débit et la file de requêtes MangaDex sont en mémoire,
   donc propres à une instance. En multi-instance, passer sur Redis (même

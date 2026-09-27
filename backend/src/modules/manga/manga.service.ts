@@ -185,7 +185,7 @@ export async function getManga(id: string, language: Language): Promise<Book> {
   return book
 }
 
-/** Liens externes MangaDex (`al` = id AniList, `raw`, `engtl`…) et langue d'origine d'une œuvre. */
+/** Liens externes MangaDex (`raw` : éditeur d'origine, `engtl` : édition anglaise…) et langue d'origine d'une œuvre. */
 export async function mangaLinks(id: string): Promise<{ links: Record<string, string | undefined>; originalLanguage: string }> {
   const { links, originalLanguage } = (await loadManga(id)).attributes
   return { links: links ?? {}, originalLanguage }

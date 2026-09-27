@@ -78,7 +78,7 @@ modules/proxy      relais d'images des autres sources (en-têtes de provenance, 
 extensions/        sources de chapitres (Strategy) : registre, agrégateur, fusion, disjoncteur, providers/
 modules/discover   deck « Pour toi » et catalogue filtrable (/browse)
 modules/oracle     tirage quotidien, série (streak)
-services/          AniList, catalogue (AniList ⨝ MangaDex), moteur de recommandation
+services/          catalogue MangaDex en cache, moteur de recommandation
 ```
 
 Modèles Prisma : `User`, `LibraryEntry`, `SkippedWork`, `UserPreference`,
@@ -252,7 +252,7 @@ Diagnostiquer une couverture : `docker compose logs backend | grep covers` — c
 
 - `public/sw.js`, écrit à la main. Documents : réseau d'abord ; `/assets/*` : cache
   d'abord, les JS / CSS d'entrée précachés à l'installation (lus dans `index.html`,
-  cf. §5.16) ; couvertures (`/api/covers`, AniList, Open Library) :
+  cf. §5.16) ; couvertures (`/api/covers`, Open Library) :
   stale-while-revalidate, 200 images max, seules les vraies réponses image non
   opaques sont gardées ; pages de chapitre (`/api/chapters/…/image/…`) : cache
   d'abord, 400 max (sauf repli « Data Saver ») ; listes de chapitres et de pages :
@@ -266,15 +266,14 @@ Diagnostiquer une couverture : `docker compose logs backend | grep covers` — c
 
 ## 8. Données externes
 
-- **AniList (GraphQL)** : métadonnées riches, couvertures `s4.anilist.co` (CORS ouvert,
-  lu par `coverTone` pour la teinte des cartes).
-- **MangaDex** : jointure via `links.al` ; les couvertures passent **obligatoirement par
+- **MangaDex** : seule source de métadonnées (AniList retiré le 2026-09-27 : il
+  n'est plus appelé nulle part). Les couvertures passent **obligatoirement par
   notre proxy** `/api/covers` (MangaDex refuse le hotlinking depuis un navigateur).
   Proxy : cache mémoire 300 entrées / 12 h, une nouvelle tentative sur erreur réseau ou 5xx.
 - Le catalogue est alimenté en tâche de fond (`CATALOG_SYNC`, coupé en test) dans
   `CatalogWork`. Recommandation : affinité par genres/tags (`tanh`), favoris et notes
-  pondèrent (`likeWeight`), 80 % proches des goûts / 20 % découverte, déduplication
-  AniList ⨝ MangaDex. Couverte par `backend/test/recommendation.test.ts`.
+  pondèrent (`likeWeight`), 80 % proches des goûts / 20 % découverte. Couverte par
+  `backend/test/recommendation.test.ts` et `features.test.ts`.
 
 ## 9. Comptes et e-mails
 

@@ -5,12 +5,19 @@ export const BRAND = 'Bookshelf'
 export const SOURCE_NAME = {
   mangadex: 'MangaDex', // i18n-ignore : nom propre
   openLibrary: 'Open Library', // i18n-ignore : nom propre
-  anilist: 'AniList', // i18n-ignore : nom propre
 } as const
 
-/** Source d'une fiche d'après son lien externe (deck : MangaDex ou AniList). */
+/**
+ * Source d'une fiche d'après son lien externe : MangaDex, Open Library (anciens
+ * livres), sinon le nom de domaine (fiches plus anciennes encore, restées en
+ * bibliothèque).
+ */
 export function sourceOfLink(link: string): string {
   if (link.includes('mangadex.org')) return SOURCE_NAME.mangadex
-  if (link.includes('anilist.co')) return SOURCE_NAME.anilist
-  return SOURCE_NAME.openLibrary
+  if (link.includes('openlibrary.org')) return SOURCE_NAME.openLibrary
+  try {
+    return new URL(link).hostname.replace(/^www\./, '')
+  } catch {
+    return link
+  }
 }

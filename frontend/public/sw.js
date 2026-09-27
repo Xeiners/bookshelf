@@ -9,7 +9,7 @@
  * Stratégies :
  *  - navigation      → réseau d'abord, repli sur la coquille en cache
  *  - /assets/* (hachés) → cache d'abord (immuables par construction)
- *  - couvertures (/api/covers, Open Library, AniList) → stale-while-revalidate, cache plafonné
+ *  - couvertures (/api/covers, Open Library) → stale-while-revalidate, cache plafonné
  *  - pages de chapitre (/api/chapters/…/image/…, et /api/proxy/page/… pour les autres sources)
  *    → cache d'abord : le chapitre en cours, préchargé en entier, reste lisible hors-ligne
  *  - listes de chapitres et de pages → réseau d'abord, repli sur la dernière copie
@@ -31,8 +31,6 @@ const MAX_READER_DATA = 80
 
 /** Couvertures des anciennes entrées de bibliothèque. */
 const LEGACY_COVERS_HOST = 'covers.openlibrary.org'
-/** Couvertures des œuvres connues d'AniList seulement (deck « Pour toi »). */
-const ANILIST_COVERS_HOST = 's4.anilist.co'
 const API_PREFIX = '/api/'
 const COVERS_PREFIX = '/api/covers/'
 /**
@@ -200,7 +198,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Couvertures : immuables par nom de fichier, idéales pour le hors-ligne.
-  if (url.pathname.startsWith(COVERS_PREFIX) || url.hostname === LEGACY_COVERS_HOST || url.hostname === ANILIST_COVERS_HOST) {
+  if (url.pathname.startsWith(COVERS_PREFIX) || url.hostname === LEGACY_COVERS_HOST) {
     event.respondWith(staleWhileRevalidate(request, IMAGE_CACHE))
     return
   }

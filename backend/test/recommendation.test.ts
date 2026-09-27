@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { AlMedia } from '../src/services/anilist.service.js'
+import type { MdManga } from '../src/modules/manga/mangadex.client.js'
+import type { WorkStatistics } from '../src/services/catalog.service.js'
 import {
   DISCOVERY_EVERY,
   LIKE_DELTA,
@@ -16,7 +17,7 @@ import {
   type TasteProfile,
   type WorkFeatures,
 } from '../src/services/recommendation/scoring.js'
-import { BILINGUAL } from './fixtures.js'
+import { BILINGUAL, catalogManga } from './fixtures.js'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
 prepareEnvironment('recommend')
@@ -44,8 +45,8 @@ function lcg(seed = 42) {
   }
 }
 
-const candidate = (key: number, f: WorkFeatures, popularity = 1000, ids = [`al-${key}`]): Candidate => ({
-  key,
+const candidate = (key: number, f: WorkFeatures, popularity = 1000, ids = [`md-${key}`]): Candidate => ({
+  key: `w${key}`,
   ids,
   features: f,
   popularity,
@@ -149,22 +150,22 @@ describe('recommandation — pourcentage de match', () => {
 
 describe('recommandation — filtre anti-répétition et ratio 80/20', () => {
   it('une œuvre déjà vue sous N’IMPORTE LEQUEL de ses ids est écartée', () => {
-    const work = candidate(1, ACTION, 1000, ['uuid-md', 'al-1'])
-    assert.equal(isExcluded(work, new Set(['al-1'])), true)
+    const work = candidate(1, ACTION, 1000, ['uuid-md', 'old-1'])
+    assert.equal(isExcluded(work, new Set(['old-1'])), true)
     assert.equal(isExcluded(work, new Set(['uuid-md'])), true)
-    assert.equal(isExcluded(work, new Set(['al-2'])), false)
+    assert.equal(isExcluded(work, new Set(['old-2'])), false)
   })
 
   it('rankDeck n’ajoute jamais une œuvre exclue, ni deux fois la même', () => {
     const pool = [
-      candidate(1, ACTION, 1000, ['md-1', 'al-1']),
-      candidate(1, ACTION, 1000, ['md-1-bis', 'al-1']), // doublon de source
+      candidate(1, ACTION, 1000, ['md-1', 'old-1']),
+      candidate(1, ACTION, 1000, ['md-1-bis', 'old-1']), // même œuvre, autre fiche
       candidate(2, ROMANCE),
       candidate(3, ACTION),
     ]
     const deck = rankDeck(pool, emptyProfile(), { excluded: new Set(['md-1']), limit: 10, random: lcg() })
     const keys = deck.map((item) => item.candidate.key)
-    assert.deepEqual([...keys].sort(), [2, 3])
+    assert.deepEqual([...keys].sort(), ['w2', 'w3'])
   })
 
   it('les cartes suivent la compatibilité : les goûts du profil passent devant', () => {
@@ -220,7 +221,7 @@ describe('recommandation — filtre anti-répétition et ratio 80/20', () => {
     )
     let profile = emptyProfile()
     for (const item of pool.slice(0, 40)) profile = applyFeedback(profile, item.features, LIKE_DELTA)
-    const excluded = new Set(pool.slice(0, 400).map((item) => `al-${item.key}`))
+    const excluded = new Set(pool.slice(0, 400).flatMap((item) => item.ids))
 
     rankDeck(pool, profile, { excluded, limit: 20 }) // échauffement du JIT
     const started = performance.now()
@@ -233,59 +234,27 @@ describe('recommandation — filtre anti-répétition et ratio 80/20', () => {
 
 /* ---- Intégration : catalogue, deck, profil de compte --------------------------- */
 
-let nextId = 9000
-function media(overrides: Partial<AlMedia> & { genres: string[] }): AlMedia {
-  nextId += 1
-  return {
-    id: nextId,
-    title: { romaji: `Titre ${nextId}`, english: `Title ${nextId}`, native: null },
-    countryOfOrigin: 'JP',
-    format: 'MANGA',
-    status: 'RELEASING',
-    chapters: null,
-    meanScore: 75,
-    popularity: 5000,
-    isAdult: false,
-    tags: [],
-    description: 'A story.<br>(Source: Test)',
-    coverImage: { extraLarge: 'https://s4.anilist.co/cover.jpg', large: null, color: null },
-    startDate: { year: 2021 },
-    siteUrl: `https://anilist.co/manga/${nextId}`,
-    staff: { edges: [{ role: 'Story & Art', node: { name: { full: 'Mangaka' } } }] },
-    ...overrides,
-  }
+const statistics = new Map<string, WorkStatistics>()
+function work(manga: MdManga, rating = 7.5): MdManga {
+  statistics.set(manga.id, { follows: 5000, rating })
+  return manga
 }
 
-/** Œuvre AniList jointe à la fiche MangaDex BILINGUAL des autres tests. */
-const LINKED_ID = 105_398
-const ACTION_WORKS = Array.from({ length: 30 }, () =>
-  media({ genres: ['Action', 'Adventure'], tags: [{ name: 'Revenge', rank: 90, isMediaSpoiler: false, isAdult: false }] }),
-)
-const ROMANCE_WORKS = Array.from({ length: 30 }, () => media({ genres: ['Romance', 'Comedy'] }))
-const MANHWA_WORKS = Array.from({ length: 15 }, () =>
-  media({ genres: ['Fantasy'], countryOfOrigin: 'KR', meanScore: 86 }),
-)
+const ACTION_WORKS = Array.from({ length: 30 }, () => work(catalogManga({ genres: ['Action', 'Adventure'], themes: ['Martial Arts'] })))
+const ROMANCE_WORKS = Array.from({ length: 30 }, () => work(catalogManga({ genres: ['Romance', 'Comedy'] })))
+const MANHWA_WORKS = Array.from({ length: 15 }, () => work(catalogManga({ genres: ['Fantasy'], originalLanguage: 'ko' }), 8.6))
+/** Contenu adulte, et origine hors manga / manhwa / manhua (webcomic anglais) : jamais indexés. */
 const HIDDEN = [
-  media({ genres: ['Action'], isAdult: true }),
-  media({ genres: ['Action'], format: 'NOVEL' }),
+  work(catalogManga({ genres: ['Action'], contentRating: 'erotica' })),
+  work(catalogManga({ genres: ['Action'], originalLanguage: 'en' })),
 ]
 
-describe('deck — catalogue agrégé (intégration)', () => {
+describe('deck — catalogue MangaDex (intégration)', () => {
   let guest: TestClient
 
   before(async () => {
-    const { upsertMedia, linkMangadex, reloadPool } = await import('../src/services/catalog.service.js')
-    await upsertMedia([
-      media({ genres: ['Action'], id: LINKED_ID } as Partial<AlMedia> & { genres: string[] }),
-      ...ACTION_WORKS,
-      ...ROMANCE_WORKS,
-      ...MANHWA_WORKS,
-      ...HIDDEN,
-    ])
-    // Deux fiches MangaDex pour la même œuvre : seule la première (la plus suivie) est liée.
-    const duplicate = { ...BILINGUAL, id: '99999999-9999-4999-8999-999999999999' }
-    const linked = { ...BILINGUAL, attributes: { ...BILINGUAL.attributes, links: { al: String(LINKED_ID) } } }
-    await linkMangadex([linked, { ...duplicate, attributes: linked.attributes }])
+    const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
+    await upsertWorks([work(BILINGUAL), ...ACTION_WORKS, ...ROMANCE_WORKS, ...MANHWA_WORKS, ...HIDDEN], statistics)
     await reloadPool()
     guest = client()
   })
@@ -303,27 +272,25 @@ describe('deck — catalogue agrégé (intégration)', () => {
     }
   })
 
-  it('le contenu adulte et les romans n’entrent jamais dans le catalogue', async () => {
+  it('le contenu adulte et les origines hors manga / manhwa / manhua n’entrent jamais dans le catalogue', async () => {
     const ids = new Set<string>()
     for (let page = 0; page < 5; page += 1) {
       const response = await deck(guest, { limit: 40, seen: [...ids] })
       for (const book of response.body.books) ids.add(book.id)
     }
-    for (const hidden of HIDDEN) assert.equal(ids.has(`al-${hidden.id}`), false)
+    for (const hidden of HIDDEN) assert.equal(ids.has(hidden.id), false)
   })
 
-  it('une œuvre liée à MangaDex est servie avec son UUID et ses textes FR ; le doublon MangaDex est ignoré', async () => {
+  it('une œuvre est servie avec son UUID MangaDex et ses textes dans la langue demandée', async () => {
     const ids = new Set<string>()
-    let linked: { id: string; title: string } | undefined
-    for (let page = 0; page < 5 && !linked; page += 1) {
+    let bilingual: { id: string; title: string } | undefined
+    for (let page = 0; page < 5 && !bilingual; page += 1) {
       const response = await deck(guest, { limit: 40, seen: [...ids], lang: 'fr' })
       for (const book of response.body.books) ids.add(book.id)
-      linked = response.body.books.find((book: { id: string }) => book.id === BILINGUAL.id)
+      bilingual = response.body.books.find((book: { id: string }) => book.id === BILINGUAL.id)
     }
-    assert.ok(linked, 'œuvre liée servie')
-    assert.equal(linked.title, 'La Voie du sabre')
-    assert.equal(ids.has('99999999-9999-4999-8999-999999999999'), false)
-    assert.equal(ids.has(`al-${LINKED_ID}`), false)
+    assert.ok(bilingual, 'œuvre servie')
+    assert.equal(bilingual.title, 'La Voie du sabre')
   })
 
   it('filtre d’origine : « Manhwa » ne renvoie que des œuvres coréennes', async () => {
@@ -342,8 +309,8 @@ describe('deck — catalogue agrégé (intégration)', () => {
   })
 
   it('invité : son historique suffit à personnaliser le deck', async () => {
-    const liked = ACTION_WORKS.slice(0, 5).map((work) => ({ id: `al-${work.id}`, categories: [], rating: null }))
-    const skipped = ROMANCE_WORKS.slice(0, 5).map((work) => `al-${work.id}`)
+    const liked = ACTION_WORKS.slice(0, 5).map((manga) => ({ id: manga.id, categories: [], rating: null }))
+    const skipped = ROMANCE_WORKS.slice(0, 5).map((manga) => manga.id)
     const response = await deck(guest, { limit: 8, liked, skipped })
     assert.equal(response.body.personalized, true)
     const top = response.body.books.filter((book: { discovery: boolean }) => !book.discovery)
@@ -382,13 +349,8 @@ describe('deck — catalogue agrégé (intégration)', () => {
     assert.equal(after.genres.Action, undefined)
   })
 
-  it('une fiche AniList seule est consultable via /manga/al-<id>', async () => {
-    const work = ROMANCE_WORKS[0]!
-    const response = await guest.request('GET', `/manga/al-${work.id}?lang=fr`)
-    assert.equal(response.status, 200)
-    assert.equal(response.body.book.title, `Title ${work.id}`)
-    assert.equal(response.body.book.synopsis, 'A story.')
-    assert.equal(response.body.book.synopsisLanguage, 'en')
-    assert.deepEqual(response.body.book.categories.slice(0, 2), ['Romance', 'Comédie'])
+  it('les anciens identifiants AniList (al-<id>) ne sont plus servis', async () => {
+    assert.equal((await guest.request('GET', '/manga/al-105398?lang=fr')).status, 400)
+    assert.equal((await guest.request('GET', '/manga/al-105398/platforms')).status, 400)
   })
 })

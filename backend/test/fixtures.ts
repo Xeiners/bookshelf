@@ -68,3 +68,55 @@ export const NO_TRANSLATION = manga('33333333-3333-4333-8333-333333333333', {
 })
 
 export const ALL_MANGAS = [BILINGUAL, ENGLISH_ONLY, NO_TRANSLATION]
+
+/* ---- Catalogue de test ---------------------------------------------------- */
+
+const tagIds = new Map<string, string>()
+/** Un id stable par nom de tag (les tags MangaDex ont un UUID). */
+const tagId = (name: string) => {
+  if (!tagIds.has(name)) tagIds.set(name, `7a900000-0000-4000-8000-${String(tagIds.size + 1).padStart(12, '0')}`)
+  return tagIds.get(name)!
+}
+
+let nextWork = 0
+
+/** Préfixe des œuvres fabriquées par `catalogManga` : distingue le catalogue des repli MangaDex. */
+export const CATALOG_ID_PREFIX = 'c0ffee00-'
+
+/**
+ * Œuvre MangaDex pour le catalogue de test : genres et thèmes par leur nom
+ * anglais, comme MangaDex les publie. Titre `Title <n>` par défaut.
+ */
+export function catalogManga(options: {
+  genres: string[]
+  themes?: string[]
+  title?: string
+  altTitles?: Record<string, string>[]
+  originalLanguage?: string
+  status?: MdManga['attributes']['status']
+  lastChapter?: string | null
+  year?: number | null
+  contentRating?: string
+  author?: string
+}): MdManga {
+  nextWork += 1
+  return {
+    id: `${CATALOG_ID_PREFIX}0000-4000-8000-${String(nextWork).padStart(12, '0')}`,
+    attributes: {
+      title: { en: options.title ?? `Title ${nextWork}` },
+      altTitles: options.altTitles ?? [],
+      description: { en: 'A story.' },
+      originalLanguage: options.originalLanguage ?? 'ja',
+      lastChapter: options.lastChapter ?? null,
+      status: options.status ?? 'ongoing',
+      year: options.year === undefined ? 2020 : options.year,
+      contentRating: options.contentRating ?? 'safe',
+      tags: [
+        ...options.genres.map((name) => tag(tagId(name), name, 'genre')),
+        ...(options.themes ?? []).map((name) => tag(tagId(name), name, 'theme')),
+      ],
+      availableTranslatedLanguages: ['en'],
+    },
+    relationships: [{ id: `author-${nextWork}`, type: 'author', attributes: { name: options.author ?? `Author ${nextWork}` } }],
+  }
+}

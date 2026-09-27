@@ -1,33 +1,23 @@
 import { prisma } from '../db.js'
 import type { Language } from '../lib/language.js'
 import type { Book } from '../modules/books/book.schema.js'
-import { mangadexGet, type MdCollection, type MdManga } from '../modules/manga/mangadex.client.js'
-import { INCLUDES, listShelf, ratingsFor } from '../modules/manga/manga.service.js'
+import { mangadexGet, type MdCollection, type MdManga, type MdStatistics } from '../modules/manga/mangadex.client.js'
+import { INCLUDES, listShelf } from '../modules/manga/manga.service.js'
 import { normalizeManga } from '../modules/manga/normalize.js'
 import { SHELVES, findShelf } from '../modules/manga/shelves.js'
 import { TAG_FR } from '../modules/manga/tags.js'
-import {
-  anilistBook,
-  categoriesOf,
-  cleanAnilistDescription,
-  toStoredAnilist,
-  usableTags,
-  type StoredAnilist,
-} from './anilist.normalize.js'
-import { fetchMediaByIds, fetchMediaPage, type AlCountry, type AlMedia } from './anilist.service.js'
 import { rankDeck, type Candidate, type TagWeight, type TasteProfile, type WorkFeatures } from './recommendation/scoring.js'
 
 /*
- * Catalogue agrégé AniList + MangaDex.
+ * Catalogue MangaDex, en cache local.
  *
- * - AniList fournit l'ensemble des œuvres et leurs métadonnées riches.
- * - MangaDex fournit, quand l'œuvre y existe, les textes FR/EN, la couverture
- *   et la lecture. La jointure se fait par `links.al` (id AniList) côté MangaDex.
- * - Tout est rangé dans `CatalogWork` (SQLite) par un indexeur en tâche de fond,
- *   puis chargé en mémoire : composer un deck ne fait AUCUN appel réseau.
+ * - Un indexeur en tâche de fond range dans `CatalogWork` les œuvres les plus
+ *   suivies de MangaDex (par langue d'origine) et les mieux notées, avec leurs
+ *   statistiques (suivis, note bayésienne) et leurs tags (genres, thèmes).
+ * - Le pool est ensuite chargé en mémoire : composer un deck, chercher ou
+ *   tirer l'Oracle ne fait AUCUN appel réseau.
  *
- * Dédoublonnage : une ligne par id AniList, et `mangadexId` est unique — deux
- * fiches MangaDex d'une même œuvre (ça arrive) ne donnent jamais deux cartes.
+ * Une ligne par œuvre MangaDex (clé primaire : son UUID).
  */
 
 export type DeckOrigin = 'all' | 'manga' | 'manhwa' | 'manhua'
@@ -36,10 +26,15 @@ const ORIGIN_COUNTRIES: Record<DeckOrigin, readonly string[] | null> = {
   all: null,
   manga: ['JP'],
   manhwa: ['KR'],
-  manhua: ['CN', 'TW'],
+  manhua: ['CN'],
 }
 
-/** Étagères du deck → filtre sur les genres / tags AniList. */
+/** Langue originale MangaDex → pays d'origine (manga, manhwa, manhua). */
+const COUNTRY_OF_LANGUAGE: Record<string, string> = { 'ja': 'JP', 'ko': 'KR', 'zh': 'CN', 'zh-hk': 'CN' }
+
+export const countryOf = (originalLanguage: string): string | null => COUNTRY_OF_LANGUAGE[originalLanguage] ?? null
+
+/** Étagères du deck → filtre sur les genres / thèmes MangaDex (noms anglais). */
 interface DeckShelf {
   genre?: string
   tag?: string
@@ -56,7 +51,7 @@ export const DECK_SHELVES: Record<string, DeckShelf> = {
   'action': { genre: 'Action' },
   'romance': { genre: 'Romance' },
   'fantasy': { genre: 'Fantasy' },
-  'isekai': { tag: 'Isekai' },
+  'isekai': { genre: 'Isekai' },
   'tranche-de-vie': { genre: 'Slice of Life' },
   'comedie': { genre: 'Comedy' },
   'mystere': { genre: 'Mystery' },
@@ -66,16 +61,33 @@ export const DECK_SHELVES: Record<string, DeckShelf> = {
   'sport': { genre: 'Sports' },
 }
 
+/* ---- Caractéristiques ------------------------------------------------------ */
+
+/**
+ * Tags MangaDex → caractéristiques du moteur : les genres d'un côté, les
+ * thèmes de l'autre. MangaDex ne pondère pas ses tags : chacun compte plein
+ * (100 %). Les tags de format (« Long Strip ») et de contenu sont ignorés.
+ */
+export function featuresOfManga(manga: MdManga, rating: number | null): WorkFeatures {
+  const genres: string[] = []
+  const tags: TagWeight[] = []
+  for (const tag of manga.attributes.tags) {
+    const name = tag.attributes.name.en
+    if (!name) continue
+    if (tag.attributes.group === 'genre') genres.push(name)
+    else if (tag.attributes.group === 'theme') tags.push({ name, rank: 100 })
+  }
+  return { genres, tags, meanScore: rating === null ? null : Math.round(rating * 10) }
+}
+
 /* ---- Pool en mémoire ------------------------------------------------------ */
 
 export interface CatalogItem extends Candidate {
-  anilistId: number
-  mangadexId: string | null
-  /** Id servi au front : UUID MangaDex, sinon `al-<id>`. */
-  bookId: string
+  mangadexId: string
   country: string
-  mdRating: number | null
-  /** Statut AniList (FINISHED, RELEASING…), chapitres, année : filtres de recherche et rythme de l'Oracle. */
+  /** Note bayésienne MangaDex (/10). */
+  rating: number | null
+  /** Statut MangaDex (ongoing, completed…), dernier chapitre, année : filtres de recherche et rythme de l'Oracle. */
   status: string | null
   chapters: number | null
   year: number | null
@@ -83,18 +95,8 @@ export interface CatalogItem extends Candidate {
   searchText: string
 }
 
-/**
- * Fiches complètes (JSON AniList et MangaDex) : volumineuses, elles restent en
- * base et ne sont lues que pour les cartes effectivement servies.
- */
-export interface CatalogDocuments {
-  anilist: string
-  mangadex: string | null
-}
-
 interface Pool {
   items: CatalogItem[]
-  /** Toute forme d'id (UUID MangaDex, `al-<id>`) → œuvre. */
   byId: Map<string, CatalogItem>
   loadedAt: number
 }
@@ -122,49 +124,36 @@ const parseJson = <T>(raw: string, fallback: T): T => {
 async function loadPool(): Promise<Pool> {
   const rows = await prisma.catalogWork.findMany({
     select: {
-      anilistId: true,
       mangadexId: true,
       country: true,
-      meanScore: true,
+      rating: true,
       popularity: true,
       genres: true,
       tags: true,
-      mdRating: true,
       status: true,
       chapters: true,
       year: true,
       searchText: true,
     },
   })
-  const items: CatalogItem[] = []
-  const byId = new Map<string, CatalogItem>()
-
-  for (const row of rows) {
-    const alias = `al-${row.anilistId}`
-    const item: CatalogItem = {
-      key: row.anilistId,
-      anilistId: row.anilistId,
-      mangadexId: row.mangadexId,
-      bookId: row.mangadexId ?? alias,
-      ids: row.mangadexId ? [row.mangadexId, alias] : [alias],
-      country: row.country,
-      popularity: row.popularity,
-      features: {
-        genres: parseJson<string[]>(row.genres, []),
-        tags: parseJson<TagWeight[]>(row.tags, []),
-        meanScore: row.meanScore,
-      },
-      mdRating: row.mdRating,
-      status: row.status,
-      chapters: row.chapters,
-      year: row.year,
-      searchText: row.searchText,
-    }
-    items.push(item)
-    for (const id of item.ids) byId.set(id, item)
-  }
-
-  return { items, byId, loadedAt: Date.now() }
+  const items: CatalogItem[] = rows.map((row) => ({
+    key: row.mangadexId,
+    ids: [row.mangadexId],
+    mangadexId: row.mangadexId,
+    country: row.country,
+    popularity: row.popularity,
+    features: {
+      genres: parseJson<string[]>(row.genres, []),
+      tags: parseJson<TagWeight[]>(row.tags, []),
+      meanScore: row.rating === null ? null : Math.round(row.rating * 10),
+    },
+    rating: row.rating,
+    status: row.status,
+    chapters: row.chapters,
+    year: row.year,
+    searchText: row.searchText,
+  }))
+  return { items, byId: new Map(items.map((item) => [item.mangadexId, item])), loadedAt: Date.now() }
 }
 
 /** Recharge le pool et l'attend (tests, fin d'indexation). */
@@ -192,102 +181,52 @@ function markPoolStale(): void {
   stale = true
 }
 
-/** Fiches complètes des œuvres servies, en une requête. */
-export async function loadDocuments(items: readonly CatalogItem[]): Promise<Map<number, CatalogDocuments>> {
+/** Fiches MangaDex complètes des œuvres servies, en une requête. */
+export async function loadDocuments(items: readonly CatalogItem[]): Promise<Map<string, MdManga>> {
   if (items.length === 0) return new Map()
   const rows = await prisma.catalogWork.findMany({
-    where: { anilistId: { in: items.map((item) => item.anilistId) } },
-    select: { anilistId: true, anilist: true, mangadex: true },
+    where: { mangadexId: { in: items.map((item) => item.mangadexId) } },
+    select: { mangadexId: true, mangadex: true },
   })
-  return new Map(rows.map((row) => [row.anilistId, { anilist: row.anilist, mangadex: row.mangadex }]))
-}
-
-/** Une seule fiche `Book` (page détail d'une œuvre AniList). */
-export async function bookFor(item: CatalogItem, language: Language): Promise<Book> {
-  const documents = await loadDocuments([item])
-  return toBook(item, language, documents.get(item.anilistId))
-}
-
-/** Œuvre du catalogue pour un id quelconque (MangaDex ou `al-<id>`). */
-/**
- * Titres AniList d'une œuvre du catalogue, par son UUID MangaDex : anglais,
- * romaji, synonymes, puis natif. Complètent les titres MangaDex pour les
- * sources qui cherchent par titre (cf. src/extensions/). Vide si l'œuvre
- * n'est pas (encore) indexée.
- */
-export async function anilistTitles(mangadexId: string): Promise<string[]> {
-  const work = await prisma.catalogWork.findUnique({ where: { mangadexId }, select: { anilist: true } })
-  if (!work) return []
-  const media = JSON.parse(work.anilist) as Partial<AlMedia>
-  return [media.title?.english, media.title?.romaji, ...(media.synonyms ?? []), media.title?.native].filter(
-    (title): title is string => typeof title === 'string' && title.trim().length > 0,
-  )
-}
-
-/** Identifiant AniList d'une œuvre du catalogue, par son UUID MangaDex. */
-export async function anilistIdFor(mangadexId: string): Promise<number | null> {
-  const work = await prisma.catalogWork.findUnique({ where: { mangadexId }, select: { anilistId: true } })
-  return work?.anilistId ?? null
+  const documents = new Map<string, MdManga>()
+  for (const row of rows) {
+    const manga = parseJson<MdManga | null>(row.mangadex, null)
+    if (manga) documents.set(row.mangadexId, manga)
+  }
+  return documents
 }
 
 export async function findWork(id: string): Promise<CatalogItem | undefined> {
   return (await getPool()).byId.get(id)
 }
 
-/* ---- Fiche servie au front ------------------------------------------------- */
-
-/** MangaDex connaît-il un titre français ou anglais (ou une romanisation) pour l'œuvre ? */
-function hasReadableTitle(md: MdManga): boolean {
-  const records = [md.attributes.title, ...md.attributes.altTitles]
-  return records.some((record) => ['fr', 'en', 'ja-ro', 'ko-ro', 'zh-ro'].some((code) => Boolean(record[code]?.trim())))
+/** Œuvre du catalogue → `Book` du front, dans la langue demandée. */
+export function toBook(item: CatalogItem, language: Language, manga: MdManga): Book {
+  return normalizeManga(manga, item.rating, language)
 }
 
 /**
- * Œuvre liée à MangaDex : textes MangaDex (FR/EN) avec l'id MangaDex, pour que
- * bibliothèque, traduction et lecture continuent de fonctionner. Sinon : fiche
- * AniList (id `al-<id>`, textes anglais).
+ * Œuvres servies, dans l'ordre demandé, avec leur fiche. Une œuvre dont la
+ * fiche manque (ligne supprimée entre-temps) est simplement sautée.
  */
-export function toBook(item: CatalogItem, language: Language, documents: CatalogDocuments | undefined): Book {
-  const stored = documents ? parseJson<StoredAnilist | null>(documents.anilist, null) : null
-  const { genres, tags, meanScore } = item.features
-
-  const md = documents?.mangadex ? parseJson<MdManga | null>(documents.mangadex, null) : null
-  if (md) {
-    const book = normalizeManga(md, item.mdRating, language)
-    const description = cleanAnilistDescription(stored?.description ?? null)
-    // Pas de titre FR/EN sur MangaDex (repli sur une autre langue) : le titre AniList est plus parlant.
-    const anilistTitle = stored?.title.english ?? stored?.title.romaji
-    const retitled = !hasReadableTitle(md) && anilistTitle ? { title: anilistTitle, subtitle: book.title } : {}
-    return {
-      ...book,
-      ...retitled,
-      // Note AniList d'abord : c'est elle que trient et filtrent la recherche et
-      // le moteur. La note MangaDex ne sert que si AniList n'en a pas.
-      rating: meanScore === null ? book.rating : Math.round(meanScore / 2) / 10,
-      categories: book.categories.length > 0 ? book.categories : categoriesOf(genres, tags, language),
-      ...(!book.synopsis && description && { synopsis: description, synopsisLanguage: 'en' as const }),
-    }
-  }
-
-  const fallback: StoredAnilist = stored ?? {
-    title: { romaji: null, english: null, native: null },
-    description: null,
-    cover: null,
-    status: null,
-    chapters: null,
-    year: null,
-    siteUrl: `https://anilist.co/manga/${item.anilistId}`,
-    authors: [],
-  }
-  return anilistBook(item.anilistId, fallback, item.country, genres, tags, meanScore, language)
+export async function booksFor<T extends { item: CatalogItem }>(
+  entries: readonly T[],
+  language: Language,
+): Promise<(T & { book: Book })[]> {
+  const documents = await loadDocuments(entries.map((entry) => entry.item))
+  return entries.flatMap((entry) => {
+    const manga = documents.get(entry.item.mangadexId)
+    return manga ? [{ ...entry, book: toBook(entry.item, language, manga) }] : []
+  })
 }
 
 /* ---- Profil d'une œuvre hors catalogue ------------------------------------- */
 
-/** Genres AniList (le reste est traité comme un tag). */
-const ANILIST_GENRES = new Set([
-  'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music',
-  'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
+/** Genres MangaDex (le reste est traité comme un thème). */
+const MANGADEX_GENRES = new Set([
+  'Action', 'Adventure', "Boys' Love", 'Comedy', 'Crime', 'Drama', 'Fantasy', "Girls' Love", 'Historical', 'Horror',
+  'Isekai', 'Magical Girls', 'Mecha', 'Medical', 'Mystery', 'Philosophical', 'Psychological', 'Romance', 'Sci-Fi',
+  'Slice of Life', 'Sports', 'Superhero', 'Thriller', 'Tragedy', 'Wuxia',
 ])
 const ENGLISH_BY_FRENCH = new Map(Object.entries(TAG_FR).map(([english, french]) => [french, english]))
 
@@ -301,8 +240,8 @@ export function featuresFromBook(book: Pick<Book, 'categories' | 'rating'>): Wor
   for (const label of book.categories) {
     const english = TAG_FR[label] !== undefined ? label : ENGLISH_BY_FRENCH.get(label)
     if (!english) continue
-    if (ANILIST_GENRES.has(english)) genres.push(english)
-    else tags.push({ name: english, rank: 70 })
+    if (MANGADEX_GENRES.has(english)) genres.push(english)
+    else tags.push({ name: english, rank: 100 })
   }
   return { genres, tags, meanScore: book.rating === null ? null : Math.round(book.rating * 20) }
 }
@@ -324,7 +263,7 @@ export interface DeckRequest {
 export interface DeckPage {
   books: DeckBook[]
   hasMore: boolean
-  /** `catalog` : catalogue agrégé ; `mangadex` : repli pendant la toute première indexation. */
+  /** `catalog` : catalogue en cache ; `mangadex` : repli pendant la toute première indexation. */
   source: 'catalog' | 'mangadex'
 }
 
@@ -357,14 +296,12 @@ export async function composeDeck(request: DeckRequest): Promise<DeckPage> {
     random: request.random,
   })
 
-  const served = ranked.slice(0, request.limit)
-  const documents = await loadDocuments(served.map(({ candidate }) => candidate))
+  const served = await booksFor(
+    ranked.slice(0, request.limit).map((entry) => ({ ...entry, item: entry.candidate })),
+    request.language,
+  )
   return {
-    books: served.map(({ candidate, matchPercentage, discovery }) => ({
-      ...toBook(candidate, request.language, documents.get(candidate.anilistId)),
-      matchPercentage,
-      discovery,
-    })),
+    books: served.map(({ book, matchPercentage, discovery }) => ({ ...book, matchPercentage, discovery })),
     hasMore: ranked.length > request.limit,
     source: 'catalog',
   }
@@ -378,7 +315,7 @@ async function mangadexDeck(request: DeckRequest): Promise<DeckPage> {
   const { books } = await listShelf(shelf, page, 24, request.language)
 
   const ranked = rankDeck(
-    books.map((book, index) => ({ key: index, ids: [book.id], popularity: 0, features: featuresFromBook(book), book })),
+    books.map((book) => ({ key: book.id, ids: [book.id], popularity: 0, features: featuresFromBook(book), book })),
     request.profile,
     { excluded: request.excluded, limit: request.limit, random: request.random },
   )
@@ -390,35 +327,29 @@ async function mangadexDeck(request: DeckRequest): Promise<DeckPage> {
 }
 
 /* ---- Indexeur ---------------------------------------------------------------
- * Environ 3 000 œuvres : les plus populaires par pays sur AniList, les mieux
- * notées, et les plus suivies sur MangaDex (pour la jointure FR/EN). Une
- * cinquantaine de requêtes AniList espacées de 2 s : quelques minutes, en
- * arrière-plan. Resynchronisation quotidienne.
+ * Environ 3 000 œuvres : les plus suivies sur MangaDex par langue d'origine
+ * (japonais, coréen, chinois), puis les mieux notées toutes origines
+ * confondues. Une quarantaine de requêtes, espacées par le limiteur de débit
+ * MangaDex : moins d'une minute, en arrière-plan. Resynchronisation quotidienne.
  */
 
-const ANILIST_PLAN: { country: AlCountry; pages: number }[] = [
-  { country: 'JP', pages: 24 },
-  { country: 'KR', pages: 14 },
-  { country: 'CN', pages: 6 },
+const INDEX_PLAN: { languages: string[]; pages: number }[] = [
+  { languages: ['ja'], pages: 16 },
+  { languages: ['ko'], pages: 9 },
+  { languages: ['zh', 'zh-hk'], pages: 5 },
 ]
-const TOP_RATED_PAGES = 6
-const MANGADEX_PLAN: { language: string; pages: number }[] = [
-  { language: 'ja', pages: 10 },
-  { language: 'ko', pages: 6 },
-  { language: 'zh', pages: 3 },
-]
-const MANGADEX_PAGE_SIZE = 100
+const TOP_RATED_PAGES = 3
+const PAGE_SIZE = 100
+/** Ids par appel `/statistics/manga`. */
+const STATISTICS_BATCH = 100
 const RESYNC_MS = 24 * 60 * 60 * 1000
 const SYNC_ID = 'catalog'
 
 let syncEnabled = false
 let resolveFirstWave: () => void = () => {}
-/** Résolue quand la première vague (une page par pays) est en base. */
+/** Résolue quand la première vague (une page par origine) est en base. */
 let firstWave: Promise<void> = Promise.resolve()
 let running: Promise<void> | null = null
-
-/** Œuvres MangaDex dont la fiche AniList manque encore : liées après rattrapage. */
-const pendingLinks = new Map<number, MdManga>()
 
 /**
  * Texte de recherche : minuscules, sans accents ni ponctuation. « Kimetsu no
@@ -434,51 +365,75 @@ export function normalizeText(value: string): string {
     .trim()
 }
 
-/** Titres AniList + MangaDex (toutes langues, titres alternatifs) et auteurs. */
-export function searchTextOf(stored: StoredAnilist | null, md: MdManga | null): string {
+/** Titres MangaDex (toutes langues, titres alternatifs) et auteurs. */
+export function searchTextOf(manga: MdManga): string {
   const parts = new Set<string>()
   const add = (value: string | null | undefined) => {
     const text = value ? normalizeText(value) : ''
     if (text) parts.add(text)
   }
-  if (stored) {
-    add(stored.title.english)
-    add(stored.title.romaji)
-    add(stored.title.native)
-    for (const author of stored.authors) add(author)
-  }
-  if (md) {
-    for (const record of [md.attributes.title, ...md.attributes.altTitles]) for (const value of Object.values(record)) add(value)
-    for (const relation of md.relationships) add(relation.attributes?.name)
-  }
+  for (const record of [manga.attributes.title, ...manga.attributes.altTitles]) for (const value of Object.values(record)) add(value)
+  for (const relation of manga.relationships) add(relation.attributes?.name)
   return [...parts].join(' | ')
 }
 
-export async function upsertMedia(media: AlMedia[]): Promise<number> {
-  const usable = media.filter(
-    (item) => !item.isAdult && (item.format === 'MANGA' || item.format === 'ONE_SHOT') && item.genres.length > 0,
+/** Dernier chapitre connu, en nombre entier ; `null` si MangaDex ne le donne pas. */
+function chapterCount(lastChapter: string | null): number | null {
+  const value = Number.parseFloat(lastChapter ?? '')
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : null
+}
+
+export interface WorkStatistics {
+  follows: number
+  rating: number | null
+}
+
+/** Suivis et note bayésienne, par lots de 100 ids. */
+export async function statisticsFor(ids: readonly string[]): Promise<Map<string, WorkStatistics>> {
+  const result = new Map<string, WorkStatistics>()
+  for (let start = 0; start < ids.length; start += STATISTICS_BATCH) {
+    const batch = ids.slice(start, start + STATISTICS_BATCH)
+    const payload = await mangadexGet<MdStatistics>('/statistics/manga', { manga: batch })
+    for (const id of batch) {
+      const stats = payload.statistics[id]
+      result.set(id, { follows: stats?.follows ?? 0, rating: stats?.rating?.bayesian ?? null })
+    }
+  }
+  return result
+}
+
+const INDEXED_RATINGS = new Set(['safe', 'suggestive'])
+
+/**
+ * Range des œuvres MangaDex au catalogue (upserts idempotents). Écartées :
+ * les origines hors manga / manhwa / manhua, et le contenu adulte.
+ */
+export async function upsertWorks(mangas: readonly MdManga[], statistics: ReadonlyMap<string, WorkStatistics>): Promise<number> {
+  const usable = mangas.filter(
+    (manga) => countryOf(manga.attributes.originalLanguage) !== null && INDEXED_RATINGS.has(manga.attributes.contentRating),
   )
   if (usable.length === 0) return 0
 
   await prisma.$transaction(
-    usable.map((item) => {
+    usable.map((manga) => {
+      const stats = statistics.get(manga.id)
+      const rating = stats?.rating ?? null
+      const { genres, tags } = featuresOfManga(manga, rating)
       const data = {
-        country: item.countryOfOrigin,
-        format: item.format ?? 'MANGA',
-        meanScore: item.meanScore,
-        popularity: item.popularity ?? 0,
-        genres: JSON.stringify(item.genres),
-        tags: JSON.stringify(usableTags(item)),
-        anilist: JSON.stringify(toStoredAnilist(item)),
-        status: item.status,
-        chapters: item.chapters,
-        year: item.startDate.year,
-        // Écrasé plus tard, titres MangaDex compris, si l'œuvre est liée.
-        searchText: searchTextOf(toStoredAnilist(item), null),
+        country: countryOf(manga.attributes.originalLanguage)!,
+        rating,
+        popularity: stats?.follows ?? 0,
+        genres: JSON.stringify(genres),
+        tags: JSON.stringify(tags),
+        mangadex: JSON.stringify(manga),
+        status: manga.attributes.status,
+        chapters: chapterCount(manga.attributes.lastChapter),
+        year: manga.attributes.year,
+        searchText: searchTextOf(manga),
       }
       return prisma.catalogWork.upsert({
-        where: { anilistId: item.id },
-        create: { anilistId: item.id, ...data },
+        where: { mangadexId: manga.id },
+        create: { mangadexId: manga.id, ...data },
         update: data,
       })
     }),
@@ -487,69 +442,17 @@ export async function upsertMedia(media: AlMedia[]): Promise<number> {
   return usable.length
 }
 
-const anilistIdOf = (manga: MdManga): number | null => {
-  const raw = manga.attributes.links?.al
-  const id = raw ? Number.parseInt(raw, 10) : Number.NaN
-  return Number.isInteger(id) && id > 0 ? id : null
-}
+type PageOrder = 'followedCount' | 'rating'
 
-/**
- * Lie des œuvres MangaDex au catalogue. Les listes arrivent triées par nombre
- * de suivis : en cas de doublon MangaDex, la fiche la plus suivie gagne.
- */
-export async function linkMangadex(mangas: MdManga[]): Promise<void> {
-  const ratings = await ratingsFor(mangas.map((manga) => manga.id))
-
-  for (const manga of mangas) {
-    const anilistId = anilistIdOf(manga)
-    if (anilistId === null) continue
-
-    const [row, owner] = await Promise.all([
-      prisma.catalogWork.findUnique({ where: { anilistId }, select: { mangadexId: true, anilist: true } }),
-      prisma.catalogWork.findUnique({ where: { mangadexId: manga.id }, select: { anilistId: true } }),
-    ])
-    if (!row) {
-      pendingLinks.set(anilistId, manga)
-      continue
-    }
-    // Déjà liée à une autre fiche MangaDex (doublon), ou fiche MangaDex déjà prise : on garde le premier lien.
-    if (row.mangadexId && row.mangadexId !== manga.id) continue
-    if (owner && owner.anilistId !== anilistId) continue
-
-    await prisma.catalogWork.update({
-      where: { anilistId },
-      data: {
-        mangadexId: manga.id,
-        mangadex: JSON.stringify(manga),
-        mdRating: ratings.get(manga.id) ?? null,
-        searchText: searchTextOf(parseJson<StoredAnilist | null>(row.anilist, null), manga),
-      },
-    })
-  }
-  markPoolStale()
-}
-
-/** Rattrapage : fiches AniList des œuvres trouvées via MangaDex, puis liaison. */
-async function backfillPending(): Promise<void> {
-  if (pendingLinks.size === 0) return
-  const ids = [...pendingLinks.keys()]
-  const media = await fetchMediaByIds(ids)
-  await upsertMedia(media)
-  const waiting = [...pendingLinks.values()]
-  pendingLinks.clear()
-  await linkMangadex(waiting)
-}
-
-async function mangadexPage(language: string, page: number): Promise<MdManga[]> {
+async function mangadexPage(languages: string[], order: PageOrder, page: number): Promise<MdManga[]> {
   const payload = await mangadexGet<MdCollection<MdManga>>('/manga', {
     'includes': INCLUDES,
-    'originalLanguage': [language],
+    'originalLanguage': languages,
     'availableTranslatedLanguage': ['fr', 'en'],
-    'contentRating': ['safe', 'suggestive'],
-    'hasAvailableChapters': 'true',
-    'order[followedCount]': 'desc',
-    'limit': MANGADEX_PAGE_SIZE,
-    'offset': (page - 1) * MANGADEX_PAGE_SIZE,
+    'contentRating': [...INDEXED_RATINGS],
+    [`order[${order}]`]: 'desc',
+    'limit': PAGE_SIZE,
+    'offset': (page - 1) * PAGE_SIZE,
   })
   return payload.data
 }
@@ -574,50 +477,30 @@ async function runTasks(tasks: Task[], label: string): Promise<void> {
 
 export async function syncCatalog(): Promise<void> {
   const startedAt = Date.now()
-  const anilistPage = (country: AlCountry, page: number): Task => async () => {
-    await upsertMedia((await fetchMediaPage({ page, country })).media)
+  const indexPage = (languages: string[], order: PageOrder, page: number): Task => async () => {
+    const mangas = await mangadexPage(languages, order, page)
+    await upsertWorks(mangas, await statisticsFor(mangas.map((manga) => manga.id)))
   }
-  const mangadexTask = (language: string, page: number): Task => async () => {
-    await linkMangadex(await mangadexPage(language, page))
-  }
+  const allLanguages = INDEX_PLAN.flatMap((plan) => plan.languages)
 
   try {
     // 1. Première vague : de quoi composer un deck dans chaque origine.
-    await runTasks(ANILIST_PLAN.map(({ country }) => anilistPage(country, 1)), 'AniList')
+    await runTasks(INDEX_PLAN.map(({ languages }) => indexPage(languages, 'followedCount', 1)), 'MangaDex')
     resolveFirstWave()
-    await runTasks(MANGADEX_PLAN.map(({ language }) => mangadexTask(language, 1)), 'MangaDex')
 
-    // 2. Le reste, pays entrelacés : le catalogue grossit uniformément.
-    const depth = Math.max(...ANILIST_PLAN.map((plan) => plan.pages))
+    // 2. Le reste, origines entrelacées : le catalogue grossit uniformément.
+    const depth = Math.max(...INDEX_PLAN.map((plan) => plan.pages))
     const rest: Task[] = []
     for (let page = 2; page <= depth; page += 1) {
-      for (const plan of ANILIST_PLAN) if (page <= plan.pages) rest.push(anilistPage(plan.country, page))
+      for (const plan of INDEX_PLAN) if (page <= plan.pages) rest.push(indexPage(plan.languages, 'followedCount', page))
     }
-    for (let page = 1; page <= TOP_RATED_PAGES; page += 1) {
-      rest.push(async () => {
-        await upsertMedia((await fetchMediaPage({ page, sort: 'SCORE_DESC', minScore: 79 })).media)
-      })
-    }
-    await runTasks(rest, 'AniList')
-
-    const links: Task[] = []
-    for (const plan of MANGADEX_PLAN) {
-      for (let page = 2; page <= plan.pages; page += 1) links.push(mangadexTask(plan.language, page))
-    }
-    await runTasks(links, 'MangaDex')
-    await runTasks([backfillPending], 'AniList (rattrapage)')
+    for (let page = 1; page <= TOP_RATED_PAGES; page += 1) rest.push(indexPage(allLanguages, 'rating', page))
+    await runTasks(rest, 'MangaDex')
 
     // Seule une indexation menée à son terme est enregistrée comme fraîche.
     const completedAt = new Date()
     await prisma.catalogSync.upsert({ where: { id: SYNC_ID }, create: { id: SYNC_ID, completedAt }, update: { completedAt } })
-
-    const [total, linked] = await Promise.all([
-      prisma.catalogWork.count(),
-      prisma.catalogWork.count({ where: { mangadexId: { not: null } } }),
-    ])
-    console.log(
-      `[catalogue] ${total} œuvres (${linked} liées à MangaDex) en ${Math.round((Date.now() - startedAt) / 1000)} s`,
-    )
+    console.log(`[catalogue] ${await prisma.catalogWork.count()} œuvres en ${Math.round((Date.now() - startedAt) / 1000)} s`)
   } finally {
     resolveFirstWave()
     await reloadPool()
@@ -630,36 +513,6 @@ export async function syncCatalog(): Promise<void> {
  * redémarrage reprend donc au démarrage suivant ; les écritures sont
  * idempotentes (upserts). Appelée au démarrage du serveur, jamais en test.
  */
-/**
- * Catalogue indexé avant l'ajout des champs de recherche : on les calcule une
- * fois depuis les fiches JSON déjà en base (aucun appel réseau).
- */
-export async function backfillCatalogFields(): Promise<number> {
-  const rows = await prisma.catalogWork.findMany({
-    where: { searchText: '' },
-    select: { anilistId: true, anilist: true, mangadex: true },
-  })
-  for (let start = 0; start < rows.length; start += 200) {
-    await prisma.$transaction(
-      rows.slice(start, start + 200).map((row) => {
-        const stored = parseJson<StoredAnilist | null>(row.anilist, null)
-        const md = row.mangadex ? parseJson<MdManga | null>(row.mangadex, null) : null
-        return prisma.catalogWork.update({
-          where: { anilistId: row.anilistId },
-          data: {
-            status: stored?.status ?? null,
-            chapters: stored?.chapters ?? null,
-            year: stored?.year ?? null,
-            searchText: searchTextOf(stored, md) || ' ',
-          },
-        })
-      }),
-    )
-  }
-  if (rows.length > 0) markPoolStale()
-  return rows.length
-}
-
 export function startCatalogSync(): void {
   syncEnabled = true
   firstWave = new Promise((resolve) => (resolveFirstWave = resolve))
@@ -681,11 +534,6 @@ export function startCatalogSync(): void {
       .finally(() => (running = null))
   }
 
-  void backfillCatalogFields()
-    .then((count) => {
-      if (count > 0) console.log(`[catalogue] champs de recherche calculés pour ${count} œuvres.`)
-    })
-    .then(cycle)
-    .catch((error: unknown) => console.warn('[catalogue]', error))
+  void cycle().catch((error: unknown) => console.warn('[catalogue]', error))
   setInterval(() => void cycle().catch(() => undefined), RESYNC_MS).unref()
 }
