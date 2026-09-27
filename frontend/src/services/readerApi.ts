@@ -1,9 +1,13 @@
 import type { ReadingStatus } from '../types/book'
-import type { ChapterLanguage, ChapterList, ReaderPage, ReadingPosition } from '../types/reader'
+import type { ChapterLanguage, ChapterList, ChapterPages, ChapterSource, OfficialPlatform, ReaderPage, ReadingPosition } from '../types/reader'
 import { api } from './api'
 
 interface PagesResponse {
   chapterId: string
+  /** Absents des copies hors-ligne d'avant les sources multiples. */
+  servedBy?: string
+  source?: ChapterSource
+  fallback?: boolean
   quality: 'data' | 'data-saver'
   pages: ReaderPage[]
 }
@@ -13,22 +17,56 @@ interface PagesResponse {
  * ouvrir celui qu'on a préchargé) ne coûte aucun appel. Les URL pointent vers
  * notre relais, stables : les garder toute la session est sans risque.
  */
-const pagesCache = new Map<string, Promise<ReaderPage[]>>()
+const pagesCache = new Map<string, Promise<ChapterPages>>()
+
+/** Plateformes officielles déjà demandées, par œuvre et langue : rouvrir une fiche ne coûte rien. */
+const platformsCache = new Map<string, Promise<OfficialPlatform[]>>()
 
 export const readerApi = {
   chapters: (mangaId: string, lang: ChapterLanguage, signal?: AbortSignal) =>
     api<ChapterList>(`/manga/${encodeURIComponent(mangaId)}/chapters?lang=${lang}`, { signal }),
 
-  pages(chapterId: string, quality: 'data' | 'data-saver'): Promise<ReaderPage[]> {
+  /**
+   * `alternates` : le même chapitre chez d'autres sources, que l'API essaie si
+   * celle-ci ne répond pas. Ils ne font pas partie de la clé de cache : c'est
+   * le même chapitre, quelle que soit la liste de replis.
+   */
+  pages(chapterId: string, quality: 'data' | 'data-saver', alternates: readonly string[] = []): Promise<ChapterPages> {
     const key = `${chapterId}:${quality}`
     let pending = pagesCache.get(key)
     if (!pending) {
-      pending = api<PagesResponse>(`/chapters/${encodeURIComponent(chapterId)}/pages?quality=${quality}`).then(
-        (response) => response.pages,
+      const alt = alternates.length > 0 ? `&alt=${alternates.map(encodeURIComponent).join(',')}` : ''
+      pending = api<PagesResponse>(`/chapters/${encodeURIComponent(chapterId)}/pages?quality=${quality}${alt}`).then(
+        (response) => ({
+          pages: response.pages,
+          servedBy: response.servedBy ?? chapterId,
+          source: response.source ?? null,
+          fallback: response.fallback ?? false,
+        }),
       )
       // Un échec ne reste pas en cache : « Réessayer » doit vraiment réessayer.
-      pending.catch(() => pagesCache.delete(key))
+      // Un repli non plus : la source demandée doit pouvoir reprendre la main.
+      pending.then(
+        (result) => {
+          if (result.fallback) pagesCache.delete(key)
+        },
+        () => pagesCache.delete(key),
+      )
       pagesCache.set(key, pending)
+    }
+    return pending
+  },
+
+  /** Où lire l'œuvre officiellement (UUID MangaDex ou `al-<id>`). */
+  platforms(workId: string, lang: ChapterLanguage): Promise<OfficialPlatform[]> {
+    const key = `${workId}:${lang}`
+    let pending = platformsCache.get(key)
+    if (!pending) {
+      pending = api<{ platforms: OfficialPlatform[] }>(`/manga/${encodeURIComponent(workId)}/platforms?lang=${lang}`).then(
+        (response) => response.platforms,
+      )
+      pending.catch(() => platformsCache.delete(key))
+      platformsCache.set(key, pending)
     }
     return pending
   },

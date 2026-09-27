@@ -7,7 +7,25 @@ import type { Book } from './book'
 
 export type ChapterLanguage = 'fr' | 'en'
 
-/** Chapitre MangaDex tel que le sert `GET /api/manga/:id/chapters`. */
+/** Provenance d'un chapitre (MangaDex, Consumet, une source JSON…). */
+export interface ChapterSource {
+  id: string
+  name: string
+}
+
+/**
+ * État d'une source pour une œuvre : `timeout` = délai dépassé, `failed` = erreur,
+ * `skipped` = mise en pause après des échecs répétés.
+ */
+export interface SourceStatus extends ChapterSource {
+  status: 'ok' | 'timeout' | 'failed' | 'skipped'
+  chapters: number
+  /** Absents des copies hors-ligne plus anciennes. */
+  durationMs?: number
+  error?: string
+}
+
+/** Chapitre tel que le sert `GET /api/manga/:id/chapters`, quelle que soit sa source. */
 export interface ReaderChapter {
   id: string
   /** Numéro affiché (« 12 », « 12.5 »), `null` pour un one-shot. */
@@ -19,6 +37,10 @@ export interface ReaderChapter {
   /** Équipes de traduction, à créditer. */
   groups: { id: string; name: string }[]
   publishedAt: string
+  /** Absente des réponses d'avant les sources multiples (copies hors-ligne) : MangaDex. */
+  source?: ChapterSource
+  /** Le même chapitre chez les autres sources : bascule manuelle et repli automatique. */
+  alternates?: ReaderChapter[]
 }
 
 export interface ChapterList {
@@ -26,7 +48,33 @@ export interface ChapterList {
   /** Langue servie : celle demandée, ou l'autre si elle n'a aucun chapitre. */
   language: ChapterLanguage
   available: Record<ChapterLanguage, number>
+  /** Absent des copies hors-ligne d'avant les sources multiples. */
+  sources?: SourceStatus[]
   chapters: ReaderChapter[]
+  /** Où lire officiellement : surtout utile quand `chapters` est vide (titre sous licence). */
+  officialPlatforms?: OfficialPlatform[]
+}
+
+/** Plateforme de lecture officielle (MANGA Plus, WEBTOON, Tappytoon…). */
+export interface OfficialPlatform {
+  name: string
+  url: string
+  /** Icône du service, à afficher si elle charge. */
+  logo?: string
+  /** Couleur de marque, `#rrggbb`. */
+  color?: string
+  /** Langue de lecture (code ISO 639-1), `null` si inconnue. */
+  language: string | null
+}
+
+/** Pages d'un chapitre (`GET /api/chapters/:id/pages`). */
+export interface ChapterPages {
+  pages: ReaderPage[]
+  /** Chapitre réellement servi : celui demandé, ou sa version chez une autre source. */
+  servedBy: string
+  source: ChapterSource | null
+  /** La source demandée a échoué : les pages viennent d'une autre. */
+  fallback: boolean
 }
 
 /** Une page à afficher, quelle que soit sa source (MangaDex, archive CBZ…). */

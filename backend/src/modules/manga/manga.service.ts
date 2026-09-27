@@ -172,15 +172,41 @@ export async function searchManga(
   return { books: await localize(mangas, language), total, page, hasMore: hasNextPage(page, limit, total) }
 }
 
-export async function getManga(id: string, language: Language): Promise<Book> {
-  const manga = await mangaCache.getOrLoad(id, async () => {
+const loadManga = (id: string) =>
+  mangaCache.getOrLoad(id, async () => {
     const payload = await mangadexGet<MdEntity<MdManga>>(`/manga/${id}`, { includes: INCLUDES })
     if (!payload.data) throw notFound()
     return payload.data
   })
-  const [book] = await localize([manga], language)
+
+export async function getManga(id: string, language: Language): Promise<Book> {
+  const [book] = await localize([await loadManga(id)], language)
   if (!book) throw notFound()
   return book
+}
+
+/** Liens externes MangaDex (`al` = id AniList, `raw`, `engtl`…) et langue d'origine d'une œuvre. */
+export async function mangaLinks(id: string): Promise<{ links: Record<string, string | undefined>; originalLanguage: string }> {
+  const { links, originalLanguage } = (await loadManga(id)).attributes
+  return { links: links ?? {}, originalLanguage }
+}
+
+/** Rang d'un titre pour une recherche par titre : anglais, puis romanisé, puis le reste. */
+const aliasRank = (locale: string) => (locale === 'en' ? 0 : locale.endsWith('-ro') ? 1 : 2)
+
+/**
+ * Tous les titres connus d'une œuvre (principal et alternatifs, toutes
+ * langues), dédoublonnés : clé de recherche des sources qui ne connaissent
+ * pas les identifiants MangaDex (cf. src/extensions/).
+ */
+export async function titleAliases(id: string): Promise<string[]> {
+  const { title, altTitles } = (await loadManga(id)).attributes
+  const entries = [title, ...altTitles].flatMap((localized) => Object.entries(localized))
+  const ranked = entries
+    .map(([locale, value]) => ({ rank: aliasRank(locale), value: value?.trim() ?? '' }))
+    .filter((entry) => entry.value.length > 0)
+    .sort((a, b) => a.rank - b.rank)
+  return [...new Set(ranked.map((entry) => entry.value))]
 }
 
 /** Classements par note : ils bougent peu, 30 min de cache suffisent largement. */

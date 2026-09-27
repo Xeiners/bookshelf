@@ -41,6 +41,32 @@ const EnvSchema = z.object({
   SMTP_PASS: z.string().optional(),
   /** Expéditeur affiché, ex. « Bookshelf <no-reply@exemple.fr> ». */
   MAIL_FROM: z.string().default('Bookshelf <no-reply@bookshelf.local>'),
+
+  /*
+   * Sources de chapitres supplémentaires (cf. src/extensions/). Chacune reste
+   * inactive tant que son URL n'est pas renseignée : MangaDex seul par défaut.
+   */
+  /** Instance de l'API Consumet (auto-hébergée), ex. `http://consumet:3000`. */
+  CONSUMET_API_URL: z.url().optional(),
+  /** Catalogue Consumet interrogé (`/manga/<provider>/…`). */
+  CONSUMET_PROVIDER: z.string().regex(/^[a-z0-9]+$/).default('mangadex'),
+  /** Langue des chapitres de ce catalogue (Consumet ne la précise pas). */
+  CONSUMET_LANGUAGE: z.enum(['fr', 'en']).default('en'),
+  /**
+   * Bibliothèque personnelle : API au contrat « OpenComicStream » (cf.
+   * docs/BACKEND.md), ou instance Komga / Kavita (`OPEN_COMIC_KIND`).
+   */
+  OPEN_COMIC_API_URL: z.url().optional(),
+  OPEN_COMIC_KIND: z.enum(['opencomic', 'komga', 'kavita']).default('opencomic'),
+  /** Nom affiché sur le badge de provenance (par défaut : celui du logiciel). */
+  OPEN_COMIC_NAME: z.string().trim().min(1).max(40).optional(),
+  /** Clé d'API (Komga, Kavita ; `Authorization: Bearer` pour le contrat JSON). */
+  OPEN_COMIC_API_KEY: z.string().trim().optional(),
+  /** Komga sans clé d'API : identifiants d'un compte (authentification Basic). */
+  OPEN_COMIC_USER: z.string().optional(),
+  OPEN_COMIC_PASSWORD: z.string().optional(),
+  /** Langue des œuvres quand la bibliothèque ne la précise pas. */
+  OPEN_COMIC_LANGUAGE: z.enum(['fr', 'en']).default('fr'),
 })
 
 /*
@@ -86,6 +112,8 @@ function resolveJwtSecret(): string {
   return DEV_JWT_SECRET
 }
 
+const DEFAULT_LIBRARY_NAMES = { opencomic: 'Open Comic', komga: 'Komga', kavita: 'Kavita' } as const
+
 /** Public par nature : ne protège que des sessions de développement local. */
 const DEV_JWT_SECRET = 'bookshelf-dev-secret-not-for-production-use-0000'
 
@@ -104,6 +132,22 @@ export const config = {
   /** Nombre de sauts (`1`) ou liste de sous-réseaux, tel qu'Express l'attend. */
   trustProxy: parseTrustProxy(env.TRUST_PROXY),
   cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : isProduction,
+  sources: {
+    consumet: env.CONSUMET_API_URL
+      ? { baseUrl: env.CONSUMET_API_URL.replace(/\/$/, ''), provider: env.CONSUMET_PROVIDER, language: env.CONSUMET_LANGUAGE }
+      : null,
+    openComic: env.OPEN_COMIC_API_URL
+      ? {
+          baseUrl: env.OPEN_COMIC_API_URL.replace(/\/$/, ''),
+          kind: env.OPEN_COMIC_KIND,
+          name: env.OPEN_COMIC_NAME ?? DEFAULT_LIBRARY_NAMES[env.OPEN_COMIC_KIND],
+          language: env.OPEN_COMIC_LANGUAGE,
+          apiKey: env.OPEN_COMIC_API_KEY,
+          user: env.OPEN_COMIC_USER,
+          password: env.OPEN_COMIC_PASSWORD,
+        }
+      : null,
+  },
   mail: {
     transport: resolveMailTransport(),
     from: env.MAIL_FROM,

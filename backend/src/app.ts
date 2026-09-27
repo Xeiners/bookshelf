@@ -10,6 +10,7 @@ import { discoverRouter } from './modules/discover/discover.routes.js'
 import { libraryRouter } from './modules/library/library.routes.js'
 import { coverRouter, mangaRouter } from './modules/manga/manga.routes.js'
 import { oracleRouter } from './modules/oracle/oracle.routes.js'
+import { proxyRouter } from './modules/proxy/proxy.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -38,6 +39,7 @@ export function createApp() {
   app.use('/api/manga', mangaRouter)
   app.use('/api/chapters', chaptersRouter)
   app.use('/api/covers', coverRouter)
+  app.use('/api/proxy', proxyRouter)
   app.use('/api/oracle', oracleRouter)
   app.use('/api/discover', discoverRouter)
 

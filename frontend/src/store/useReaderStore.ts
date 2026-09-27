@@ -38,6 +38,8 @@ interface ReaderPrefs {
   /** Mode choisi pour une œuvre précise (sinon : défaut selon son type). */
   layoutByWork: Record<string, ReaderLayout>
   directionByWork: Record<string, ReadingDirection>
+  /** Source de chapitres choisie pour une œuvre (sinon : la version principale de l'API). */
+  sourceByWork: Record<string, string>
   spread: SpreadMode
   quality: ImageQuality
   /** Langue des chapitres ; `null` = celle de l'interface. */
@@ -50,6 +52,7 @@ interface ReaderPrefs {
 interface ReaderState extends ReaderPrefs {
   setLayout: (workId: string, layout: ReaderLayout) => void
   setDirection: (workId: string, direction: ReadingDirection) => void
+  setSource: (workId: string, sourceId: string) => void
   setSpread: (spread: SpreadMode) => void
   setQuality: (quality: ImageQuality) => void
   setChapterLanguage: (language: ChapterLanguage) => void
@@ -79,6 +82,7 @@ export const useReaderStore = create<ReaderState>()(
     (set) => ({
       layoutByWork: {},
       directionByWork: {},
+      sourceByWork: {},
       spread: 'auto',
       quality: 'auto',
       chapterLanguage: null,
@@ -88,6 +92,7 @@ export const useReaderStore = create<ReaderState>()(
       setLayout: (workId, layout) => set((state) => ({ layoutByWork: remember(state.layoutByWork, workId, layout) })),
       setDirection: (workId, direction) =>
         set((state) => ({ directionByWork: remember(state.directionByWork, workId, direction) })),
+      setSource: (workId, sourceId) => set((state) => ({ sourceByWork: remember(state.sourceByWork, workId, sourceId) })),
       setSpread: (spread) => set({ spread }),
       setQuality: (quality) => set({ quality }),
       setChapterLanguage: (chapterLanguage) => set({ chapterLanguage }),
@@ -111,6 +116,7 @@ export const useReaderStore = create<ReaderState>()(
       partialize: (state): ReaderPrefs => ({
         layoutByWork: state.layoutByWork,
         directionByWork: state.directionByWork,
+        sourceByWork: state.sourceByWork,
         spread: state.spread,
         quality: state.quality,
         chapterLanguage: state.chapterLanguage,
@@ -126,6 +132,7 @@ export const useReaderStore = create<ReaderState>()(
           text: { ...DEFAULT_TEXT, ...(saved.text ?? {}) },
           layoutByWork: saved.layoutByWork ?? {},
           directionByWork: saved.directionByWork ?? {},
+          sourceByWork: saved.sourceByWork ?? {},
         }
       },
     },

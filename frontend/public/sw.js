@@ -10,8 +10,8 @@
  *  - navigation      → réseau d'abord, repli sur la coquille en cache
  *  - /assets/* (hachés) → cache d'abord (immuables par construction)
  *  - couvertures (/api/covers, Open Library, AniList) → stale-while-revalidate, cache plafonné
- *  - pages de chapitre (/api/chapters/…/image/…) → cache d'abord (nom = empreinte du contenu) :
- *    le chapitre en cours, préchargé en entier, reste lisible hors-ligne
+ *  - pages de chapitre (/api/chapters/…/image/…, et /api/proxy/page/… pour les autres sources)
+ *    → cache d'abord : le chapitre en cours, préchargé en entier, reste lisible hors-ligne
  *  - listes de chapitres et de pages → réseau d'abord, repli sur la dernière copie
  *  - reste de /api   → réseau uniquement (session, bibliothèque : jamais périmés)
  */
@@ -35,10 +35,13 @@ const LEGACY_COVERS_HOST = 'covers.openlibrary.org'
 const ANILIST_COVERS_HOST = 's4.anilist.co'
 const API_PREFIX = '/api/'
 const COVERS_PREFIX = '/api/covers/'
-/** `/api/chapters/<id>/image/<qualité>/<fichier>` */
-const CHAPTER_IMAGE = /^\/api\/chapters\/[\w-]+\/image\//
-/** `/api/chapters/<id>/pages` et `/api/manga/<id>/chapters` */
-const READER_DATA = /^\/api\/(chapters\/[\w-]+\/pages|manga\/[\w-]+\/chapters)$/
+/**
+ * `/api/chapters/<id>/image/<qualité>/<fichier>` (MangaDex) et
+ * `/api/proxy/page/<source~id>/<index>` (autres sources, relais générique).
+ */
+const CHAPTER_IMAGE = /^\/api\/(chapters\/[\w-]+\/image|proxy\/page)\//
+/** `/api/chapters/<id>/pages` (UUID MangaDex ou `source~id`) et `/api/manga/<id>/chapters` */
+const READER_DATA = /^\/api\/(chapters\/[\w~-]+\/pages|manga\/[\w-]+\/chapters)$/
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -144,8 +147,9 @@ async function staleWhileRevalidate(request, cacheName) {
 
 /**
  * Page de chapitre : immuable (le nom de fichier est l'empreinte de l'image),
- * donc servie depuis le cache dès qu'elle y est. Un repli « Data Saver » servi
- * à la place de l'originale (en-tête `X-Reader-Quality`) n'est pas gardé.
+ * donc servie depuis le cache dès qu'elle y est. Un repli n'est pas gardé :
+ * « Data Saver » servi à la place de l'originale (en-tête `X-Reader-Quality`),
+ * ou page d'une autre source (en-tête `X-Reader-Fallback`).
  */
 async function chapterImage(request) {
   const cache = await caches.open(PAGES_CACHE)
@@ -154,7 +158,8 @@ async function chapterImage(request) {
 
   const response = await fetch(request)
   const isImage = response.headers.get('content-type')?.startsWith('image/')
-  if (response.ok && isImage && !response.headers.has('x-reader-quality')) {
+  const degraded = response.headers.has('x-reader-quality') || response.headers.has('x-reader-fallback')
+  if (response.ok && isImage && !degraded) {
     cache
       .put(request, response.clone())
       .then(() => trimCache(PAGES_CACHE, MAX_PAGES))

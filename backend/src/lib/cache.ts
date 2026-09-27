@@ -46,8 +46,11 @@ export class TtlCache<V> {
     this.slots.delete(key)
   }
 
-  /** Renvoie la valeur en cache, ou la charge une seule fois pour tous les appelants. */
-  async getOrLoad(key: string, load: () => Promise<V>, ttlMs = this.defaultTtlMs): Promise<V> {
+  /**
+   * Renvoie la valeur en cache, ou la charge une seule fois pour tous les appelants.
+   * `ttlMs` peut dépendre de la valeur chargée (résultat partiel → gardé moins longtemps).
+   */
+  async getOrLoad(key: string, load: () => Promise<V>, ttlMs: number | ((value: V) => number) = this.defaultTtlMs): Promise<V> {
     const cached = this.get(key)
     if (cached !== undefined) return cached
 
@@ -56,7 +59,7 @@ export class TtlCache<V> {
 
     const promise = load()
       .then((value) => {
-        this.set(key, value, ttlMs)
+        this.set(key, value, typeof ttlMs === 'function' ? ttlMs(value) : ttlMs)
         return value
       })
       .finally(() => this.inflight.delete(key))

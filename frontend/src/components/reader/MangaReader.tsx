@@ -5,11 +5,22 @@ import { vibrate } from '../../lib/haptics'
 import { neighbours, readingOrder } from '../../lib/reader/navigation'
 import { chapterNumber, COMPLETION_THRESHOLD, initialChapterId } from '../../lib/reader/progress'
 import { resolveQuality } from '../../lib/reader/quality'
+import {
+  applySourcePreference,
+  chapterSources,
+  creditedSources,
+  ensureChapter,
+  findChapter,
+  isMultiSource,
+  sourceOf,
+  versionFrom,
+} from '../../lib/reader/sources'
 import { readerApi } from '../../services/readerApi'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useReaderStore } from '../../store/useReaderStore'
+import { OfficialPlatforms } from '../book/OfficialPlatforms'
 import type { Book } from '../../types/book'
-import type { ChapterLanguage, ChapterList, ReaderChapter, ReaderPage, ReadingPosition, ViewPosition } from '../../types/reader'
+import type { ChapterLanguage, ChapterList, ChapterPages, ReaderChapter, ReadingPosition, ViewPosition } from '../../types/reader'
 import type { DrawerItem } from './ChapterDrawer'
 import { ImageReader } from './ImageReader'
 import { ReaderMessage } from './ReaderMessage'
@@ -29,9 +40,10 @@ interface MangaReaderProps {
 }
 
 /**
- * Lecteur MangaDex : liste des chapitres, pages via MangaDex At-Home (relayées
- * par l'API), et suivi automatique de la progression dans la bibliothèque —
- * position au pixel près, compteur de chapitres lus en fin de chapitre.
+ * Lecteur des œuvres du catalogue : liste des chapitres fusionnée par l'API
+ * depuis toutes les sources (MangaDex, Consumet…), pages relayées par l'API,
+ * bascule de source par chapitre, et suivi automatique de la progression
+ * dans la bibliothèque — position au pixel près, compteur de chapitres lus.
  */
 export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
   const t = useT()
@@ -40,6 +52,8 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
   const setChapterLanguage = useReaderStore((state) => state.setChapterLanguage)
   const qualityPreference = useReaderStore((state) => state.quality)
   const setQuality = useReaderStore((state) => state.setQuality)
+  const preferredSource = useReaderStore((state) => state.sourceByWork[book.id] ?? null)
+  const setSource = useReaderStore((state) => state.setSource)
   const recordReading = useLibraryStore((state) => state.recordReading)
   const chaptersRead = useLibraryStore((state) => state.entries[book.id]?.chaptersRead ?? 0)
 
@@ -74,10 +88,14 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
         // Chapitre encore valable dans cette langue ? Sinon, le même numéro, sinon la reprise.
         const currentId = chapterRef.current
         const all = data.chapters
-        if (currentId && all.some((chapter) => chapter.id === currentId)) return
-        const previous = currentId ? before.find((chapter) => chapter.id === currentId) : undefined
+        if (currentId && findChapter(all, currentId)) return
+        const previous = currentId ? findChapter(before, currentId) : undefined
         const sameNumber = previous?.number ? all.find((chapter) => chapter.number === previous.number) : undefined
-        setChapterId(sameNumber?.id ?? initialChapterId(readingOrder(all), opening, useLibraryStore.getState().entries[book.id]?.chaptersRead ?? 0))
+        // Reprise : la version exacte de la dernière position, même chez une autre source que la préférée.
+        const resumeId = opening?.chapterId ?? null
+        const preferred = useReaderStore.getState().sourceByWork[book.id] ?? null
+        const resumeOrder = readingOrder(ensureChapter(applySourcePreference(all, preferred), resumeId), [], resumeId)
+        setChapterId(sameNumber?.id ?? initialChapterId(resumeOrder, opening, useLibraryStore.getState().entries[book.id]?.chaptersRead ?? 0))
       })
       .catch(() => {
         if (!controller.signal.aborted) setList({ status: 'error', key: listKey })
@@ -85,8 +103,19 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
     return () => controller.abort()
   }, [book.id, language, listKey, opening])
 
-  const chapters = list.status === 'ready' ? list.data.chapters : EMPTY
+  // Source préférée appliquée, et chapitre ouvert gardé à sa place même s'il vient d'une autre source.
+  // `list` est recréé à chaque rendu pendant le chargement ; ses chapitres, eux, sont stables.
+  const listed = list.status === 'ready' ? list.data.chapters : EMPTY
+  const chapters = useMemo(
+    () => (listed === EMPTY ? EMPTY : ensureChapter(applySourcePreference(listed, preferredSource), chapterId)),
+    [listed, preferredSource, chapterId],
+  )
   const current = useMemo(() => chapters.find((chapter) => chapter.id === chapterId), [chapters, chapterId])
+  /** Versions du chapitre chez les autres sources : l'API les essaie si la sienne ne répond pas. */
+  const alternatesRef = useRef<string[]>([])
+  useEffect(() => {
+    alternatesRef.current = current?.alternates?.map((alt) => alt.id) ?? []
+  })
   const order = useMemo(
     () => readingOrder(chapters, current?.groups.map((group) => group.id) ?? [], chapterId),
     [chapters, current, chapterId],
@@ -96,7 +125,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
   /* ---- Pages du chapitre ------------------------------------------------- */
 
   const quality = resolveQuality(qualityPreference)
-  const [pages, setPages] = useState<Load<ReaderPage[]> & { key: string }>({ status: 'loading', key: '' })
+  const [pages, setPages] = useState<Load<ChapterPages> & { key: string }>({ status: 'loading', key: '' })
   const [pagesTick, setPagesTick] = useState(0)
   const pagesKey = `${chapterId}:${quality}:${pagesTick}`
 
@@ -104,7 +133,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
     if (!chapterId) return
     let cancelled = false
     readerApi
-      .pages(chapterId, quality)
+      .pages(chapterId, quality, alternatesRef.current)
       .then((data) => {
         if (!cancelled) setPages({ status: 'ready', data, key: pagesKey })
       })
@@ -126,8 +155,8 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
     if (!next || preparing.current === next.id) return
     preparing.current = next.id
     readerApi
-      .pages(next.id, quality)
-      .then((data) => setNextFirst(data.slice(0, 3).map((page) => page.url)))
+      .pages(next.id, quality, next.alternates?.map((alt) => alt.id) ?? [])
+      .then((data) => setNextFirst(data.pages.slice(0, 3).map((page) => page.url)))
       .catch(() => {
         preparing.current = null
       })
@@ -175,7 +204,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
 
   const onChapterEnd = () => {
     if (!current || pageState.status !== 'ready') return
-    const pageCount = pageState.data.length
+    const pageCount = pageState.data.pages.length
     window.clearTimeout(timer.current)
     pending.current = null
     recordReading(
@@ -213,6 +242,9 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
     return { page: 0, offset: 0 }
   })()
 
+  const sources = list.status === 'ready' ? list.data.sources : undefined
+  // Badge de provenance : seulement quand plusieurs sources se mêlent dans la liste.
+  const showSource = isMultiSource(sources)
   const items: DrawerItem[] = order.map((chapter) => {
     const number = chapterNumber(chapter.number)
     const detail = [chapter.volume ? t.reader.volume(chapter.volume) : null, chapter.number ? chapter.title : null, chapter.groups.map((group) => group.name).join(', ') || null]
@@ -223,27 +255,53 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
       label: label(chapter) ?? '',
       detail,
       state: chapter.id === chapterId ? 'current' : number !== null && number <= chaptersRead ? 'read' : null,
+      badge: showSource ? sourceOf(chapter).name : null,
     }
   })
 
+  const creditLine = t.reader.creditSource(new Intl.ListFormat(t.locale, { type: 'conjunction' }).format(creditedSources(sources)))
   const credits = [
     current && current.groups.length > 0 ? t.reader.translatedBy(current.groups.map((group) => group.name).join(', ')) : null,
-    t.reader.creditSource,
+    creditLine,
   ].filter((line): line is string => Boolean(line))
+
+  /** Bascule manuelle : ce chapitre chez une autre source, et cette source préférée pour la suite. */
+  const versions = chapterSources(current)
+  const sourcePicker =
+    current && versions.length > 1
+      ? {
+          value: sourceOf(current).id,
+          options: versions.map((source) => ({ value: source.id, label: source.name })),
+          onChange: (sourceId: string) => {
+            const target = versionFrom(current, sourceId)
+            setSource(book.id, sourceId)
+            if (target && target.id !== current.id) openChapter(target.id)
+          },
+        }
+      : null
+
+  const offline = typeof navigator !== 'undefined' && !navigator.onLine
+  const fallbackSource = pageState.status === 'ready' && pageState.data.fallback ? pageState.data.source?.name : null
+  const notice = offline ? t.reader.offlineHint : fallbackSource ? t.reader.sourceFallback(fallbackSource) : null
 
   const ui = useReaderChrome()
 
   // Liste indisponible ou vide : on le dit, sans laisser un écran noir.
   if (list.status !== 'ready' || !chapterId) {
     const empty = list.status === 'ready' && list.data.chapters.length === 0
+    // Titre sous licence : pas de chapitre hébergé, mais des plateformes officielles où le lire.
+    const official = empty ? (list.data.officialPlatforms ?? []) : []
+    const emptyMessage = official.length > 0 ? t.reader.noChaptersLicensed : t.reader.noChapters
     return (
-      <div className="fixed inset-0 z-[100] bg-black text-cream">
+      <div className="fixed inset-0 z-[100] overflow-y-auto bg-black text-cream">
         <ReaderMessage
-          message={list.status === 'error' ? t.reader.errorChapters : empty ? t.reader.noChapters : t.reader.loading}
+          message={list.status === 'error' ? t.reader.errorChapters : empty ? emptyMessage : t.reader.loading}
           busy={list.status === 'loading' || (list.status === 'ready' && !empty)}
           onRetry={list.status === 'error' ? () => setListTick((tick) => tick + 1) : undefined}
           onClose={ui.close}
-        />
+        >
+          {official.length > 0 && <OfficialPlatforms platforms={official} showHeading={false} />}
+        </ReaderMessage>
       </div>
     )
   }
@@ -257,7 +315,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
       title={book.title}
       chapterLabel={label(current)}
       contentKey={`${chapterId}:${quality}`}
-      pages={pageState.status === 'ready' ? pageState.data : null}
+      pages={pageState.status === 'ready' ? pageState.data.pages : null}
       status={pageState.status}
       errorMessage={t.reader.errorPages}
       onRetry={() => setPagesTick((tick) => tick + 1)}
@@ -282,7 +340,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
             }))}
           />
         ),
-        footer: t.reader.creditSource,
+        footer: creditLine,
       }}
       settings={
         <SettingGroup label={t.reader.quality} hint={t.reader.qualityHint}>
@@ -300,7 +358,8 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
       }
       credits={credits}
       prefetchNext={nextFirst}
-      notice={typeof navigator !== 'undefined' && !navigator.onLine ? t.reader.offlineHint : null}
+      notice={notice}
+      sourcePicker={sourcePicker}
     />
   )
 }

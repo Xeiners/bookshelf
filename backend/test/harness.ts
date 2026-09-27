@@ -72,6 +72,8 @@ function mangadexResponse(url: URL): Response {
  */
 export type MockHandler = (url: URL, init?: RequestInit) => Response | undefined
 export const extraMocks: MockHandler[] = []
+/** Hôtes hors MangaDex simulés eux aussi par `extraMocks` (sources externes, serveurs d'images). */
+export const mockedHosts = new Set<string>()
 
 const isMangadexHost = (hostname: string) =>
   hostname === 'api.mangadex.org' || hostname.endsWith('.mangadex.network') || hostname === 'uploads.mangadex.org'
@@ -80,7 +82,7 @@ export function installMangadexMock(): void {
   const realFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
-    if (isMangadexHost(url.hostname)) {
+    if (isMangadexHost(url.hostname) || mockedHosts.has(url.hostname)) {
       for (const handler of extraMocks) {
         const response = handler(url, init)
         if (response) {
@@ -134,7 +136,7 @@ export async function startServer() {
           ...(body !== undefined && { 'Content-Type': 'application/json' }),
           ...(cookie && { Cookie: cookie }),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        ...(body !== undefined && { body: JSON.stringify(body) }),
       })
       const setCookie = response.headers.get('set-cookie')
       if (setCookie) cookie = setCookie.split(';')[0] ?? ''

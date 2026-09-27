@@ -10,6 +10,8 @@ export interface DrawerItem {
   state?: 'current' | 'read' | null
   /** Niveau d'imbrication (sommaire d'un EPUB). */
   depth?: number
+  /** Provenance (« MangaDex », « Consumet »…), affichée seulement quand plusieurs sources se mêlent. */
+  badge?: string | null
 }
 
 interface ChapterDrawerProps {
@@ -59,6 +61,11 @@ export function ChapterDrawer({ open, title, items, onSelect, onClose, header, f
                   <span className={`block truncate text-sm ${item.state === 'read' ? 'text-cream/45' : ''}`}>{item.label}</span>
                   {item.detail && <span className="block truncate text-[11px] text-mist">{item.detail}</span>}
                 </span>
+                {item.badge && (
+                  <span className="max-w-[6.5rem] shrink-0 truncate rounded-full border border-white/10 px-1.5 py-px text-[9px] tracking-wide text-mist">
+                    {item.badge}
+                  </span>
+                )}
                 {current && <span className="shrink-0 text-[10px] tracking-wide uppercase">{t.reader.current}</span>}
                 {item.state === 'read' && <Check size={14} aria-label={t.reader.readMark} className="shrink-0 text-like/70" />}
               </button>

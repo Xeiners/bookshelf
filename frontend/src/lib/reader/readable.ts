@@ -8,3 +8,6 @@ const MANGADEX_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
  * Library n'ont pas de chapitres à lire).
  */
 export const isReadable = (book: Book) => MANGADEX_ID.test(book.id) && book.kind !== 'book'
+
+/** Œuvre du catalogue (MangaDex ou AniList) : elle peut avoir des plateformes de lecture officielles. */
+export const hasOfficialLinks = (book: Book) => (MANGADEX_ID.test(book.id) || /^al-\d+$/.test(book.id)) && book.kind !== 'book'

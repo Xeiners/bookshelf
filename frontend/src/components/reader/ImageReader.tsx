@@ -9,7 +9,7 @@ import type { ReaderPage, ReaderViewController, ViewPosition } from '../../types
 import { ChapterDrawer, type DrawerItem } from './ChapterDrawer'
 import { ChapterEnd } from './ChapterEnd'
 import { PagedView } from './PagedView'
-import { ReaderControls, ReaderStatus, type ChapterStep } from './ReaderControls'
+import { ReaderControls, ReaderStatus, type ChapterStep, type SourcePicker } from './ReaderControls'
 import { ReaderMessage } from './ReaderMessage'
 import { Choice, ReaderSettings, SettingGroup } from './ReaderSettings'
 import { WebtoonView } from './WebtoonView'
@@ -41,8 +41,10 @@ export interface ImageReaderProps {
   credits?: string[]
   /** URL à précharger après le chapitre en cours (début du chapitre suivant). */
   prefetchNext?: string[]
-  /** Bandeau d'information (hors-ligne…). */
+  /** Bandeau d'information (hors-ligne, source de repli…). */
   notice?: string | null
+  /** Choix de la source du chapitre en cours (chapitre publié par plusieurs sources). */
+  sourcePicker?: SourcePicker | null
 }
 
 /**
@@ -71,6 +73,7 @@ export function ImageReader(props: ImageReaderProps) {
     credits,
     prefetchNext,
     notice,
+    sourcePicker,
   } = props
   const t = useT()
   const ui = useReaderChrome()
@@ -205,6 +208,7 @@ export function ImageReader(props: ImageReaderProps) {
         prev={prev}
         next={next}
         layout={{ current: layout, onToggle: toggleLayout }}
+        sourcePicker={sourcePicker}
       />
 
       {contents && (

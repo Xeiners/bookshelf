@@ -211,6 +211,138 @@ compte applique les mêmes règles.
 Tests : `backend/test/reader.test.ts` (MangaDex et nœuds MD@Home simulés via
 `extraMocks` du banc d'essai).
 
+## 3 ter. Sources de chapitres multiples (`src/extensions/`)
+
+Le lecteur ne parle plus directement à MangaDex : il passe par un **agrégateur**
+de sources (patron Strategy). Chaque source implémente `SourceProvider`
+(`extensions/types.ts`) : `fetchChapterList(mangaId, titleAliases)` et
+`fetchPageUrls(chapterId, { quality })`. Ajouter une source = un fichier dans
+`extensions/providers/` + une ligne dans `extensions/index.ts` ; ni les routes ni
+le front ne changent.
+
+| Source | Activée par | Priorité | Retrouve l'œuvre par |
+| --- | --- | --- | --- |
+| `mangadex` | toujours | 100 | UUID MangaDex |
+| `opencomic` (« OpenComicStream ») | `OPEN_COMIC_API_URL` | 50 | UUID MangaDex + titres |
+| `komga` / `kavita` (bibliothèque perso) | `OPEN_COMIC_API_URL` + `OPEN_COMIC_KIND` | 60 | titre (rapprochement flou) |
+| `consumet` | `CONSUMET_API_URL` | 30 | titre (rapprochement flou, cf. ci-dessous) |
+
+**Identifiants publics** (`chapterKey.ts`). MangaDex garde son UUID nu : positions
+enregistrées, caches hors-ligne et URL existantes restent valables. Les autres :
+`<source>~<id brut en base64url>`, sans caractère à échapper.
+
+**Liste.** Toutes les sources sont interrogées en parallèle (`Promise.allSettled`),
+chacune derrière un **délai** et un **disjoncteur** (3 échecs consécutifs → source
+laissée tranquille 60 s, puis un seul essai ; un 404 n'est pas une panne). Une
+source qui plante, expire ou change de format (réponses validées par zod) est
+journalisée et marquée dans `sources[]` : `timeout` (délai dépassé) ou `failed`
+(HTTP, format…), avec `error` et `durationMs` ; le reste du catalogue est servi.
+Une ligne de synthèse par chargement (`[sources] <id> : mangadex 124 ch. (820 ms) ·
+consumet timeout (25000 ms)`) et des lignes par étape (`[Provider: Consumet/…]
+Search query: "…" -> 3 résultat(s)…`, `HTTP 403 Forbidden sur search`) disent
+quelle source, et quelle route, renvoie vide ou échoue. Si **toutes** échouent : l'erreur de la plus prioritaire
+(même comportement qu'avant quand MangaDex est seul). Résultat partiel gardé 1 min
+au lieu de 10.
+
+**Titres** (`titleMatch.ts`, pur). Les sources par titre reçoivent tous les noms
+connus : AniList (anglais, romaji, `synonyms`, lus dans `CatalogWork`) puis
+MangaDex (toutes langues). On en tire 4 requêtes au plus : titres latins
+d'abord, chacun suivi de sa variante sans ponctuation, dédoublonnés, sans les
+sigles (« SnK »). Un résultat est retenu si sa similarité (Levenshtein
+normalisée) avec un des noms atteint **80 %** — et jamais si les nombres
+diffèrent (« Blade Road 2 », « Season 3 ») : une suite n'est pas l'œuvre. Une
+absence de correspondance n'est gardée que 30 min. Les `synonyms` AniList
+n'existent que dans les fiches indexées après leur ajout à la requête.
+
+**Fusion** (`merge.ts`, pure). Groupes par langue + numéro canonique (`012` =
+`12.0` = `12`). Dans un groupe, la meilleure version (priorité de la source, puis
+complétude : pages connues, équipe, titre, volume) désigne la source gagnante,
+qui garde **toutes** ses versions (équipes MangaDex) ; chaque autre source n'y
+apporte que sa meilleure version, en `alternates`. Les one-shots ne sont jamais
+fusionnés. Tri déterministe : l'ordre d'arrivée des réponses ne change rien.
+
+**Pages et repli.** `GET /api/chapters/:id/pages?alt=k1,k2` : si la source du
+chapitre échoue (panne, circuit ouvert, chapitre vide), les versions `alt` sont
+essayées dans l'ordre ; la réponse dit laquelle a servi (`servedBy`, `source`,
+`fallback`). Le front envoie les `alternates` du chapitre ; 4 replis au plus.
+
+**Relais d'images** (`modules/proxy/`). `GET /api/proxy/page/:key/:index?n=&alt=`
+sert les pages des sources autres que MangaDex (qui garde son relais MD@Home).
+Le client ne fournit **jamais d'URL** : un chapitre et un numéro de page, résolus
+par l'agrégateur. Le relais ajoute les en-têtes de provenance fournis par la
+source (**seulement** `Referer`, `Origin`, `User-Agent`). Garde-fous SSRF : http(s)
+uniquement, pas d'identifiants dans l'URL, pas de nom sans point (conteneurs
+voisins du réseau Docker), résolution DNS vérifiée (aucune adresse privée,
+locale ou réservée), redirections suivies à la main et revérifiées, type
+`image/*` obligatoire, 20 Mo max. Replis : nouvel essai (réseau, 5xx, 429), URL
+redemandée à la source (URL signée expirée), puis la même page chez une autre
+source **si** sa version a le même nombre de pages (`n`) — servie avec
+`X-Reader-Fallback: <source>` et 5 min de cache, jamais gardée par le Service Worker.
+
+> Limite connue : la vérification DNS précède la connexion (fenêtre de *DNS
+> rebinding* théorique). La fermer demanderait un agent `undici` avec `lookup`
+> vérifié à la connexion.
+
+**Contrat OpenComicStream** (pour brancher une API JSON maison) :
+
+```
+GET {OPEN_COMIC_API_URL}/chapters?mangadexId=<uuid>&title=<titre>&title=…
+  → { "chapters": [{ "id", "number"?, "volume"?, "title"?, "language": "fr"|"en",
+                     "pages"?, "groups"?: (string | { id?, name })[], "publishedAt"? }] }
+GET {OPEN_COMIC_API_URL}/chapters/{id}/pages
+  → { "headers"?: { "Referer": … }, "pages": [url | { "url", "headers"? }] }
+```
+
+**Bibliothèques personnelles (Komga, Kavita).** `OPEN_COMIC_KIND=komga|kavita`
+choisit l'adaptateur (`providers/komga.provider.ts`, `kavita.provider.ts`),
+écrits d'après le code source des deux projets.
+
+- *Komga* : `X-API-Key` (clé d'API, Komga ≥ 1.16) ou Basic (`OPEN_COMIC_USER` /
+  `OPEN_COMIC_PASSWORD`) ; série cherchée par titre (`/api/v1/series?search=`,
+  titres alternatifs compris), livres triés par `metadata.numberSort`. Un livre
+  nommé « Tome 2 », « T02 », « Vol. 2 » devient un **tome** (`volume`), sinon un chapitre.
+- *Kavita* : la clé d'API est échangée contre un jeton (`POST
+  /api/Plugin/authenticate`), renouvelé seul sur un 401 ; une clé refusée n'est
+  pas réessayée en boucle. Volumes : numéros réservés gérés (`-100000` = hors
+  volume / tome entier, `100000` = hors-séries).
+- Dates sans fuseau (les deux logiciels) lues comme UTC ; `0001-01-01` = inconnue.
+- Images : la source les télécharge elle-même (`SourceProvider.fetchImage`),
+  **seulement depuis l'origine configurée**, sans suivre de redirection. C'est ce
+  qui permet une adresse privée (`http://komga:25600`) que les garde-fous SSRF du
+  relais générique refuseraient ; clés et URL internes ne quittent jamais le serveur.
+
+**Consumet** : client d'une instance **auto-hébergée** de l'API Consumet, pour un
+catalogue (`CONSUMET_PROVIDER`, `mangadex` par défaut) et une langue
+(`CONSUMET_LANGUAGE`). Les schémas acceptent les variantes connues des catalogues
+(numéro dans `chapterNumber`, `chapter` ou le titre) ; les routes `info` / `read`
+prennent l'identifiant dans le chemin pour `mangadex`, en paramètre sinon.
+Écrit d'après la forme documentée de l'API, **non vérifié contre une instance
+réelle** : à valider avant activation en production.
+
+### Plateformes officielles (titres sous licence)
+
+Un titre sous licence (*Solo Leveling*, *L'Attaque des Titans*…) n'a aucun chapitre
+hébergé. `modules/chapters/official.*` rassemble où le lire **officiellement** :
+
+- AniList `externalLinks` de type **`STREAMING`** (Lezhin, Tappytoon, K MANGA,
+  MANGA Plus, KakaoPage…), actifs, en https, avec icône et couleur de marque ;
+- complétés par MangaDex `links.raw` (éditeur d'origine) et `links.engtl`
+  (édition anglaise) quand AniList ne les a pas. Id AniList : `links.al` de
+  MangaDex, sinon la jointure du catalogue (`CatalogWork`).
+- Tri : langue de l'interface, puis l'autre (fr / en), puis la langue
+  d'origine ; les autres langues sont écartées ; 8 au plus. Liens bruts gardés
+  24 h (10 min si AniList ou MangaDex a manqué).
+
+Exposés par `GET /api/manga/:id/platforms?lang=` (UUID ou `al-<id>`, pour la fiche
+livre) et dans `officialPlatforms` de la liste des chapitres (écran « aucun
+chapitre » du lecteur ; 4 s au plus, jamais d'erreur).
+
+Tests : `backend/test/official.test.ts`, `backend/test/library.test.ts`
+(Komga de bout en bout sur une adresse privée, adaptateur Kavita),
+`backend/test/extensions.test.ts` (fusion, disjoncteur, agrégateur avec
+fausses sources, identifiants, garde-fous) et `backend/test/sources.test.ts`
+(bout en bout, MangaDex + OpenComicStream + Consumet simulés via `mockedHosts`).
+
 ---
 
 ## 4. Référence de l'API
@@ -243,9 +375,11 @@ continuent de fonctionner. Voir §7.
 
 | Méthode | Route | Réponse |
 | --- | --- | --- |
-| GET | `/api/manga/:id/chapters?lang=fr|en` | `{ mangaId, language, available: { fr, en }, chapters[] }` |
-| GET | `/api/chapters/:chapterId/pages?quality=data|data-saver` | `{ chapterId, quality, pages: [{ index, url, fallbackUrl }] }` |
+| GET | `/api/manga/:id/chapters?lang=fr|en` | `{ mangaId, language, available: { fr, en }, sources: [{ id, name, status, chapters }], chapters: [{ …, source, alternates[] }] }` |
+| GET | `/api/chapters/:chapterId/pages?quality=data|data-saver&alt=k1,k2` | `{ chapterId, servedBy, source, fallback, quality, pages: [{ index, url, fallbackUrl }] }` |
 | GET | `/api/chapters/:chapterId/image/:quality/:file` | l'image (relais MD@Home) |
+| GET | `/api/proxy/page/:chapterKey/:index?n=&alt=` | l'image (relais des autres sources, cf. §3 ter) |
+| GET | `/api/manga/:id/platforms?lang=` | `{ platforms: [{ name, url, logo?, color?, language }] }` — `:id` = UUID ou `al-<id>` |
 
 ### Authentification
 

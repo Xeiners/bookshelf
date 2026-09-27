@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { ArrowLeft, LoaderCircle, RotateCw } from 'lucide-react'
 import { useT } from '../../i18n'
 import { gsap, useGSAP } from '../../lib/gsap'
@@ -9,10 +9,12 @@ interface ReaderMessageProps {
   busy?: boolean
   onRetry?: () => void
   onClose?: () => void
+  /** Contenu sous le message (plateformes officielles d'un titre sous licence…). */
+  children?: ReactNode
 }
 
 /** Écran d'attente ou d'erreur du lecteur, centré sur fond noir. */
-export function ReaderMessage({ message, busy = false, onRetry, onClose }: ReaderMessageProps) {
+export function ReaderMessage({ message, busy = false, onRetry, onClose, children }: ReaderMessageProps) {
   const t = useT()
   const spinnerRef = useRef<SVGSVGElement>(null)
 
@@ -25,9 +27,10 @@ export function ReaderMessage({ message, busy = false, onRetry, onClose }: Reade
   )
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center" role={busy ? 'status' : 'alert'}>
+    <div className="flex min-h-full flex-col items-center justify-center gap-4 px-8 py-10 text-center" role={busy ? 'status' : 'alert'}>
       {busy && <LoaderCircle ref={spinnerRef} size={26} className="text-gold" />}
       <p className="max-w-sm text-sm text-cream/80">{message}</p>
+      {children && <div className="w-full max-w-sm">{children}</div>}
       {!busy && (onRetry || onClose) && (
         <div className="flex gap-2">
           {onClose && (

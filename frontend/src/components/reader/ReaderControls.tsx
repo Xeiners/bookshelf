@@ -3,9 +3,11 @@ import {
   ArrowLeft,
   BatteryCharging,
   BatteryMedium,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Columns2,
+  Layers,
   List,
   Maximize,
   Minimize,
@@ -31,6 +33,13 @@ export interface ChapterStep {
   go: () => void
 }
 
+/** Choix de la source d'un chapitre publié par plusieurs sources. */
+export interface SourcePicker {
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+}
+
 interface ReaderControlsProps {
   visible: boolean
   title: string
@@ -48,6 +57,8 @@ interface ReaderControlsProps {
   footnote?: ReactNode
   /** Boutons supplémentaires du pied de page (zoom du PDF…). */
   tools?: ReactNode
+  /** Bascule manuelle de source, si le chapitre existe chez plusieurs (flux partiel, pages manquantes). */
+  sourcePicker?: SourcePicker | null
 }
 
 /**
@@ -69,6 +80,7 @@ export function ReaderControls({
   layout,
   footnote,
   tools,
+  sourcePicker,
 }: ReaderControlsProps) {
   const t = useT()
   const fullscreen = useFullscreen()
@@ -114,6 +126,25 @@ export function ReaderControls({
             >
               {fullscreen.active ? <Minimize size={18} /> : <Maximize size={18} />}
             </Pressable>
+          )}
+          {sourcePicker && sourcePicker.options.length > 1 && (
+            // `<select>` natif : liste système sur mobile, clavier et lecteurs d'écran gérés d'office.
+            <label className="relative flex h-9 max-w-[8.5rem] shrink-0 items-center gap-1.5 rounded-full bg-white/10 pl-3 pr-7 text-xs text-cream focus-within:ring-1 focus-within:ring-gold/60">
+              <Layers size={14} aria-hidden className="shrink-0 text-cream/70" />
+              <select
+                value={sourcePicker.value}
+                onChange={(event) => sourcePicker.onChange(event.target.value)}
+                aria-label={t.reader.sourcePicker}
+                className="min-w-0 flex-1 cursor-pointer appearance-none truncate bg-transparent outline-none"
+              >
+                {sourcePicker.options.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-black text-cream">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={13} aria-hidden className="pointer-events-none absolute right-2.5 text-cream/60" />
+            </label>
           )}
           {onOpenContents && (
             <Pressable

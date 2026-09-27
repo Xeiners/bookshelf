@@ -46,6 +46,8 @@ export interface AlTag {
 export interface AlMedia {
   id: number
   title: { romaji: string | null; english: string | null; native: string | null }
+  /** Autres noms connus. Absent des fiches enregistrées avant son ajout à la requête. */
+  synonyms?: string[] | null
   countryOfOrigin: AlCountry | string
   format: AlFormat | string | null
   status: AlStatus | null
@@ -77,6 +79,7 @@ interface PageData {
 const MEDIA_FIELDS = `
   id
   title { romaji english native }
+  synonyms
   countryOfOrigin
   format
   status
@@ -143,6 +146,26 @@ async function anilistQuery<T>(query: string, variables: Record<string, unknown>
 }
 
 /* ---- Requêtes -------------------------------------------------------------- */
+
+export interface AlExternalLink {
+  url: string
+  site: string
+  /** `STREAMING` : plateforme de lecture officielle ; `INFO` : page éditeur ; `SOCIAL`. */
+  type: string | null
+  language: string | null
+  icon: string | null
+  color: string | null
+  isDisabled: boolean | null
+}
+
+/** Liens externes d'une œuvre (plateformes officielles, éditeurs, réseaux). */
+export async function fetchExternalLinks(id: number): Promise<AlExternalLink[]> {
+  const data = await anilistQuery<{ Media: { externalLinks: AlExternalLink[] | null } | null }>(
+    'query ($id: Int) { Media(id: $id, type: MANGA) { externalLinks { url site type language icon color isDisabled } } }',
+    { id },
+  )
+  return data.Media?.externalLinks ?? []
+}
 
 export interface MediaPageOptions {
   page: number

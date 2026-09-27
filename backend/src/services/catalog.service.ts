@@ -209,6 +209,27 @@ export async function bookFor(item: CatalogItem, language: Language): Promise<Bo
 }
 
 /** Œuvre du catalogue pour un id quelconque (MangaDex ou `al-<id>`). */
+/**
+ * Titres AniList d'une œuvre du catalogue, par son UUID MangaDex : anglais,
+ * romaji, synonymes, puis natif. Complètent les titres MangaDex pour les
+ * sources qui cherchent par titre (cf. src/extensions/). Vide si l'œuvre
+ * n'est pas (encore) indexée.
+ */
+export async function anilistTitles(mangadexId: string): Promise<string[]> {
+  const work = await prisma.catalogWork.findUnique({ where: { mangadexId }, select: { anilist: true } })
+  if (!work) return []
+  const media = JSON.parse(work.anilist) as Partial<AlMedia>
+  return [media.title?.english, media.title?.romaji, ...(media.synonyms ?? []), media.title?.native].filter(
+    (title): title is string => typeof title === 'string' && title.trim().length > 0,
+  )
+}
+
+/** Identifiant AniList d'une œuvre du catalogue, par son UUID MangaDex. */
+export async function anilistIdFor(mangadexId: string): Promise<number | null> {
+  const work = await prisma.catalogWork.findUnique({ where: { mangadexId }, select: { anilistId: true } })
+  return work?.anilistId ?? null
+}
+
 export async function findWork(id: string): Promise<CatalogItem | undefined> {
   return (await getPool()).byId.get(id)
 }

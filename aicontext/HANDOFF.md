@@ -35,7 +35,7 @@ npm install                  # à la racine : les deux workspaces (+ prisma gene
 npm run dev                  # API :5000 + front :5173 (proxy /api)
 npm run typecheck            # tsgo (TypeScript 7), les deux workspaces
 npm run lint                 # oxlint
-npm test                     # API : node:test (101 tests) · front : audit i18n + tests unitaires du lecteur (50)
+npm test                     # API : node:test (175 tests) · front : audit i18n + tests unitaires du lecteur (60)
 npm run build
 npm run preview -w frontend  # seul moyen de tester le service worker (inactif en dev)
 ```
@@ -73,7 +73,9 @@ middleware/        auth (cookie JWT), rate limit
 modules/auth       inscription avec code e-mail, login, /me
 modules/library    bibliothèque synchronisée, swipes, favoris / notes
 modules/manga      recherche MangaDex, proxy des couvertures /api/covers
-modules/chapters   lecteur : chapitres (/manga/:id/chapters), pages At-Home, relais des images
+modules/chapters   lecteur : chapitres (/manga/:id/chapters), pages, relais des images MangaDex (At-Home)
+modules/proxy      relais d'images des autres sources (en-têtes de provenance, garde-fous SSRF, repli)
+extensions/        sources de chapitres (Strategy) : registre, agrégateur, fusion, disjoncteur, providers/
 modules/discover   deck « Pour toi » et catalogue filtrable (/browse)
 modules/oracle     tirage quotidien, série (streak)
 services/          AniList, catalogue (AniList ⨝ MangaDex), moteur de recommandation
@@ -92,7 +94,7 @@ store/             library · auth · oracle · settings · search · ui
 hooks/             useDiscoveryQueue (deck) · usePwaInstall · useCoverTone · useCatalog…
 i18n/              fr.ts / en.ts, typés : une clé manquante casse le typecheck
 components/        discover · library · search · tarot · profile · book · layout · ui · reader
-lib/reader/        lecteur : progression, préchargement, navigation, formats (purs, testés), IndexedDB
+lib/reader/        lecteur : progression, préchargement, navigation, formats, sources (purs, testés), IndexedDB
 workers/           prefetch.worker.ts (préchargement des pages hors du fil principal)
 public/sw.js       service worker (cf. §7)
 nginx.conf         SPA + relais /api en prod (cf. §5.11)

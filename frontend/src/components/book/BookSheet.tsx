@@ -4,7 +4,8 @@ import { useLanguage, useT } from '../../i18n'
 import { sourceOfLink } from '../../lib/brand'
 import { DUR, Draggable, EASE, InertiaPlugin, gsap, useGSAP } from '../../lib/gsap'
 import { formatAuthors, formatReadingTime } from '../../lib/format'
-import { isReadable } from '../../lib/reader/readable'
+import { hasOfficialLinks, isReadable } from '../../lib/reader/readable'
+import { useOfficialPlatforms } from '../../hooks/useOfficialPlatforms'
 import { vibrate } from '../../lib/haptics'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -15,6 +16,7 @@ import { FavoriteButton } from '../ui/FavoriteButton'
 import { Pill } from '../ui/Pill'
 import { Pressable } from '../ui/Pressable'
 import { StarRating } from '../ui/StarRating'
+import { OfficialPlatforms } from './OfficialPlatforms'
 
 const PROGRESS_STEP = 0.1
 
@@ -33,6 +35,7 @@ export function BookSheet({ book }: BookSheetProps) {
   const notify = useUiStore((state) => state.notify)
 
   const entry = useLibraryStore((state) => state.entries[book.id])
+  const officialPlatforms = useOfficialPlatforms(hasOfficialLinks(book) ? book.id : null)
   const save = useLibraryStore((state) => state.save)
   const setStatus = useLibraryStore((state) => state.setStatus)
   const setProgress = useLibraryStore((state) => state.setProgress)
@@ -257,6 +260,13 @@ export function BookSheet({ book }: BookSheetProps) {
               {t.book.viewOn(sourceOfLink(book.previewLink))}
               <ExternalLink size={12} />
             </a>
+          )}
+
+          {officialPlatforms.length > 0 && (
+            // Arrive après l'animation d'entrée (requête à part) : pas de `data-sheet-item`, sa propre apparition.
+            <div className="mt-5">
+              <OfficialPlatforms platforms={officialPlatforms} />
+            </div>
           )}
 
           {entry?.status === 'reading' && (
