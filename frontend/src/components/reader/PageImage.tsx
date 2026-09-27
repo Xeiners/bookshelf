@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ImageOff, RotateCw } from 'lucide-react'
+import { ImageOff, Layers, RotateCw } from 'lucide-react'
+import { usePageRecovery } from '../../hooks/reader/usePageRecovery'
 import { useT } from '../../i18n'
 import type { ReaderPage } from '../../types/reader'
 
@@ -25,6 +26,7 @@ const withRetry = (url: string, attempt: number) =>
  */
 export function PageImage({ page, lazy = false, className = '', onSize }: PageImageProps) {
   const t = useT()
+  const recovery = usePageRecovery()
   // 0 : originale ; 1 : repli ; 2+ : relances manuelles de l'originale.
   const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
@@ -64,6 +66,19 @@ export function PageImage({ page, lazy = false, className = '', onSize }: PageIm
           <RotateCw size={13} />
           {t.reader.retryImage}
         </button>
+        {recovery && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              recovery.onSwitch()
+            }}
+            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs text-gold/90 hover:bg-white/10"
+          >
+            <Layers size={13} />
+            {recovery.label}
+          </button>
+        )}
       </div>
     )
   }

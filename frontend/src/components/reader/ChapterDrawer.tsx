@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Zap } from 'lucide-react'
 import { useT } from '../../i18n'
 import { SidePanel } from './SidePanel'
 
@@ -12,6 +12,8 @@ export interface DrawerItem {
   depth?: number
   /** Provenance (« MangaDex », « Consumet »…), affichée seulement quand plusieurs sources se mêlent. */
   badge?: string | null
+  /** Le badge désigne le site d'une extension Tachiyomi : marqué d'un éclair. */
+  extension?: boolean
 }
 
 interface ChapterDrawerProps {
@@ -62,8 +64,9 @@ export function ChapterDrawer({ open, title, items, onSelect, onClose, header, f
                   {item.detail && <span className="block truncate text-[11px] text-mist">{item.detail}</span>}
                 </span>
                 {item.badge && (
-                  <span className="max-w-[6.5rem] shrink-0 truncate rounded-full border border-white/10 px-1.5 py-px text-[9px] tracking-wide text-mist">
-                    {item.badge}
+                  <span className="flex max-w-[6.5rem] shrink-0 items-center gap-0.5 rounded-full border border-white/10 px-1.5 py-px text-[9px] tracking-wide text-mist">
+                    {item.extension && <Zap size={8} aria-hidden className="shrink-0 fill-current text-gold/70" />}
+                    <span className="truncate">{item.badge}</span>
                   </span>
                 )}
                 {current && <span className="shrink-0 text-[10px] tracking-wide uppercase">{t.reader.current}</span>}

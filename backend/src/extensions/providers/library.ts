@@ -54,6 +54,8 @@ export function originImageFetcher(options: {
   baseUrl: string
   headers: () => Promise<Record<string, string>> | Record<string, string>
   userAgent: string
+  /** Délai d'un téléchargement (ms), 20 s par défaut. */
+  timeoutMs?: number
 }): (page: NormalizedPage) => Promise<{ image: FetchedImage | null; reason?: string }> {
   const origin = new URL(options.baseUrl).origin
   return async (page) => {
@@ -68,7 +70,7 @@ export function originImageFetcher(options: {
       const response = await fetch(url, {
         headers: { 'User-Agent': options.userAgent, Accept: 'image/*', ...(await options.headers()) },
         redirect: 'error',
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
       })
       if (!response.ok) return { image: null, reason: `statut ${response.status}` }
       const contentType = response.headers.get('content-type') ?? ''

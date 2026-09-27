@@ -27,10 +27,17 @@ export interface NormalizedChapter {
   /** Équipes de traduction, à créditer. */
   groups: { id: string; name: string }[]
   publishedAt: string
+  /**
+   * Sous-source d'un fournisseur qui en regroupe plusieurs (pont Tachiyomi :
+   * une extension par site). L'agrégateur en fait la provenance du chapitre,
+   * `<fournisseur>:<id>` : badge, fusion et sélecteur la traitent comme une
+   * source à part entière. Absente : le fournisseur lui-même.
+   */
+  origin?: SourceRef
 }
 
 /** Chapitre après passage dans l'agrégateur : identifiant PUBLIC (cf. chapterKey.ts) et provenance. */
-export interface SourcedChapter extends NormalizedChapter {
+export interface SourcedChapter extends Omit<NormalizedChapter, 'origin'> {
   source: SourceRef
 }
 

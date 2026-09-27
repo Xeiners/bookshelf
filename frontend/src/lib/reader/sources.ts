@@ -82,8 +82,33 @@ export function isMultiSource(sources: readonly SourceStatus[] | undefined): boo
   return (sources ?? []).filter((source) => source.status === 'ok' && source.chapters > 0).length > 1
 }
 
-/** Noms des sources qui ont fourni des chapitres, pour les crédits. */
-export function creditedSources(sources: readonly SourceStatus[] | undefined): string[] {
-  const names = (sources ?? []).filter((source) => source.status === 'ok' && source.chapters > 0).map((source) => source.name)
+/**
+ * Site d'une extension Tachiyomi / Mihon (pont Suwayomi côté API) : l'API le
+ * publie sous `tachiyomi:<id du site>`, avec le nom du site (« Asura Scans »).
+ */
+export const isExtensionSource = (source: ChapterSource): boolean => source.id.startsWith('tachiyomi:')
+
+/**
+ * Noms des sources qui ont fourni des chapitres, pour les crédits. Un
+ * fournisseur qui regroupe plusieurs sites (`tachiyomi`) est crédité par les
+ * noms de ses sites présents dans la liste, pas par le sien.
+ */
+export function creditedSources(sources: readonly SourceStatus[] | undefined, chapters: readonly ReaderChapter[] = []): string[] {
+  const sites = new Map<string, Set<string>>()
+  for (const chapter of chapters) {
+    for (const version of [chapter, ...(chapter.alternates ?? [])]) {
+      const { id, name } = sourceOf(version)
+      const separator = id.indexOf(':')
+      if (separator === -1) continue
+      const provider = id.slice(0, separator)
+      sites.set(provider, (sites.get(provider) ?? new Set()).add(name))
+    }
+  }
+  const names = (sources ?? [])
+    .filter((source) => source.status === 'ok' && source.chapters > 0)
+    .flatMap((source) => {
+      const own = sites.get(source.id)
+      return own && own.size > 0 ? [...own].sort((a, b) => a.localeCompare(b)) : [source.name]
+    })
   return names.length > 0 ? names : [LEGACY_SOURCE.name]
 }

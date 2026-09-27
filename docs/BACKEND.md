@@ -226,6 +226,7 @@ le front ne changent.
 | `opencomic` (« OpenComicStream ») | `OPEN_COMIC_API_URL` | 50 | UUID MangaDex + titres |
 | `komga` / `kavita` (bibliothèque perso) | `OPEN_COMIC_API_URL` + `OPEN_COMIC_KIND` | 60 | titre (rapprochement flou) |
 | `consumet` | `CONSUMET_API_URL` | 30 | titre (rapprochement flou, cf. ci-dessous) |
+| `tachiyomi:<site>` (extensions Tachiyomi, pont Suwayomi) | `TACHIYOMI_BRIDGE_ENABLED` | 20 | titre, site par site (cf. ci-dessous) |
 
 **Identifiants publics** (`chapterKey.ts`). MangaDex garde son UUID nu : positions
 enregistrées, caches hors-ligne et URL existantes restent valables. Les autres :
@@ -318,6 +319,85 @@ catalogue (`CONSUMET_PROVIDER`, `mangadex` par défaut) et une langue
 prennent l'identifiant dans le chemin pour `mangadex`, en paramètre sinon.
 Écrit d'après la forme documentée de l'API, **non vérifié contre une instance
 réelle** : à valider avant activation en production.
+
+### Extensions Tachiyomi / Mihon (pont Suwayomi)
+
+Les extensions communautaires (dépôt Keiyoushi : ~450 sites fr / en — Asura
+Scans, Flame Comics, MangaKakalot, Scantrad, Sushi-Scan…) sont des APK Kotlin.
+L'API ne les exécute pas : un conteneur **Suwayomi-Server** (service `suwayomi`,
+profil Compose `tachiyomi`) les charge dans sa JVM et expose une API GraphQL,
+sur le réseau interne seulement (aucun port publié en production).
+
+```
+extensions/providers/
+  suwayomi.client.ts          client GraphQL (zod) : sources, recherche, chapitres, pages, extensions
+  tachiyomiBridge.provider.ts  SourceProvider `tachiyomi` : un fournisseur, N sites
+  tachiyomiExtensions.ts       installation au démarrage (TACHIYOMI_EXTENSIONS), avec nouveaux essais
+extensions/tachiyomi.cli.ts    CLI : extensions [fr|en] · install <paquet…> · sources
+```
+
+**Un fournisseur, plusieurs sources.** Chaque chapitre porte son site d'origine
+(`NormalizedChapter.origin`) ; l'agrégateur le publie sous
+`tachiyomi:<id du site>` avec le nom du site. Badge, fusion (un site = une
+source : une version par site en `alternates`) et sélecteur du lecteur le
+traitent comme une source à part entière ; le site hérite de la priorité du
+fournisseur (20). Origine invalide → provenance `tachiyomi` ; toujours préfixée,
+elle ne peut pas se faire passer pour `mangadex` ni pour une autre source.
+
+**Liste.** Sites actifs = sources des extensions installées, dans
+`TACHIYOMI_BRIDGE_LANGUAGES`, sans les sites « adultes » (sauf
+`TACHIYOMI_BRIDGE_NSFW=true`), filtrés par `TACHIYOMI_SOURCES`, plafonnés à
+`TACHIYOMI_BRIDGE_MAX_SOURCES` (liste gardée 10 min, 1 min si vide). Pour chaque
+site, **en parallèle** : 2 recherches (titres AniList puis MangaDex, cf.
+*Titres*), meilleur résultat ≥ 80 % (suites refusées), puis ses chapitres.
+Correspondance gardée 6 h, absence 30 min ; un échec (délai, panne) n'est
+jamais retenu comme une absence. Chapitres : `chapterNumber` (Float Kotlin,
+arrondi au centième ; `-1` → déduit du nom), titre débarrassé de la numérotation
+(« Ch. 12 - Le retour » → « Le retour »), `scanlator` crédité, `pageCount = -1` → 0.
+
+**Tenue dans le temps.** Chaque appel au pont est borné par
+`TACHIYOMI_BRIDGE_TIMEOUT_MS` (**3 s**) : un site plus lent est abandonné pour
+cette requête, les autres sont servis. Trois étapes au plus (sites, recherche,
+chapitres) : le fournisseur entier est borné à 3 × 3 s + 1 s. Il n'échoue que si
+**tous** ses sites échouent ; le disjoncteur de l'agrégateur cesse alors de
+l'interroger (3 échecs → 60 s de pause). Pont éteint : refus de connexion
+immédiat, `sources[]` le marque `failed`, le reste du catalogue est servi.
+
+**Pages et images.** `fetchChapterPages` renvoie des chemins de Suwayomi
+(`/api/v1/manga/<id>/chapter/<n>/page/<i>`), qui télécharge l'image chez le site
+**avec les en-têtes exigés par l'extension** (Referer, User-Agent, cookies
+Cloudflare) : pas de 403. Le relais `/api/proxy` passe par `fetchImage`
+(`originImageFetcher`) : origine du pont **seulement**, aucune redirection suivie,
+`TACHIYOMI_BRIDGE_IMAGE_TIMEOUT_MS` (15 s : c'est le contenu, pas une
+métadonnée). Ni l'adresse interne ni le site d'origine n'atteignent le navigateur.
+
+**Extensions.** Pas de route HTTP (aucun rôle administrateur, et installer un
+APK exécute du code tiers) :
+
+- `TACHIYOMI_EXTENSIONS=en.asurascans,fr.mangascantrad` (forme courte ou nom de
+  paquet complet) : installées — ou mises à jour — au démarrage, en tâche de
+  fond, une à une ; nouvel essai toutes les 30 s (10 fois) tant que la JVM démarre ;
+- CLI : `npm run tachiyomi -w backend -- extensions fr en` (catalogue, `OK` /
+  `MAJ` = installée / mise à jour disponible), `install <paquet…>`, `sources` ;
+  en production `docker compose exec backend node dist/extensions/tachiyomi.cli.js …`.
+
+**Dépôt.** `EXTENSION_STORES` du conteneur (`TACHIYOMI_EXTENSION_STORES`, Keiyoushi
+par défaut). Désormais le dépôt Keiyoushi (et ses miroirs, dont
+`everfio/tachiyomi-extensions`) ne publie plus qu'un `index.min.json` factice
+(« Outdated App ») : le vrai catalogue est `index.pb` (format « Extension Store »
+de Mihon), annoncé par `repo.json`. Suwayomi le suit seul **à partir de v2.3**
+— d'où l'image épinglée `v2.3.2243` (`stable`). Catalogue vide après
+`extensions` : vérifier la version de l'image et `TACHIYOMI_EXTENSION_STORES`.
+
+**Déploiement.** `.env` : `COMPOSE_PROFILES=tachiyomi`, `TACHIYOMI_BRIDGE_ENABLED=true`,
+`TACHIYOMI_EXTENSIONS=…`, puis `docker compose up -d`. RAM : tas Java borné
+(`SUWAYOMI_MAX_HEAP=512m`, conteneur `SUWAYOMI_MEM_LIMIT=1g`). Compte facultatif :
+`TACHIYOMI_BRIDGE_AUTH_MODE=basic_auth` + `TACHIYOMI_BRIDGE_USER` / `_PASSWORD`
+(les deux conteneurs les reçoivent).
+
+Écrit d'après le code de Suwayomi-Server v2.3 (`graphql/mutations`, `graphql/types`)
+et testé contre un Suwayomi simulé (`test/tachiyomi.test.ts`) : **à valider contre
+une instance réelle** avant d'ouvrir le pont en production.
 
 ### Plateformes officielles (titres sous licence)
 

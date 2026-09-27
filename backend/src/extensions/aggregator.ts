@@ -93,6 +93,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 const describe = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const refOf = (provider: SourceProvider): SourceRef => ({ id: provider.id, name: provider.name })
 
+const ORIGIN_ID = /^[A-Za-z0-9_-]{1,40}$/
+
+/**
+ * Provenance d'un chapitre : la sous-source déclarée (`origin`), préfixée par
+ * son fournisseur — elle ne peut se faire passer ni pour MangaDex ni pour une
+ * autre source —, ou le fournisseur lui-même si l'origine est absente ou invalide.
+ */
+function sourceOfChapter(provider: SourceProvider, origin: SourceRef | undefined): SourceRef {
+  const name = typeof origin?.name === 'string' ? origin.name.trim().slice(0, 60) : ''
+  if (!origin || typeof origin.id !== 'string' || !ORIGIN_ID.test(origin.id) || !name) return refOf(provider)
+  return { id: `${provider.id}:${origin.id}`, name }
+}
+
+/** `tachiyomi:123` → `tachiyomi` : une sous-source hérite de la priorité de son fournisseur. */
+export const providerIdOf = (sourceId: string) => sourceId.split(':', 1)[0] ?? sourceId
+
 export class SourceAggregatorService {
   private readonly registry: SourceRegistry
   private readonly options: AggregatorOptions
@@ -138,10 +154,9 @@ export class SourceAggregatorService {
   /** Identifiants publics et provenance ; tout ce qui sort du contrat est écarté. */
   private adopt(provider: SourceProvider, chapters: NormalizedChapter[]): SourcedChapter[] {
     const languages = new Set<string>(provider.supportedLanguages.filter((language) => LANGUAGES.includes(language)))
-    const source = refOf(provider)
     return chapters
       .filter((chapter) => typeof chapter.id === 'string' && chapter.id.length > 0 && languages.has(chapter.language))
-      .map((chapter) => ({ ...chapter, id: encodeChapterKey(provider.id, chapter.id), source }))
+      .map(({ origin, ...chapter }) => ({ ...chapter, id: encodeChapterKey(provider.id, chapter.id), source: sourceOfChapter(provider, origin) }))
   }
 
   /**
@@ -199,7 +214,7 @@ export class SourceAggregatorService {
       throw firstError instanceof HttpError ? firstError : upstreamError('Aucune source de chapitres ne répond.')
     }
 
-    const merged = mergeChapters(chapters, (sourceId) => this.registry.get(sourceId)?.priority ?? 0)
+    const merged = mergeChapters(chapters, (sourceId) => this.registry.get(providerIdOf(sourceId))?.priority ?? 0)
     return { chapters: merged, sources, partial: sources.some((source) => source.status !== 'ok') }
   }
 

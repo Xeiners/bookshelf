@@ -61,6 +61,18 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Bookshelf <no-reply@bookshelf.local>}
+      # Extensions Tachiyomi / Mihon via le pont `suwayomi` (profil `tachiyomi`,
+      # cf. plus bas et .env.example). Désactivées par défaut.
+      TACHIYOMI_BRIDGE_ENABLED: ${TACHIYOMI_BRIDGE_ENABLED:-false}
+      TACHIYOMI_BRIDGE_URL: ${TACHIYOMI_BRIDGE_URL:-http://suwayomi:4567}
+      TACHIYOMI_BRIDGE_TIMEOUT_MS: ${TACHIYOMI_BRIDGE_TIMEOUT_MS:-3000}
+      TACHIYOMI_BRIDGE_LANGUAGES: ${TACHIYOMI_BRIDGE_LANGUAGES:-fr,en}
+      TACHIYOMI_BRIDGE_MAX_SOURCES: ${TACHIYOMI_BRIDGE_MAX_SOURCES:-10}
+      TACHIYOMI_BRIDGE_NSFW: ${TACHIYOMI_BRIDGE_NSFW:-false}
+      TACHIYOMI_BRIDGE_USER: ${TACHIYOMI_BRIDGE_USER:-}
+      TACHIYOMI_BRIDGE_PASSWORD: ${TACHIYOMI_BRIDGE_PASSWORD:-}
+      TACHIYOMI_EXTENSIONS: ${TACHIYOMI_EXTENSIONS:-}
+      TACHIYOMI_SOURCES: ${TACHIYOMI_SOURCES:-}
     networks:
       default:
         # Nom visé par le Nginx du front : unique, même si le front rejoint le
@@ -86,5 +98,37 @@ services:
     ports:
       - "127.0.0.1:${PORT:-8082}:80"
 
+  # Pont des extensions Tachiyomi / Mihon : Suwayomi-Server exécute les APK
+  # (Kotlin, dans une JVM) et expose une API GraphQL que seule l'API interroge.
+  # FACULTATIF : ne démarre qu'avec le profil `tachiyomi`
+  # (`COMPOSE_PROFILES=tachiyomi` dans .env). Compter ~400-700 Mo de RAM.
+  suwayomi:
+    # v2.3.2243 = `stable` : première version qui suit le passage des dépôts
+    # (Keiyoushi…) au format « Extension Store » de Mihon.
+    image: ${SUWAYOMI_IMAGE:-ghcr.io/suwayomi/suwayomi-server:v2.3.2243}
+    profiles: [tachiyomi]
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      # Personne ne l'ouvre dans un navigateur : pas d'interface web.
+      WEB_UI_ENABLED: "false"
+      # Dépôt d'extensions, au format JSON (liste). Keiyoushi par défaut ; les
+      # miroirs (everfio/tachiyomi-extensions…) pointent vers le même catalogue.
+      EXTENSION_STORES: '${TACHIYOMI_EXTENSION_STORES:-["https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json"]}'
+      # `basic_auth` + TACHIYOMI_BRIDGE_USER / _PASSWORD pour exiger un compte.
+      AUTH_MODE: ${TACHIYOMI_BRIDGE_AUTH_MODE:-none}
+      AUTH_USERNAME: ${TACHIYOMI_BRIDGE_USER:-}
+      AUTH_PASSWORD: ${TACHIYOMI_BRIDGE_PASSWORD:-}
+      # Tas Java borné : la RAM du VPS est partagée avec d'autres projets.
+      JAVA_TOOL_OPTIONS: -Xmx${SUWAYOMI_MAX_HEAP:-512m}
+    volumes:
+      # Extensions installées, base H2, cookies des sites (Cloudflare).
+      - suwayomi_data:/home/suwayomi/.local/share/Tachidesk
+    mem_limit: ${SUWAYOMI_MEM_LIMIT:-1g}
+    # Pas de `ports` : joignable par l'API seule, sur le réseau interne
+    # (`http://suwayomi:4567`). Rien n'est publié, pas même sur 127.0.0.1.
+    # Extensions (catalogue, installation) : `docker compose exec backend node dist/extensions/tachiyomi.cli.js`.
+
 volumes:
   postgres_data:
+  suwayomi_data:

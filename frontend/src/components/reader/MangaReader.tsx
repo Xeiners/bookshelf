@@ -11,6 +11,7 @@ import {
   creditedSources,
   ensureChapter,
   findChapter,
+  isExtensionSource,
   isMultiSource,
   sourceOf,
   versionFrom,
@@ -243,7 +244,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
   })()
 
   const sources = list.status === 'ready' ? list.data.sources : undefined
-  // Badge de provenance : seulement quand plusieurs sources se mêlent dans la liste.
+  // Badge de provenance : quand plusieurs sources se mêlent dans la liste, et toujours pour le site d'une extension.
   const showSource = isMultiSource(sources)
   const items: DrawerItem[] = order.map((chapter) => {
     const number = chapterNumber(chapter.number)
@@ -255,11 +256,12 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
       label: label(chapter) ?? '',
       detail,
       state: chapter.id === chapterId ? 'current' : number !== null && number <= chaptersRead ? 'read' : null,
-      badge: showSource ? sourceOf(chapter).name : null,
+      badge: showSource || isExtensionSource(sourceOf(chapter)) ? sourceOf(chapter).name : null,
+      extension: isExtensionSource(sourceOf(chapter)),
     }
   })
 
-  const creditLine = t.reader.creditSource(new Intl.ListFormat(t.locale, { type: 'conjunction' }).format(creditedSources(sources)))
+  const creditLine = t.reader.creditSource(new Intl.ListFormat(t.locale, { type: 'conjunction' }).format(creditedSources(sources, listed)))
   const credits = [
     current && current.groups.length > 0 ? t.reader.translatedBy(current.groups.map((group) => group.name).join(', ')) : null,
     creditLine,
@@ -267,21 +269,31 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
 
   /** Bascule manuelle : ce chapitre chez une autre source, et cette source préférée pour la suite. */
   const versions = chapterSources(current)
+  const switchSource = (sourceId: string) => {
+    if (!current) return
+    const target = versionFrom(current, sourceId)
+    setSource(book.id, sourceId)
+    if (target && target.id !== current.id) openChapter(target.id)
+  }
   const sourcePicker =
     current && versions.length > 1
       ? {
           value: sourceOf(current).id,
           options: versions.map((source) => ({ value: source.id, label: source.name })),
-          onChange: (sourceId: string) => {
-            const target = versionFrom(current, sourceId)
-            setSource(book.id, sourceId)
-            if (target && target.id !== current.id) openChapter(target.id)
-          },
+          onChange: switchSource,
         }
       : null
 
+  /** Page en erreur : le même chapitre chez la source suivante, en un tap depuis la page elle-même. */
+  const nextSource = versions[1]
+  const pageRecovery = nextSource ? { label: t.reader.trySource(nextSource.name), onSwitch: () => switchSource(nextSource.id) } : null
+
   const offline = typeof navigator !== 'undefined' && !navigator.onLine
-  const fallbackSource = pageState.status === 'ready' && pageState.data.fallback ? pageState.data.source?.name : null
+  // Nom du site qui a réellement servi (« Asura Scans », pas le fournisseur « Tachiyomi ») : lu dans la liste.
+  const fallbackSource =
+    pageState.status === 'ready' && pageState.data.fallback
+      ? ((findChapter(listed, pageState.data.servedBy)?.source ?? pageState.data.source)?.name ?? null)
+      : null
   const notice = offline ? t.reader.offlineHint : fallbackSource ? t.reader.sourceFallback(fallbackSource) : null
 
   const ui = useReaderChrome()
@@ -360,6 +372,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
       prefetchNext={nextFirst}
       notice={notice}
       sourcePicker={sourcePicker}
+      pageRecovery={pageRecovery}
     />
   )
 }

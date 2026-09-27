@@ -73,6 +73,15 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Bookshelf <no-reply@bookshelf.local>}
+      # Extensions Tachiyomi : `--profile tachiyomi` pour démarrer le pont (cf. plus bas).
+      TACHIYOMI_BRIDGE_ENABLED: ${TACHIYOMI_BRIDGE_ENABLED:-false}
+      TACHIYOMI_BRIDGE_URL: ${TACHIYOMI_BRIDGE_URL:-http://suwayomi:4567}
+      TACHIYOMI_BRIDGE_TIMEOUT_MS: ${TACHIYOMI_BRIDGE_TIMEOUT_MS:-3000}
+      TACHIYOMI_BRIDGE_LANGUAGES: ${TACHIYOMI_BRIDGE_LANGUAGES:-fr,en}
+      TACHIYOMI_BRIDGE_MAX_SOURCES: ${TACHIYOMI_BRIDGE_MAX_SOURCES:-10}
+      TACHIYOMI_BRIDGE_NSFW: ${TACHIYOMI_BRIDGE_NSFW:-false}
+      TACHIYOMI_EXTENSIONS: ${TACHIYOMI_EXTENSIONS:-}
+      TACHIYOMI_SOURCES: ${TACHIYOMI_SOURCES:-}
       # Fichiers montés depuis Windows / macOS : pas d'événements inotify, on scrute.
       CHOKIDAR_USEPOLLING: "true"
     # Clients Prisma (SQLite + PostgreSQL), migrations, puis l'API en rechargement à chaud.
@@ -99,8 +108,25 @@ services:
     ports:
       - "${DEV_WEB_PORT:-5173}:5173"
 
+  # Pont des extensions Tachiyomi (Suwayomi-Server), facultatif :
+  #   docker compose -f docker-compose.dev.yml --profile tachiyomi up
+  # Interface web de Suwayomi sur http://127.0.0.1:4567 (boucle locale seulement),
+  # pratique pour parcourir et installer des extensions à la main.
+  suwayomi:
+    image: ${SUWAYOMI_IMAGE:-ghcr.io/suwayomi/suwayomi-server:v2.3.2243}
+    profiles: [tachiyomi]
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      EXTENSION_STORES: '${TACHIYOMI_EXTENSION_STORES:-["https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json"]}'
+      JAVA_TOOL_OPTIONS: -Xmx${SUWAYOMI_MAX_HEAP:-512m}
+    volumes:
+      - suwayomi_dev_data:/home/suwayomi/.local/share/Tachidesk
+    ports:
+      - "127.0.0.1:${DEV_SUWAYOMI_PORT:-4567}:4567"
+
 volumes:
   postgres_dev_data:
+  suwayomi_dev_data:
   node_modules:
   backend_node_modules:
   frontend_node_modules:

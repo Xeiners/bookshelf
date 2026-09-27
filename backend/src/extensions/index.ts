@@ -6,13 +6,18 @@ import { createConsumetProvider } from './providers/consumet.provider.js'
 import { createKavitaProvider } from './providers/kavita.provider.js'
 import { createKomgaProvider } from './providers/komga.provider.js'
 import { mangadexProvider } from './providers/mangadex.provider.js'
+import { providerLogger } from './providers/http.js'
 import { createOpenComicStreamProvider } from './providers/openComicStream.provider.js'
+import { createSuwayomiClient } from './providers/suwayomi.client.js'
+import { createTachiyomiBridgeProvider } from './providers/tachiyomiBridge.provider.js'
+import { scheduleExtensionSync } from './providers/tachiyomiExtensions.js'
 import { SourceRegistry } from './registry.js'
 import { normalizeTitle } from './titleMatch.js'
 
 /*
  * Câblage des sources de chapitres. MangaDex est toujours actif ; les autres
- * ne s'enregistrent que si leur URL est configurée (cf. config.ts, .env.example).
+ * ne s'enregistrent que si leur URL est configurée, le pont Tachiyomi que si
+ * `TACHIYOMI_BRIDGE_ENABLED=true` (cf. config.ts, .env.example).
  */
 
 export const sourceRegistry = new SourceRegistry().register(mangadexProvider)
@@ -28,6 +33,22 @@ if (openComic) {
         ? createKavitaProvider(library)
         : createOpenComicStreamProvider(library),
   )
+}
+
+/*
+ * Extensions Tachiyomi / Mihon, via le pont Suwayomi. Un pont absent ou lent
+ * ne bloque rien : chaque appel est borné, et le disjoncteur de l'agrégateur
+ * cesse de l'interroger après trois échecs d'affilée.
+ */
+const { tachiyomi } = config.sources
+if (tachiyomi.enabled) {
+  const log = providerLogger('Tachiyomi')
+  const client = createSuwayomiClient({ ...tachiyomi, userAgent: config.mangadexUserAgent, log })
+  const provider = createTachiyomiBridgeProvider({ ...tachiyomi, client, userAgent: config.mangadexUserAgent, log })
+  sourceRegistry.register(provider)
+  if (config.env !== 'test') {
+    scheduleExtensionSync(client, tachiyomi.extensions, { log, onSynced: () => provider.forgetSources() })
+  }
 }
 
 /**

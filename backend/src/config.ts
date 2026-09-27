@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { LANGUAGES, type Language } from './lib/language.js'
 
 try {
   process.loadEnvFile()
@@ -67,7 +68,36 @@ const EnvSchema = z.object({
   OPEN_COMIC_PASSWORD: z.string().optional(),
   /** Langue des œuvres quand la bibliothèque ne la précise pas. */
   OPEN_COMIC_LANGUAGE: z.enum(['fr', 'en']).default('fr'),
+  /**
+   * Extensions Tachiyomi / Mihon, exécutées par le pont Suwayomi (service
+   * `suwayomi` de docker-compose.yml, profil `tachiyomi`). Cf. docs/BACKEND.md.
+   */
+  TACHIYOMI_BRIDGE_ENABLED: z.enum(['true', 'false']).default('false'),
+  TACHIYOMI_BRIDGE_URL: z.url().default('http://suwayomi:4567'),
+  /** Délai d'un appel au pont (ms) : au-delà, le site est abandonné pour cette requête. */
+  TACHIYOMI_BRIDGE_TIMEOUT_MS: z.coerce.number().int().min(500).max(30_000).default(3_000),
+  /** Délai d'une image relayée depuis le pont (ms). */
+  TACHIYOMI_BRIDGE_IMAGE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
+  /** Langues des sites interrogés, séparées par des virgules. */
+  TACHIYOMI_BRIDGE_LANGUAGES: z.string().default('fr,en'),
+  /** Sites interrogés au plus pour une œuvre. */
+  TACHIYOMI_BRIDGE_MAX_SOURCES: z.coerce.number().int().min(1).max(50).default(10),
+  /** Sites marqués « adultes » par leur extension : exclus par défaut. */
+  TACHIYOMI_BRIDGE_NSFW: z.enum(['true', 'false']).default('false'),
+  /** Compte du pont (`AUTH_MODE=basic_auth` côté Suwayomi) ; inutile sur le réseau interne. */
+  TACHIYOMI_BRIDGE_USER: z.string().optional(),
+  TACHIYOMI_BRIDGE_PASSWORD: z.string().optional(),
+  /** Extensions à installer au démarrage : `en.asurascans,fr.mangascantrad` (ou noms de paquet complets). */
+  TACHIYOMI_EXTENSIONS: z.string().optional(),
+  /** Restreint les sites interrogés (noms ou identifiants) ; vide = toutes les extensions installées. */
+  TACHIYOMI_SOURCES: z.string().optional(),
 })
+
+const csv = (value: string | undefined) =>
+  (value ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
 
 /*
  * Une variable VIDE vaut absente, donc prend sa valeur par défaut. Docker
@@ -147,6 +177,19 @@ export const config = {
           password: env.OPEN_COMIC_PASSWORD,
         }
       : null,
+    tachiyomi: {
+      enabled: env.TACHIYOMI_BRIDGE_ENABLED === 'true',
+      baseUrl: env.TACHIYOMI_BRIDGE_URL.replace(/\/$/, ''),
+      timeoutMs: env.TACHIYOMI_BRIDGE_TIMEOUT_MS,
+      imageTimeoutMs: env.TACHIYOMI_BRIDGE_IMAGE_TIMEOUT_MS,
+      languages: csv(env.TACHIYOMI_BRIDGE_LANGUAGES).filter((code): code is Language => LANGUAGES.includes(code as Language)),
+      maxSources: env.TACHIYOMI_BRIDGE_MAX_SOURCES,
+      includeNsfw: env.TACHIYOMI_BRIDGE_NSFW === 'true',
+      user: env.TACHIYOMI_BRIDGE_USER,
+      password: env.TACHIYOMI_BRIDGE_PASSWORD,
+      extensions: csv(env.TACHIYOMI_EXTENSIONS),
+      sources: csv(env.TACHIYOMI_SOURCES),
+    },
   },
   mail: {
     transport: resolveMailTransport(),

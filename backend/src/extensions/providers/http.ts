@@ -31,6 +31,8 @@ export interface GetJsonOptions {
   /** En-têtes d'authentification (clé d'API, jeton…). */
   headers?: Record<string, string>
   method?: 'GET' | 'POST'
+  /** Variable(s) à vérifier quand la source répond 401. */
+  authHint?: string
   body?: unknown
 }
 
@@ -68,7 +70,7 @@ export async function getJson<S extends z.ZodType>(url: string, schema: S, optio
   }
   if (!response.ok) {
     // 401 : authentification absente ou refusée. Un 403 peut aussi venir d'un blocage : pas de conclusion hâtive.
-    const hint = response.status === 401 ? ' — authentification refusée, vérifier OPEN_COMIC_API_KEY' : ''
+    const hint = response.status === 401 ? ` — authentification refusée, vérifier ${options.authHint ?? 'OPEN_COMIC_API_KEY'}` : ''
     log?.(`HTTP ${response.status} ${response.statusText} sur ${endpoint}${hint}`)
     throw new ProviderHttpError(response.status, `${label} a répondu ${response.status} (${endpoint}).`)
   }

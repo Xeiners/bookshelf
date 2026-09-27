@@ -13,6 +13,7 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev && prisma generate && node scripts/prisma-postgres.mjs",
     "db:studio": "prisma studio",
+    "tachiyomi": "node --import tsx src/extensions/tachiyomi.cli.ts",
     "test": "node scripts/prisma-postgres.mjs --check && node --import tsx --test --test-reporter=spec test/*.test.ts",
     "db:generate:all": "prisma generate --schema prisma/schema.prisma && prisma generate --schema prisma/postgres/schema.prisma",
     "db:schema:pg": "node scripts/prisma-postgres.mjs"

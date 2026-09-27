@@ -417,6 +417,7 @@ export const fr = {
     source: 'Source',
     sourcePicker: 'Source de ce chapitre',
     sourceFallback: (source: string) => `Source indisponible : lecture via ${source}`,
+    trySource: (source: string) => `Essayer sur ${source}`,
     readMark: 'Lu',
     current: 'En cours',
     settings: 'Réglages de lecture',

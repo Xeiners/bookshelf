@@ -404,6 +404,7 @@ export const en: Dictionary = {
     source: 'Source',
     sourcePicker: 'Source for this chapter',
     sourceFallback: (source: string) => `Source unavailable: reading from ${source}`,
+    trySource: (source: string) => `Try on ${source}`,
     readMark: 'Read',
     current: 'Reading',
     settings: 'Reading settings',

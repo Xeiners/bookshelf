@@ -7,6 +7,7 @@ import {
   creditedSources,
   ensureChapter,
   findChapter,
+  isExtensionSource,
   isMultiSource,
   sourceOf,
   versionFrom,
@@ -109,5 +110,34 @@ describe('sources — sélecteur et badges', () => {
     assert.deepEqual(creditedSources(single), ['MangaDex'])
     assert.deepEqual(creditedSources(multi), ['MangaDex', 'Consumet'])
     assert.deepEqual(creditedSources(undefined), ['MangaDex'])
+  })
+})
+
+describe('sources — sites des extensions Tachiyomi', () => {
+  const ASURA = { id: 'tachiyomi:1001', name: 'Asura Scans' }
+  const FLAME = { id: 'tachiyomi:3003', name: 'Flame Comics' }
+  const list = [make('md-1', '1', MD, [make('as-1', '1', ASURA)]), make('fl-2', '2', FLAME, [make('as-2', '2', ASURA)])]
+  const statuses: SourceStatus[] = [
+    { id: 'mangadex', name: 'MangaDex', status: 'ok', chapters: 1 },
+    { id: 'tachiyomi', name: 'Tachiyomi', status: 'ok', chapters: 3 },
+  ]
+
+  it('reconnaît le site d’une extension, pas les autres sources', () => {
+    assert.equal(isExtensionSource(ASURA), true)
+    assert.equal(isExtensionSource(MD), false)
+    assert.equal(isExtensionSource({ id: 'tachiyomi', name: 'Tachiyomi' }), false)
+  })
+
+  it('crédite les sites présents dans la liste, pas le fournisseur « Tachiyomi »', () => {
+    assert.deepEqual(creditedSources(statuses, list), ['MangaDex', 'Asura Scans', 'Flame Comics'])
+    // Sans la liste (copie ancienne) : le nom du fournisseur, comme avant.
+    assert.deepEqual(creditedSources(statuses), ['MangaDex', 'Tachiyomi'])
+  })
+
+  it('chaque site est une source à part : sélecteur et préférence par site', () => {
+    assert.deepEqual(chapterSources(list[1]).map((source) => source.name), ['Flame Comics', 'Asura Scans'])
+    const preferAsura = applySourcePreference(list, ASURA.id)
+    assert.deepEqual(preferAsura.map((chapter) => chapter.id), ['as-1', 'as-2'])
+    assert.equal(versionFrom(list[1]!, ASURA.id)?.id, 'as-2')
   })
 })

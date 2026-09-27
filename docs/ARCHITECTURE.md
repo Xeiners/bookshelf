@@ -586,9 +586,10 @@ components/reader/
   ReaderControls    en-tête + pied de page en surimpression ; ReaderStatus (heure, batterie)
   ChapterDrawer / SidePanel / ReaderSettings / ChapterEnd / PageImage / ReaderMessage
   LocalFilesSheet   « Mes fichiers » : import, liste, suppression
-lib/reader/         progress, prefetch, navigation, formats (purs, testés : frontend/test/)
+lib/reader/         progress, prefetch, navigation, formats, sources (purs, testés : frontend/test/)
                     archive (CBZ), localFiles (IndexedDB), quality, readable
-hooks/reader/       useReaderUi, usePrefetch, usePinch, useLocalPosition, useReaderEnvironment
+hooks/reader/       useReaderUi, usePrefetch, usePinch, useLocalPosition, useReaderEnvironment,
+                    usePageRecovery (contexte : « Essayer sur <autre source> » d'une page en erreur)
 workers/            prefetch.worker.ts
 store/useReaderStore  préférences propres à l'appareil (bookshelf:reader:v1)
 ```
@@ -617,6 +618,25 @@ immédiatement quand l'app passe en arrière-plan. Fin de chapitre →
 nombre de chapitres est connu (plafonné à 99 % pour une série en cours), et le
 titre entre en « En cours » s'il n'était pas en bibliothèque. Compte connecté :
 opération `progress` de la file d'envoi → `PATCH /api/library/progress`.
+
+**Sources.** L'API fusionne déjà les chapitres de toutes ses sources (MangaDex,
+bibliothèque perso, sites des extensions Tachiyomi — cf. docs/BACKEND.md §3 ter) :
+chaque chapitre porte sa version principale et ses `alternates`. `lib/reader/sources.ts`
+applique la source préférée de l'utilisateur (mémorisée par œuvre), et le lecteur
+offre trois recours, du plus discret au plus explicite :
+
+- *repli automatique* : l'API essaie les `alternates` si la source du chapitre
+  échoue ; un bandeau dit quel site a servi (nom lu dans la liste : « Asura
+  Scans », pas le fournisseur « Tachiyomi ») ;
+- *page en erreur* : sous « Recharger l'image », **Essayer sur <source suivante>**
+  (`PageRecoveryContext`, fourni par `ImageReader`, lu par `PageImage` — pas de
+  prop à travers les deux vues) ;
+- *sélecteur* (`ReaderControls`) : toutes les sources du chapitre, un choix = cette
+  version tout de suite et cette source préférée pour la suite.
+
+Badges du sommaire : le nom de la source quand plusieurs se mêlent, et **toujours**
+pour le site d'une extension (`tachiyomi:<id>`), marqué d'un éclair. Crédits de
+fin : les sites réellement présents, pas le nom du fournisseur.
 
 **Hors-ligne.** Le Service Worker garde les pages de chapitre (cache d'abord, 400
 max) et les listes de chapitres / pages (réseau d'abord) : le chapitre préchargé

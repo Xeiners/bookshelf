@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { PageRecoveryContext, type PageRecovery } from '../../hooks/reader/usePageRecovery'
 import { usePrefetch } from '../../hooks/reader/usePrefetch'
 import { useReaderChrome } from '../../hooks/reader/useReaderUi'
 import { useT } from '../../i18n'
@@ -45,6 +46,8 @@ export interface ImageReaderProps {
   notice?: string | null
   /** Choix de la source du chapitre en cours (chapitre publié par plusieurs sources). */
   sourcePicker?: SourcePicker | null
+  /** Page en erreur : proposer ce chapitre chez une autre source (cf. `PageImage`). */
+  pageRecovery?: PageRecovery | null
 }
 
 /**
@@ -74,6 +77,7 @@ export function ImageReader(props: ImageReaderProps) {
     prefetchNext,
     notice,
     sourcePicker,
+    pageRecovery,
   } = props
   const t = useT()
   const ui = useReaderChrome()
@@ -178,7 +182,9 @@ export function ImageReader(props: ImageReaderProps) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black text-cream" data-reader>
-      <div className="absolute inset-0">{body}</div>
+      <div className="absolute inset-0">
+        <PageRecoveryContext value={pageRecovery ?? null}>{body}</PageRecoveryContext>
+      </div>
 
       {notice && (
         <p className="pointer-events-none absolute inset-x-0 top-[max(2rem,env(safe-area-inset-top))] z-10 text-center text-[11px] text-gold/80">
