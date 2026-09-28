@@ -5,7 +5,8 @@ import { DiscoverView } from './components/discover/DiscoverView'
 import { LibraryView } from './components/library/LibraryView'
 import { ProfileView } from './components/profile/ProfileView'
 import { SearchView } from './components/search/SearchView'
-import { TarotPage } from './pages/TarotPage'
+import { ActivitiesView } from './components/activities/ActivitiesView'
+import { BoosterPackModal } from './components/boosters/BoosterPackModal'
 import { AmbientBackdrop } from './components/layout/AmbientBackdrop'
 import { AppHeader } from './components/layout/AppHeader'
 import { BottomNav } from './components/layout/BottomNav'
@@ -46,6 +47,7 @@ export default function App() {
   const authOpen = useUiStore((state) => state.authOpen)
   const reader = useUiStore((state) => state.reader)
   const filesOpen = useUiStore((state) => state.filesOpen)
+  const boosterOpen = useUiStore((state) => state.boosterOpen)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
   useEffect(() => {
@@ -145,7 +147,7 @@ export default function App() {
                 className="relative flex min-h-0 flex-1 flex-col overflow-hidden pb-nav md:pb-6"
               >
                 {rendered === 'discover' && <DiscoverView />}
-                {rendered === 'oracle' && <TarotPage />}
+                {rendered === 'activities' && <ActivitiesView />}
                 {rendered === 'search' && <SearchView />}
                 {rendered === 'library' && <LibraryView />}
                 {rendered === 'profile' && <ProfileView />}
@@ -168,6 +170,7 @@ export default function App() {
       {detail && <BookSheet key={detail.id} book={detail} />}
       {authOpen && <AuthSheet />}
       {filesOpen && <LocalFilesSheet />}
+      {boosterOpen && <BoosterPackModal />}
       {reader && (
         <Suspense fallback={<div className="fixed inset-0 z-[100] bg-black" />}>
           <UniversalReader session={reader} />

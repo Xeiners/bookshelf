@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { CloudCheck, CloudOff, CloudUpload, Library, PanelLeftClose, PanelLeftOpen, UserRound, Zap } from 'lucide-react'
-import { useOracleStatus } from '../../hooks/useOracleStatus'
+import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useLanguage, useT } from '../../i18n'
 import { BRAND } from '../../lib/brand'
 import { gsap, useGSAP } from '../../lib/gsap'
@@ -57,7 +57,7 @@ export function Sidebar({ view, onChange }: SidebarProps) {
   const user = useAuthStore((state) => state.user)
   const offline = useAuthStore((state) => state.offline)
   const pending = usePendingSync()
-  const oracle = useOracleStatus()
+  const activities = useActivitiesStatus()
 
   const entries = useLibraryStore((state) => state.entries)
   const { counts, total, current } = useMemo(() => {
@@ -180,7 +180,7 @@ export function Sidebar({ view, onChange }: SidebarProps) {
                 >
                   <span data-sidebar-icon={item.id} className="relative grid w-5 shrink-0 place-items-center">
                     <Icon size={19} strokeWidth={2} />
-                    {item.id === 'oracle' && oracle.available && (
+                    {item.id === 'activities' && activities.attention && (
                       <span aria-hidden className="absolute -top-0.5 -right-1 size-2 rounded-full bg-gold shadow-[0_0_8px_var(--color-gold)]" />
                     )}
                   </span>
@@ -188,15 +188,15 @@ export function Sidebar({ view, onChange }: SidebarProps) {
                     {t.nav[item.id]}
                   </span>
                   <span data-sidebar-fade className="flex items-center gap-1.5">
-                    {item.id === 'oracle' && oracle.streak > 0 && (
+                    {item.id === 'activities' && activities.streak > 0 && (
                       <span
-                        title={t.oracle.streak(oracle.streak)}
+                        title={t.oracle.streak(activities.streak)}
                         className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
                           active ? 'bg-void/10 text-void' : 'bg-gold/12 text-gold'
                         }`}
                       >
                         <Zap size={10} className={active ? 'fill-void' : 'fill-gold'} />
-                        {oracle.streak}
+                        {activities.streak}
                       </span>
                     )}
                     {item.id === 'library' && total > 0 && (

@@ -8,6 +8,8 @@ import { DUMMY_HASH, hashPassword, verifyPassword } from '../../lib/password.js'
 import { SESSION_COOKIE, clearSession, issueSession, readSession } from '../../lib/session.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
+import { claimGuestPacks } from '../cards/cards.service.js'
+import { GUEST_BOOSTERS } from '../cards/guestPacks.js'
 import { LibrarySnapshotSchema } from '../library/library.schemas.js'
 import { getLibrary, mergeLibrary } from '../library/library.service.js'
 import {
@@ -48,6 +50,8 @@ const VerifySchema = z.object({
   code: z.string().trim().regex(CODE_PATTERN, 'Code invalide.'),
   /** État invité (localStorage) à fusionner dans le compte, au moment de sa création. */
   initialData: LibrarySnapshotSchema.optional(),
+  /** Reçus des boosters d'essai ouverts en invité : leurs cartes rejoignent le compte. */
+  guestPacks: z.array(z.string().max(1024)).max(GUEST_BOOSTERS * 2).optional(),
 })
 
 const ResendSchema = z.object({ email: Email })
@@ -217,7 +221,7 @@ authRouter.post('/register/resend', authLimiter, async (req, res) => {
  * au 5ᵉ, il faut en redemander un.
  */
 authRouter.post('/register/verify', verifyLimiter, async (req, res) => {
-  const { email, code, initialData } = VerifySchema.parse(req.body)
+  const { email, code, initialData, guestPacks } = VerifySchema.parse(req.body)
   const pending = await prisma.pendingRegistration.findUnique({ where: { email } })
   if (!pending) throw registrationNotFound()
 
@@ -262,8 +266,10 @@ authRouter.post('/register/verify', verifyLimiter, async (req, res) => {
   }
 
   const library = initialData ? await mergeLibrary(user.id, initialData) : await getLibrary(user.id)
+  // Cartes des boosters d'essai. Les boosters, eux : le compte démarre avec une réserve pleine.
+  const guestCards = guestPacks ? await claimGuestPacks(user.id, guestPacks) : 0
   await issueSession(res, user.id)
-  res.status(201).json({ user: publicUser(user), library })
+  res.status(201).json({ user: publicUser(user), library, guestCards })
 })
 
 authRouter.post('/login', authLimiter, async (req, res) => {

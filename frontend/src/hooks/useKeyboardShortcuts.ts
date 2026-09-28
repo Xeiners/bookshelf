@@ -10,7 +10,7 @@ const isEditable = (target: EventTarget | null) =>
 
 /**
  * Raccourcis clavier globaux (utiles surtout sur ordinateur) :
- *  - 1 à 5        → Découvrir, Oracle, Recherche, Ma biblio, Profil
+ *  - 1 à 5        → Découvrir, Activités, Recherche, Ma biblio, Profil
  *  - Ctrl/⌘ K     → Recherche, curseur dans le champ
  *  - Ctrl/⌘ B     → replier / déplier la barre latérale
  *
@@ -21,7 +21,7 @@ export function useKeyboardShortcuts(): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const ui = useUiStore.getState()
-      if (ui.detail !== null || ui.authOpen || ui.reader !== null || ui.filesOpen || event.repeat) return
+      if (ui.detail !== null || ui.authOpen || ui.reader !== null || ui.filesOpen || ui.boosterOpen || event.repeat) return
 
       const command = event.metaKey || event.ctrlKey
       const key = event.key.toLowerCase()

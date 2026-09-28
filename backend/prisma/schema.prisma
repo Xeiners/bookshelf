@@ -44,6 +44,8 @@ model User {
   entries    LibraryEntry[]
   skips      SkippedWork[]
   preference UserPreference?
+  booster    UserBooster?
+  cards      UserCard[]
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -133,6 +135,57 @@ model CatalogWork {
   updatedAt  DateTime @updatedAt
 
   @@index([country, popularity])
+}
+
+/// Stock de boosters d'un compte (cf. `src/modules/cards/`). La régénération
+/// est calculée à la lecture à partir de `nextBoosterAt` : aucune tâche de fond.
+model UserBooster {
+  userId            String    @id
+  /// Boosters prêts à ouvrir, 2 au plus.
+  availableBoosters Int       @default(2)
+  /// Dernière ouverture.
+  lastClaimedAt     DateTime?
+  /// Arrivée du prochain booster ; `null` quand le stock est plein.
+  nextBoosterAt     DateTime?
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Carte de la collection : une œuvre du catalogue MangaDex. Le set est figé à
+/// sa génération (les cartes obtenues ne doivent jamais disparaître).
+model Card {
+  id            String   @id @default(cuid())
+  /// Numéro dans l'album (1 → taille du set), ordre d'affichage.
+  number        Int      @unique
+  title         String
+  /// Personnage représenté ; `null` : la carte représente l'œuvre.
+  characterName String?
+  /// Couverture, servie par le relais `/api/covers`.
+  imageUrl      String
+  /// COMMON | RARE | EPIC | LEGENDARY | MYTHIC
+  rarity        String
+  /// UUID MangaDex de l'œuvre.
+  mangaId       String   @unique
+  createdAt     DateTime @default(now())
+
+  owners UserCard[]
+
+  @@index([rarity])
+}
+
+/// Carte possédée par un compte ; `count` compte les doublons.
+model UserCard {
+  userId     String
+  cardId     String
+  obtainedAt DateTime @default(now())
+  isFavorite Boolean  @default(false)
+  count      Int      @default(1)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@id([userId, cardId])
 }
 
 /// Fin de la dernière indexation COMPLÈTE du catalogue : une indexation

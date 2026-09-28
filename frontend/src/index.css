@@ -170,3 +170,65 @@
     user-select: none;
   }
 }
+
+/* ==========================================================================
+   CARTES À COLLECTIONNER — effets en boucle (Activités, boosters, album)
+   Uniquement `transform` et `opacity` : le compositeur les joue seul, sans
+   recalcul de mise en page ni repeinture, même avec un album plein.
+   ========================================================================== */
+@keyframes card-aura {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes card-iridescent {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes card-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(45deg);
+  }
+}
+
+@keyframes seal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes altar-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Écran recouvert (ouverture de booster) : ses boucles s'arrêtent. */
+[data-paused] [data-card-fx] {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-card-fx] {
+    animation: none !important;
+  }
+}

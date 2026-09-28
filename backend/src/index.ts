@@ -7,6 +7,8 @@ const app = createApp()
 
 // Catalogue MangaDex : indexé en tâche de fond, le serveur répond déjà.
 if (config.catalogSync) startCatalogSync()
+// Mode recette oublié en production : il doit se voir dans les journaux.
+if (config.cards.unlimited) console.warn('[cartes] BOOSTER_UNLIMITED_MODE actif : boosters illimités (recette). À couper en production.')
 
 const server = app.listen(config.port, () => {
   console.log(`[api] Bookshelf API prête sur http://localhost:${config.port}/api (${config.env})`)

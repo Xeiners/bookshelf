@@ -117,6 +117,9 @@ export function catalogManga(options: {
       ],
       availableTranslatedLanguages: ['en'],
     },
-    relationships: [{ id: `author-${nextWork}`, type: 'author', attributes: { name: options.author ?? `Author ${nextWork}` } }],
+    relationships: [
+      { id: `author-${nextWork}`, type: 'author', attributes: { name: options.author ?? `Author ${nextWork}` } },
+      { id: `cover-${nextWork}`, type: 'cover_art', attributes: { fileName: `cover-${nextWork}.jpg` } },
+    ],
   }
 }

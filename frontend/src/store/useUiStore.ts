@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import type { Book, LibraryTab } from '../types/book'
 import type { ReaderSession } from '../types/reader'
 
-export type ViewId = 'discover' | 'oracle' | 'search' | 'library' | 'profile'
+export type ViewId = 'discover' | 'activities' | 'search' | 'library' | 'profile'
+/** Écran de l'onglet « Activités » : le hub, ou un de ses modules. */
+export type ActivityScreen = 'hub' | 'oracle' | 'collection'
 export type ToastTone = 'like' | 'nope' | 'neutral'
 
 export interface Toast {
@@ -27,6 +29,9 @@ interface UiState {
   reader: ReaderSession | null
   /** Feuille « Mes fichiers » (PDF, EPUB, CBZ importés). */
   filesOpen: boolean
+  activity: ActivityScreen
+  /** Ouverture de booster en plein écran. */
+  boosterOpen: boolean
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -43,6 +48,10 @@ interface UiState {
   closeReader: () => void
   openFiles: () => void
   closeFiles: () => void
+  /** Va sur un écran des Activités (le hub, l'Oracle, la collection). */
+  openActivity: (activity: ActivityScreen) => void
+  openBooster: () => void
+  closeBooster: () => void
   notify: (message: string, tone?: ToastTone) => void
   dismissToast: () => void
 }
@@ -58,6 +67,8 @@ export const useUiStore = create<UiState>((set) => ({
   searchFocusTick: 0,
   reader: null,
   filesOpen: false,
+  activity: 'hub',
+  boosterOpen: false,
 
   setView: (view) => set({ view }),
   openDetail: (detail) => set({ detail }),
@@ -71,6 +82,9 @@ export const useUiStore = create<UiState>((set) => ({
   closeReader: () => set({ reader: null }),
   openFiles: () => set({ filesOpen: true }),
   closeFiles: () => set({ filesOpen: false }),
+  openActivity: (activity) => set({ view: 'activities', activity }),
+  openBooster: () => set({ boosterOpen: true, detail: null }),
+  closeBooster: () => set({ boosterOpen: false }),
 
   notify: (message, tone = 'neutral') => {
     toastId += 1

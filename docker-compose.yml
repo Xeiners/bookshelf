@@ -73,6 +73,8 @@ services:
       TACHIYOMI_BRIDGE_PASSWORD: ${TACHIYOMI_BRIDGE_PASSWORD:-}
       TACHIYOMI_EXTENSIONS: ${TACHIYOMI_EXTENSIONS:-}
       TACHIYOMI_SOURCES: ${TACHIYOMI_SOURCES:-}
+      # Recette : boosters illimités. Jamais en production.
+      BOOSTER_UNLIMITED_MODE: ${BOOSTER_UNLIMITED_MODE:-false}
     networks:
       default:
         # Nom visé par le Nginx du front : unique, même si le front rejoint le

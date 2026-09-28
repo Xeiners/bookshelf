@@ -28,6 +28,8 @@ export interface Credentials {
 interface SessionResponse {
   user: AuthUser
   library: LibraryPayload
+  /** Inscription : cartes des boosters d'essai ajoutées au compte. */
+  guestCards?: number
 }
 
 /** Inscription en attente de son code (aucun compte n'existe encore). */
@@ -49,7 +51,7 @@ export const authApi = {
     api<PendingRegistration>('/auth/register', { method: 'POST', body: input }),
 
   /** Étape 2 : le bon code crée le compte. `initialData` = état invité, fusionné par l'API. */
-  verifyRegistration: (input: { email: string; code: string; initialData: LibraryPayload }) =>
+  verifyRegistration: (input: { email: string; code: string; initialData: LibraryPayload; guestPacks: string[] }) =>
     api<SessionResponse>('/auth/register/verify', { method: 'POST', body: input }),
 
   resendCode: (email: string) =>

@@ -82,6 +82,8 @@ services:
       TACHIYOMI_BRIDGE_NSFW: ${TACHIYOMI_BRIDGE_NSFW:-false}
       TACHIYOMI_EXTENSIONS: ${TACHIYOMI_EXTENSIONS:-}
       TACHIYOMI_SOURCES: ${TACHIYOMI_SOURCES:-}
+      # Recette : boosters illimités (taux de tirage, animations).
+      BOOSTER_UNLIMITED_MODE: ${BOOSTER_UNLIMITED_MODE:-false}
       # Fichiers montés depuis Windows / macOS : pas d'événements inotify, on scrute.
       CHOKIDAR_USEPOLLING: "true"
     # Clients Prisma (SQLite + PostgreSQL), migrations, puis l'API en rechargement à chaud.

@@ -24,6 +24,10 @@ export function prepareEnvironment(name: string): void {
   process.env.NODE_ENV = 'test'
   process.env.DATABASE_URL = `file:${file}`
   process.env.JWT_SECRET = 'test-secret-with-enough-length-for-hs256-signing'
+  // Un `backend/.env` de développement (recette, pont…) ne doit jamais changer les tests :
+  // `loadEnvFile` n'écrase pas une variable déjà posée.
+  process.env.BOOSTER_UNLIMITED_MODE = 'false'
+  process.env.TACHIYOMI_BRIDGE_ENABLED ??= 'false'
 
   execSync('npx prisma migrate deploy', {
     cwd: BACKEND_ROOT,
@@ -108,7 +112,7 @@ export interface TestClient {
    * l'e-mail (boîte en mémoire), puis vérification. Renvoie la réponse de la
    * vérification (201 + session), ou celle de la 1ʳᵉ étape si elle échoue.
    */
-  signUp: (body: { email: string; password: string; initialData?: unknown; [key: string]: unknown }) => Promise<{ status: number; body: any }>
+  signUp: (body: { email: string; password: string; initialData?: unknown; guestPacks?: string[]; [key: string]: unknown }) => Promise<{ status: number; body: any }>
 }
 
 /** Dernier code envoyé à une adresse (e-mails de la boîte en mémoire). */
@@ -145,11 +149,11 @@ export async function startServer() {
     }
     return {
       request,
-      async signUp({ initialData, ...form }) {
+      async signUp({ initialData, guestPacks, ...form }) {
         const started = await request('POST', '/auth/register', form)
         if (started.status !== 202) return started
         const code = await lastCodeFor(form.email)
-        return request('POST', '/auth/register/verify', { email: form.email, code, initialData })
+        return request('POST', '/auth/register/verify', { email: form.email, code, initialData, guestPacks })
       },
     }
   }

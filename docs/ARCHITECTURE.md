@@ -483,6 +483,91 @@ au rendu sont désormais créés à l'événement (`() => contextSafe(…)()`), 
 `useDiscoveryQueue` dérive « chargement » et « renfort » au lieu de les poser
 dans un effet.
 
+## 4 quinquies ter. Activités : boosters et collection de cartes
+
+L'onglet « Oracle » est devenu **Activités** (`Gamepad2`, vue `activities`) :
+un hub et ses modules, sans routeur — `useUiStore.activity` vaut `hub`,
+`oracle` (le `TarotPage` existant) ou `collection`. L'étincelle dorée de la
+navigation s'allume si le tirage du jour OU un booster attend
+(`useActivitiesStatus`).
+
+```
+components/activities/  ActivitiesView (hub ↔ module, retour), ActivitiesHub (sanctuaire),
+                        SanctumBackdrop (fond, portail), EnergyRing (jauge néon circulaire)
+components/boosters/    BoosterPackModal (orchestration), BoosterOpeningAnimation (mise en scène),
+                        BoosterPackArt (le paquet, partagé hub / ouverture), CardReveal
+                        (jaillissement + révélation), ParticleBurst (canevas : confettis, étincelles)
+components/cards/       CollectibleCard (cadres par rareté, holo, ombre chinoise), cardFrames
+                        (finitions), CardBack (sceau alchimique), CollectionView, CardZoom
+lib/boosters.ts         minuteur, raretés, filtres de l'album, taux observés (purs, testés)
+lib/sfx.ts              sons synthétisés (WebAudio, aucun fichier)
+hooks/                  useBoosters (stock + minuteur + recette), useCollection, useHoloTilt
+store/                  useBoosterStore, useCollectionStore (non persistés)
+```
+
+**Direction artistique — le Sanctuaire.** Fond d'encre `#050507` sous un mesh
+néon immobile (un seul calque : un fond plein écran animé se recompose à
+chaque image et faisait saccader la page) ; le fond global de l'app, caché dessous, se
+met en pause. Les modules sont des artefacts (liseré or → violet, verre
+d'encre), pas des cartes de tableau de bord : l'autel du booster (paquet
+isométrique flottant au-dessus d'un piédestal lumineux, bordures
+incandescentes fixes quand un booster est prêt, jauge d'énergie circulaire à
+compte à rebours néon), la lame de tarot de l'Oracle, l'éventail de la
+collection. Cadres de carte en métal biseauté : argent mat (Commune), cobalt
+brillant (Rare), violet néon à l'aura pulsante (Épique), or ciselé étincelant
+(Légendaire), iridescence tournante (Mythique) ; titres en Instrument Serif.
+
+**Recette** (`BOOSTER_UNLIMITED_MODE` côté serveur) : pastille « Sandbox »,
+bouton jamais grisé, et dans l'ouverture un relevé des taux observés depuis
+le lancement de l'app (`useBoosterStore.tally`).
+
+- **Minuteur anti-triche** : le serveur donne un délai en secondes ; le client
+  le décompte sur `performance.now()` (horloge monotone), jamais sur
+  `Date.now()`. Resynchronisé au montage, au retour au premier plan et à
+  l'échéance. Changer l'heure du téléphone ne fait rien apparaître : c'est le
+  serveur qui accepte ou refuse l'ouverture.
+- **Ouverture** (plein écran, `z-[90]`, fond d'encre presque opaque sous une vignette très
+  sombre) : le booster s'avance vers l'écran au-dessus de son ombre portée ;
+  le serveur le tire **dès l'ouverture de la fenêtre**, pour que son halo
+  trahisse le contenu (doré : une Légendaire ; irisé : une Mythique ; aucun
+  indice en dessous d'Épique). Fermer avant la déchirure ne perd rien : les
+  cartes sont déjà dans l'album. Le tirage ne part qu'une fois par booster,
+  même si StrictMode rejoue l'effet (`requested`).
+- **Déchirure** (glisser vers le haut ou toucher) : la bande, bordée de
+  perforations dorées / néon, pivote sur son coin puis s'envole ; gerbe
+  d'étincelles (lumière additive) depuis l'ouverture, éclair, vibration, son.
+- **Révélation** : les cartes jaillissent en arc de cercle, face cachée (sceau
+  alchimique gravé à la feuille d'or), et flottent. Commune / Rare :
+  retournement net, flash blanc. Épique, Légendaire, Mythique : 300 ms de
+  suspense (la carte se soulève et se charge), retournement (perspective
+  1000 px), tremblement d'écran, rayon de lumière, onde de choc, particules
+  violettes / dorées / arc-en-ciel — plus ample à chaque rang.
+- **Holographique** (Épique et au-delà) : `useHoloTilt` écrit `--rx/--ry/--mx/--my/--holo`
+  sur l'élément, une fois par image, sans rendu React ; souris, ou gyroscope
+  (autorisation iOS demandée pendant un geste).
+- **Album** : grille 3 → 6 colonnes (ResizeObserver), `content-visibility: auto`,
+  filtres rareté / possédées-manquantes / titre ; cartes manquantes en ombre
+  chinoise gris foncé. La carte agrandie passe par un **portail** : `<main>`
+  est transformé par GSAP et piégerait un élément `fixed`.
+- **Performance — règles apprises à la mesure** (première version : image
+  médiane 104 ms, CPU ×4 ; après : 7 à 14 ms, p95 21 ms, séquence complète) :
+  - tout élément animé par GSAP porte `will-change: transform` (sinon il est
+    repeint à chaque image, contenu compris) ;
+  - pas de `transform-style: preserve-3d` hors du conteneur qui retourne la
+    carte (il faut bien un verso) : la perspective passe dans le transform
+    (`transformPerspective`, `perspective()`) ;
+  - une boucle ne doit jamais repeindre un SVG : l'anneau du sceau est un SVG
+    à part, tourné par le compositeur ; ombres en `box-shadow`, pas en filtre ;
+  - **aucun flou** : ni `backdrop-filter`, ni `filter: blur()`, ni `drop-shadow`
+    (flous gaussiens recalculés dès que le fond bouge, très coûteux sur mobile) ;
+    les fonds de fenêtre sont presque opaques, les lueurs sont des `box-shadow`
+    ou des dégradés radiaux ;
+  - ce qui est caché ne s'anime pas : faces encore retournées sans effets, hub
+    et sanctuaire en pause sous l'ouverture (`data-paused`), fond global en
+    pause sous le sanctuaire.
+- Moteur d'animation : GSAP (déjà dans le projet) plutôt que Framer Motion,
+  pour ne pas ajouter une seconde bibliothèque d'animation.
+
 ## 4 sexies. Performance du swipe
 
 Le geste saccadait principalement à cause des filtres de flou et du débordement.

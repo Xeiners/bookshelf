@@ -765,6 +765,81 @@ sort: relevance|match|popularity|score|recent, page, limit, lang, source }` →
   affiché le catalogue (la réponse principale ne dépend jamais du réseau).
   Doujinshi exclus ; une œuvre déjà au catalogue n'est pas proposée deux fois.
 
+## 7 quinquies. Boosters et collection de cartes (`src/modules/cards/`)
+
+Le stock d'un compte vit côté serveur, dont l'horloge est la seule qui compte
+(un invité ne pourrait tricher que sur la sienne). Sans compte : 2 boosters
+d'essai, puis l'inscription (voir « Invités » plus bas).
+
+| Méthode | Route | Corps | Réponse |
+| --- | --- | --- | --- |
+| GET | `/api/boosters/status` (auth) | — | `{ available, max, secondsUntilNext, nextBoosterAt, intervalSeconds, serverTime }` |
+| POST | `/api/boosters/open` (auth) | — | `{ cards: [{ card, isNew, count }], status }` — 409 `no_booster` (+ `secondsUntilNext`), 503 `collection_not_ready` |
+| GET | `/api/cards/collection` (auth) | — | `{ total, owned, byRarity, cards: [{ …carte, owned, count, isFavorite, obtainedAt }] }` |
+| PATCH | `/api/cards/:cardId/favorite` (auth) | `{ isFavorite }` | 204 ; 404 si la carte n'est pas possédée |
+| POST | `/api/boosters/guest/open` | `{ receipts }` | `{ cards, receipt, remaining }` — 409 `guest_limit` après 2 essais ; 12/h par IP |
+| POST | `/api/cards/guest/collection` | `{ receipts }` | album au format de `/cards/collection`, reconstitué depuis les reçus |
+
+**Base** (migration `cards_and_boosters`) : `UserBooster` (userId, availableBoosters,
+lastClaimedAt, nextBoosterAt), `Card` (id, number, title, characterName, imageUrl,
+rarity, mangaId), `UserCard` (userId, cardId, obtainedAt, isFavorite, count).
+
+**Stock** (`boosters.logic.ts`, pur, testé) : 2 au plus, 1 toutes les 3 h. Aucune
+tâche de fond : le stock est recalculé à la lecture depuis `nextBoosterAt`.
+Chaque échéance passée ajoute un booster, la suivante part de l'échéance (le
+retard n'est pas perdu) ; stock plein → plus de minuteur ; ouvrir depuis un
+stock plein lance le minuteur, ouvrir ensuite ne le remet pas à zéro.
+
+**Tirage** : une rareté par carte — Commune 60 %, Rare 25 %, Épique 10 %,
+Légendaire 4 %, Mythique 1 % — la 3ᵉ carte garantie Rare ou mieux (mêmes
+proportions sans les Communes). Puis une carte au hasard dans la rareté, sans
+doublon dans un même booster tant que le set le permet ; rareté absente → la
+voisine. Doublons entre boosters : `count` augmente.
+
+**Ouverture atomique** : dépense et cartes dans une même transaction ; la
+dépense n'aboutit que si `(availableBoosters, nextBoosterAt)` n'a pas changé
+depuis la lecture (verrou optimiste : ce couple change à chaque consommation).
+Quatre ouvertures simultanées avec 2 boosters → 2 réussites, 2 × 409.
+
+**Set de cartes** : une carte = une œuvre du catalogue MangaDex (couverture,
+titre anglais ; `characterName` vide). 300 cartes générées au premier besoin
+(une fois le catalogue indexé) : les plus suivies de chaque origine (60 %
+manga, 30 % manhwa, 10 % manhua), classées par prestige (note bayésienne +
+notoriété) → 10 Mythiques, 20 Légendaires, 50 Épiques, 80 Rares, 140 Communes,
+numérotées des plus rares aux plus communes. Catalogue pas prêt → 503, et aucun
+booster n'est dépensé (ni jamais un booster sans cartes à tirer).
+
+**Agrandir le set** : augmenter `SET_LAYOUT` (`boosters.logic.ts`) suffit.
+Au premier besoin, `growCardSet` complète le set sans rien retirer ni changer :
+les cartes existantes (et donc les collections) gardent identité et rareté ;
+les nouvelles œuvres comblent les quotas manquants de chaque rareté, par
+prestige, en respectant la répartition des origines sur le set entier ; puis
+l'album entier est renuméroté. Un agrandissement incomplet (catalogue trop
+maigre) n'empêche jamais d'ouvrir un booster, et n'est retenté qu'après 10 min.
+
+**Mode recette** (`BOOSTER_UNLIMITED_MODE=true`) : ni stock ni minuteur — le
+statut répond `unlimited: true` et une réserve pleine, l'ouverture ne touche pas
+au stock enregistré, le limiteur de débit passe de 20 à 600 ouvertures/min. Les
+cartes tirées sont **bien enregistrées** (on éprouve les vrais taux sur un vrai
+album). Côté serveur uniquement : un interrupteur côté client serait une porte
+de triche. Avertissement dans les journaux au démarrage ; à couper en production.
+
+**Invités** (`guestPacks.ts`) : 2 boosters d'essai (`GUEST_BOOSTERS`), tirés
+comme ceux d'un compte mais **rien n'est enregistré** : chaque tirage revient
+avec un reçu signé HMAC (clé dérivée de `JWT_SECRET`) qui liste ses cartes.
+L'appareil garde ses reçus (`bookshelf:guest-cards:v1`) ; ils sont l'album de
+l'invité. À l'inscription (`POST /auth/register/verify`, champ `guestPacks`), les
+reçus valides et distincts (2 au plus) deviennent des cartes du compte, qui
+démarre avec sa réserve pleine (2 boosters) : 4 boosters en tout. La réponse
+donne `guestCards` (cartes ajoutées). Seule l'inscription réclame les reçus :
+à la connexion, un compte existant pourrait sinon gagner 2 boosters à chaque
+reçu effacé. Limites assumées : effacer ses reçus redonne 2 essais (bornés par
+IP), et un même reçu peut servir à plusieurs NOUVEAUX comptes (e-mail vérifié
+à chaque fois) — sans enjeu tant que les cartes ne s'échangent pas.
+
+Tests : `backend/test/cards.test.ts` (régénération, probabilités sur 200 000
+tirages, garantie, set, API de bout en bout, concurrence, horloge serveur, recette, invités et reçus falsifiés, réclamation à l'inscription).
+
 ## 8. Limites connues et suites possibles
 
 - Les entrées de bibliothèque créées du temps d'AniList depuis une carte

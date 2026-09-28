@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { gsap, useGSAP } from '../../lib/gsap'
+import { useUiStore } from '../../store/useUiStore'
 
 /**
  * Halos en dérive lente + grain filmique.
@@ -9,9 +10,12 @@ import { gsap, useGSAP } from '../../lib/gsap'
  */
 export function AmbientBackdrop() {
   const rootRef = useRef<HTMLDivElement>(null)
+  // L'onglet Activités pose son propre fond, opaque : celui-ci, caché dessous, se met en pause.
+  const covered = useUiStore((state) => state.view === 'activities')
 
   useGSAP(
     () => {
+      if (covered) return
       gsap.to('[data-blob]', {
         xPercent: () => gsap.utils.random(-16, 16),
         yPercent: () => gsap.utils.random(-14, 14),
@@ -24,11 +28,11 @@ export function AmbientBackdrop() {
       })
 
     },
-    { scope: rootRef },
+    { scope: rootRef, dependencies: [covered], revertOnUpdate: true },
   )
 
   return (
-    <div ref={rootRef} aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-void">
+    <div ref={rootRef} aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-void" style={covered ? { visibility: 'hidden' } : undefined}>
       <div className="absolute inset-0 overflow-hidden">
         <div
           data-blob

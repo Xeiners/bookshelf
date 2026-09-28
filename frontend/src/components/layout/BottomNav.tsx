@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useOracleStatus } from '../../hooks/useOracleStatus'
+import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useLanguage, useT } from '../../i18n'
 import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -37,7 +37,7 @@ interface BottomNavProps {
 export function BottomNav({ view, onChange }: BottomNavProps) {
   const t = useT()
   const language = useLanguage()
-  const oracle = useOracleStatus()
+  const activities = useActivitiesStatus()
   const navRef = useRef<HTMLElement>(null)
   /** Dernière vue / langue mises en page : sert à savoir s'il faut animer. */
   const laidOut = useRef<{ view: ViewId; language: string } | null>(null)
@@ -159,8 +159,8 @@ export function BottomNav({ view, onChange }: BottomNavProps) {
           >
             <span data-icon={item.id} data-tint={item.id} className="relative shrink-0 text-mist">
               <Icon size={20} strokeWidth={2} />
-              {/* Le tirage du jour attend : une étincelle dorée sur l'Oracle. */}
-              {item.id === 'oracle' && oracle.available && (
+              {/* Tirage du jour ou booster prêt : une étincelle dorée sur les Activités. */}
+              {item.id === 'activities' && activities.attention && (
                 <span aria-hidden className="absolute -top-0.5 -right-1 size-2 rounded-full bg-gold shadow-[0_0_8px_var(--color-gold)]" />
               )}
             </span>

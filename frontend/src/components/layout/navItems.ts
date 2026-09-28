@@ -1,4 +1,4 @@
-import { Library, MoonStar, Search, Sparkles, User } from 'lucide-react'
+import { Gamepad2, Library, Search, Sparkles, User } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ViewId } from '../../store/useUiStore'
 
@@ -11,7 +11,7 @@ export interface NavItem {
 /** Source unique de la navigation — partagée par la barre basse et le rail. */
 export const NAV_ITEMS: NavItem[] = [
   { id: 'discover', icon: Sparkles },
-  { id: 'oracle', icon: MoonStar },
+  { id: 'activities', icon: Gamepad2 },
   { id: 'search', icon: Search },
   { id: 'library', icon: Library },
   { id: 'profile', icon: User },

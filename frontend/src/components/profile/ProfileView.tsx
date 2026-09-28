@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { BookOpen, Flame, Hourglass, Layers, Star, Trash2 } from 'lucide-react'
 import { useCountUp } from '../../hooks/useCountUp'
 import { useT } from '../../i18n'
@@ -9,6 +9,7 @@ import { useUiStore } from '../../store/useUiStore'
 import { Pressable } from '../ui/Pressable'
 import { AccountCard } from './AccountCard'
 import { InstallCard } from './InstallCard'
+import { ResetConfirmDialog } from './ResetConfirmDialog'
 
 /** Objectif de lecture annuel (mockup) — pilote l'anneau de progression. */
 const YEARLY_GOAL = 24
@@ -48,6 +49,7 @@ export function ProfileView() {
   const entries = useLibraryStore((state) => state.entries)
   const resetAll = useLibraryStore((state) => state.resetAll)
   const notify = useUiStore((state) => state.notify)
+  const [confirmingReset, setConfirmingReset] = useState(false)
 
   const stats = useMemo(() => computeStats(entries), [entries])
   const rootRef = useRef<HTMLDivElement>(null)
@@ -230,16 +232,23 @@ export function ProfileView() {
       {stats.total > 0 && (
         <div className="flex justify-center md:col-span-2" data-anim>
           <Pressable
-            onClick={() => {
-              resetAll()
-              notify(t.profile.resetDone, 'nope')
-            }}
+            onClick={() => setConfirmingReset(true)}
             className="flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[11px] text-nope/80"
           >
             <Trash2 size={12} />
             {t.profile.reset}
           </Pressable>
         </div>
+      )}
+      {confirmingReset && (
+        <ResetConfirmDialog
+          onClose={() => setConfirmingReset(false)}
+          onConfirm={() => {
+            setConfirmingReset(false)
+            resetAll()
+            notify(t.profile.resetDone, 'nope')
+          }}
+        />
       )}
       </div>
     </div>

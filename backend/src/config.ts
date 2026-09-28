@@ -91,6 +91,11 @@ const EnvSchema = z.object({
   TACHIYOMI_EXTENSIONS: z.string().optional(),
   /** Restreint les sites interrogés (noms ou identifiants) ; vide = toutes les extensions installées. */
   TACHIYOMI_SOURCES: z.string().optional(),
+  /**
+   * Recette : boosters illimités (ni stock ni minuteur) pour éprouver les taux
+   * de tirage et les animations. Les cartes tirées sont bien enregistrées.
+   */
+  BOOSTER_UNLIMITED_MODE: z.enum(['true', 'false']).default('false'),
 })
 
 const csv = (value: string | undefined) =>
@@ -190,6 +195,9 @@ export const config = {
       extensions: csv(env.TACHIYOMI_EXTENSIONS),
       sources: csv(env.TACHIYOMI_SOURCES),
     },
+  },
+  cards: {
+    unlimited: env.BOOSTER_UNLIMITED_MODE === 'true',
   },
   mail: {
     transport: resolveMailTransport(),

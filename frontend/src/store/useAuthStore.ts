@@ -11,6 +11,9 @@ import {
   type Credentials,
   type PendingRegistration,
 } from '../services/accountApi'
+import { useBoosterStore } from './useBoosterStore'
+import { useCollectionStore } from './useCollectionStore'
+import { useGuestCardsStore } from './useGuestCardsStore'
 import { librarySnapshot, useLibraryStore } from './useLibraryStore'
 import { useOracleStore } from './useOracleStore'
 import { useSettingsStore } from './useSettingsStore'
@@ -54,6 +57,8 @@ function endSession(reason: 'expired' | 'logout') {
   outbox.disable()
   outbox.clear()
   if (reason === 'logout') useLibraryStore.getState().replaceAll({ entries: [], skipped: [] })
+  useBoosterStore.getState().reset()
+  useCollectionStore.getState().reset()
   useAuthStore.setState({ user: null, offline: false })
 }
 
@@ -108,7 +113,13 @@ export const useAuthStore = create<AuthState>()(
 
       confirmRegistration: async (email, code) => {
         // Bibliothèque invitée prise AU MOMENT du code : les swipes faits entre-temps suivent.
-        const { user, library } = await authApi.verifyRegistration({ email, code, initialData: librarySnapshot() })
+        const { user, library, guestCards = 0 } = await authApi.verifyRegistration({
+          email,
+          code,
+          initialData: librarySnapshot(),
+          // Boosters d'essai : leurs cartes rejoignent le compte (qui démarre avec 2 boosters).
+          guestPacks: useGuestCardsStore.getState().receipts,
+        })
         // L'API a fusionné l'état invité : sa réponse fait désormais foi.
         outbox.clear()
         useLibraryStore.getState().replaceAll(library)
@@ -116,6 +127,11 @@ export const useAuthStore = create<AuthState>()(
         set({ user, offline: false })
         // La série faite en invité rejoint le compte.
         useOracleStore.getState().reconcile(user.oracle)
+        // Les cartes d'essai sont désormais au compte : l'album et le stock viennent du serveur.
+        useGuestCardsStore.getState().clear()
+        useCollectionStore.getState().reset()
+        useBoosterStore.getState().reset()
+        useUiStore.getState().notify(getT().activities.guest.welcome(guestCards), 'like')
       },
 
       login: async ({ email, password }) => {
@@ -130,6 +146,9 @@ export const useAuthStore = create<AuthState>()(
         outbox.enable()
         set({ user, offline: false })
         useOracleStore.getState().reconcile(user.oracle)
+        // L'album affiché était celui de l'invité. Ses cartes d'essai restent sur
+        // l'appareil : seule une INSCRIPTION les fait entrer dans un compte.
+        useCollectionStore.getState().reset()
       },
 
       logout: async () => {
