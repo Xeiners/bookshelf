@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { FolderOpen } from 'lucide-react'
+import { BookText, FolderOpen } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { useUiStore, type ViewId } from '../../store/useUiStore'
 import { LanguageToggle } from '../ui/LanguageToggle'
 import { Pressable } from '../ui/Pressable'
+import { BrandLogo } from '../ui/BrandLogo'
 
 interface AppHeaderProps {
   view: ViewId
@@ -24,6 +25,7 @@ export function AppHeader({ view }: AppHeaderProps) {
   const [shownView, setShownView] = useState(view)
   const copy = t.header[shownView]
   const openFiles = useUiStore((state) => state.openFiles)
+  const openNovels = useUiStore((state) => state.openNovels)
 
   useGSAP(
     () => {
@@ -52,22 +54,39 @@ export function AppHeader({ view }: AppHeaderProps) {
 
   return (
     <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-3 md:pb-5">
-      <div className="min-w-0">
-        <p
-          data-header-line
-          className="text-[10px] tracking-[0.3em] text-mist uppercase md:text-[11px]"
-        >
-          {copy.eyebrow}
-        </p>
-        <h1
-          data-header-line
-          className="text-gradient mt-1 text-[2rem] leading-[1.1] md:text-[2.75rem]"
-        >
-          {copy.title}
-        </h1>
+      <div className="flex min-w-0 items-start gap-2.5">
+        <BrandLogo variant="mark" size="sm" className="mt-0.5 md:hidden" />
+        <div className="min-w-0">
+          <p
+            data-header-line
+            className="text-[10px] tracking-[0.3em] text-mist uppercase md:text-[11px]"
+          >
+            {copy.eyebrow}
+          </p>
+          <h1
+            data-header-line
+            className="text-gradient mt-1 text-[2rem] leading-[1.1] md:text-[2.75rem]"
+          >
+            {copy.title}
+          </h1>
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 pt-1">
+        {/* Bibliothèque : romans du compte (EPUB synchronisés entre appareils). */}
+        {view === 'library' && (
+          <Pressable
+            onClick={() => {
+              vibrate(6)
+              openNovels()
+            }}
+            aria-label={t.novels.open}
+            title={t.novels.open}
+            className="glass grid size-11 place-items-center rounded-full text-cream/70"
+          >
+            <BookText size={17} />
+          </Pressable>
+        )}
         {/* Bibliothèque : fichiers personnels (PDF, EPUB, CBZ), lus avec le même lecteur. */}
         {view === 'library' && (
           <Pressable

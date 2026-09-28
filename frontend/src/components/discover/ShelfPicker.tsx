@@ -2,9 +2,10 @@ import { useRef } from 'react'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { useT } from '../../i18n'
 import type { Shelf } from '../../services/catalog'
-import { DECK_SHELVES } from '../../services/catalog'
 
 interface ShelfPickerProps {
+  /** Étagères du catalogue, ou celles des romans. */
+  shelves: Shelf[]
   active: Shelf
   onSelect: (shelf: Shelf) => void
 }
@@ -13,7 +14,7 @@ interface ShelfPickerProps {
  * Rail d'étagères thématiques. Débord à gauche uniquement (`-ml-5 pl-5`) : les
  * puces filent jusqu'au bord, les boutons d'action restent épinglés à droite.
  */
-export function ShelfPicker({ active, onSelect }: ShelfPickerProps) {
+export function ShelfPicker({ shelves, active, onSelect }: ShelfPickerProps) {
   const t = useT()
   const rowRef = useRef<HTMLDivElement>(null)
 
@@ -47,7 +48,7 @@ export function ShelfPicker({ active, onSelect }: ShelfPickerProps) {
       role="tablist"
       aria-label={t.shelves.pickerLabel}
     >
-      {DECK_SHELVES.map((shelf) => {
+      {shelves.map((shelf) => {
         const isActive = shelf.id === active.id
         return (
           <button

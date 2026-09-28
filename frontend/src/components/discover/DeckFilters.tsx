@@ -1,30 +1,35 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Check, Shuffle, SlidersHorizontal } from 'lucide-react'
 import { useT } from '../../i18n'
+import { DECK_SOURCES, DEFAULT_SOURCES, sameSources, type DeckSource } from '../../lib/deckSources'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
-import { DECK_ORIGINS, type DeckOrigin } from '../../services/discover'
 import { Pressable } from '../ui/Pressable'
 
 interface DeckFiltersProps {
-  origin: DeckOrigin
-  onOrigin: (origin: DeckOrigin) => void
+  sources: DeckSource[]
+  onToggle: (source: DeckSource) => void
+  onSelectAll: () => void
   onReload: () => void
 }
 
 /**
- * Bouton « Filtres » du deck et son panneau : origine (Tous / Manga / Manhwa /
- * Manhua) et nouvelle sélection. Tient sur la ligne des étagères : sur mobile,
- * la carte garde toute la hauteur au lieu d'empiler deux rangées de puces.
+ * Bouton « Filtres » du deck et son panneau : types de cartes à montrer
+ * (Manga, Manhwa, Manhua, Romans — plusieurs à la fois, au moins un) et
+ * nouvelle sélection. Tient sur la ligne des étagères : sur mobile, la carte
+ * garde toute la hauteur au lieu d'empiler deux rangées de puces.
  *
- * Un point sur le bouton signale un filtre actif. Le panneau se ferme sur un
- * tap dehors (un voile invisible l'absorbe : il n'ouvre pas la carte dessous),
- * sur Échap ou après un choix. Tant qu'il est ouvert, les flèches ne font pas swiper.
+ * Un point sur le bouton signale une sélection autre que celle par défaut.
+ * Le panneau reste ouvert pendant qu'on coche ; il se ferme sur un tap dehors
+ * (un voile invisible l'absorbe : il n'ouvre pas la carte dessous), sur Échap
+ * ou après « Nouvelle sélection ». Tant qu'il est ouvert, les flèches ne font pas swiper.
  */
-export function DeckFilters({ origin, onOrigin, onReload }: DeckFiltersProps) {
+export function DeckFilters({ sources, onToggle, onSelectAll, onReload }: DeckFiltersProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const filtered = origin !== 'all'
+  const filtered = !sameSources(sources, DEFAULT_SOURCES)
+  const everything = sources.length === DECK_SOURCES.length
+  const selection = sources.map((source) => t.deck.origins[source]).join(', ')
 
   /** Le focus revient au bouton (`Pressable` garde son propre ref pour l'animation). */
   const focusButton = () => rootRef.current?.querySelector<HTMLElement>('[aria-haspopup]')?.focus()
@@ -54,7 +59,7 @@ export function DeckFilters({ origin, onOrigin, onReload }: DeckFiltersProps) {
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [open])
 
-  // Ouverture : le panneau se déplie depuis le bouton ; le choix actif prend le focus.
+  // Ouverture : le panneau se déplie depuis le bouton ; le premier choix prend le focus.
   useGSAP(
     () => {
       if (!open) return
@@ -64,7 +69,7 @@ export function DeckFilters({ origin, onOrigin, onReload }: DeckFiltersProps) {
         { opacity: 0, y: -6, scale: 0.96 },
         { opacity: 1, y: 0, scale: 1, duration: 0.28, ease: EASE.swift },
       )
-      rootRef.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus()
+      rootRef.current?.querySelector<HTMLElement>('[role="checkbox"]')?.focus()
     },
     { dependencies: [open], scope: rootRef },
   )
@@ -75,7 +80,7 @@ export function DeckFilters({ origin, onOrigin, onReload }: DeckFiltersProps) {
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={filtered ? t.deck.filtersActive(t.deck.origins[origin]) : t.deck.filters}
+        aria-label={filtered ? t.deck.filtersActive(selection) : t.deck.filters}
         title={t.deck.filters}
         className={`glass relative grid size-11 place-items-center rounded-full transition-colors ${
           open || filtered ? 'text-cream' : 'text-cream/70'
@@ -97,31 +102,52 @@ export function DeckFilters({ origin, onOrigin, onReload }: DeckFiltersProps) {
           data-filters-panel
           role="dialog"
           aria-label={t.deck.filters}
-          className="glass-strong absolute top-full right-0 z-40 mt-2 w-56 origin-top-right rounded-2xl p-2 shadow-lift"
+          className="glass-strong absolute top-full right-0 z-40 mt-2 w-60 origin-top-right rounded-2xl p-2 shadow-lift"
         >
-          <p className="px-3 pt-1.5 pb-2 text-[10px] font-semibold tracking-[0.22em] text-mist uppercase">
-            {t.deck.originLabel}
-          </p>
-          <div role="radiogroup" aria-label={t.deck.originLabel}>
-            {DECK_ORIGINS.map((item) => {
-              const active = item === origin
+          <div className="flex items-center justify-between px-3 pt-1.5 pb-2">
+            <p className="text-[10px] font-semibold tracking-[0.22em] text-mist uppercase">{t.deck.sourcesLabel}</p>
+            <button
+              type="button"
+              onClick={onSelectAll}
+              disabled={everything}
+              className="text-[11px] font-medium text-glow transition-opacity disabled:opacity-0"
+            >
+              {t.deck.selectAll}
+            </button>
+          </div>
+          <div role="group" aria-label={t.deck.sourcesLabel}>
+            {DECK_SOURCES.map((source) => {
+              const checked = sources.includes(source)
+              // Le dernier type coché ne se décoche pas : un deck vide n'a pas de sens.
+              const locked = checked && sources.length === 1
               return (
-                <button
-                  key={item}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => {
-                    onOrigin(item)
-                    close()
-                  }}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                    active ? 'bg-cream/10 font-semibold text-cream' : 'text-cream/70 hover:bg-cream/5 hover:text-cream'
-                  }`}
-                >
-                  {t.deck.origins[item]}
-                  {active && <Check size={15} strokeWidth={2.6} className="text-glow" />}
-                </button>
+                <Fragment key={source}>
+                  {/* Les romans ne sont pas une origine de manga : un filet les sépare. */}
+                  {source === 'novel' && <div aria-hidden className="mx-3 my-1.5 h-px bg-cream/10" />}
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={checked}
+                    aria-disabled={locked || undefined}
+                    title={locked ? t.deck.keepOne : undefined}
+                    onClick={() => {
+                      if (!locked) onToggle(source)
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                      checked ? 'font-semibold text-cream' : 'text-cream/70 hover:bg-cream/5 hover:text-cream'
+                    } ${locked ? 'cursor-default' : ''}`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`grid size-5 shrink-0 place-items-center rounded-md border transition-colors ${
+                        checked ? 'border-glow bg-glow text-void' : 'border-cream/25'
+                      }`}
+                    >
+                      {checked && <Check size={13} strokeWidth={3} />}
+                    </span>
+                    {t.deck.origins[source]}
+                  </button>
+                </Fragment>
               )
             })}
           </div>

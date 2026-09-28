@@ -299,6 +299,16 @@ describe('deck — catalogue MangaDex (intégration)', () => {
     assert.ok(response.body.books.every((book: { kind: string }) => book.kind === 'manhwa'))
   })
 
+  it('origines cochées ensemble : « Manga » + « Manhwa » mêle les deux, une seule origine suffit à filtrer', async () => {
+    const both = await deck(guest, { origins: ['manga', 'manhwa'], limit: 40 })
+    const kinds = new Set(both.body.books.map((book: { kind: string }) => book.kind))
+    assert.deepEqual([...kinds].sort(), ['manga', 'manhwa'])
+    const only = await deck(guest, { origins: ['manhwa'], limit: 40 })
+    assert.equal(only.body.books.length, MANHWA_WORKS.length)
+    assert.ok(only.body.books.every((book: { kind: string }) => book.kind === 'manhwa'))
+    assert.equal((await deck(guest, { origins: ['novel'] })).status, 400, 'les romans ont leur propre route')
+  })
+
   it('anti-répétition invité : cartes vues, aimées et passées ne reviennent jamais', async () => {
     const first = (await deck(guest, { limit: 12 })).body.books.map((book: { id: string }) => book.id)
     const liked = first.slice(0, 4).map((id: string) => ({ id, categories: [], rating: null }))

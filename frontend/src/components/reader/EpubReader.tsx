@@ -1,53 +1,43 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ePub, { type Book as EpubBook, type Contents, type Location, type NavItem, type Rendition } from 'epubjs'
-import dyslexicBold from '@fontsource/opendyslexic/files/opendyslexic-latin-700-normal.woff2?url'
-import dyslexicRegular from '@fontsource/opendyslexic/files/opendyslexic-latin-400-normal.woff2?url'
-import { useLocalPosition } from '../../hooks/reader/useLocalPosition'
 import { useThemeColor } from '../../hooks/reader/useReaderEnvironment'
 import { useReaderChrome } from '../../hooks/reader/useReaderUi'
 import { useT } from '../../i18n'
+import { getLocations, saveLocations } from '../../lib/reader/db'
+import { FONT_ORDER, FONT_STACKS, THEMES, THEME_ORDER, fontFaceRules, readerCss } from '../../lib/reader/epubStyle'
 import { keyAction, swipeAction, tapAction } from '../../lib/reader/navigation'
 import { countWords, remainingMinutes } from '../../lib/reader/progress'
-import { getFileBlob, type LocalFile } from '../../lib/reader/localFiles'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
-import type { TextFont, TextSettings, TextTheme } from '../../types/reader'
 import { ChapterDrawer, type DrawerItem } from './ChapterDrawer'
+import { EMBEDDED_FONTS } from './epubFonts'
 import { ReaderControls, ReaderStatus } from './ReaderControls'
 import { ReaderMessage } from './ReaderMessage'
 import { Choice, ReaderSettings, SettingGroup, Stepper } from './ReaderSettings'
+import { ReadingProgressBar } from './ReadingProgressBar'
 
-/** Couleurs des thèmes de lecture : fond, texte, liens. */
-const THEMES: Record<TextTheme, { background: string; color: string; link: string; dark: boolean }> = {
-  black: { background: '#000000', color: '#e8e6e1', link: '#ffc46b', dark: true },
-  light: { background: '#fbfaf7', color: '#1b1b1f', link: '#5b3fd6', dark: false },
-  sepia: { background: '#f4ecd8', color: '#5b4636', link: '#8a5a2b', dark: false },
-  // Nuit profonde : fond bleu nuit, texte ambré, lumière bleue réduite.
-  night: { background: '#0a0e1a', color: '#c9b48f', link: '#e0a95c', dark: true },
+/** Ce que lit le moteur texte : un fichier de l'appareil ou un roman du compte. */
+export interface EpubSource {
+  title: string
+  /** Contenu du fichier (lu une fois, à l'ouverture). */
+  load: () => Promise<Blob | undefined>
+  /** Où reprendre ; `null` : au début. */
+  initialCfi: string | null
+  /** Clé IndexedDB des positions précalculées de ce livre. */
+  locationsKey: string
+  /**
+   * Page posée. `ratio` (0 → 1) vaut `null` tant que les positions du livre
+   * ne sont pas calculées : l'avancement réel est alors inconnu.
+   */
+  onPosition: (position: { cfi: string; ratio: number | null }) => void
+  /** Information discrète en bas d'écran (hors-ligne, synchronisation…). */
+  notice?: ReactNode
 }
 
-const FONT_STACKS: Record<TextFont, string> = {
-  serif: "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif", // i18n-ignore
-  sans: "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", // i18n-ignore
-  dyslexic: "'OpenDyslexic', system-ui, sans-serif", // i18n-ignore
-}
-
-/** Feuille injectée dans chaque chapitre : nos réglages priment sur ceux du livre. */
-function readerCss(settings: TextSettings): string {
-  const theme = THEMES[settings.theme]
-  const absolute = (url: string) => new URL(url, window.location.href).href
-  return `
-@font-face { font-family: 'OpenDyslexic'; font-weight: 400; src: url('${absolute(dyslexicRegular)}') format('woff2'); }
-@font-face { font-family: 'OpenDyslexic'; font-weight: 700; src: url('${absolute(dyslexicBold)}') format('woff2'); }
-html, body { background: ${theme.background} !important; color: ${theme.color} !important; }
-body { font-size: ${settings.fontSize}% !important; line-height: ${settings.lineHeight} !important; font-family: ${FONT_STACKS[settings.font]} !important; }
-p, li, blockquote, dd, dt, span, div, em, strong, i, b, small, h1, h2, h3, h4, h5, h6 { font-family: inherit !important; line-height: inherit !important; color: inherit !important; background-color: transparent !important; }
-a, a * { color: ${theme.link} !important; }
-img, svg, video { max-width: 100% !important; height: auto !important; }
-::selection { background: ${theme.link}55; }
-`
-}
+/** Caractères par position epub.js : partie de la clé du cache (changer l'un invalide l'autre). */
+const CHARS_PER_LOCATION = 1600
 
 const STYLE_ID = 'bookshelf-reader-style'
+const FONTS_STYLE_ID = 'bookshelf-reader-fonts'
 
 function applyCss(contents: Contents, css: string) {
   const document = contents.document
@@ -71,17 +61,17 @@ type Phase = 'loading' | 'ready' | 'error'
 
 /**
  * Mode texte : romans et web novels au format EPUB (epub.js), en pages
- * refondues selon l'écran. Typographie réglable (taille, police dont une
- * adaptée à la dyslexie, interlignage, marges), quatre thèmes, temps de
- * lecture restant dans le chapitre, sommaire.
+ * refondues selon l'écran. Typographie réglable (six polices dont une adaptée
+ * à la dyslexie, taille, interlignage, marges), cinq thèmes (sombre, OLED,
+ * sépia…), sommaire, barre de progression, temps de lecture restant.
  */
-export function EpubReader({ file }: { file: LocalFile }) {
+export function EpubReader({ source }: { source: EpubSource }) {
   const t = useT()
   const ui = useReaderChrome()
   const text = useReaderStore((state) => state.text)
   const setText = useReaderStore((state) => state.setText)
   const showStatus = useReaderStore((state) => state.showStatus)
-  const theme = THEMES[text.theme]
+  const theme = THEMES[text.theme] ?? THEMES.dark
   useThemeColor(theme.background)
 
   const hostRef = useRef<HTMLDivElement>(null)
@@ -93,14 +83,24 @@ export function EpubReader({ file }: { file: LocalFile }) {
   const [location, setLocation] = useState<Location | null>(null)
   const [locationsReady, setLocationsReady] = useState(false)
   const [words, setWords] = useState<Record<number, number>>({})
-  const [opening] = useState(file.position)
-  const save = useLocalPosition(file.id)
+  // Figés à l'ouverture : la position de reprise ne doit pas rouvrir le livre à chaque page.
+  const [opening] = useState(() => ({ cfi: source.initialCfi, load: source.load, locationsKey: `${source.locationsKey}:${CHARS_PER_LOCATION}` }))
 
-  const cssRef = useRef(readerCss(text))
-  const latest = useRef({ ui, save, direction: 'ltr' as const })
+  const fontFaces = useMemo(() => fontFaceRules(EMBEDDED_FONTS, window.location.href), [])
+  const cssRef = useRef(readerCss(text, fontFaces))
+  const latest = useRef({ ui, onPosition: source.onPosition, direction: 'ltr' as const, locationsReady: false })
   useEffect(() => {
-    latest.current = { ui, save, direction: 'ltr' }
+    latest.current = { ...latest.current, ui, onPosition: source.onPosition }
   })
+
+  // Polices aussi dans le document principal : les réglages les montrent en aperçu.
+  useEffect(() => {
+    const style = document.createElement('style')
+    style.id = FONTS_STYLE_ID
+    style.textContent = fontFaces
+    document.head.appendChild(style)
+    return () => style.remove()
+  }, [fontFaces])
 
   /* ---- Ouverture du livre ------------------------------------------------ */
 
@@ -109,14 +109,36 @@ export function EpubReader({ file }: { file: LocalFile }) {
     if (!host) return
     let cancelled = false
     let book: EpubBook | null = null
+    latest.current.locationsReady = false
+
+    const report = (next: Location) => {
+      const percentage = next.start.percentage
+      latest.current.onPosition({
+        cfi: next.start.cfi,
+        ratio: latest.current.locationsReady && Number.isFinite(percentage) ? percentage : null,
+      })
+    }
 
     const open = async () => {
-      const blob = await getFileBlob(file.id)
+      const blob = await opening.load()
       if (!blob) throw new Error('missing')
       book = ePub(await blob.arrayBuffer())
       bookRef.current = book
       await book.opened
       if (cancelled) return
+
+      // Positions déjà calculées lors d'une lecture précédente : curseur et % tout de suite.
+      const savedLocations = await getLocations(opening.locationsKey).catch(() => undefined)
+      if (cancelled) return
+      if (savedLocations) {
+        try {
+          book.locations.load(savedLocations)
+          latest.current.locationsReady = true
+          setLocationsReady(true)
+        } catch {
+          // Copie illisible : recalculée plus bas.
+        }
+      }
 
       const rendition = book.renderTo(host, {
         width: '100%',
@@ -133,8 +155,7 @@ export function EpubReader({ file }: { file: LocalFile }) {
 
       rendition.on('relocated', (next: Location) => {
         setLocation(next)
-        const percentage = next.start.percentage
-        latest.current.save({ cfi: next.start.cfi, ratio: Number.isFinite(percentage) ? percentage : 0 })
+        report(next)
       })
       rendition.on('rendered', (section: { index: number }, view: { contents?: Contents }) => {
         const body = view.contents?.document.body
@@ -179,16 +200,24 @@ export function EpubReader({ file }: { file: LocalFile }) {
       const navigation = await book.loaded.navigation
       if (!cancelled) setToc(flattenToc(navigation.toc))
 
-      await rendition.display(opening?.cfi || undefined)
+      // Position illisible (livre remplacé, CFI d'une autre édition) : on repart du début.
+      await rendition.display(opening.cfi || undefined).catch(() => rendition.display())
       if (cancelled) return
       setPhase('ready')
+      if (latest.current.locationsReady) return
 
-      // Positions globales (curseur, pourcentage) : calcul coûteux, lancé après l'affichage.
-      await book.locations.generate(1600)
+      // Positions globales (curseur, pourcentage) : calcul coûteux, lancé après l'affichage, gardé ensuite.
+      await book.locations.generate(CHARS_PER_LOCATION)
       if (cancelled) return
+      latest.current.locationsReady = true
       setLocationsReady(true)
+      void saveLocations(opening.locationsKey, book.locations.save()).catch(() => {})
       const current = rendition.currentLocation() as unknown as Location | undefined
-      if (current?.start) setLocation({ ...current })
+      if (current?.start) {
+        setLocation({ ...current })
+        // Le pourcentage est enfin connu : la position courante le porte.
+        report(current)
+      }
     }
 
     const handleKey = (event: KeyboardEvent, cancelable = true) => {
@@ -214,16 +243,16 @@ export function EpubReader({ file }: { file: LocalFile }) {
       book?.destroy()
       bookRef.current = null
     }
-  }, [file.id, opening, tick])
+  }, [opening, tick])
 
   /* ---- Réglages appliqués à chaud ---------------------------------------- */
 
   useEffect(() => {
-    cssRef.current = readerCss(text)
+    cssRef.current = readerCss(text, fontFaces)
     const rendition = renditionRef.current
     if (!rendition) return
     for (const contents of rendition.getContents() as unknown as Contents[]) applyCss(contents, cssRef.current)
-  }, [text])
+  }, [text, fontFaces])
 
   // Marges et taille d'écran : epub.js doit recalculer sa pagination.
   useEffect(() => {
@@ -242,7 +271,8 @@ export function EpubReader({ file }: { file: LocalFile }) {
   const start = location?.start
   const sectionWords = start ? (words[start.index] ?? 0) : 0
   const minutes = start ? remainingMinutes(sectionWords, start.displayed.page, start.displayed.total) : 0
-  const percent = locationsReady && start ? Math.round(start.percentage * 100) : null
+  const ratio = locationsReady && start && Number.isFinite(start.percentage) ? start.percentage : null
+  const percent = ratio === null ? null : Math.round(ratio * 100)
 
   const currentHref = start ? baseHref(start.href) : null
   const items: DrawerItem[] = useMemo(() => {
@@ -292,28 +322,34 @@ export function EpubReader({ file }: { file: LocalFile }) {
         </div>
       )}
 
-      {phase === 'ready' && !ui.controls && readingNote && (
-        <p className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-[10px] opacity-50">
+      {phase === 'ready' && !ui.controls && (readingNote || source.notice) && (
+        <p className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-center gap-1.5 px-4 text-center text-[10px] opacity-50">
+          {source.notice}
+          {source.notice && readingNote && <span aria-hidden>·</span>}
           {readingNote}
         </p>
+      )}
+
+      {phase === 'ready' && ratio !== null && (
+        <ReadingProgressBar ratio={ratio} color={theme.link} label={t.reader.text.progressLabel(Math.round(ratio * 100))} />
       )}
 
       <ReaderStatus visible={showStatus && !ui.controls} tone={theme.dark ? 'light' : 'dark'} />
 
       <ReaderControls
         visible={ui.controls}
-        title={file.title}
+        title={source.title}
         subtitle={currentTitle}
         onClose={ui.close}
         onOpenContents={toc.length > 0 ? () => ui.setPanel('contents') : undefined}
         contentsLabel={t.reader.contents}
         onOpenSettings={() => ui.setPanel('settings')}
         slider={
-          locationsReady && start
+          ratio !== null
             ? {
-                value: Math.round(start.percentage * 1000),
+                value: Math.round(ratio * 1000),
                 max: 1000,
-                valueText: t.reader.percent(Math.round(start.percentage * 100)),
+                valueText: t.reader.percent(Math.round(ratio * 100)),
                 onChange: (value) => {
                   const cfi = bookRef.current?.locations.cfiFromPercentage(value / 1000)
                   if (cfi) void renditionRef.current?.display(cfi)
@@ -344,15 +380,16 @@ export function EpubReader({ file }: { file: LocalFile }) {
             label={t.reader.text.theme}
             value={text.theme}
             onChange={(value) => setText({ theme: value })}
-            options={(['black', 'light', 'sepia', 'night'] as const).map((value) => ({ value, label: t.reader.text.themes[value] }))}
+            options={THEME_ORDER.map((value) => ({ value, label: t.reader.text.themes[value], swatch: THEMES[value].background }))}
           />
         </SettingGroup>
         <SettingGroup label={t.reader.text.font}>
           <Choice
             label={t.reader.text.font}
             value={text.font}
+            columns={3}
             onChange={(value) => setText({ font: value })}
-            options={(['serif', 'sans', 'dyslexic'] as const).map((value) => ({ value, label: t.reader.text.fonts[value] }))}
+            options={FONT_ORDER.map((value) => ({ value, label: t.reader.text.fonts[value], fontFamily: FONT_STACKS[value] }))}
           />
         </SettingGroup>
         <SettingGroup label={t.reader.text.fontSize}>

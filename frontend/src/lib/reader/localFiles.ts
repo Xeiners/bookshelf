@@ -6,6 +6,7 @@
  * liste) et `blobs` (contenu, lu seulement à l'ouverture).
  */
 import type { LocalFormat } from '../../types/reader'
+import { patchRecord, removeLocations, run, STORES } from './db'
 import { SNIFF_BYTES, sniffFormat, titleFromFileName } from './formats'
 
 /** Position dans un fichier importé : page (PDF, CBZ) ou CFI (EPUB). */
@@ -40,42 +41,8 @@ export class UnsupportedFileError extends Error {
 /** Au-delà, le navigateur risque de refuser le stockage (quota) ou de saturer la mémoire. */
 export const MAX_FILE_BYTES = 500 * 1024 * 1024
 
-const DB_NAME = 'bookshelf-reader'
-const DB_VERSION = 1
-const FILES = 'files'
-const BLOBS = 'blobs'
-
-let database: Promise<IDBDatabase> | null = null
-
-function open(): Promise<IDBDatabase> {
-  database ??= new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
-    request.onupgradeneeded = () => {
-      const db = request.result
-      if (!db.objectStoreNames.contains(FILES)) db.createObjectStore(FILES, { keyPath: 'id' })
-      if (!db.objectStoreNames.contains(BLOBS)) db.createObjectStore(BLOBS)
-    }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => {
-      database = null
-      reject(request.error ?? new Error('indexedDB'))
-    }
-  })
-  return database
-}
-
-function run<T>(stores: string[], mode: IDBTransactionMode, work: (tx: IDBTransaction) => IDBRequest<T> | void): Promise<T> {
-  return open().then(
-    (db) =>
-      new Promise<T>((resolve, reject) => {
-        const tx = db.transaction(stores, mode)
-        const request = work(tx)
-        tx.oncomplete = () => resolve(request ? request.result : (undefined as T))
-        tx.onerror = () => reject(tx.error ?? new Error('indexedDB'))
-        tx.onabort = () => reject(tx.error ?? new Error('indexedDB'))
-      }),
-  )
-}
+const FILES = STORES.files
+const BLOBS = STORES.blobs
 
 export async function listFiles(): Promise<LocalFile[]> {
   const files = await run<LocalFile[]>([FILES], 'readonly', (tx) => tx.objectStore(FILES).getAll())
@@ -117,16 +84,7 @@ export async function importFile(file: File): Promise<LocalFile> {
   return record
 }
 
-async function patch(id: string, change: Partial<LocalFile>): Promise<void> {
-  await run([FILES], 'readwrite', (tx) => {
-    const store = tx.objectStore(FILES)
-    const request = store.get(id)
-    request.onsuccess = () => {
-      const current = request.result as LocalFile | undefined
-      if (current) store.put({ ...current, ...change })
-    }
-  })
-}
+const patch = (id: string, change: Partial<LocalFile>) => patchRecord<LocalFile>(FILES, id, (current) => ({ ...current, ...change }))
 
 export const markOpened = (id: string) => patch(id, { openedAt: Date.now() })
 
@@ -137,4 +95,8 @@ export async function removeFile(id: string): Promise<void> {
     tx.objectStore(FILES).delete(id)
     tx.objectStore(BLOBS).delete(id)
   })
+  await removeLocations(localLocationsKey(id)).catch(() => {})
 }
+
+/** Clé des positions EPUB précalculées d'un fichier importé. */
+export const localLocationsKey = (id: string) => `local:${id}`

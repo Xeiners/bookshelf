@@ -75,6 +75,15 @@ services:
       TACHIYOMI_SOURCES: ${TACHIYOMI_SOURCES:-}
       # Recette : boosters illimités. Jamais en production.
       BOOSTER_UNLIMITED_MODE: ${BOOSTER_UNLIMITED_MODE:-false}
+      # Romans EPUB des comptes : fichiers dans le volume `books_data` (cf. plus bas).
+      BOOKS_MAX_UPLOAD_MB: ${BOOKS_MAX_UPLOAD_MB:-50}
+      BOOKS_QUOTA_MB: ${BOOKS_QUOTA_MB:-2048}
+      BOOKS_METADATA_LOOKUP: ${BOOKS_METADATA_LOOKUP:-on}
+      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+    volumes:
+      # EPUB importés et couvertures extraites : survivent aux reconstructions de l'image.
+      # À sauvegarder avec la base (les fiches `UserBook` y renvoient).
+      - books_data:/app/backend/uploads
     networks:
       default:
         # Nom visé par le Nginx du front : unique, même si le front rejoint le
@@ -150,3 +159,4 @@ services:
 volumes:
   postgres_data:
   suwayomi_data:
+  books_data:

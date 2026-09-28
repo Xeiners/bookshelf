@@ -23,11 +23,15 @@ import { useLanguage, useT } from './i18n'
 import { useAuthStore } from './store/useAuthStore'
 import { useUiStore } from './store/useUiStore'
 import { LocalFilesSheet } from './components/reader/LocalFilesSheet'
+import { usePendingNovelProgress } from './hooks/useNovels'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
 const UniversalReader = lazy(() =>
   import('./components/reader/UniversalReader').then((module) => ({ default: module.UniversalReader })),
 )
+
+// « Mes romans » : chargé à la première ouverture (liste, fiche, recherche de fiches).
+const NovelsSheet = lazy(() => import('./components/novels/NovelsSheet').then((module) => ({ default: module.NovelsSheet })))
 
 const SPLASH_KEY = 'bookshelf:splash-seen'
 
@@ -47,6 +51,7 @@ export default function App() {
   const authOpen = useUiStore((state) => state.authOpen)
   const reader = useUiStore((state) => state.reader)
   const filesOpen = useUiStore((state) => state.filesOpen)
+  const novelsOpen = useUiStore((state) => state.novelsOpen)
   const boosterOpen = useUiStore((state) => state.boosterOpen)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
@@ -56,6 +61,9 @@ export default function App() {
 
   // Bibliothèque enregistrée retraduite dans la langue choisie.
   useLibraryLocalization()
+
+  // Positions de romans lues hors-ligne : envoyées dès que possible.
+  usePendingNovelProgress()
 
   // 1–5, Ctrl/⌘ K, Ctrl/⌘ B.
   useKeyboardShortcuts()
@@ -170,6 +178,11 @@ export default function App() {
       {detail && <BookSheet key={detail.id} book={detail} />}
       {authOpen && <AuthSheet />}
       {filesOpen && <LocalFilesSheet />}
+      {novelsOpen && (
+        <Suspense fallback={null}>
+          <NovelsSheet />
+        </Suspense>
+      )}
       {boosterOpen && <BoosterPackModal />}
       {reader && (
         <Suspense fallback={<div className="fixed inset-0 z-[100] bg-black" />}>

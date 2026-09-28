@@ -46,6 +46,7 @@ model User {
   preference UserPreference?
   booster    UserBooster?
   cards      UserCard[]
+  books      UserBook[]
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -186,6 +187,50 @@ model UserCard {
   card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@id([userId, cardId])
+}
+
+/// Roman importé par un compte (EPUB) : le fichier vit sur le serveur (cf.
+/// `src/modules/books/`), la position de lecture suit le compte d'un appareil à l'autre.
+model UserBook {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String
+  author          String?
+  /// Couverture choisie hors du fichier (Open Library, Google Books). `null` :
+  /// celle du fichier (`coverPath`), sinon une couverture procédurale.
+  coverUrl        String?
+  /// Chemins RELATIFS au dossier des livres (`BOOKS_DIR`), jamais tirés d'une
+  /// saisie : `<userId>/<sha256>.epub`, et la couverture extraite du fichier.
+  filePath        String
+  coverPath       String?
+  /// Octets du fichier (50 Mo au plus).
+  fileSize        Int
+  /// Empreinte SHA-256 du fichier : le même EPUB importé deux fois n'est stocké qu'une fois.
+  sha256          String
+  /// 'EPUB' : seul format accepté pour l'instant.
+  format          String    @default("EPUB")
+  /// Nom du fichier chez l'utilisateur, pour l'affichage.
+  originalName    String
+  synopsis        String    @default("")
+  /// Code de langue du livre ('fr', 'en'…), lu dans le fichier.
+  language        String?
+  publisher       String?
+  year            Int?
+  /// Pagination de l'édition papier, quand les métadonnées en ligne la connaissent.
+  pages           Int?
+  /// Avancement 0 → 100.
+  progressPercent Float     @default(0)
+  /// Position EPUB (CFI) : la phrase exacte où la lecture s'est arrêtée.
+  lastCfi         String?
+  /// Horodatage CLIENT de cette position : entre deux appareils, la plus récente gagne.
+  progressAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sha256])
+  @@index([userId, updatedAt])
 }
 
 /// Fin de la dernière indexation COMPLÈTE du catalogue : une indexation

@@ -16,7 +16,10 @@
     "test:unit": "node --import tsx --test --test-reporter=spec test/*.test.ts"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/merriweather": "^5.3.0",
     "@fontsource/opendyslexic": "^5.3.0",
+    "@fontsource/roboto": "^5.3.0",
     "@gsap/react": "^2.1.2",
     "epubjs": "^0.3.93",
     "fflate": "^0.8.3",
@@ -37,6 +40,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "babel-plugin-react-compiler": "^1.0.0",
     "oxlint": "^1.75.0",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

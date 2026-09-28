@@ -11,6 +11,7 @@ import type { Dictionary } from '../i18n/fr'
 import type { Language } from '../i18n/languages'
 import type { Book } from '../types/book'
 import { api } from './api'
+import { catalogOrigins, type DeckSource } from '../lib/deckSources'
 
 /** Id d'étagère : le contrat avec l'API ; les libellés vivent dans les dictionnaires. */
 export type ShelfId = keyof Dictionary['shelves']['names']
@@ -42,6 +43,43 @@ export const DECK_SHELVES: Shelf[] = (
 ).map((id) => ({ id }))
 
 /**
+ * Étagères du deck « Romans » (sujets Open Library, cf.
+ * `backend/src/modules/books/novels.discover.ts`, mêmes ids).
+ */
+export const NOVEL_SHELVES: Shelf[] = (
+  [
+    'pour-toi',
+    'tendances',
+    'romance',
+    'fantasy',
+    'thriller',
+    'science-fiction',
+    'mystere',
+    'horreur',
+    'historique',
+    'young-adult',
+    'classiques',
+  ] as const
+).map((id) => ({ id }))
+
+/**
+ * Étagères proposées selon ce qui est coché : celles du catalogue, celles des
+ * romans, ou les deux (communes d'abord, puis celles propres aux romans). Une
+ * étagère d'un seul côté (« Isekai », « Thriller ») ne sert que ce côté-là.
+ */
+export function shelvesFor(sources: readonly DeckSource[]): Shelf[] {
+  const catalog = catalogOrigins(sources).length > 0
+  const novels = sources.includes('novel')
+  if (!novels) return DECK_SHELVES
+  if (!catalog) return NOVEL_SHELVES
+  const ids = new Set(DECK_SHELVES.map((shelf) => shelf.id))
+  return [...DECK_SHELVES, ...NOVEL_SHELVES.filter((shelf) => !ids.has(shelf.id))]
+}
+
+export const isCatalogShelf = (id: ShelfId) => DECK_SHELVES.some((shelf) => shelf.id === id)
+export const isNovelShelf = (id: ShelfId) => NOVEL_SHELVES.some((shelf) => shelf.id === id)
+
+/**
  * Les listes MangaDex contiennent déjà la description complète : on l'amorce
  * dans le cache, l'hydratation du deck ne refait donc aucune requête.
  * Clé par langue : le même titre a un résumé différent en fr et en en.
@@ -59,6 +97,13 @@ export async function fetchSynopsis(bookId: string, language: Language, signal?:
   const key = synopsisKey(language, bookId)
   const cached = synopsisCache.get(key)
   if (cached !== undefined) return cached
+
+  // Roman du deck (Open Library) : son résumé est sur la fiche de l'œuvre.
+  if (bookId.startsWith('ol:')) {
+    const { synopsis } = await api<{ synopsis: string }>(`/books/summary/${encodeURIComponent(bookId)}`, { signal })
+    synopsisCache.set(key, synopsis)
+    return synopsis
+  }
 
   const params = new URLSearchParams({ lang: language })
   const { book } = await api<{ book: Book }>(`/manga/${encodeURIComponent(bookId)}?${params.toString()}`, {

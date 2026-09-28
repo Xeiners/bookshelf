@@ -18,7 +18,7 @@ backend/
     ├── lib/                   cache TTL, erreurs HTTP, hachage, session JWT
     ├── middleware/            requireAuth, limiteur de débit
     └── modules/
-        ├── books/             contrat `Book` partagé avec le front
+        ├── books/             contrat `Book` partagé avec le front ; romans EPUB du compte (§7 sexies)
         ├── manga/             proxy MangaDex : client, normalisation, étagères, tags
         ├── auth/              register · login · me · logout
         └── library/           swipe, patch, suppression, fusion invité → compte
@@ -450,7 +450,7 @@ continuent de fonctionner. Voir §7.
 | GET | `/api/manga/search?q=&page=1&limit=24&origin=all\|manga\|manhwa&lang=` | `{ books, total, page, hasMore }` |
 | GET | `/api/manga/batch?ids=a,b,c&lang=` | `{ books }` — 100 ids max, inconnus ignorés |
 | GET | `/api/manga/:id?lang=` | `{ book }` — `:id` = UUID MangaDex |
-| POST | `/api/discover/deck` | deck recommandé, voir §7 ter |
+| POST | `/api/discover/deck` | deck recommandé, voir §7 ter — `origins: ['manga','manhwa']` pour plusieurs origines à la fois |
 | POST | `/api/discover/browse` | recherche et filtres du catalogue, voir §7 quater |
 | GET | `/api/discover/genres?lang=` | `{ genres: { id, label, count }[] }` — filtres de genre |
 | GET | `/api/covers/:mangaId/:fileName?size=512\|256` | image |
@@ -518,6 +518,25 @@ continuent de fonctionner. Voir §7.
 `book` est obligatoire sauf pour `skipped`, et `book.id` doit valoir `mangaId`.
 Toutes ces opérations sont idempotentes : la file du front peut les rejouer sans
 risque.
+
+### Romans (cf. §7 sexies)
+
+| Méthode | Route | Corps | Réponse |
+| --- | --- | --- | --- |
+| GET | `/api/books/search?q=&lang=fr\|en` | — | `{ results: Book[] }` (`kind: 'book'`) — **public**, 40 / min / IP |
+| POST | `/api/books/discover` | `{ shelf, lang, limit?, round?, seen?, skipped?, liked? }` | `{ books, hasMore, personalized }` — deck « Romans », **public** |
+| GET | `/api/books/summary/:id` | — | `{ synopsis }` — résumé d'un roman du deck (`ol:OL…W`), **public** |
+| POST | `/api/books/upload?lang=` | le fichier EPUB **brut** (`Content-Type: application/epub+zip`, nom dans `X-File-Name`, encodé URI) | 201 `{ book, duplicate: false }` · 200 `{ book, duplicate: true }` si déjà importé · 413 `file_too_large` / `quota_exceeded` · 415 · 422 `invalid_epub` |
+| GET | `/api/books` | — | `{ books }` — derniers lus d'abord |
+| GET | `/api/books/:id` | — | `{ book }` |
+| GET | `/api/books/:id/file` | — | le fichier, en flux ; `Range` → 206, plage impossible → 416 |
+| GET | `/api/books/:id/cover` | — | la couverture extraite du fichier (404 s'il n'en a pas) |
+| PATCH | `/api/books/:id/progress` | `{ cfi, percent (0-100), at }` | `{ applied, book }` — `applied: false` si une position plus récente existe |
+| PATCH | `/api/books/:id` | `{ title?, author?, synopsis?, coverUrl?, publisher?, year?, pages? }` | `{ book }` — `coverUrl` : Open Library / Google Books en HTTPS, `null` = celle du fichier |
+| DELETE | `/api/books/:id` | — | 204, fichiers effacés du disque |
+
+Toutes authentifiées sauf `search`. Le livre d'un autre compte répond **404**
+(jamais 403 : son existence ne fuit pas).
 
 ---
 
@@ -840,6 +859,93 @@ IP), et un même reçu peut servir à plusieurs NOUVEAUX comptes (e-mail vérifi
 Tests : `backend/test/cards.test.ts` (régénération, probabilités sur 200 000
 tirages, garantie, set, API de bout en bout, concurrence, horloge serveur, recette, invités et reçus falsifiés, réclamation à l'inscription).
 
+## 7 sexies. Romans EPUB (`src/modules/books/`)
+
+Un compte importe ses romans (EPUB) ; le fichier est stocké par l'API et la
+position de lecture suit le compte : commencé sur le téléphone, le livre reprend
+sur l'ordinateur **à la même phrase** (CFI EPUB).
+
+```
+books/
+  epub.parser.ts        métadonnées embarquées (fflate + lecture tolérante de l'OPF) — pur, testé
+  metadata.normalize.ts fiches Open Library / Google Books → forme commune, fusion, rapprochement — pur, testé
+  metadata.service.ts   appels sortants : cache, disjoncteur par source, délais
+  books.service.ts      réception en flux, import, quota, position, fiche, suppression
+  books.routes.ts       /api/books/*
+```
+
+**Modèle `UserBook`** : `title`, `author`, `coverUrl` (couverture choisie en
+ligne), `filePath` / `coverPath` (relatifs à `BOOKS_DIR`), `fileSize`, `sha256`,
+`format` (`EPUB`), `synopsis`, `language`, `publisher`, `year`, `pages`,
+`progressPercent` (0 → 100), `lastCfi`, `progressAt` (horodatage client),
+`updatedAt`. Unicité `(userId, sha256)` : le même fichier importé deux fois (deux
+appareils) donne la fiche existante (`duplicate: true`), rien n'est stocké en double.
+
+**Import** (`POST /api/books/upload`) :
+
+1. refus immédiat, avant de lire le corps : type, `Content-Length` > `BOOKS_MAX_UPLOAD_MB`
+   (50 Mo), quota du compte (`BOOKS_QUOTA_MB`, 2 Go). Le corps refusé est tout de même
+   lu et jeté : un navigateur encore en train d'envoyer ne verrait sinon qu'une
+   connexion coupée, jamais le 413 (au-delà de 4 × la limite, la connexion est fermée) ;
+2. corps écrit en flux dans `BOOKS_DIR/.tmp`, empreinte SHA-256 calculée au passage,
+   coupé net au-delà de la limite (client qui ment sur sa taille) ;
+3. `parseEpub` : `META-INF/container.xml` → OPF → titre, auteurs (rôle `aut`, EPUB 2
+   et 3), langue, résumé (HTML retiré), éditeur, date de publication, ISBN,
+   couverture (`cover-image`, `<meta name="cover">`, page de couverture du guide,
+   image nommée « cover »), reconnue à ses octets. Seules ces entrées sont
+   décompressées, plafonnées (2 Mo de texte, 10 Mo d'image) : pas de bombe ZIP ;
+4. fiche en ligne (`lookupNovel`, 5 s au plus) : même ISBN, sinon même titre ET même
+   auteur — mieux vaut aucune fiche que le résumé d'un autre livre. Elle complète le
+   résumé, la pagination, la parution, et la couverture si le fichier n'en a pas ;
+5. déplacement atomique vers `BOOKS_DIR/<userId>/<sha256>.epub` (+ `.cover.<ext>`).
+   Les chemins ne viennent jamais d'une saisie.
+
+Corps **brut** plutôt que multipart : un seul flux vers le disque, sans tampon
+mémoire ni dépendance (multer, busboy).
+
+**Fichier** (`GET /:id/file`) : `res.sendFile` (module `send`) gère `Range`,
+`If-Range`, `ETag`, 206 / 304 / 416 ; `Cache-Control: private, no-store` — le
+front garde sa copie dans IndexedDB, inutile d'en garder une seconde en cache HTTP.
+
+**Position** (`PATCH /:id/progress`) : mise à jour **conditionnelle** en une requête
+(`progressAt` nul ou plus ancien) : la plus récente gagne, deux envois simultanés
+ne peuvent pas s'écraser dans le mauvais ordre, et un téléphone resté hors-ligne
+qui se reconnecte ne fait pas reculer l'ordinateur (`applied: false`, la réponse
+porte la position qui fait foi). Un `at` dans le futur (horloge en avance) est
+ramené à maintenant, sans quoi il figerait la position pour tous les appareils.
+
+**Fiches en ligne** (`searchNovels`) : Open Library (`search.json`, `lang=`) et
+Google Books (`volumes`, **une requête par langue** : `langRestrict` n'en accepte
+qu'une) en parallèle. Fusion par titre + nom du premier auteur ; la fiche dans la
+langue voulue sert de base, l'autre la complète (résumé Google, pagination Open
+Library, première parution). Classement : rang dans la source, proximité avec la
+requête, langue, complétude. Résumés Open Library hydratés (`/works/<id>.json`) pour
+les 6 premières fiches, dans un budget de 2,5 s. Couvertures : `-L.jpg` d'Open
+Library ; Google en HTTPS, sans `edge=curl`, agrandie par `fife=w800-h1200`.
+Cache 6 h (5 min si une source a manqué), résumés 24 h. Disjoncteur par source :
+Google Books sans clé (`GOOGLE_BOOKS_API_KEY`) renvoie vite 429, il est alors laissé
+tranquille 10 min et Open Library répond seule ; les deux en panne → 502.
+
+**Deck « Romans »** (`novels.discover.ts`, pur, testé) : le deck de Découverte propose
+aussi des romans (case « Romans » du filtre, seule ou avec les mangas), avec leurs étagères — Pour toi, Tendances,
+Romance, Fantasy, Thriller, Science-fiction, Mystère, Horreur, Historique, Young
+adult, Classiques. Chaque étagère est un sujet Open Library, restreint aux œuvres
+ayant une édition dans la langue voulue (`language:fre|eng`), triées par
+popularité (`readinglog`). « Pour toi » : les trois genres les plus fréquents
+parmi les romans gardés (catégories Open Library / Google Books), triés par note ;
+sans historique, les romans les mieux notés. `lang=` fait choisir à Open Library
+l'édition de la langue : titre et couverture français (« Le Nom de la Rose » plutôt
+que « Il nome della rosa »), ce qui profite aussi à la recherche. Déjà vus, passés
+ou gardés : exclus ; « Nouvelle sélection » (`round`) repart plus loin dans le
+classement. Résumés (souvent en anglais sur Open Library) chargés à l'approche de
+la carte, Markdown retiré.
+
+Tests : `backend/test/books.test.ts` (38) — analyseur (EPUB 2 et 3, CDATA,
+entités, guide, couverture démesurée, refus), normalisation et fusion, puis l'API
+(recherche et pannes de sources, 401 / 413 / 415 / 422, import enrichi,
+doublon, `Range` / 416, position entre deux appareils, position périmée, horloge
+en avance, fiche corrigée, isolement entre comptes, quota, suppression).
+
 ## 8. Limites connues et suites possibles
 
 - Les entrées de bibliothèque créées du temps d'AniList depuis une carte
@@ -861,5 +967,12 @@ tirages, garantie, set, API de bout en bout, concurrence, horloge serveur, recet
 - Les toasts sont rédigés à l'émission : un toast visible au moment d'un
   changement de langue est retiré plutôt que laissé dans l'ancienne langue.
 - Le contrat `Book` est dupliqué (`frontend/src/types/book.ts` et
-  `backend/src/modules/books/book.schema.ts`). Un troisième workspace `shared`
-  s'imposera si le contrat continue d'évoluer.
+  `backend/src/modules/books/book.schema.ts`), de même que `CloudBook`
+  (`frontend/src/types/novel.ts` et `toDto`). Un troisième workspace `shared`
+  s'imposera si les contrats continuent d'évoluer.
+- Romans : les fichiers sont sur le disque de l'API (volume `books_data`), donc
+  propres à une instance ; en multi-instance, passer sur un stockage objet (S3…).
+  La suppression d'un compte n'efface pas encore ses fichiers (la base, si : cascade).
+  Un envoi en `Transfer-Encoding: chunked` qui dépasse la limite est coupé net :
+  le client voit une erreur réseau, pas le 413 (les navigateurs annoncent toujours
+  la taille d'un `File`).

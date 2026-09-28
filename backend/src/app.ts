@@ -5,6 +5,7 @@ import { ZodError, z } from 'zod'
 import { config } from './config.js'
 import { HttpError } from './lib/errors.js'
 import { authRouter } from './modules/auth/auth.routes.js'
+import { booksRouter } from './modules/books/books.routes.js'
 import { boostersRouter, cardsRouter } from './modules/cards/cards.routes.js'
 import { chaptersRouter, mangaChaptersRouter } from './modules/chapters/chapters.routes.js'
 import { discoverRouter } from './modules/discover/discover.routes.js'
@@ -45,6 +46,8 @@ export function createApp() {
   app.use('/api/discover', discoverRouter)
   app.use('/api/boosters', boostersRouter)
   app.use('/api/cards', cardsRouter)
+  // Romans EPUB : l'envoi d'un fichier est lu en flux par sa route, jamais par `express.json`.
+  app.use('/api/books', booksRouter)
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: 'Route inconnue.' } })

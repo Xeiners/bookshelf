@@ -13,17 +13,32 @@
  *  - pages de chapitre (/api/chapters/…/image/…, et /api/proxy/page/… pour les autres sources)
  *    → cache d'abord : le chapitre en cours, préchargé en entier, reste lisible hors-ligne
  *  - listes de chapitres et de pages → réseau d'abord, repli sur la dernière copie
- *  - reste de /api   → réseau uniquement (session, bibliothèque : jamais périmés)
+ *  - couvertures des romans du compte (/api/books/<id>/cover) → stale-while-revalidate,
+ *    dans un cache « privé » que la déconnexion efface (cf. useNovelStore.clear)
+ *  - reste de /api   → réseau uniquement (session, bibliothèque : jamais périmés).
+ *    Les fichiers EPUB du compte n'y passent pas : IndexedDB les garde (cloudBooks.ts).
  */
 
-const VERSION = 'v4'
+const VERSION = 'v6'
 const SHELL_CACHE = `bookshelf-shell-${VERSION}`
 const ASSET_CACHE = `bookshelf-assets-${VERSION}`
 const IMAGE_CACHE = `bookshelf-covers-${VERSION}`
 const PAGES_CACHE = `bookshelf-pages-${VERSION}`
 const READER_DATA_CACHE = `bookshelf-reader-data-${VERSION}`
+/** Données d'un compte : le préfixe `bookshelf-private-` est effacé à la déconnexion. */
+const PRIVATE_CACHE = `bookshelf-private-${VERSION}`
 
-const SHELL_URLS = ['./', './index.html', './manifest.webmanifest', './favicon.svg']
+const SHELL_URLS = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './favicon.svg',
+  './favicon.ico',
+  './apple-touch-icon.png',
+  './pwa-192x192.png',
+  './pwa-512x512.png',
+  './pwa-maskable-512x512.png',
+]
 const MAX_IMAGES = 200
 /** Quelques chapitres complets (une page pèse 100 à 500 Ko). */
 const MAX_PAGES = 400
@@ -40,6 +55,8 @@ const COVERS_PREFIX = '/api/covers/'
 const CHAPTER_IMAGE = /^\/api\/(chapters\/[\w-]+\/image|proxy\/page)\//
 /** `/api/chapters/<id>/pages` (UUID MangaDex ou `source~id`) et `/api/manga/<id>/chapters` */
 const READER_DATA = /^\/api\/(chapters\/[\w~-]+\/pages|manga\/[\w-]+\/chapters)$/
+/** Couverture extraite d'un EPUB du compte : `/api/books/<id>/cover?v=<empreinte>`. */
+const NOVEL_COVER = /^\/api\/books\/[\w-]+\/cover$/
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -74,7 +91,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys()
-      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE])
+      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE, PRIVATE_CACHE])
       await Promise.all(keys.filter((key) => !current.has(key)).map((key) => caches.delete(key)))
       await self.clients.claim()
     })(),
@@ -210,6 +227,11 @@ self.addEventListener('fetch', (event) => {
   }
   if (url.origin === self.location.origin && READER_DATA.test(url.pathname)) {
     event.respondWith(networkFirstData(request))
+    return
+  }
+  // Couvertures des romans du compte : affichées hors-ligne dans « Mes romans ».
+  if (url.origin === self.location.origin && NOVEL_COVER.test(url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request, PRIVATE_CACHE))
     return
   }
 

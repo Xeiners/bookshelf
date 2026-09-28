@@ -79,9 +79,16 @@ Chapitres MangaDex en défilement vertical (webtoon) ou page par page (simple ou
 double page, sens japonais ou occidental), basculables en un tap. Pages préchargées
 en arrière-plan, chapitre en cours lisible hors-ligne, reprise exacte là où tu
 t'es arrêté et compteur de chapitres lus mis à jour tout seul. Tes propres PDF,
-EPUB et CBZ s'importent dans « Mes fichiers » et restent sur l'appareil ; les
-romans ont leur typographie réglable (dont une police pour la dyslexie) et quatre
-thèmes de lecture.
+EPUB et CBZ s'importent dans « Mes fichiers » et restent sur l'appareil.
+
+📚 **Tes romans, sur tous tes appareils**
+Importe un EPUB (glisser-déposer ou sélecteur) : il rejoint ton compte, sa fiche
+est complétée par Open Library et Google Books (résumé, couverture HD, pages), et
+la lecture reprend **à la même phrase** du téléphone à l'ordinateur — même
+hors-ligne, la position suit dès le retour du réseau. Six polices (dont
+Merriweather et une police pour la dyslexie), thèmes sombre, OLED et sépia,
+sommaire et barre de progression. La recherche trouve aussi n'importe quel roman,
+en français ou en anglais.
 
 ☁️ **Sans compte d'abord, synchronisé ensuite**
 Aucune inscription pour commencer : tout vit sur l'appareil. Crée un compte depuis

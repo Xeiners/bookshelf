@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useT } from '../../i18n'
-import { BRAND } from '../../lib/brand'
 import { gsap, useGSAP } from '../../lib/gsap'
+import { BrandLogo } from '../ui/BrandLogo'
 
 
 interface SplashIntroProps {
@@ -31,13 +31,13 @@ export function SplashIntro({ onDone }: SplashIntroProps) {
       timeline
         .from('[data-eyebrow]', { yPercent: 120, autoAlpha: 0, duration: 0.7 })
         .from(
-          '[data-char]',
-          { yPercent: 115, duration: 1, stagger: 0.045, ease: 'power4.out' },
+          '[data-brand]',
+          { yPercent: 45, autoAlpha: 0, duration: 1, ease: 'power4.out' },
           0.12,
         )
         .from('[data-rule]', { scaleX: 0, duration: 1.1, ease: 'expo.inOut' }, 0.3)
         .from('[data-tagline]', { autoAlpha: 0, y: 14, duration: 0.7 }, 0.62)
-        .to('[data-char]', { yPercent: -115, duration: 0.7, stagger: 0.03 }, '+=0.45')
+        .to('[data-brand]', { yPercent: -45, autoAlpha: 0, duration: 0.7 }, '+=0.45')
         .to('[data-eyebrow], [data-tagline]', { autoAlpha: 0, duration: 0.4 }, '<')
         .to('[data-rule]', { scaleX: 0, transformOrigin: 'right center', duration: 0.6 }, '<')
         .to(
@@ -65,14 +65,15 @@ export function SplashIntro({ onDone }: SplashIntroProps) {
         </p>
       </div>
 
-      <h1 className="mt-3 flex flex-wrap font-display text-[clamp(3.25rem,19vw,6rem)] leading-[0.9]">
-        {BRAND.split('').map((char, index) => (
-          <span key={`${char}-${index}`} className="inline-block overflow-hidden pb-[0.08em]">
-            <span data-char className="inline-block">
-              {char}
-            </span>
-          </span>
-        ))}
+      <h1 className="mt-3 overflow-hidden pb-[0.08em]">
+        <span data-brand className="inline-block">
+          <BrandLogo
+            size="lg"
+            className="origin-left gap-[clamp(0.55rem,2vw,1.25rem)]"
+            markClassName="size-[clamp(2.75rem,14vw,6rem)]"
+            textClassName="text-[clamp(2.4rem,13vw,6rem)]"
+          />
+        </span>
       </h1>
 
       <div data-rule className="mt-5 h-px w-full origin-left bg-cream/25" />

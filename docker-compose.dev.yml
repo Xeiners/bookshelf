@@ -84,6 +84,9 @@ services:
       TACHIYOMI_SOURCES: ${TACHIYOMI_SOURCES:-}
       # Recette : boosters illimités (taux de tirage, animations).
       BOOSTER_UNLIMITED_MODE: ${BOOSTER_UNLIMITED_MODE:-false}
+      # Romans EPUB : fichiers dans backend/uploads/ (ignoré par git), fiches en ligne.
+      BOOKS_METADATA_LOOKUP: ${BOOKS_METADATA_LOOKUP:-on}
+      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
       # Fichiers montés depuis Windows / macOS : pas d'événements inotify, on scrute.
       CHOKIDAR_USEPOLLING: "true"
     # Clients Prisma (SQLite + PostgreSQL), migrations, puis l'API en rechargement à chaud.

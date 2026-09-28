@@ -1,5 +1,10 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { LANGUAGES, type Language } from './lib/language.js'
+
+/** Racine du package backend (valable depuis `src/` comme depuis `dist/`). */
+const BACKEND_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 try {
   process.loadEnvFile()
@@ -96,6 +101,26 @@ const EnvSchema = z.object({
    * de tirage et les animations. Les cartes tirées sont bien enregistrées.
    */
   BOOSTER_UNLIMITED_MODE: z.enum(['true', 'false']).default('false'),
+
+  /*
+   * Romans importés (EPUB, cf. src/modules/books/). Les fichiers vivent sur le
+   * disque de l'API : en Docker, un volume (`books_data`) les garde entre deux
+   * déploiements.
+   */
+  /** Dossier des fichiers, relatif au dossier backend (ou absolu). */
+  BOOKS_DIR: z.string().default('uploads/books'),
+  /** Taille maximale d'un fichier importé, en Mo. */
+  BOOKS_MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(500).default(50),
+  /** Espace alloué à chaque compte, en Mo : le disque du serveur est partagé. */
+  BOOKS_QUOTA_MB: z.coerce.number().int().min(1).default(2048),
+  /**
+   * Fiches en ligne (Open Library + Google Books) : recherche de romans et
+   * enrichissement des EPUB importés (résumé, couverture HD, pagination).
+   * Coupé par défaut en test.
+   */
+  BOOKS_METADATA_LOOKUP: z.enum(['on', 'off']).optional(),
+  /** Clé Google Books : sans elle, le quota anonyme partagé renvoie souvent 429 (Open Library prend alors le relais). */
+  GOOGLE_BOOKS_API_KEY: z.string().trim().optional(),
 })
 
 const csv = (value: string | undefined) =>
@@ -198,6 +223,13 @@ export const config = {
   },
   cards: {
     unlimited: env.BOOSTER_UNLIMITED_MODE === 'true',
+  },
+  books: {
+    dir: path.isAbsolute(env.BOOKS_DIR) ? env.BOOKS_DIR : path.resolve(BACKEND_ROOT, env.BOOKS_DIR),
+    maxUploadBytes: env.BOOKS_MAX_UPLOAD_MB * 1024 * 1024,
+    quotaBytes: env.BOOKS_QUOTA_MB * 1024 * 1024,
+    metadataLookup: (env.BOOKS_METADATA_LOOKUP ?? (env.NODE_ENV === 'test' ? 'off' : 'on')) === 'on',
+    googleApiKey: env.GOOGLE_BOOKS_API_KEY || undefined,
   },
   mail: {
     transport: resolveMailTransport(),

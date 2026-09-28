@@ -35,7 +35,7 @@ npm install                  # à la racine : les deux workspaces (+ prisma gene
 npm run dev                  # API :5000 + front :5173 (proxy /api)
 npm run typecheck            # tsgo (TypeScript 7), les deux workspaces
 npm run lint                 # oxlint
-npm test                     # API : node:test (175 tests) · front : audit i18n + tests unitaires du lecteur (60)
+npm test                     # API : node:test (273 tests) · front : audit i18n + tests unitaires (102)
 npm run build
 npm run preview -w frontend  # seul moyen de tester le service worker (inactif en dev)
 ```
@@ -78,11 +78,13 @@ modules/proxy      relais d'images des autres sources (en-têtes de provenance, 
 extensions/        sources de chapitres (Strategy) : registre, agrégateur, fusion, disjoncteur, providers/
 modules/discover   deck « Pour toi » et catalogue filtrable (/browse)
 modules/oracle     tirage quotidien, série (streak)
+modules/books      romans EPUB du compte : import, fichier (Range), position synchronisée ; fiches Open Library + Google Books
 services/          catalogue MangaDex en cache, moteur de recommandation
 ```
 
 Modèles Prisma : `User`, `LibraryEntry`, `SkippedWork`, `UserPreference`,
-`CatalogWork`, `CatalogSync`, `PendingRegistration`.
+`CatalogWork`, `CatalogSync`, `PendingRegistration`, `UserBooster`, `Card`,
+`UserCard`, `UserBook` (romans EPUB du compte, cf. docs/BACKEND.md §7 sexies).
 
 ### Frontend (`frontend/src`)
 
@@ -212,6 +214,15 @@ lit maintenant `index.html` et précache les `/assets/` qu'il cite ; `cacheFirst
 compare avec `ignoreVary` (sinon `Vary: Origin` empêche une balise `crossorigin`
 de trouver la copie précachée).
 
+### 5.17 bis Import d'EPUB : trois limites de taille à garder alignées
+
+`BOOKS_MAX_UPLOAD_MB` (API, 50), `client_max_body_size 51m` (bloc
+`location = /api/books/upload` de `frontend/nginx.conf` — le bloc `/api/` reste à
+2 Mo) et `MAX_NOVEL_BYTES` (front, vérifié avant l'envoi). Les directives du bloc
+`/api/` ne s'héritent pas dans ce bloc exact : elles y sont répétées. Un 413 envoyé
+sans lire le corps apparaît côté navigateur comme une connexion coupée : l'API lit
+et jette le corps refusé avant de répondre (cf. `discardBody`).
+
 ### 5.17 Titres sous licence : 0 chapitre lisible
 
 Beaucoup de titres connus (*Solo Leveling*…) n'ont sur MangaDex que des liens
@@ -259,8 +270,11 @@ Diagnostiquer une couverture : `docker compose logs backend | grep covers` — c
   réseau d'abord, repli sur la dernière copie ; reste de `/api` : jamais en cache.
 - **Pas de `skipWaiting`** : une nouvelle version prend la main au redémarrage suivant.
   Après un déploiement, fermer / rouvrir l'app (deux fois parfois).
-- Changer de stratégie de cache → **incrémenter `VERSION`** (actuellement `v4`) pour
+- Changer de stratégie de cache → **incrémenter `VERSION`** (actuellement `v5`) pour
   purger les anciens caches.
+- Couvertures des romans du compte (`/api/books/<id>/cover`) : cache `bookshelf-private-*`,
+  effacé à la déconnexion. Les fichiers EPUB, eux, ne passent jamais par le Service
+  Worker : IndexedDB (`cloud-blobs`).
 - L'installation exige HTTPS : en HTTP, `usePwaInstall` renvoie `insecure` et
   `InstallCard` l'explique.
 
@@ -314,7 +328,9 @@ peuvent garder des 404 en cache jusqu'à 24 h — effacer les données du site.
 de compte ; export / import JSON de la bibliothèque ; tests e2e Playwright versionnés ;
 sauvegarde planifiée du volume PostgreSQL ; cache des couvertures sur disque plutôt
 qu'en mémoire si le trafic augmente. Lecteur : vrais CBR (RAR, via un décodeur
-WebAssembly type libarchive.js) ; positions d'EPUB mises en cache (le calcul des
-« locations » refait à chaque ouverture coûte quelques secondes sur un gros roman) ;
-position des fichiers importés non synchronisée entre appareils (volontaire : les
-fichiers restent locaux).
+WebAssembly type libarchive.js) ; position des fichiers de « Mes fichiers » non
+synchronisée entre appareils (volontaire : ils restent locaux — les romans à
+synchroniser passent par « Mes romans »). Romans : effacer les fichiers d'un compte
+supprimé ; sauvegarder le volume `books_data` avec PostgreSQL ; tester l'import et
+la reprise téléphone → ordinateur sur la prod (vérifié en local et par les tests
+seulement).

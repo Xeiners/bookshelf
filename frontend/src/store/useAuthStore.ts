@@ -14,6 +14,7 @@ import {
 import { useBoosterStore } from './useBoosterStore'
 import { useCollectionStore } from './useCollectionStore'
 import { useGuestCardsStore } from './useGuestCardsStore'
+import { useNovelStore } from './useNovelStore'
 import { librarySnapshot, useLibraryStore } from './useLibraryStore'
 import { useOracleStore } from './useOracleStore'
 import { useSettingsStore } from './useSettingsStore'
@@ -56,7 +57,11 @@ function adoptAccountLanguage(user: AuthUser) {
 function endSession(reason: 'expired' | 'logout') {
   outbox.disable()
   outbox.clear()
-  if (reason === 'logout') useLibraryStore.getState().replaceAll({ entries: [], skipped: [] })
+  if (reason === 'logout') {
+    useLibraryStore.getState().replaceAll({ entries: [], skipped: [] })
+    // Romans du compte (fichiers, positions, couvertures) : rien ne reste sur l'appareil.
+    void useNovelStore.getState().clear()
+  }
   useBoosterStore.getState().reset()
   useCollectionStore.getState().reset()
   useAuthStore.setState({ user: null, offline: false })

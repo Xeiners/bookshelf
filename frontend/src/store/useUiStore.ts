@@ -29,6 +29,8 @@ interface UiState {
   reader: ReaderSession | null
   /** Feuille « Mes fichiers » (PDF, EPUB, CBZ importés). */
   filesOpen: boolean
+  /** Feuille « Mes romans » (EPUB du compte, synchronisés). */
+  novelsOpen: boolean
   activity: ActivityScreen
   /** Ouverture de booster en plein écran. */
   boosterOpen: boolean
@@ -48,6 +50,8 @@ interface UiState {
   closeReader: () => void
   openFiles: () => void
   closeFiles: () => void
+  openNovels: () => void
+  closeNovels: () => void
   /** Va sur un écran des Activités (le hub, l'Oracle, la collection). */
   openActivity: (activity: ActivityScreen) => void
   openBooster: () => void
@@ -67,6 +71,7 @@ export const useUiStore = create<UiState>((set) => ({
   searchFocusTick: 0,
   reader: null,
   filesOpen: false,
+  novelsOpen: false,
   activity: 'hub',
   boosterOpen: false,
 
@@ -78,10 +83,12 @@ export const useUiStore = create<UiState>((set) => ({
   setLibraryTab: (libraryTab) => set({ libraryTab }),
   openLibrary: (libraryTab) => set({ view: 'library', libraryTab }),
   focusSearch: () => set((state) => ({ view: 'search', searchFocusTick: state.searchFocusTick + 1 })),
-  openReader: (reader) => set({ reader, detail: null, filesOpen: false }),
+  openReader: (reader) => set({ reader, detail: null, filesOpen: false, novelsOpen: false }),
   closeReader: () => set({ reader: null }),
   openFiles: () => set({ filesOpen: true }),
   closeFiles: () => set({ filesOpen: false }),
+  openNovels: () => set({ novelsOpen: true, detail: null }),
+  closeNovels: () => set({ novelsOpen: false }),
   openActivity: (activity) => set({ view: 'activities', activity }),
   openBooster: () => set({ boosterOpen: true, detail: null }),
   closeBooster: () => set({ boosterOpen: false }),

@@ -40,22 +40,34 @@ export interface ChoiceOption<T extends string> {
   label: string
   hint?: string
   disabled?: boolean
+  /** Pastille de couleur (thèmes de lecture). */
+  swatch?: string
+  /** Libellé écrit dans cette police (aperçu des polices). */
+  fontFamily?: string
 }
 
-/** Choix exclusif en boutons segmentés (radio accessible). */
+/** Choix exclusif en boutons segmentés (radio accessible), sur une ligne ou en grille. */
 export function Choice<T extends string>({
   label,
   options,
   value,
   onChange,
+  columns,
 }: {
   label: string
   options: ChoiceOption<T>[]
   value: T
   onChange: (value: T) => void
+  /** Grille de `columns` colonnes : pour les listes trop longues pour une ligne. */
+  columns?: number
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex gap-1 rounded-2xl bg-white/[0.05] p-1">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={`gap-1 rounded-2xl bg-white/[0.05] p-1 ${columns ? 'grid' : 'flex'}`}
+      style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
+    >
       {options.map((option) => {
         const active = option.value === value
         return (
@@ -66,11 +78,20 @@ export function Choice<T extends string>({
             aria-checked={active}
             disabled={option.disabled}
             onClick={() => onChange(option.value)}
-            className={`min-w-0 flex-1 rounded-xl px-2 py-2 text-xs transition-colors disabled:opacity-30 ${
+            className={`min-w-0 flex-1 rounded-xl py-2 text-xs transition-colors disabled:opacity-30 ${option.swatch ? 'px-1' : 'px-2'} ${
               active ? 'bg-cream text-void' : 'text-cream/75 hover:bg-white/[0.06]'
             }`}
           >
-            <span className="block truncate">{option.label}</span>
+            {option.swatch && (
+              <span
+                aria-hidden
+                className={`mx-auto mb-1 block size-4 rounded-full border ${active ? 'border-void/30' : 'border-white/25'}`}
+                style={{ background: option.swatch }}
+              />
+            )}
+            <span className="block truncate" style={option.fontFamily ? { fontFamily: option.fontFamily } : undefined}>
+              {option.label}
+            </span>
             {option.hint && (
               <span className={`block truncate text-[10px] ${active ? 'text-void/60' : 'text-mist'}`}>{option.hint}</span>
             )}

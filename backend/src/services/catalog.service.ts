@@ -253,6 +253,8 @@ export type DeckBook = Book & { matchPercentage: number; discovery: boolean }
 export interface DeckRequest {
   shelf: string
   origin: DeckOrigin
+  /** Plusieurs origines cochées (manga + manhwa…) : prime sur `origin`. */
+  origins?: readonly Exclude<DeckOrigin, 'all'>[]
   language: Language
   limit: number
   excluded: ReadonlySet<string>
@@ -265,6 +267,13 @@ export interface DeckPage {
   hasMore: boolean
   /** `catalog` : catalogue en cache ; `mangadex` : repli pendant la toute première indexation. */
   source: 'catalog' | 'mangadex'
+}
+
+/** Pays retenus par le deck : l'union des origines cochées, ou `null` pour toutes. */
+export function deckCountries(request: Pick<DeckRequest, 'origin' | 'origins'>): readonly string[] | null {
+  if (!request.origins || request.origins.length === 0) return ORIGIN_COUNTRIES[request.origin]
+  const countries = new Set(request.origins.flatMap((origin) => ORIGIN_COUNTRIES[origin] ?? []))
+  return countries.size >= 3 ? null : [...countries]
 }
 
 /** En dessous, le catalogue est trop maigre (première indexation en cours) : repli MangaDex. */
@@ -280,7 +289,7 @@ export async function composeDeck(request: DeckRequest): Promise<DeckPage> {
   if (current.items.length < MIN_CATALOG) return mangadexDeck(request)
 
   const shelf = DECK_SHELVES[request.shelf] ?? {}
-  const countries = ORIGIN_COUNTRIES[shelf.origin ?? request.origin]
+  const countries = shelf.origin ? ORIGIN_COUNTRIES[shelf.origin] : deckCountries(request)
   const candidates = current.items.filter(
     (item) =>
       (!countries || countries.includes(item.country)) &&

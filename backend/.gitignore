@@ -9,3 +9,6 @@ src/generated/
 
 # Bases temporaires des tests d’intégration
 test/.tmp/
+
+# Romans importés par les comptes (`BOOKS_DIR`) : données d'utilisateurs, jamais versionnées
+uploads/

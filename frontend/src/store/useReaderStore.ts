@@ -24,7 +24,7 @@ export const DEFAULT_TEXT: TextSettings = {
   font: 'serif',
   lineHeight: 1.6,
   margin: 16,
-  theme: 'black',
+  theme: 'dark',
 }
 
 /** Mode par défaut : webtoon pour les œuvres coréennes et chinoises (bandes verticales), pages sinon. */

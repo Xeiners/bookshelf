@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { gsap, useGSAP } from '../../lib/gsap'
 import type { ViewId } from '../../store/useUiStore'
 import { useT } from '../../i18n'
-import { BRAND } from '../../lib/brand'
+import { BrandLogo } from '../ui/BrandLogo'
 import { NAV_COLOR_ACTIVE, NAV_COLOR_IDLE, NAV_ITEMS } from './navItems'
 
 interface NavRailProps {
@@ -50,8 +50,7 @@ export function NavRail({ view, onChange }: NavRailProps) {
 
   return (
     <aside className="hidden shrink-0 flex-col gap-6 py-6 pl-5 md:flex lg:hidden">
-      {/* Nom de marque, identique dans toutes les langues. */}
-      <p className="hidden px-4 font-display text-2xl leading-none lg:block">{BRAND}</p>
+      <BrandLogo variant="mark" size="md" className="justify-center" />
 
       <nav
         ref={railRef}

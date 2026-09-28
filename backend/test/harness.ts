@@ -113,6 +113,8 @@ export interface TestClient {
    * vérification (201 + session), ou celle de la 1ʳᵉ étape si elle échoue.
    */
   signUp: (body: { email: string; password: string; initialData?: unknown; guestPacks?: string[]; [key: string]: unknown }) => Promise<{ status: number; body: any }>
+  /** Requête brute (corps binaire, en-têtes libres, réponse non lue), avec le cookie de ce client. */
+  send: (method: string, route: string, init?: { body?: RequestInit['body']; headers?: Record<string, string> }) => Promise<Response>
 }
 
 /** Dernier code envoyé à une adresse (e-mails de la boîte en mémoire). */
@@ -147,8 +149,15 @@ export async function startServer() {
       const text = await response.text()
       return { status: response.status, body: text ? JSON.parse(text) : null }
     }
+    const send: TestClient['send'] = (method, route, init = {}) =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { ...init.headers, ...(cookie && { Cookie: cookie }) },
+        ...(init.body !== undefined && { body: init.body }),
+      })
     return {
       request,
+      send,
       async signUp({ initialData, guestPacks, ...form }) {
         const started = await request('POST', '/auth/register', form)
         if (started.status !== 202) return started

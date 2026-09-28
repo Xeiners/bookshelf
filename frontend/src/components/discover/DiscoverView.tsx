@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react'
 import { RotateCcw, Shuffle, WifiOff } from 'lucide-react'
 import { useDiscoveryQueue } from '../../hooks/useDiscoveryQueue'
-import { withoutDeckFields, type DeckOrigin } from '../../services/discover'
+import type { DeckSource } from '../../lib/deckSources'
+import { withoutDeckFields } from '../../services/discover'
 import { useT } from '../../i18n'
 import { type LibrarySnapshot, useLibraryStore } from '../../store/useLibraryStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -72,14 +73,16 @@ export function DiscoverView() {
     cursor,
     remaining,
     shelf,
-    origin,
+    shelves,
+    sources,
     phase,
     offline,
     refilling,
     advance,
     rewind,
     selectShelf,
-    selectOrigin,
+    toggleSource,
+    selectAllSources,
     reload,
   } = useDiscoveryQueue()
 
@@ -127,11 +130,15 @@ export function DiscoverView() {
     setHistory([])
     selectShelf(next)
   }
-  const changeOrigin = (next: DeckOrigin) => {
-    if (next === origin) return
+  const changeSource = (source: DeckSource) => {
     setHistory([])
-    selectOrigin(next)
+    toggleSource(source)
   }
+  const selectAll = () => {
+    setHistory([])
+    selectAllSources()
+  }
+  const sourcesKey = sources.join('+')
   const reloadDeck = () => {
     setHistory([])
     reload()
@@ -146,7 +153,8 @@ export function DiscoverView() {
     <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
       {/* Rail d'étagères + filtres, sur une seule ligne ; au-dessus du deck pour le panneau de filtres */}
       <div className="relative z-20 flex items-center gap-2">
-        <ShelfPicker active={shelf} onSelect={changeShelf} />
+        {/* Remonté quand la sélection change : le nouveau rail d'étagères rejoue son entrée. */}
+        <ShelfPicker key={sourcesKey} shelves={shelves} active={shelf} onSelect={changeShelf} />
 
         {offline && (
           <span
@@ -158,7 +166,7 @@ export function DiscoverView() {
         )}
 
         {/* Origine + nouvelle sélection, dans un panneau : une seule rangée au-dessus de la carte. */}
-        <DeckFilters origin={origin} onOrigin={changeOrigin} onReload={reloadDeck} />
+        <DeckFilters sources={sources} onToggle={changeSource} onSelectAll={selectAll} onReload={reloadDeck} />
       </div>
 
       {isLoading ? (
@@ -168,7 +176,7 @@ export function DiscoverView() {
       ) : (
         <SwipeDeck
           // Remonter le deck à chaque étagère (ou origine) rejoue l'entrée en éventail.
-          key={`${shelf.id}|${origin}`}
+          key={`${shelf.id}|${sourcesKey}`}
           queue={queue}
           cursor={cursor}
           onDecision={handleDecision}

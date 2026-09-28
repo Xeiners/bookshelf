@@ -1,7 +1,15 @@
 import { create } from 'zustand'
 import { DEFAULT_FILTERS, MAX_GENRES, type BrowseFilters } from '../services/browse'
 
+/** Ce que cherche la page : le catalogue MangaDex, ou des romans (Open Library + Google Books). */
+export type SearchScope = 'catalog' | 'novels'
+
 interface SearchState {
+  scope: SearchScope
+  /** Recherche de romans : distincte de celle du catalogue (un titre de manga n'est pas un roman). */
+  novelQuery: string
+  setScope: (scope: SearchScope) => void
+  setNovelQuery: (query: string) => void
   filters: BrowseFilters
   /** Remplace une partie des filtres. */
   update: (patch: Partial<BrowseFilters>) => void
@@ -16,6 +24,10 @@ interface SearchState {
  * session repart du catalogue complet.
  */
 export const useSearchStore = create<SearchState>()((set) => ({
+  scope: 'catalog',
+  novelQuery: '',
+  setScope: (scope) => set({ scope }),
+  setNovelQuery: (novelQuery) => set({ novelQuery }),
   filters: DEFAULT_FILTERS,
   update: (patch) => set((state) => ({ filters: { ...state.filters, ...patch } })),
   toggleGenre: (genre) =>

@@ -38,6 +38,8 @@ const DeckBody = z.intersection(
   z.object({
     shelf: z.string().trim().max(40).default('pour-toi'),
     origin: OriginSchema,
+    /** Origines cochées dans le deck (plusieurs à la fois) ; absent : `origin`. */
+    origins: z.array(z.enum(['manga', 'manhwa', 'manhua'])).max(3).optional(),
     lang: LangQuerySchema,
     limit: z.coerce.number().int().min(1).max(40).default(20),
     /** Cartes déjà dans la file du front : jamais renvoyées deux fois. */
@@ -95,9 +97,12 @@ discoverRouter.post('/deck', optionalAuth, async (req, res) => {
   const { profile, seen } = await resolveProfile(req, body)
   for (const id of body.seen) seen.add(id)
 
+  // Une seule origine cochée : c'est aussi le filtre du repli MangaDex (première indexation).
+  const single = body.origins?.length === 1 ? body.origins[0]! : null
   const deck = await composeDeck({
     shelf: body.shelf,
-    origin: body.origin,
+    origin: single ?? body.origin,
+    origins: body.origins,
     language: body.lang,
     limit: body.limit,
     excluded: seen,

@@ -12,6 +12,7 @@ import { LIBRARY_TABS } from '../../types/book'
 import { Pressable } from '../ui/Pressable'
 import { BookTile } from './BookTile'
 import { FeaturedBook } from './FeaturedBook'
+import { NovelsStrip } from './NovelsStrip'
 import { SegmentedTabs } from './SegmentedTabs'
 import { ShowcaseShelves } from './ShowcaseShelves'
 
@@ -155,6 +156,8 @@ export function LibraryView() {
           {layout === 'shelf' ? <LayoutGrid size={16} /> : <Rows3 size={16} />}
         </Pressable>
       </div>
+
+      <NovelsStrip />
 
       <div
         ref={scrollRef}

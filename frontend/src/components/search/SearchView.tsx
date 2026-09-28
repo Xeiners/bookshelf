@@ -8,6 +8,7 @@ import { activeFilterCount, effectiveSort, fetchGenres, type GenreFacet } from '
 import { useSearchStore } from '../../store/useSearchStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CatalogCard } from './CatalogCard'
+import { NovelSearch } from './NovelSearch'
 import { SearchFilters } from './SearchFilters'
 import { SortMenu } from './SortMenu'
 
@@ -66,6 +67,7 @@ export function SearchView() {
   const filters = useSearchStore((state) => state.filters)
   const update = useSearchStore((state) => state.update)
   const toggleGenre = useSearchStore((state) => state.toggleGenre)
+  const scope = useSearchStore((state) => state.scope)
   const [panelOpen, setPanelOpen] = useState(false)
   const [genres, setGenres] = useState<GenreFacet[]>([])
 
@@ -166,8 +168,18 @@ export function SearchView() {
     })),
   ]
 
+  if (scope === 'novels') {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
+        <ScopeToggle />
+        <NovelSearch />
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
+      <ScopeToggle />
       {/* Recherche */}
       <div className="glass flex items-center gap-3 rounded-2xl px-4 py-3.5 transition-shadow focus-within:shadow-glow">
         <SearchIcon size={18} className="shrink-0 text-mist" />
@@ -312,6 +324,32 @@ export function SearchView() {
       {panelOpen && (
         <SearchFilters genres={genres} total={phase === 'ready' ? total : null} onClose={() => setPanelOpen(false)} />
       )}
+    </div>
+  )
+}
+
+/** Mangas (catalogue MangaDex) ou romans (Open Library + Google Books). */
+function ScopeToggle() {
+  const t = useT()
+  const scope = useSearchStore((state) => state.scope)
+  const setScope = useSearchStore((state) => state.setScope)
+  return (
+    <div role="radiogroup" aria-label={t.search.scopeLabel} className="glass flex w-full shrink-0 gap-1 rounded-full p-1 md:max-w-xs">
+      {(['catalog', 'novels'] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={scope === value}
+          onClick={() => {
+            vibrate(6)
+            setScope(value)
+          }}
+          className={`h-9 flex-1 rounded-full text-xs font-semibold transition-colors ${scope === value ? 'bg-cream text-void' : 'text-cream/70 hover:text-cream'}`}
+        >
+          {t.search.scopes[value]}
+        </button>
+      ))}
     </div>
   )
 }

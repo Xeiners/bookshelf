@@ -46,6 +46,11 @@ export class TtlCache<V> {
     this.slots.delete(key)
   }
 
+  /** Oublie tout (tests). */
+  clear(): void {
+    this.slots.clear()
+  }
+
   /**
    * Renvoie la valeur en cache, ou la charge une seule fois pour tous les appelants.
    * `ttlMs` peut dépendre de la valeur chargée (résultat partiel → gardé moins longtemps).

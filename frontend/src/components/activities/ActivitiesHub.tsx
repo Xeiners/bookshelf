@@ -1,18 +1,23 @@
 import { useRef, type CSSProperties, type ReactNode } from 'react'
-import { FlaskConical, Gift, MoonStar, WifiOff, Zap } from 'lucide-react'
+import { BookText, ChevronRight, FlaskConical, Gift, MoonStar, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
 import { useCollection } from '../../hooks/useCollection'
+import { useNovels } from '../../hooks/useNovels'
 import { useOracleStatus } from '../../hooks/useOracleStatus'
 import { useT } from '../../i18n'
 import { completion, rarityRank } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
+import { novelAsBook } from '../../lib/novels'
 import { formatCountdown } from '../../lib/oracle'
+import { displayPercent } from '../../store/useNovelStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
 import { CARD_FRAMES } from '../cards/cardFrames'
+import { EpubDropZone } from '../novels/EpubDropZone'
+import { BookCover } from '../ui/BookCover'
 import { EnergyRing } from './EnergyRing'
 
 /** Texte néon : lueur de la couleur donnée. */
@@ -73,6 +78,7 @@ export function ActivitiesHub() {
         <OracleArtefact />
         <CollectionArtefact />
       </div>
+      <NovelsArtefact />
     </div>
   )
 }
@@ -365,5 +371,67 @@ function CollectionArtefact() {
         )}
       </span>
     </button>
+  )
+}
+
+/* ---- Romans ---------------------------------------------------------------------------------- */
+
+/**
+ * Romans du compte : les derniers lus en éventail, l'import d'un EPUB
+ * (glisser-déposer sur ordinateur) et l'accès à la liste. Pas un bouton
+ * unique comme les autres artefacts : il contient deux actions distinctes.
+ */
+function NovelsArtefact() {
+  const t = useT()
+  const { signedIn, books, importFiles } = useNovels()
+  const openNovels = useUiStore((state) => state.openNovels)
+  const recent = (books ?? []).slice(0, 3)
+  const current = (books ?? []).find((entry) => {
+    const percent = displayPercent(entry)
+    return percent > 0 && percent < 100
+  })
+
+  return (
+    <section data-artefact aria-label={t.novels.artefact.title} className={ARTEFACT_CLASS} style={ARTEFACT_SURFACE}>
+      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+        <span aria-hidden className="relative block h-28 w-[5.4rem] shrink-0 self-center">
+          {recent.length > 0 ? (
+            recent.map((entry, index) => (
+              <span
+                key={entry.id}
+                className="absolute top-2 left-3 block h-[5.4rem] w-[3.9rem] origin-bottom overflow-hidden rounded-md bg-carbon shadow-[0_10px_20px_-8px_rgba(0,0,0,0.9)]"
+                style={{ transform: `rotate(${(index - (recent.length - 1) / 2) * 12}deg)`, zIndex: index === 1 ? 2 : 1 }}
+              >
+                <BookCover book={novelAsBook(entry.book)} className="h-full w-full" />
+              </span>
+            ))
+          ) : (
+            <span className="absolute inset-2 grid place-items-center rounded-xl border border-[#ffe39a]/40 bg-black/30">
+              <BookText size={30} className="text-[#fff4c8]" />
+            </span>
+          )}
+        </span>
+        <span className="block min-w-0 flex-1">
+          <span className="block text-[10px] tracking-[0.32em] text-[#fff4c8]/60 uppercase">{t.novels.artefact.eyebrow}</span>
+          <span className="mt-1 block font-display text-2xl text-cream">{t.novels.artefact.title}</span>
+          <span className="mt-1 block text-sm text-cream/60">{signedIn ? t.novels.artefact.body : t.novels.guest.body}</span>
+          {current && <span className="mt-2 block truncate text-xs text-gold">{t.novels.artefact.reading(current.book.title)}</span>}
+          <span className="mt-3 flex flex-wrap items-center gap-2">
+            <EpubDropZone variant="pill" onFiles={(files) => importFiles(files, { openSheet: true })} />
+            <button
+              type="button"
+              onClick={() => {
+                vibrate(6)
+                openNovels()
+              }}
+              className="inline-flex h-10 items-center gap-1 rounded-full px-3 text-xs text-[#fff4c8]/85 hover:text-[#fff4c8]"
+            >
+              {signedIn && books && books.length > 0 ? `${t.novels.artefact.open} · ${t.novels.count(books.length)}` : t.novels.artefact.open}
+              <ChevronRight size={14} aria-hidden />
+            </button>
+          </span>
+        </span>
+      </div>
+    </section>
   )
 }

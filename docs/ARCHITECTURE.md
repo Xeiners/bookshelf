@@ -663,13 +663,20 @@ components/reader/
   ImageReader       moteur « images » : WebtoonView ou PagedView, commandes, tiroirs
   WebtoonView       défilement vertical continu, pages bord à bord, reprise au pixel
   PagedView         simple / double page, RTL / LTR, swipe, tiers de l'écran, pincement
-  EpubReader        moteur « texte » (epub.js) : typographie, thèmes, temps restant
+  EpubReader        moteur « texte » (epub.js) : typographie, thèmes, temps restant, barre de progression ;
+                    lit une `EpubSource` : fichier de l'appareil, ou roman du compte via…
+  CloudReader       …roman du compte : fiche + position (API, repli IndexedDB), fichier téléchargé
+                    une fois puis lu hors-ligne, position synchronisée (ProgressSync)
+  ReadingProgressBar  fine barre d'avancement (pure, rendue dans les tests)
   PdfReader         moteur « document » (pdf.js, canevas) : pincement, Ctrl + molette
   ReaderControls    en-tête + pied de page en surimpression ; ReaderStatus (heure, batterie)
   ChapterDrawer / SidePanel / ReaderSettings / ChapterEnd / PageImage / ReaderMessage
   LocalFilesSheet   « Mes fichiers » : import, liste, suppression
-lib/reader/         progress, prefetch, navigation, formats, sources (purs, testés : frontend/test/)
-                    archive (CBZ), localFiles (IndexedDB), quality, readable
+components/novels/  NovelsSheet (« Mes romans »), NovelDetails (fiche, « Corriger la fiche »),
+                    EpubDropZone (glisser-déposer + sélecteur)
+lib/reader/         progress, prefetch, navigation, formats, sources, cloudSync, epubStyle
+                    (purs, testés : frontend/test/) ; archive (CBZ), db (IndexedDB partagée),
+                    localFiles, cloudBooks, quality, readable
 hooks/reader/       useReaderUi, usePrefetch, usePinch, useLocalPosition, useReaderEnvironment,
                     usePageRecovery (contexte : « Essayer sur <autre source> » d'une page en erreur)
 workers/            prefetch.worker.ts
@@ -724,6 +731,60 @@ fin : les sites réellement présents, pas le nom du fournisseur.
 max) et les listes de chapitres / pages (réseau d'abord) : le chapitre préchargé
 se relit sans réseau. Fichiers importés : IndexedDB (`bookshelf-reader`), jamais
 envoyés à l'API.
+
+**Romans du compte (EPUB synchronisés).** Import depuis « Ma biblio » (bandeau
+`NovelsStrip`, bouton de l'en-tête), le hub Activités ou la feuille « Mes romans » :
+glisser-déposer ou sélecteur, plusieurs fichiers à la fois, signature et taille
+(50 Mo) vérifiées avant tout envoi, avancement de l'envoi (XHR). Le fichier part
+sur le compte (`POST /api/books/upload`, cf. docs/BACKEND.md §7 sexies).
+
+- *Hors-ligne* : IndexedDB v2 (`lib/reader/db.ts`) ajoute `cloud-books` (fiche, position
+  locale, en attente ou non, téléchargé ou non — chaque fiche porte l'id du compte),
+  `cloud-blobs` (le fichier, téléchargé une fois) et `locations` (positions epub.js
+  précalculées : un gros roman ne les recalcule plus à chaque ouverture, fichiers de
+  l'appareil compris). La déconnexion volontaire efface tout, couvertures du Service
+  Worker comprises (cache `bookshelf-private-*`).
+- *Synchronisation* (`lib/reader/cloudSync.ts`, testé) : à chaque page tournée, le CFI
+  est écrit tout de suite dans IndexedDB (« en attente »), puis envoyé à l'API une
+  seconde après la dernière page (`ProgressSync`) ; immédiatement, en `keepalive`,
+  quand l'application passe en arrière-plan. Hors-ligne, il attend : envoyé au retour
+  du réseau ou au démarrage suivant (`usePendingNovelProgress`), même sans rouvrir le
+  livre. À l'ouverture, `newestPosition(locale, serveur)` : la plus récente gagne.
+- *Rouvrir n'est pas lire* : la position d'ouverture n'est jamais envoyée tant qu'aucune
+  page n'a été tournée — sinon ouvrir le livre sur l'ordinateur périmerait la page lue
+  hors-ligne sur le téléphone, pas encore synchronisée.
+- *Pourcentage* : inconnu tant que les positions ne sont pas calculées ; on garde alors
+  le précédent plutôt que d'écrire un 0 % trompeur sur le serveur (`percentFrom`).
+
+**Typographie des romans** (`lib/reader/epubStyle.ts`, testé) : thèmes Sombre
+(`#09090b`, par défaut), OLED noir pur (`#000000`), Sépia papier (`#f4ecd8`), Clair,
+Nuit ; polices Serif et Sans du système, Merriweather, Inter, Roboto et OpenDyslexic
+embarquées (woff2 `@fontsource`, lisibles hors-ligne), en aperçu dans les réglages ;
+taille, interlignage, marges. La feuille est injectée dans l'iframe de chaque
+chapitre avec des `@font-face` en URL absolues (document `about:srcdoc`).
+
+**Deck : plusieurs types à la fois.** Le filtre du deck (Découvrir) se coche :
+Manga, Manhwa, Manhua et Romans, en toute combinaison (jamais vide ; « Tout cocher »).
+La sélection et la dernière étagère sont gardées sur l'appareil
+(`store/useDeckStore.ts`, `bookshelf:deck:v1`) et retrouvées au lancement suivant.
+Logique pure dans `lib/deckSources.ts` (testée : `frontend/test/deckSources.test.ts`).
+
+- *Étagères* (`shelvesFor`) : celles du catalogue, celles des romans, ou l'union
+  (communes d'abord). Une étagère d'un seul côté (« Isekai », « Thriller ») ne sert
+  que ce côté ; l'étagère enregistrée absente de la sélection retombe sur la première
+  (dérivé au rendu, pas d'effet).
+- *Fournée mêlée* (`fetchDeck`) : `/api/discover/deck` (avec `origins`, plusieurs
+  origines MangaDex) et `/api/books/discover` en parallèle, chacun avec ses propres
+  cartes vues (`splitSeen`), puis une carte sur deux (`interleave`). Une moitié
+  épuisée n'est plus interrogée, l'autre continue ; une moitié en panne n'empêche
+  pas l'autre.
+- Les romans sont des `Book` (`kind: 'book'`, id `ol:…`) : swipe, wishlist, « Lu »,
+  fiche et synchro du compte sans code dédié ; résumés par `/api/books/summary/:id`.
+
+**Recherche de romans.** La page Recherche bascule entre « Mangas » (catalogue) et
+« Romans » (`NovelSearch` → `GET /api/books/search`) : les fiches Open Library +
+Google Books arrivent au format `Book` (`kind: 'book'`), donc même carte, même fiche
+détaillée, même ajout à la bibliothèque que le catalogue.
 
 **Pièges.**
 

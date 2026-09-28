@@ -109,8 +109,10 @@ export type SpreadMode = 'auto' | 'single' | 'double'
 /** Qualité MangaDex : `auto` suit la connexion (Data Saver si elle est lente). */
 export type ImageQuality = 'auto' | 'data' | 'data-saver'
 
-export type TextTheme = 'black' | 'light' | 'sepia' | 'night'
-export type TextFont = 'serif' | 'sans' | 'dyslexic'
+/** `dark` : sombre (#09090b) ; `black` : noir pur, idéal OLED ; `sepia` : papier. */
+export type TextTheme = 'dark' | 'black' | 'light' | 'sepia' | 'night'
+/** `serif` / `sans` : polices du système ; les autres sont embarquées (lisibles hors-ligne). */
+export type TextFont = 'serif' | 'merriweather' | 'sans' | 'inter' | 'roboto' | 'dyslexic'
 
 /** Réglages typographiques du mode texte (EPUB). */
 export interface TextSettings {
@@ -126,10 +128,14 @@ export interface TextSettings {
 /** Formats de fichiers importés. Le CBR (RAR) n'est reconnu que pour être refusé proprement. */
 export type LocalFormat = 'pdf' | 'epub' | 'cbz'
 
-/** Ce que le lecteur ouvre : une œuvre MangaDex, ou un fichier importé sur l'appareil. */
+/**
+ * Ce que le lecteur ouvre : une œuvre MangaDex, un fichier importé sur
+ * l'appareil, ou un roman du compte (stocké sur le serveur, synchronisé).
+ */
 export type ReaderSession =
   | { source: 'mangadex'; book: Book; chapterId?: string }
   | { source: 'local'; fileId: string }
+  | { source: 'cloud'; bookId: string }
 
 /** Pilotage d'une vue d'images depuis les commandes (curseur, flèches). */
 export interface ReaderViewController {

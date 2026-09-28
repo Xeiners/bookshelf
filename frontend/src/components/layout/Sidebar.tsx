@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { CloudCheck, CloudOff, CloudUpload, Library, PanelLeftClose, PanelLeftOpen, UserRound, Zap } from 'lucide-react'
+import { CloudCheck, CloudOff, CloudUpload, PanelLeftClose, PanelLeftOpen, UserRound, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useLanguage, useT } from '../../i18n'
 import { BRAND } from '../../lib/brand'
@@ -14,6 +14,7 @@ import type { LibraryEntry, LibraryTab } from '../../types/book'
 import { FAVORITE_TOKEN, STATUS_TOKEN } from '../../types/book'
 import { BookCover } from '../ui/BookCover'
 import { LanguageToggle } from '../ui/LanguageToggle'
+import { BrandLogo } from '../ui/BrandLogo'
 import { NAV_ITEMS } from './navItems'
 
 const EXPANDED_WIDTH = 264
@@ -146,9 +147,7 @@ export function Sidebar({ view, onChange }: SidebarProps) {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-5 pb-3">
           {/* Marque */}
           <div className="flex h-11 shrink-0 items-center gap-3 px-1.5">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-linear-to-br from-glow to-[#b59cff] text-void shadow-glow">
-              <Library size={17} strokeWidth={2.2} />
-            </span>
+            <BrandLogo variant="mark" size="md" className="size-9 justify-center" markClassName="size-9" />
             <span data-sidebar-fade className="font-display text-[1.45rem] leading-none whitespace-nowrap text-cream">
               {BRAND}
             </span>

@@ -17,6 +17,7 @@
 **/*.db-wal
 **/*.db-shm
 **/test/.tmp
+**/uploads
 
 # Secrets : JAMAIS dans une image (l'exemple, lui, peut y être)
 **/.env
