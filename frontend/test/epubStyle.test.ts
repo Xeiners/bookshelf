@@ -39,6 +39,9 @@ describe('thèmes et polices du lecteur de romans', () => {
     assert.match(css, /font-size: 130% !important/)
     assert.match(css, /line-height: 1\.9 !important/)
     assert.ok(css.includes(`font-family: ${FONT_STACKS.merriweather} !important`))
+    assert.match(css, /-webkit-user-select: none !important/)
+    assert.match(css, /user-select: none !important/)
+    assert.match(css, /-webkit-touch-callout: none !important/)
   })
 
   it('réglage inconnu (préférences d’une autre version) → thème sombre et police serif par défaut', () => {
@@ -76,6 +79,7 @@ const cloudBook: CloudBook = {
   progressPercent: 0,
   lastCfi: null,
   progressAt: null,
+  workId: null,
   createdAt: '2026-09-28T00:00:00.000Z',
   updatedAt: '2026-09-28T00:00:00.000Z',
 }

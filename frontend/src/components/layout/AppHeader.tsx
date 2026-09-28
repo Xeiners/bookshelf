@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookText, FolderOpen, Settings } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -7,6 +7,8 @@ import { useUiStore, type ViewId } from '../../store/useUiStore'
 import { LanguageToggle } from '../ui/LanguageToggle'
 import { Pressable } from '../ui/Pressable'
 import { BrandLogo } from '../ui/BrandLogo'
+import { MusicHeaderButton } from '../ambient/AmbientMiniPlayer'
+import { LibraryMenu } from './LibraryMenu'
 
 interface AppHeaderProps {
   view: ViewId
@@ -24,8 +26,6 @@ export function AppHeader({ view }: AppHeaderProps) {
   const t = useT()
   const [shownView, setShownView] = useState(view)
   const copy = t.header[shownView]
-  const openFiles = useUiStore((state) => state.openFiles)
-  const openNovels = useUiStore((state) => state.openNovels)
   const openSettings = useUiStore((state) => state.openSettings)
 
   useGSAP(
@@ -74,34 +74,10 @@ export function AppHeader({ view }: AppHeaderProps) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 pt-1">
-        {/* Bibliothèque : romans du compte (EPUB synchronisés entre appareils). */}
-        {view === 'library' && (
-          <Pressable
-            onClick={() => {
-              vibrate(6)
-              openNovels()
-            }}
-            aria-label={t.novels.open}
-            title={t.novels.open}
-            className="glass grid size-11 place-items-center rounded-full text-cream/70"
-          >
-            <BookText size={17} />
-          </Pressable>
-        )}
-        {/* Bibliothèque : fichiers personnels (PDF, EPUB, CBZ), lus avec le même lecteur. */}
-        {view === 'library' && (
-          <Pressable
-            onClick={() => {
-              vibrate(6)
-              openFiles()
-            }}
-            aria-label={t.reader.files.open}
-            title={t.reader.files.open}
-            className="glass grid size-11 place-items-center rounded-full text-cream/70"
-          >
-            <FolderOpen size={17} />
-          </Pressable>
-        )}
+        {/* Bibliothèque : une bulle vers les romans du compte et les fichiers de l'appareil. */}
+        {view === 'library' && <LibraryMenu />}
+        {/* Musique d'ambiance : sur toutes les vues. */}
+        <MusicHeaderButton />
         {/* Sur ordinateur, la langue se règle dans la barre latérale. */}
         <div className="lg:hidden">
           <LanguageToggle />

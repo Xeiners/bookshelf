@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useLanguage } from '../i18n'
 import { useAuthStore } from '../store/useAuthStore'
+import type { CachedCloudBook } from '../lib/reader/cloudBooks'
 import { useNovelStore } from '../store/useNovelStore'
 import { useUiStore } from '../store/useUiStore'
 
@@ -47,4 +48,13 @@ export function usePendingNovelProgress(): void {
     window.addEventListener('online', flush)
     return () => window.removeEventListener('online', flush)
   }, [userId])
+}
+
+/**
+ * Fichier EPUB rattaché à une fiche de la bibliothèque (roman en ligne, ou
+ * fiche tirée du fichier), `null` sinon. Sans compte : jamais.
+ */
+export function useLinkedNovel(workId: string): CachedCloudBook | null {
+  const userId = useAuthStore((state) => state.user?.id ?? null)
+  return useNovelStore((state) => (userId ? (state.books?.find((entry) => entry.book.workId === workId) ?? null) : null))
 }

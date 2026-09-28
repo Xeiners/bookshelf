@@ -7,6 +7,8 @@ import { ProfileView } from './components/profile/ProfileView'
 import { SearchView } from './components/search/SearchView'
 import { ActivitiesView } from './components/activities/ActivitiesView'
 import { BoosterPackModal } from './components/boosters/BoosterPackModal'
+import { AmbientMiniPlayer } from './components/ambient/AmbientMiniPlayer'
+import { MusicSheet } from './components/ambient/MusicSheet'
 import { AmbientBackdrop } from './components/layout/AmbientBackdrop'
 import { AppHeader } from './components/layout/AppHeader'
 import { BottomNav } from './components/layout/BottomNav'
@@ -25,11 +27,18 @@ import { useLanguage, useT } from './i18n'
 import { useAuthStore } from './store/useAuthStore'
 import { useUiStore } from './store/useUiStore'
 import { LocalFilesSheet } from './components/reader/LocalFilesSheet'
+import { EpubMatchModal } from './components/novels/EpubMatchModal'
 import { usePendingNovelProgress } from './hooks/useNovels'
+import { profileIdFromSearch, withoutProfileParam } from './lib/profileLink'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
 const UniversalReader = lazy(() =>
   import('./components/reader/UniversalReader').then((module) => ({ default: module.UniversalReader })),
+)
+
+// Profil public d'un autre compte : chargé à la première consultation.
+const PublicProfileView = lazy(() =>
+  import('./components/profile/PublicProfileView').then((module) => ({ default: module.PublicProfileView })),
 )
 
 // « Mes romans » : chargé à la première ouverture (liste, fiche, recherche de fiches).
@@ -57,10 +66,20 @@ export default function App() {
   const boosterOpen = useUiStore((state) => state.boosterOpen)
   const settingsOpen = useUiStore((state) => state.settingsOpen)
   const profileEditorOpen = useUiStore((state) => state.profileEditorOpen)
+  const musicOpen = useUiStore((state) => state.musicOpen)
+  const publicProfileId = useUiStore((state) => state.publicProfileId)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
   useEffect(() => {
     void useAuthStore.getState().bootstrap()
+  }, [])
+
+  // Lien de profil partagé (`?u=<id>`) : ouvert une fois, puis retiré de l'adresse.
+  useEffect(() => {
+    const userId = profileIdFromSearch(window.location.search)
+    if (!userId) return
+    useUiStore.getState().openPublicProfile(userId)
+    window.history.replaceState(window.history.state, '', withoutProfileParam(window.location.href))
   }, [])
 
   // Bibliothèque enregistrée retraduite dans la langue choisie.
@@ -177,6 +196,9 @@ export default function App() {
         </div>
       </div>
 
+      {/* Musique d'ambiance : continue d'une vue à l'autre, mini-lecteur flottant tant qu'elle est lancée. */}
+      <AmbientMiniPlayer />
+
       <ToastHost />
 
       {detail && <BookSheet key={detail.id} book={detail} />}
@@ -190,6 +212,14 @@ export default function App() {
         </Suspense>
       )}
       {boosterOpen && <BoosterPackModal />}
+      {musicOpen && <MusicSheet />}
+      {/* « Quel livre est-ce ? » : un EPUB importé à rattacher à sa fiche. */}
+      <EpubMatchModal />
+      {publicProfileId && (
+        <Suspense fallback={<div className="fixed inset-0 z-[75] bg-void" />}>
+          <PublicProfileView key={publicProfileId} userId={publicProfileId} />
+        </Suspense>
+      )}
       {reader && (
         <Suspense fallback={<div className="fixed inset-0 z-[100] bg-black" />}>
           <UniversalReader session={reader} />

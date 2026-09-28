@@ -38,6 +38,10 @@ interface UiState {
   settingsOpen: boolean
   /** Feuille « Éditer le profil ». */
   profileEditorOpen: boolean
+  /** Feuille « Musique » (ambiances, playlists), ouverte depuis l'en-tête ou le mini-lecteur. */
+  musicOpen: boolean
+  /** Profil public affiché en plein écran (id du compte), `null` = fermé. */
+  publicProfileId: string | null
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -64,6 +68,11 @@ interface UiState {
   closeSettings: () => void
   openProfileEditor: () => void
   closeProfileEditor: () => void
+  openMusic: () => void
+  closeMusic: () => void
+  /** Profil d'un utilisateur : depuis un lien partagé (`?u=<id>`), un pseudo, un avatar… */
+  openPublicProfile: (userId: string) => void
+  closePublicProfile: () => void
   notify: (message: string, tone?: ToastTone) => void
   dismissToast: () => void
 }
@@ -84,6 +93,8 @@ export const useUiStore = create<UiState>((set) => ({
   boosterOpen: false,
   settingsOpen: false,
   profileEditorOpen: false,
+  musicOpen: false,
+  publicProfileId: null,
 
   setView: (view) => set({ view }),
   openDetail: (detail) => set({ detail }),
@@ -93,7 +104,7 @@ export const useUiStore = create<UiState>((set) => ({
   setLibraryTab: (libraryTab) => set({ libraryTab }),
   openLibrary: (libraryTab) => set({ view: 'library', libraryTab }),
   focusSearch: () => set((state) => ({ view: 'search', searchFocusTick: state.searchFocusTick + 1 })),
-  openReader: (reader) => set({ reader, detail: null, filesOpen: false, novelsOpen: false }),
+  openReader: (reader) => set({ reader, detail: null, filesOpen: false, novelsOpen: false, musicOpen: false }),
   closeReader: () => set({ reader: null }),
   openFiles: () => set({ filesOpen: true }),
   closeFiles: () => set({ filesOpen: false }),
@@ -106,6 +117,11 @@ export const useUiStore = create<UiState>((set) => ({
   closeSettings: () => set({ settingsOpen: false }),
   openProfileEditor: () => set({ profileEditorOpen: true, settingsOpen: false }),
   closeProfileEditor: () => set({ profileEditorOpen: false }),
+  openMusic: () => set({ musicOpen: true }),
+  closeMusic: () => set({ musicOpen: false }),
+  // Les feuilles de l'app (paramètres, musique, fiche) se ferment : le profil passe devant.
+  openPublicProfile: (publicProfileId) => set({ publicProfileId, settingsOpen: false, musicOpen: false, detail: null }),
+  closePublicProfile: () => set({ publicProfileId: null }),
 
   notify: (message, tone = 'neutral') => {
     toastId += 1

@@ -148,3 +148,37 @@ export function filterCollection<C extends CollectionCard>(cards: readonly C[], 
 
 /** Progression de l'album, en pourcentage entier (0 → 100). */
 export const completion = (owned: number, total: number) => (total > 0 ? Math.floor((owned / total) * 100) : 0)
+
+/* ---- Disposition des cartes révélées ------------------------------------------- */
+
+export interface Viewport {
+  width: number
+  height: number
+}
+
+/**
+ * Hauteur prise autour des cartes : en-tête (compteur, fermer), zone fixe des
+ * boutons sous les cartes (`h-32` + écart), bilan du bac à sable et marges.
+ */
+const RESERVED_HEIGHT = 330
+
+/**
+ * Disposition des cartes révélées : 2 × 2 sur téléphone (quatre de front y
+ * seraient illisibles), une rangée au-delà de 640 px. La largeur tient dans
+ * l'écran en largeur ET en hauteur, sans jamais déborder.
+ */
+export function revealLayout(
+  viewport: Viewport,
+  count: number,
+  /** Hauteur / largeur d'une carte (`CARD_RATIO`). */
+  ratio: number,
+): { columns: number; width: number; gap: number } {
+  const columns = viewport.width >= 640 ? Math.max(1, count) : Math.min(2, Math.max(1, count))
+  const rows = Math.ceil(count / columns)
+  const gap = columns <= 2 ? 16 : 24
+  // Éventail d'une rangée : les cartes des bouts, inclinées, débordent d'environ 12 % de leur largeur de chaque côté.
+  const tiltMargin = columns > 2 ? 0.25 : 0.1
+  const byWidth = (viewport.width - 32 - gap * (columns - 1)) / (columns + tiltMargin)
+  const byHeight = (viewport.height - RESERVED_HEIGHT - gap * (rows - 1)) / rows / ratio
+  return { columns, gap, width: Math.floor(Math.max(84, Math.min(200, byWidth, byHeight))) }
+}

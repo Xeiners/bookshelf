@@ -14,6 +14,7 @@ import {
   remainingSeconds,
   type CollectionCard,
   type Rarity,
+  revealLayout,
 } from '../src/lib/boosters'
 
 describe('boosters — minuteur synchronisé sur le serveur', () => {
@@ -128,5 +129,45 @@ describe('recette — taux observés', () => {
     assert.equal(observedRate(tally, 'COMMON'), 50)
     assert.equal(observedRate(tally, 'MYTHIC'), 16.7)
     assert.equal(observedRate(emptyTally(), 'RARE'), 0)
+  })
+})
+
+describe('révélation — disposition des 4 cartes', () => {
+  const RATIO = 88 / 63
+  /** Largeur occupée par la grille : jamais plus que l'écran moins ses marges de 16 px. */
+  const rowWidth = ({ columns, width, gap }: { columns: number; width: number; gap: number }) =>
+    columns * width + (columns - 1) * gap
+
+  it('téléphone : 2 × 2, dans la largeur de l’écran', () => {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 360, height: 640 },
+      { width: 430, height: 932 },
+      { width: 320, height: 568 },
+    ]) {
+      const layout = revealLayout(viewport, 4, RATIO)
+      assert.equal(layout.columns, 2)
+      assert.ok(rowWidth(layout) <= viewport.width - 32, `${viewport.width} px : ${rowWidth(layout)}`)
+    }
+  })
+
+  it('téléphone standard : cartes lisibles, deux rangées dans la hauteur', () => {
+    const layout = revealLayout({ width: 390, height: 844 }, 4, RATIO)
+    assert.ok(layout.width >= 150, `largeur ${layout.width}`)
+    assert.ok(2 * layout.width * RATIO + layout.gap <= 844 - 330)
+  })
+
+  it('tablette et ordinateur : une rangée de 4 qui tient dans l’écran', () => {
+    for (const viewport of [
+      { width: 640, height: 900 },
+      { width: 768, height: 1024 },
+      { width: 1440, height: 900 },
+    ]) {
+      const layout = revealLayout(viewport, 4, RATIO)
+      assert.equal(layout.columns, 4)
+      assert.ok(layout.width <= 200)
+      // Marge pour les coins des cartes inclinées aux deux bouts de la rangée.
+      assert.ok(rowWidth(layout) + 0.2 * layout.width <= viewport.width - 32, `${viewport.width} px : ${rowWidth(layout)}`)
+    }
   })
 })

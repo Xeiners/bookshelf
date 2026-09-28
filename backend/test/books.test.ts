@@ -12,6 +12,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { strToU8, zipSync, type Zippable, type ZippableFile } from 'fflate'
+import { decideMatch } from '../src/modules/books/epub.match.js'
 import { InvalidEpubError, isbnOf, languageCode, parseEpub, plainText, sniffImage } from '../src/modules/books/epub.parser.js'
 import {
   fromGoogle,
@@ -296,6 +297,30 @@ describe('fiches en ligne — normalisation, fusion, rapprochement', () => {
     assert.equal(pickMatch(results, { title: 'Un hiver pour te résister !', author: 'Morgane Moncomble' })?.id, 'gb:gbHiver')
     assert.equal(pickMatch(results, { title: 'Un hiver pour te résister', author: 'Quelqu’un d’autre' }), null)
     assert.equal(pickMatch(results, { title: 'Un été pour t’aimer', author: 'Morgane Moncomble' }), null)
+  })
+
+  it('rattachement d’un EPUB : même ISBN, ou même titre ET même auteur → d’office', () => {
+    const hiver = fromGoogle(GB_HIVER)!
+    const hoover = fromOpenLibrary(OL_HOOVER, 'en')!
+    const byIsbn = decideMatch([fromOpenLibrary(OL_HIVER, 'fr')!, hoover], { title: 'Titre de l’éditeur', author: null, isbn: '978-2-7499-4105-0' })
+    assert.equal(byIsbn.kind === 'confident' && byIsbn.item.id, 'ol:OL1000W')
+    const exact = decideMatch([hoover, hiver], { title: 'Un hiver pour te résister', author: 'Morgane Moncomble', isbn: null })
+    assert.equal(exact.kind === 'confident' && exact.item.id, 'gb:gbHiver')
+    const noAuthor = decideMatch([hoover, hiver], { title: 'Un hiver pour te résister', author: null, isbn: null })
+    assert.equal(noAuthor.kind === 'confident' && noAuthor.item.id, 'gb:gbHiver', 'titre identique et seul candidat')
+  })
+
+  it('rattachement : dans le doute on demande, sans rien → fiche tirée du fichier', () => {
+    const hiver = fromGoogle(GB_HIVER)!
+    const otherEdition = fromOpenLibrary({ ...OL_HIVER, isbn: [] }, 'fr')!
+    const wrongAuthor = decideMatch([hiver], { title: 'Un hiver pour te résister', author: 'Quelqu’un d’autre', isbn: null })
+    assert.equal(wrongAuthor.kind, 'choose', 'auteur différent : jamais d’office')
+    assert.deepEqual(wrongAuthor.kind === 'choose' && wrongAuthor.candidates.map((item) => item.id), ['gb:gbHiver'])
+    const twins = decideMatch([hiver, otherEdition], { title: 'Un hiver pour te résister', author: 'Morgane Moncomble', isbn: null })
+    assert.equal(twins.kind, 'choose', 'deux fiches aussi probables : l’utilisateur tranche')
+    assert.equal(twins.kind === 'choose' && twins.candidates.length, 2)
+    assert.equal(decideMatch([fromOpenLibrary(OL_HOOVER, 'en')!], { title: 'Journal de Zoé', author: 'Zoé', isbn: null }).kind, 'none')
+    assert.equal(decideMatch([], { title: 'Un hiver', author: null, isbn: null }).kind, 'none')
   })
 
   it('rapprochement : série en titre, vrai titre en sous-titre (fiche Open Library réelle)', () => {
@@ -636,5 +661,124 @@ describe('bibliothèque de romans (compte)', () => {
     assert.ok(stored.every((file) => !existsSync(file)), 'EPUB et couverture effacés')
     assert.equal((await computer.request('GET', `/books/${bookId}`)).status, 404)
     assert.deepEqual(readdirSync(path.join(BOOKS_DIR, '.tmp')), [], 'aucun envoi temporaire oublié')
+  })
+})
+
+describe('rattachement EPUB ↔ fiche de roman', () => {
+  let reader: TestClient
+  let hiverId: string
+  let hiverWork: string
+
+  /** EPUB minimal, unique à chaque appel (empreinte différente). */
+  const novelEpub = (title: string, author: string | null, isbn: string | null) =>
+    buildEpub({
+      opf: EPUB3_OPF.replace(/<dc:identifier id="uid">[^<]*<\/dc:identifier>/, `<dc:identifier id="uid">${isbn ? `urn:isbn:${isbn}` : 'urn:uuid:x'}</dc:identifier>`)
+        .replace(/<dc:title>[^<]*<\/dc:title>/, `<dc:title>${title}</dc:title>`)
+        .replace(/<dc:creator id="c1">[^<]*<\/dc:creator>/, author ? `<dc:creator id="c1">${author}</dc:creator>` : '')
+        .replace(/<item id="img"[^>]*\/>/, ''),
+      files: { 'OEBPS/Text/ch1.xhtml': CHAPTER.replace('Il neigeait.', `Il neigeait. ${randomBytes(6).toString('hex')}`) },
+    })
+
+  const uploadTo = (workId: string | null, data: Uint8Array) =>
+    reader.send('POST', `/books/upload?lang=fr${workId ? `&workId=${encodeURIComponent(workId)}` : ''}`, {
+      body: data,
+      headers: { 'Content-Type': 'application/epub+zip', 'X-File-Name': 'livre.epub' },
+    })
+
+  before(async () => {
+    reader = client()
+    assert.equal((await reader.signUp({ email: 'rattachement@example.com', password: 'motdepasse-solide' })).status, 201)
+  })
+
+  it('titre exact « Un hiver pour te résister » (ISBN du fichier) : rattaché d’office à sa fiche en ligne', async () => {
+    const response = await uploadTo(null, novelEpub('Un hiver pour te r&#233;sister', 'Morgane Moncomble', '978-2-7499-4105-0'))
+    assert.equal(response.status, 201)
+    const { book, match } = await jsonOf(response)
+    assert.equal(match.status, 'linked')
+    assert.match(match.record.id, /^(ol|gb):/)
+    assert.equal(match.record.title, 'Un hiver pour te résister')
+    assert.equal(match.record.kind, 'book')
+    assert.equal(book.workId, match.record.id)
+    hiverId = book.id
+    hiverWork = book.workId
+  })
+
+  it('la position EPUB se garde sans perte sur le livre rattaché', async () => {
+    const cfi = 'epubcfi(/6/4!/4/2/1:120)'
+    const saved = await reader.request('PATCH', `/books/${hiverId}/progress`, { cfi, percent: 42.5, at: Date.now() })
+    assert.equal(saved.status, 200)
+    const again = await reader.request('GET', `/books/${hiverId}`)
+    assert.equal(again.body.book.lastCfi, cfi)
+    assert.equal(again.body.book.progressPercent, 42.5)
+    assert.equal(again.body.book.workId, hiverWork, 'le rattachement survit à la lecture')
+  })
+
+  it('doute (même titre, autre auteur) : fiches proposées, puis rattachement au choix', async () => {
+    const response = await uploadTo(null, novelEpub('Un hiver pour te r&#233;sister', 'Autre Autrice', null))
+    assert.equal(response.status, 201)
+    const { book, match } = await jsonOf(response)
+    assert.equal(match.status, 'choose')
+    assert.ok(match.candidates.length > 0 && match.candidates.every((item: { kind: string }) => item.kind === 'book'))
+    assert.equal(book.workId, null, 'pas rattaché tant que rien n’est choisi')
+
+    // La fiche déjà dotée d'un fichier ne peut pas en recevoir un second.
+    const taken = match.candidates.find((item: { id: string }) => item.id === hiverWork)
+    if (taken) {
+      const refused = await reader.request('POST', `/books/${book.id}/link`, { record: taken })
+      assert.equal(refused.status, 409)
+      assert.equal(refused.body.error.code, 'work_already_linked')
+    }
+
+    const own = await reader.request('POST', `/books/${book.id}/link`, { own: true })
+    assert.equal(own.status, 200)
+    assert.equal(own.body.book.workId, `novel:${book.id}`)
+    assert.equal(own.body.record.id, `novel:${book.id}`)
+    assert.equal(own.body.record.authors[0], 'Autre Autrice')
+  })
+
+  it('aucune fiche approchante : fiche créée depuis le fichier (titre, auteur, couverture)', async () => {
+    const response = await uploadTo(null, novelEpub('Journal intime de Zoé', 'Zoé Martin', null))
+    assert.equal(response.status, 201)
+    const { book, match } = await jsonOf(response)
+    assert.equal(match.status, 'created')
+    assert.equal(book.workId, `novel:${book.id}`)
+    assert.equal(match.record.title, 'Journal intime de Zoé')
+    assert.deepEqual(match.record.authors, ['Zoé Martin'])
+  })
+
+  it('depuis la fiche d’un roman : rattaché d’office ; fiche qui a déjà un fichier → 409 sans rien stocker', async () => {
+    const response = await uploadTo('gb:gbAutreRoman', novelEpub('Un tout autre roman', 'Quelqu’un', null))
+    assert.equal(response.status, 201)
+    const { book, match } = await jsonOf(response)
+    assert.deepEqual(match, { status: 'linked', record: null })
+    assert.equal(book.workId, 'gb:gbAutreRoman')
+
+    const before = (await reader.request('GET', '/books')).body.books.length
+    const refused = await uploadTo(hiverWork, novelEpub('Encore un', null, null))
+    assert.equal(refused.status, 409)
+    assert.equal((await jsonOf(refused)).error.code, 'work_already_linked')
+    assert.equal((await reader.request('GET', '/books')).body.books.length, before)
+
+    assert.equal((await uploadTo('mangadex-uuid', novelEpub('x', null, null))).status, 400, 'fiche de roman seulement')
+  })
+
+  it('rattachement choisi : fiche de roman en ligne uniquement', async () => {
+    const response = await uploadTo(null, novelEpub('Un hiver pour te r&#233;sister', 'Encore Une Autre', null))
+    const { book } = await jsonOf(response)
+    const manga = { ...toBook(fromGoogle(GB_HIVER)!, 'fr'), id: '11111111-1111-4111-8111-111111111111', kind: 'manga' }
+    assert.equal((await reader.request('POST', `/books/${book.id}/link`, { record: manga })).status, 400)
+    assert.equal((await reader.request('POST', `/books/${book.id}/link`, { record: { title: 'sans id' } })).status, 400)
+  })
+
+  it('import d’avant le rattachement : rapproché sans question (`auto`)', async () => {
+    const { prisma } = await import('../src/db.js')
+    const response = await uploadTo(null, novelEpub('Un hiver pour te r&#233;sister', 'Dernière Autrice', null))
+    const { book } = await jsonOf(response)
+    await prisma.userBook.update({ where: { id: book.id }, data: { workId: null } })
+
+    const matched = await reader.request('POST', `/books/${book.id}/match`, { lang: 'fr', mode: 'auto' })
+    assert.equal(matched.status, 200)
+    assert.notEqual(matched.body.match.status, 'choose', 'jamais de question en mode automatique')
+    assert.ok(matched.body.book.workId)
   })
 })

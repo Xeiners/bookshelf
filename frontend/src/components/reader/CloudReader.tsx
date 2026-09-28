@@ -10,6 +10,7 @@ import {
   saveCachedBlob,
   saveCachedPosition,
 } from '../../lib/reader/cloudBooks'
+import { reportProgress } from '../../lib/novelLibrary'
 import { ProgressSync, newestPosition, percentFrom, serverPosition } from '../../lib/reader/cloudSync'
 import { ApiError, isNetworkError } from '../../services/api'
 import { booksApi } from '../../services/booksApi'
@@ -181,6 +182,8 @@ function SyncedEpub({ opened }: { opened: Opened }) {
       }
       if (cfi === openingCfi.current && !sync.position) return
       sync.push({ cfi, percent, at: Date.now() })
+      // La fiche rattachée suit : « En cours », puis « Lus » à la fin (et le profil avec elle).
+      reportProgress(book.workId, percent)
     },
     notice: online ? null : (
       <span className="inline-flex items-center gap-1">

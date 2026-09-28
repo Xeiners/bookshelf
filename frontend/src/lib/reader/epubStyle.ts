@@ -66,11 +66,17 @@ export function readerCss(settings: TextSettings, fontFaces: string): string {
   const family = FONT_STACKS[settings.font] ?? FONT_STACKS.serif
   return `
 ${fontFaces}
-html, body { background: ${theme.background} !important; color: ${theme.color} !important; }
+html, body {
+  background: ${theme.background} !important;
+  color: ${theme.color} !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
 body { font-size: ${settings.fontSize}% !important; line-height: ${settings.lineHeight} !important; font-family: ${family} !important; }
 p, li, blockquote, dd, dt, span, div, em, strong, i, b, small, h1, h2, h3, h4, h5, h6 { font-family: inherit !important; line-height: inherit !important; color: inherit !important; background-color: transparent !important; }
 a, a * { color: ${theme.link} !important; }
 img, svg, video { max-width: 100% !important; height: auto !important; }
-::selection { background: ${theme.link}55; }
+::selection { background: transparent !important; }
 `
 }

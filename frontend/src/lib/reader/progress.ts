@@ -117,3 +117,10 @@ export function remainingMinutes(words: number, page: number, totalPages: number
   const left = clamp01(1 - (page - 1) / totalPages)
   return Math.ceil((words * left) / wpm)
 }
+
+/** Index epub.js (0-based) → page virtuelle lisible, bornée au livre. */
+export function virtualPage(location: number, total: number): { page: number; total: number } | null {
+  if (!Number.isFinite(location) || !Number.isFinite(total) || total <= 0 || location < 0) return null
+  const safeTotal = Math.max(1, Math.floor(total))
+  return { page: Math.min(safeTotal, Math.floor(location) + 1), total: safeTotal }
+}

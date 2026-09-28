@@ -8,6 +8,7 @@ import { activeFilterCount, effectiveSort, fetchGenres, type GenreFacet } from '
 import { useSearchStore } from '../../store/useSearchStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CatalogCard } from './CatalogCard'
+import { MemberSearch } from './MemberSearch'
 import { NovelSearch } from './NovelSearch'
 import { SearchFilters } from './SearchFilters'
 import { SortMenu } from './SortMenu'
@@ -168,11 +169,11 @@ export function SearchView() {
     })),
   ]
 
-  if (scope === 'novels') {
+  if (scope === 'novels' || scope === 'members') {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
         <ScopeToggle />
-        <NovelSearch />
+        {scope === 'novels' ? <NovelSearch /> : <MemberSearch />}
       </div>
     )
   }
@@ -328,14 +329,14 @@ export function SearchView() {
   )
 }
 
-/** Mangas (catalogue MangaDex) ou romans (Open Library + Google Books). */
+/** Mangas (catalogue MangaDex), romans (Open Library + Google Books) ou membres. */
 function ScopeToggle() {
   const t = useT()
   const scope = useSearchStore((state) => state.scope)
   const setScope = useSearchStore((state) => state.setScope)
   return (
-    <div role="radiogroup" aria-label={t.search.scopeLabel} className="glass flex w-full shrink-0 gap-1 rounded-full p-1 md:max-w-xs">
-      {(['catalog', 'novels'] as const).map((value) => (
+    <div role="radiogroup" aria-label={t.search.scopeLabel} className="glass flex w-full shrink-0 gap-1 rounded-full p-1 md:max-w-sm">
+      {(['catalog', 'novels', 'members'] as const).map((value) => (
         <button
           key={value}
           type="button"

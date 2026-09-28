@@ -2,14 +2,12 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { seededRandom } from '../src/lib/seeded.js'
 import {
-  BASE_SLOT_RATES,
   CARDS_PER_PACK,
   HARD_PITY_PACKS,
-  HIGH_RARITY_SLOT_RATES,
   RARITIES,
   SET_LAYOUT,
-  WILDCARD_SLOT_RATES,
   drawPack,
+  slotRates,
   hasReachedHardPity,
   nextPityCount,
   type Rarity,
@@ -40,7 +38,7 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       })
     }
 
-    const expected = [BASE_SLOT_RATES, BASE_SLOT_RATES, BASE_SLOT_RATES, WILDCARD_SLOT_RATES, HIGH_RARITY_SLOT_RATES]
+    const expected = Array.from({ length: CARDS_PER_PACK }, (_, slot) => slotRates(slot, CARDS_PER_PACK))
     counts.forEach((slot, index) => {
       for (const rarity of RARITIES) {
         const observed = slot[rarity] / packs
@@ -54,13 +52,13 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
     assert.ok(Math.abs(bySeries[2] / (packs * CARDS_PER_PACK) - 0.5) < 0.015, `Série 2 : ${bySeries[2]}`)
   })
 
-  it('force le slot 5 du 30e booster sec et réinitialise le compteur', () => {
+  it('force le dernier slot du 30e booster sec et réinitialise le compteur', () => {
     assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 2), false)
     assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 1), true)
 
     const cards = drawPack(SET, () => 0, { forceMythic: true })
 
-    assert.equal(cards[4]!.rarity, 'MYTHIC')
+    assert.equal(cards[CARDS_PER_PACK - 1]!.rarity, 'MYTHIC')
     assert.equal(nextPityCount(HARD_PITY_PACKS - 1, cards.map((card) => card.rarity)), 0)
   })
 })

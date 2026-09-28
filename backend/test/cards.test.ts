@@ -27,6 +27,7 @@ import {
   nextPityCount,
   regenerate,
   secondsUntilNext,
+  slotRates,
   type Rarity,
 } from '../src/modules/cards/boosters.logic.js'
 import { seededRandom } from '../src/lib/seeded.js'
@@ -123,6 +124,16 @@ describe('boosters — tirage aléatoire', () => {
     assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.7, LEGENDARY: 0.25, MYTHIC: 0.05 })
   })
 
+  it('4 cartes : deux de base, la wildcard Rare+, puis la haute rareté (forcée Mythique par le pity)', () => {
+    assert.equal(CARDS_PER_PACK, 4)
+    assert.deepEqual(
+      Array.from({ length: CARDS_PER_PACK }, (_, slot) => slotRates(slot, CARDS_PER_PACK)),
+      [BASE_SLOT_RATES, BASE_SLOT_RATES, WILDCARD_SLOT_RATES, HIGH_RARITY_SLOT_RATES],
+    )
+    assert.equal(slotRates(CARDS_PER_PACK - 1, CARDS_PER_PACK, true).MYTHIC, 1)
+    assert.equal(slotRates(CARDS_PER_PACK - 2, CARDS_PER_PACK, true), WILDCARD_SLOT_RATES)
+  })
+
   const SET = RARITIES.flatMap((rarity) => Array.from({ length: SET_LAYOUT[rarity] }, (_, index) => ({ id: `${rarity}-${index}`, rarity })))
 
   it('10 000 boosters suivent la distribution de chaque slot', () => {
@@ -137,7 +148,7 @@ describe('boosters — tirage aléatoire', () => {
       if (cards.some((card) => card.rarity === 'MYTHIC')) mythicPacks += 1
       cards.forEach((card, slot) => (counts[slot]![card.rarity as Rarity] += 1))
     }
-    const expected = [BASE_SLOT_RATES, BASE_SLOT_RATES, BASE_SLOT_RATES, WILDCARD_SLOT_RATES, HIGH_RARITY_SLOT_RATES]
+    const expected = Array.from({ length: CARDS_PER_PACK }, (_, slot) => slotRates(slot, CARDS_PER_PACK))
     counts.forEach((slot, index) => {
       for (const rarity of RARITIES) {
         assert.ok(Math.abs(slot[rarity] / packs - expected[index]![rarity]) < 0.015, `slot ${index + 1} ${rarity}`)
@@ -147,22 +158,22 @@ describe('boosters — tirage aléatoire', () => {
     assert.ok(mythicPacks / packs > 0.05 && mythicPacks / packs < 0.07, `boosters mythiques : ${mythicPacks}`)
   })
 
-  it('un booster : 5 cartes distinctes, slots 4 Rare+ et 5 Épique+', () => {
+  it('un booster : 4 cartes distinctes, avant-dernier slot Rare+ et dernier Épique+', () => {
     const random = seededRandom('packs')
     for (let pack = 0; pack < 5000; pack += 1) {
       const cards = drawPack(SET, random)
       assert.equal(cards.length, CARDS_PER_PACK)
       assert.equal(new Set(cards.map((card) => card.id)).size, CARDS_PER_PACK)
-      assert.ok(['RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'].includes(cards[3]!.rarity))
-      assert.ok(['EPIC', 'LEGENDARY', 'MYTHIC'].includes(cards[4]!.rarity))
+      assert.ok(['RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'].includes(cards[CARDS_PER_PACK - 2]!.rarity))
+      assert.ok(['EPIC', 'LEGENDARY', 'MYTHIC'].includes(cards[CARDS_PER_PACK - 1]!.rarity))
     }
   })
 
-  it('hard pity : le 30e booster sec force une Mythique au slot 5 puis remet le compteur à zéro', () => {
+  it('hard pity : le 30e booster sec force une Mythique au dernier slot puis remet le compteur à zéro', () => {
     assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 2), false)
     assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 1), true)
     const cards = drawPack(SET, () => 0, { forceMythic: true })
-    assert.equal(cards[4]!.rarity, 'MYTHIC')
+    assert.equal(cards[CARDS_PER_PACK - 1]!.rarity, 'MYTHIC')
     assert.equal(nextPityCount(29, cards.map((card) => card.rarity)), 0)
     assert.equal(nextPityCount(8, ['COMMON', 'RARE', 'EPIC']), 9)
   })
@@ -171,12 +182,12 @@ describe('boosters — tirage aléatoire', () => {
     const noMythic = SET.filter((card) => card.rarity !== 'MYTHIC')
     const cards = drawPack(noMythic, () => 0.9999)
     assert.equal(cards.length, CARDS_PER_PACK)
-    assert.deepEqual(cards.map((card) => card.rarity), ['EPIC', 'EPIC', 'EPIC', 'LEGENDARY', 'LEGENDARY'])
+    assert.deepEqual(cards.map((card) => card.rarity), ['EPIC', 'EPIC', 'LEGENDARY', 'LEGENDARY'])
   })
 
   it('set minuscule : les doublons d’un même booster sont tolérés plutôt que de manquer une carte', () => {
     const cards = drawPack([{ id: 'only', rarity: 'RARE' }], seededRandom('tiny'))
-    assert.deepEqual(cards.map((card) => card.id), ['only', 'only', 'only', 'only', 'only'])
+    assert.deepEqual(cards.map((card) => card.id), Array(CARDS_PER_PACK).fill('only'))
   })
 })
 
@@ -388,7 +399,7 @@ describe('API — boosters et collection', () => {
     assert.ok(Math.abs(Date.parse(body.serverTime) - Date.now()) < 5000)
   })
 
-  it('ouvrir : 5 cartes enregistrées, stock décrémenté, minuteur de 3 h ; stock vide → 409', async () => {
+  it('ouvrir : 4 cartes enregistrées, stock décrémenté, minuteur de 3 h ; stock vide → 409', async () => {
     const account = await signedUp()
     const first = await account.request('POST', '/boosters/open')
     assert.equal(first.status, 200)
@@ -425,7 +436,7 @@ describe('API — boosters et collection', () => {
     assert.equal((await account.request('GET', '/boosters/status')).body.available, 0)
   })
 
-  it('hard pity serveur : le 30e booster sec force le slot 5 et remet le compteur persistant à zéro', async () => {
+  it('hard pity serveur : le 30e booster sec force le dernier slot et remet le compteur persistant à zéro', async () => {
     const account = await signedUp()
     const { openBooster } = await import('../src/modules/cards/cards.service.js')
     const { prisma } = await import('../src/db.js')
@@ -436,7 +447,7 @@ describe('API — boosters et collection', () => {
     const opened = await openBooster(account.userId, { random: () => 0 })
 
     assert.equal(opened.cards.length, CARDS_PER_PACK)
-    assert.equal(opened.cards[4]!.card.rarity, 'MYTHIC')
+    assert.equal(opened.cards[CARDS_PER_PACK - 1]!.card.rarity, 'MYTHIC')
     assert.equal((await prisma.userBooster.findUniqueOrThrow({ where: { userId: account.userId } })).boostersSinceLastMythic, 0)
   })
 

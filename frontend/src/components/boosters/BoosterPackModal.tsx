@@ -3,7 +3,7 @@ import { FlaskConical, Gift, X, Zap } from 'lucide-react'
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
-import { RARITIES, RARITY_STYLE, bestRarity, observedRate, type Rarity } from '../../lib/boosters'
+import { RARITIES, RARITY_STYLE, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playTear } from '../../lib/sfx'
@@ -12,6 +12,7 @@ import type { PulledCard } from '../../services/cardsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useBoosterStore } from '../../store/useBoosterStore'
 import { useUiStore } from '../../store/useUiStore'
+import { CARD_RATIO } from '../cards/CollectibleCard'
 import { CardZoom } from '../cards/CardZoom'
 import { BoosterOpeningAnimation } from './BoosterOpeningAnimation'
 import { CardReveal } from './CardReveal'
@@ -20,8 +21,8 @@ import { ParticleBurst, type Burst } from './ParticleBurst'
 /** `summoning` : le serveur tire le booster pendant que le paquet s'avance. */
 type Stage = 'summoning' | 'intro' | 'tearing' | 'reveal' | 'done' | 'error'
 
-/** Largeur des cartes révélées : trois de front, marges comprises (dès 370 px). */
-const cardWidthFor = (viewport: number) => (viewport >= 900 ? 200 : viewport >= 640 ? 164 : Math.max(96, Math.floor((viewport - 32 - 24) / 3)))
+const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight })
+
 const packWidthFor = (viewport: number) => Math.min(250, Math.round(viewport * 0.56))
 
 /** Halo du paquet : seulement si une Épique (ou mieux) se cache dedans — sinon aucun indice. */
@@ -59,10 +60,10 @@ export function BoosterPackModal() {
   const [burst, setBurst] = useState<Burst | null>(null)
   /** Carte révélée affichée en grand, avec son résumé. */
   const [inspected, setInspected] = useState<PulledCard | null>(null)
-  const [viewport, setViewport] = useState(() => window.innerWidth)
+  const [viewport, setViewport] = useState(readViewport)
 
   useEffect(() => {
-    const onResize = () => setViewport(window.innerWidth)
+    const onResize = () => setViewport(readViewport())
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -249,7 +250,7 @@ export function BoosterPackModal() {
           <>
             <BoosterOpeningAnimation
               key={round}
-              width={packWidthFor(viewport)}
+              width={packWidthFor(viewport.width)}
               halo={haloFor(cards)}
               ready={stage !== 'summoning'}
               torn={stage === 'tearing'}
@@ -267,7 +268,7 @@ export function BoosterPackModal() {
           <CardReveal
             key={round}
             cards={cards}
-            width={cardWidthFor(viewport)}
+            layout={revealLayout(viewport, cards.length, CARD_RATIO)}
             onAllRevealed={() => setStage('done')}
             onBurst={setBurst}
             onShake={shake}

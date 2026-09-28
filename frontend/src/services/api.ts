@@ -4,7 +4,8 @@
  * Par défaut `/api` en relatif : en dev, Vite relaie vers http://localhost:5000
  * (cf. `vite.config.ts`). `VITE_API_URL` permet de viser une API servie ailleurs.
  */
-export const API_BASE = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/$/, '')
+// `?.` : hors de Vite (tests unitaires sous Node), `import.meta.env` n'existe pas.
+export const API_BASE = (import.meta.env?.VITE_API_URL ?? '/api').replace(/\/$/, '')
 
 export class ApiError extends Error {
   readonly status: number

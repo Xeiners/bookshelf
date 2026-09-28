@@ -4,7 +4,7 @@ import { useCollection } from '../../hooks/useCollection'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { computeStats } from '../../lib/stats'
-import type { ProfileCard } from '../../services/profileApi'
+import type { ProfileCard, ProfileWork } from '../../services/profileApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useGuestCardsStore } from '../../store/useGuestCardsStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
@@ -90,6 +90,13 @@ export function ProfileView() {
       }
 
   const boostersOpened = own ? own.stats.gacha.boostersOpened : signedIn ? null : guestPacks
+  const localRecentReads = useMemo<ProfileWork[]>(() =>
+    Object.values(entries)
+      .filter((entry) => entry.status === 'reading' || entry.status === 'read')
+      .sort((a, b) => (b.updatedAt ?? b.addedAt) - (a.updatedAt ?? a.addedAt))
+      .slice(0, 3)
+      .map(({ book }) => ({ id: book.id, title: book.title, cover: book.cover, kind: 'library' })),
+  [entries])
 
   useGSAP(
     () => {
@@ -125,6 +132,7 @@ export function ProfileView() {
         <div className="md:col-span-3">
           <ProfileShowcase
             cards={own?.profile.featured ?? []}
+            recentWorks={own?.profile.recentReads ?? localRecentReads}
             signedIn={signedIn}
             onAddCard={signedIn ? openProfileEditor : openAuth}
             onOpenCard={setZoomed}

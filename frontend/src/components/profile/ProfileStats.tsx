@@ -25,10 +25,12 @@ export interface ReadingSummary {
 
 interface ProfileStatsProps {
   collection: CollectionSummary | null
-  reading: ReadingSummary
+  /** `null` : lectures masquées (profil public d'un autre compte). */
+  reading: ReadingSummary | null
   /** `null` : inconnu (compte hors-ligne, profil pas encore chargé). */
   boostersOpened: number | null
-  onOpenCollection: () => void
+  /** Absent : pas de lien vers l'album (profil d'un autre compte). */
+  onOpenCollection?: () => void
 }
 
 function Count({ value, className = '' }: { value: number; className?: string }) {
@@ -67,7 +69,7 @@ export function ProfileStats({ collection, reading, boostersOpened, onOpenCollec
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const percent = collection ? completion(collection.owned, collection.total) : 0
-  const readingPercent = Math.round(reading.completion * 100)
+  const readingPercent = reading ? Math.round(reading.completion * 100) : 0
 
   // Remplissage des barres : la cible est lue sur l'élément (`data-ratio`).
   useGSAP(
@@ -136,17 +138,20 @@ export function ProfileStats({ collection, reading, boostersOpened, onOpenCollec
           </ul>
         )}
 
-        <button
-          type="button"
-          onClick={onOpenCollection}
-          className="mt-4 flex items-center gap-1 text-[11px] font-medium text-glow"
-        >
-          {t.profile.stats.openCollection}
-          <ChevronRight size={13} />
-        </button>
+        {onOpenCollection && (
+          <button
+            type="button"
+            onClick={onOpenCollection}
+            className="mt-4 flex items-center gap-1 text-[11px] font-medium text-glow"
+          >
+            {t.profile.stats.openCollection}
+            <ChevronRight size={13} />
+          </button>
+        )}
       </section>
 
       <div className="grid gap-3">
+        {reading && (
         <section data-anim className="glass rounded-4xl p-5">
           <Heading icon={BookOpenCheck} label={t.profile.stats.reading} />
           <div className="mt-3 flex items-baseline justify-between text-[11px]">
@@ -168,6 +173,7 @@ export function ProfileStats({ collection, reading, boostersOpened, onOpenCollec
             <Metric label={t.profile.stats.novels} value={reading.novels} />
           </div>
         </section>
+        )}
 
         <section data-anim className="glass flex items-center gap-4 rounded-4xl p-5">
           <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gold/12 text-gold">

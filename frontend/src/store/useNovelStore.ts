@@ -13,14 +13,19 @@ import {
   syncCachedBooks,
   type CachedCloudBook,
 } from '../lib/reader/cloudBooks'
+import { forgetOwnWork, isOwnNovelWork, moveWork, placeInLibrary } from '../lib/novelLibrary'
+import { novelAsBook } from '../lib/novels'
 import { newestPosition, serverPosition } from '../lib/reader/cloudSync'
 import { ApiError, isNetworkError } from '../services/api'
 import { MAX_NOVEL_BYTES, booksApi } from '../services/booksApi'
-import type { CloudBook, CloudBookPatch } from '../types/novel'
+import type { Book } from '../types/book'
+import type { CloudBook, CloudBookPatch, ImportMatch } from '../types/novel'
+import { useLibraryStore } from './useLibraryStore'
+import { useSettingsStore } from './useSettingsStore'
 import { useUiStore } from './useUiStore'
 
 /** Raisons d'échec d'un import, traduites par `t.novels.errors`. */
-export type UploadError = 'not-epub' | 'too-large' | 'quota' | 'invalid' | 'network' | 'unknown'
+export type UploadError = 'not-epub' | 'too-large' | 'quota' | 'invalid' | 'already-linked' | 'network' | 'unknown'
 
 export interface UploadItem {
   id: string
@@ -31,16 +36,34 @@ export interface UploadItem {
   error?: UploadError
 }
 
+/** Livre importé dont la fiche reste à choisir (« lequel est-ce ? »). */
+export interface PendingMatch {
+  book: CloudBook
+  candidates: Book[]
+}
+
+/** Import depuis la fiche d'un roman : le fichier lui est rattaché d'office. */
+export interface UploadTarget {
+  workId: string
+  record: Book
+}
+
 interface NovelState {
   /** Romans du compte, `null` tant que rien n'est chargé. */
   books: CachedCloudBook[] | null
   /** Liste servie depuis l'appareil : l'API est injoignable. */
   offline: boolean
   uploads: UploadItem[]
+  /** Imports dont la fiche est à départager, dans l'ordre d'arrivée. */
+  pendingMatches: PendingMatch[]
 
   refresh: (userId: string) => Promise<void>
-  /** Importe des EPUB sur le compte, l'un après l'autre. */
-  upload: (userId: string, files: File[], language: Language) => Promise<void>
+  /** Importe des EPUB sur le compte, l'un après l'autre ; chacun est rangé dans la bibliothèque. */
+  upload: (userId: string, files: File[], language: Language, target?: UploadTarget) => Promise<{ error: UploadError | null }[]>
+  /** Réponse à « lequel est-ce ? » : une des fiches proposées, ou celle tirée du fichier. */
+  resolveMatch: (userId: string, bookId: string, choice: Book | 'own') => Promise<void>
+  /** « Changer de fiche » : le fichier rejoint une autre fiche de roman, statut et avancement compris. */
+  relink: (userId: string, bookId: string, record: Book) => Promise<void>
   dismissUpload: (id: string) => void
   update: (userId: string, id: string, patch: CloudBookPatch) => Promise<CloudBook>
   remove: (userId: string, id: string) => Promise<void>
@@ -74,10 +97,21 @@ function uploadError(error: unknown): UploadError {
   if (error.status === 413) return 'too-large'
   if (error.status === 415) return 'not-epub'
   if (error.code === 'invalid_epub') return 'invalid'
+  if (error.code === 'work_already_linked') return 'already-linked'
   return 'unknown'
 }
 
 let uploadId = 0
+/** Livres déjà passés au rapprochement automatique pendant cette session (imports d'avant le rattachement). */
+const backfilled = new Set<string>()
+
+/** Range un livre importé d'après la réponse de l'API ; `known` : fiche déjà connue (import depuis une fiche). */
+function place(book: CloudBook, match: ImportMatch, known: Book | null): PendingMatch | null {
+  if (match.status === 'choose') return { book, candidates: match.candidates }
+  const record = match.record ?? known ?? (isOwnNovelWork(book.workId) ? novelAsBook(book) : null)
+  if (record) placeInLibrary(record, book.progressPercent)
+  return null
+}
 
 /**
  * Romans du compte (EPUB stockés sur le serveur). Non persisté dans
@@ -87,11 +121,21 @@ export const useNovelStore = create<NovelState>()((set, get) => ({
   books: null,
   offline: false,
   uploads: [],
+  pendingMatches: [],
 
   refresh: async (userId) => {
     try {
       const books = await booksApi.list()
       set({ books: await syncCachedBooks(userId, books), offline: false })
+      // Fiche tirée du fichier absente de la bibliothèque (import interrompu, autre appareil) : recréée.
+      const { entries } = useLibraryStore.getState()
+      for (const book of books) {
+        if (isOwnNovelWork(book.workId) && !entries[book.workId!]) placeInLibrary(novelAsBook(book), book.progressPercent)
+      }
+      // Imports d'avant le rattachement : rapprochés une fois, sans question.
+      const pending = new Set(get().pendingMatches.map((item) => item.book.id))
+      const legacy = books.filter((book) => book.workId === null && !pending.has(book.id) && !backfilled.has(book.id))
+      if (legacy.length > 0) void backfill(userId, legacy)
     } catch (error) {
       if (!isNetworkError(error)) throw error
       const cached = await listCachedBooks(userId)
@@ -99,8 +143,9 @@ export const useNovelStore = create<NovelState>()((set, get) => ({
     }
   },
 
-  upload: async (userId, files, language) => {
+  upload: async (userId, files, language, target) => {
     const { notify } = useUiStore.getState()
+    const outcomes: { error: UploadError | null }[] = []
     for (const file of files) {
       uploadId += 1
       const id = `upload-${uploadId}`
@@ -111,20 +156,55 @@ export const useNovelStore = create<NovelState>()((set, get) => ({
       const refused = await precheck(file)
       if (refused) {
         patch({ status: 'error', error: refused })
+        outcomes.push({ error: refused })
         continue
       }
       try {
-        const { book, duplicate } = await booksApi.upload(file, language, (progress) =>
-          patch(progress >= 1 ? { progress, status: 'processing' } : { progress }),
+        const { book, duplicate, match } = await booksApi.upload(
+          file,
+          language,
+          (progress) => patch(progress >= 1 ? { progress, status: 'processing' } : { progress }),
+          { workId: target?.workId },
         )
         await cacheBook(userId, book).catch(() => {})
         set((state) => ({ uploads: state.uploads.filter((item) => item.id !== id) }))
-        notify(duplicate ? getT().novels.duplicate(book.title) : getT().novels.imported(book.title), 'like')
+        const pending = place(book, match, target?.record ?? null)
+        if (pending) set((state) => ({ pendingMatches: [...state.pendingMatches.filter((item) => item.book.id !== book.id), pending] }))
+        else notify(duplicate ? getT().novels.duplicate(book.title) : getT().novels.imported(book.title), 'like')
+        outcomes.push({ error: null })
       } catch (error) {
-        patch({ status: 'error', error: uploadError(error) })
+        const reason = uploadError(error)
+        patch({ status: 'error', error: reason })
+        outcomes.push({ error: reason })
       }
     }
     await get().refresh(userId).catch(() => {})
+    return outcomes
+  },
+
+  resolveMatch: async (userId, bookId, choice) => {
+    set((state) => ({ pendingMatches: state.pendingMatches.filter((item) => item.book.id !== bookId) }))
+    let result: { book: CloudBook; record: Book }
+    try {
+      result = await booksApi.link(bookId, choice === 'own' ? { own: true } : { record: choice })
+    } catch (error) {
+      // Fiche déjà dotée d'un autre fichier : ce livre garde la sienne.
+      if (!(error instanceof ApiError && error.code === 'work_already_linked')) throw error
+      useUiStore.getState().notify(getT().novels.match.alreadyLinked, 'neutral')
+      result = await booksApi.link(bookId, { own: true })
+    }
+    placeInLibrary(result.record, result.book.progressPercent)
+    await cacheBook(userId, result.book).catch(() => {})
+    set((state) => ({ books: state.books?.map((entry) => (entry.id === bookId ? { ...entry, book: result.book } : entry)) ?? null }))
+    useUiStore.getState().notify(getT().novels.imported(result.record.title), 'like')
+  },
+
+  relink: async (userId, bookId, record) => {
+    const previous = get().books?.find((entry) => entry.id === bookId)?.book.workId ?? null
+    const { book } = await booksApi.link(bookId, { record })
+    moveWork(previous, record)
+    await cacheBook(userId, book).catch(() => {})
+    set((state) => ({ books: state.books?.map((entry) => (entry.id === bookId ? { ...entry, book } : entry)) ?? null }))
   },
 
   dismissUpload: (id) => set((state) => ({ uploads: state.uploads.filter((item) => item.id !== id) })),
@@ -137,7 +217,9 @@ export const useNovelStore = create<NovelState>()((set, get) => ({
   },
 
   remove: async (userId, id) => {
+    const workId = get().books?.find((entry) => entry.id === id)?.book.workId ?? null
     await booksApi.remove(id)
+    forgetOwnWork(workId)
     await removeCachedBook(id).catch(() => {})
     set((state) => ({ books: state.books?.filter((entry) => entry.id !== id) ?? null }))
     await get().refresh(userId).catch(() => {})
@@ -161,10 +243,37 @@ export const useNovelStore = create<NovelState>()((set, get) => ({
   },
 
   clear: async () => {
-    set({ books: null, offline: false, uploads: [] })
+    backfilled.clear()
+    set({ books: null, offline: false, uploads: [], pendingMatches: [] })
     await clearCloudCache().catch(() => {})
     // Couvertures des romans gardées par le Service Worker (cf. public/sw.js).
     const keys = await globalThis.caches?.keys().catch(() => [] as string[])
     await Promise.all((keys ?? []).filter((key) => key.startsWith('bookshelf-private-')).map((key) => caches.delete(key)))
   },
 }))
+
+/**
+ * Rattachement automatique des imports d'avant les fiches : un à un, sans
+ * jamais poser de question (fiche tirée du fichier en cas de doute ; elle se
+ * change ensuite depuis « Mes romans »). Hors-ligne : on réessaiera au
+ * prochain chargement.
+ */
+async function backfill(userId: string, books: CloudBook[]): Promise<void> {
+  const language = useSettingsStore.getState().language
+  for (const book of books) {
+    backfilled.add(book.id)
+    try {
+      const result = await booksApi.match(book.id, language, 'auto')
+      place(result.book, result.match, null)
+      await cacheBook(userId, result.book).catch(() => {})
+      useNovelStore.setState((state) => ({
+        books: state.books?.map((entry) => (entry.id === book.id ? { ...entry, book: result.book } : entry)) ?? null,
+      }))
+    } catch (error) {
+      if (isNetworkError(error)) {
+        backfilled.delete(book.id)
+        return
+      }
+    }
+  }
+}

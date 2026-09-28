@@ -5,10 +5,29 @@
  */
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
+import { extraMocks, installMangadexMock, mockedHosts, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
 prepareEnvironment('profile')
 installMangadexMock()
+mockedHosts.add('graphql.anilist.co')
+mockedHosts.add('kitsu.io')
+extraMocks.push((url) => {
+  if (url.hostname === 'kitsu.io') {
+    return new Response(JSON.stringify(url.pathname.endsWith('/characters') ? { data: [], included: [] } : { data: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/vnd.api+json' },
+    })
+  }
+  return url.hostname === 'graphql.anilist.co'
+    ? new Response(JSON.stringify({
+        data: {
+          Page: {
+            media: [{ title: { english: 'Œuvre COMMON' }, characters: { edges: [{ role: 'MAIN', node: { name: { full: 'Hero COMMON' }, image: { large: 'https://s4.anilist.co/file/anilistcdn/character/large/hero.jpg' } } }] } }],
+          },
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    : undefined,
+})
 const { client, close } = await startServer()
 after(close)
 
@@ -30,6 +49,7 @@ before(async () => {
       imageUrl: `/api/covers/${index}`,
       rarity,
       mangaId: `manga-${index}`,
+      characterName: index === 0 ? 'Hero COMMON' : null,
     })),
   })
 })
@@ -98,6 +118,24 @@ describe('GET /api/profile/me', () => {
     assert.equal(body.stats.reading.completion, 0.667)
     assert.equal(body.titles.find((title: { id: string }) => title.id === 'mythicHunter').unlocked, true)
   })
+
+  it('vitrine automatique : les trois dernières œuvres lues, dans l’ordre récent', async () => {
+    const account = await signedUp()
+    await prisma.libraryEntry.createMany({
+      data: [1, 2, 3, 4].map((index) => ({
+        userId: account.userId,
+        workId: `recent-${index}`,
+        status: index === 1 ? 'wishlist' : 'reading',
+        title: `Lecture ${index}`,
+        snapshot: JSON.stringify({ cover: `https://images.example.test/${index}.jpg` }),
+        updatedAt: new Date(2026, 0, index),
+      })),
+    })
+
+    const { body } = await account.request('GET', '/profile/me')
+    assert.deepEqual(body.profile.recentReads.map((work: { id: string }) => work.id), ['recent-4', 'recent-3', 'recent-2'])
+    assert.equal(body.profile.recentReads[0].cover, 'https://images.example.test/4.jpg')
+  })
 })
 
 describe('PATCH /api/profile', () => {
@@ -158,7 +196,7 @@ describe('PATCH /api/profile', () => {
     assert.equal(unsafe.body.error.code, 'validation_error')
   })
 
-  it('galerie avatar : uniquement une œuvre de la bibliothèque, avec couverture et carte possédée associée', async () => {
+  it('galerie avatar : une œuvre de la bibliothèque expose uniquement ses personnages', async () => {
     const account = await signedUp()
     await give(account.userId, ['card-common'])
     await prisma.libraryEntry.create({
@@ -174,7 +212,7 @@ describe('PATCH /api/profile', () => {
     const { status, body } = await account.request('GET', '/profile/avatar-options?kind=library&workId=manga-0')
     assert.equal(status, 200)
     assert.equal(body.title, 'Œuvre COMMON')
-    assert.deepEqual(body.options.map((option: { source: string }) => option.source), ['cover', 'card'])
+    assert.deepEqual(body.options.map((option: { source: string }) => option.source), ['character'])
 
     const other = await signedUp()
     assert.equal((await other.request('GET', '/profile/avatar-options?kind=library&workId=manga-0')).status, 404)

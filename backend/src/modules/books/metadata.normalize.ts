@@ -196,7 +196,7 @@ function positiveInt(value: unknown): number | null {
 }
 
 /** Nom de famille normalisé du premier auteur : « Colleen Hoover » → « hoover ». */
-const authorKey = (authors: readonly string[]) => normalizeTitle(authors[0] ?? '').split(' ').pop() ?? ''
+export const authorKey = (authors: readonly string[]) => normalizeTitle(authors[0] ?? '').split(' ').pop() ?? ''
 
 /** Clé de dédoublonnage : titre normalisé + nom du premier auteur. */
 export const dedupeKey = (item: Pick<NovelMetadata, 'title' | 'authors'>) => `${normalizeTitle(item.title)}|${authorKey(item.authors)}`

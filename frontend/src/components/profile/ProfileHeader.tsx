@@ -14,8 +14,9 @@ interface ProfileHeaderProps {
   /** Date déjà mise en forme (« septembre 2026 »). */
   memberSince: string | null
   signedIn: boolean
-  onEdit: () => void
-  onSignIn: () => void
+  /** Absent : profil d'un autre compte, en lecture seule (pas de bouton). */
+  onEdit?: () => void
+  onSignIn?: () => void
 }
 
 /** Carte d'identité du profil : avatar, pseudo, titre, ancienneté, bio. */
@@ -50,6 +51,7 @@ export function ProfileHeader({ name, avatar, avatarUrl, title, bio, memberSince
       {signedIn && bio && <p className="mt-4 text-[13px] leading-relaxed whitespace-pre-line text-cream/80">{bio}</p>}
 
       {signedIn ? (
+        onEdit && (
         <Pressable
           onClick={() => {
             vibrate(6)
@@ -61,7 +63,9 @@ export function ProfileHeader({ name, avatar, avatarUrl, title, bio, memberSince
           <PencilLine size={14} />
           {t.profile.edit}
         </Pressable>
+        )
       ) : (
+        onSignIn && (
         <>
           <p className="mt-4 text-[11px] leading-relaxed text-mist">{t.profile.signInToCustomize}</p>
           <Pressable
@@ -75,6 +79,7 @@ export function ProfileHeader({ name, avatar, avatarUrl, title, bio, memberSince
             {t.account.cta}
           </Pressable>
         </>
+        )
       )}
     </section>
   )

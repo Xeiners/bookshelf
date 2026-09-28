@@ -6,7 +6,7 @@ import { useT } from '../../i18n'
 import { getLocations, saveLocations } from '../../lib/reader/db'
 import { FONT_ORDER, FONT_STACKS, THEMES, THEME_ORDER, fontFaceRules, readerCss } from '../../lib/reader/epubStyle'
 import { keyAction, swipeAction, tapAction } from '../../lib/reader/navigation'
-import { countWords, remainingMinutes } from '../../lib/reader/progress'
+import { countWords, remainingMinutes, virtualPage } from '../../lib/reader/progress'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
 import { ChapterDrawer, type DrawerItem } from './ChapterDrawer'
 import { EMBEDDED_FONTS } from './epubFonts'
@@ -48,6 +48,12 @@ function applyCss(contents: Contents, css: string) {
     document.head.appendChild(style)
   }
   style.textContent = css
+  if (document.documentElement.dataset.bookshelfGestures !== 'protected') {
+    document.documentElement.dataset.bookshelfGestures = 'protected'
+    const preventNativeMenu = (event: Event) => event.preventDefault()
+    document.addEventListener('contextmenu', preventNativeMenu)
+    document.addEventListener('selectstart', preventNativeMenu)
+  }
 }
 
 /** Sommaire aplati, avec la profondeur de chaque entrée. */
@@ -82,6 +88,7 @@ export function EpubReader({ source }: { source: EpubSource }) {
   const [toc, setToc] = useState<{ item: NavItem; depth: number }[]>([])
   const [location, setLocation] = useState<Location | null>(null)
   const [locationsReady, setLocationsReady] = useState(false)
+  const [absolutePage, setAbsolutePage] = useState<{ page: number; total: number } | null>(null)
   const [words, setWords] = useState<Record<number, number>>({})
   // Figés à l'ouverture : la position de reprise ne doit pas rouvrir le livre à chaque page.
   const [opening] = useState(() => ({ cfi: source.initialCfi, load: source.load, locationsKey: `${source.locationsKey}:${CHARS_PER_LOCATION}` }))
@@ -110,9 +117,15 @@ export function EpubReader({ source }: { source: EpubSource }) {
     let cancelled = false
     let book: EpubBook | null = null
     latest.current.locationsReady = false
+    setAbsolutePage(null)
 
     const report = (next: Location) => {
       const percentage = next.start.percentage
+      // epubjs renvoie bien un index numérique, malgré une déclaration TypeScript historique erronée (`Location`).
+      const locationIndex = book && latest.current.locationsReady
+        ? Number(book.locations.locationFromCfi(next.start.cfi) as unknown)
+        : Number.NaN
+      setAbsolutePage(book ? virtualPage(locationIndex, book.locations.length()) : null)
       latest.current.onPosition({
         cfi: next.start.cfi,
         ratio: latest.current.locationsReady && Number.isFinite(percentage) ? percentage : null,
@@ -164,8 +177,6 @@ export function EpubReader({ source }: { source: EpubSource }) {
 
       // Tap : tiers gauche / droit pour tourner la page, centre pour les commandes.
       rendition.on('click', (event: MouseEvent) => {
-        const selection = (event.view as Window | null)?.getSelection()
-        if (selection && !selection.isCollapsed) return
         if ((event.target as Element | null)?.closest?.('a')) return
         const frame = (event.view as Window | null)?.frameElement
         const box = host.getBoundingClientRect()
@@ -179,6 +190,7 @@ export function EpubReader({ source }: { source: EpubSource }) {
       // Swipe dans l'iframe : `screenX` est commun aux deux documents.
       let touchStart: { x: number; time: number } | null = null
       rendition.on('touchstart', (event: TouchEvent) => {
+        ;(event.view as Window | null)?.getSelection()?.removeAllRanges()
         const touch = event.changedTouches[0]
         touchStart = touch ? { x: touch.screenX, time: performance.now() } : null
       })
@@ -272,7 +284,7 @@ export function EpubReader({ source }: { source: EpubSource }) {
   const sectionWords = start ? (words[start.index] ?? 0) : 0
   const minutes = start ? remainingMinutes(sectionWords, start.displayed.page, start.displayed.total) : 0
   const ratio = locationsReady && start && Number.isFinite(start.percentage) ? start.percentage : null
-  const percent = ratio === null ? null : Math.round(ratio * 100)
+  const pageLabel = absolutePage ? t.reader.pageOf(absolutePage.page, absolutePage.total) : null
 
   const currentHref = start ? baseHref(start.href) : null
   const items: DrawerItem[] = useMemo(() => {
@@ -296,12 +308,16 @@ export function EpubReader({ source }: { source: EpubSource }) {
 
   const timeLeft = sectionWords > 0 ? t.reader.text.minutesLeft(minutes) : null
   // Commandes affichées : le curseur donne déjà le pourcentage, seul le temps restant s'ajoute.
-  const controlsNote = phase !== 'ready' ? null : (timeLeft ?? (percent === null ? t.reader.text.locating : null))
-  // Commandes masquées : une ligne discrète, temps restant et pourcentage.
-  const readingNote = [timeLeft, percent !== null ? t.reader.percent(percent) : null].filter(Boolean).join(' · ')
+  const controlsNote = phase !== 'ready' ? null : (timeLeft ?? (absolutePage === null ? t.reader.text.locating : null))
+  // Commandes masquées : une ligne discrète, temps restant et page virtuelle absolue.
+  const readingNote = [timeLeft, pageLabel].filter(Boolean).join(' · ')
 
   return (
-    <div className="fixed inset-0 z-[100]" style={{ background: theme.background, color: theme.color }}>
+    <div
+      className="fixed inset-0 z-[100] select-none [-webkit-touch-callout:none]"
+      onContextMenu={(event) => event.preventDefault()}
+      style={{ background: theme.background, color: theme.color }}
+    >
       <div
         ref={hostRef}
         className="absolute top-[max(2rem,env(safe-area-inset-top))] bottom-10"
@@ -331,7 +347,7 @@ export function EpubReader({ source }: { source: EpubSource }) {
       )}
 
       {phase === 'ready' && ratio !== null && (
-        <ReadingProgressBar ratio={ratio} color={theme.link} label={t.reader.text.progressLabel(Math.round(ratio * 100))} />
+        <ReadingProgressBar ratio={ratio} color={theme.link} label={pageLabel ?? t.reader.text.locating} />
       )}
 
       <ReaderStatus visible={showStatus && !ui.controls} tone={theme.dark ? 'light' : 'dark'} />
@@ -339,19 +355,19 @@ export function EpubReader({ source }: { source: EpubSource }) {
       <ReaderControls
         visible={ui.controls}
         title={source.title}
-        subtitle={currentTitle}
+        subtitle={[currentTitle, pageLabel].filter(Boolean).join(' · ')}
         onClose={ui.close}
         onOpenContents={toc.length > 0 ? () => ui.setPanel('contents') : undefined}
         contentsLabel={t.reader.contents}
         onOpenSettings={() => ui.setPanel('settings')}
         slider={
-          ratio !== null
+          absolutePage !== null
             ? {
-                value: Math.round(ratio * 1000),
-                max: 1000,
-                valueText: t.reader.percent(Math.round(ratio * 100)),
+                value: absolutePage.page - 1,
+                max: absolutePage.total - 1,
+                valueText: pageLabel!,
                 onChange: (value) => {
-                  const cfi = bookRef.current?.locations.cfiFromPercentage(value / 1000)
+                  const cfi = bookRef.current?.locations.cfiFromLocation(value)
                   if (cfi) void renditionRef.current?.display(cfi)
                 },
               }

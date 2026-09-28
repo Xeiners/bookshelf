@@ -16,6 +16,7 @@ import {
   type NovelMetadata,
   type OpenLibraryDoc,
 } from './metadata.normalize.js'
+import { decideMatch, type FileIdentity, type MatchDecision } from './epub.match.js'
 
 /**
  * Recherche de romans (FR / EN) sur Open Library et Google Books, interrogés
@@ -150,27 +151,40 @@ export function searchNovels(query: string, language: Language, signal?: AbortSi
   )
 }
 
+export interface NovelMatch {
+  /** Rattachement proposé pour le fichier (cf. `epub.match.ts`). */
+  decision: MatchDecision
+  /**
+   * Fiche qui complète les métadonnées du fichier (résumé, couverture HD,
+   * pagination, parution) : la fiche retenue, sinon un rapprochement sûr
+   * (même titre ET même auteur, cf. `pickMatch`), sinon `null`.
+   */
+  enrich: NovelMetadata | null
+}
+
+const NO_MATCH: NovelMatch = { decision: { kind: 'none' }, enrich: null }
+
 /**
- * Fiche en ligne d'un EPUB importé (résumé, couverture HD, pagination,
- * parution), ou `null` : recherche coupée, rien de sûr, ou délai dépassé.
- * Même ISBN, sinon même titre et même auteur (cf. `pickMatch`).
+ * Fiches en ligne d'un EPUB importé, en une seule recherche : décision de
+ * rattachement et fiche d'enrichissement. Recherche coupée, sources en panne
+ * ou délai dépassé → aucune fiche (le livre garde celle tirée du fichier, et
+ * pourra être rattaché plus tard depuis sa fiche).
  */
-export async function lookupNovel(
-  book: { title: string; author: string | null; isbn: string | null },
-  language: Language,
-  timeoutMs = 5_000,
-): Promise<NovelMetadata | null> {
-  if (!config.books.metadataLookup) return null
+export async function matchNovel(file: FileIdentity, language: Language, timeoutMs = 5_000): Promise<NovelMatch> {
+  if (!config.books.metadataLookup) return NO_MATCH
   const signal = AbortSignal.timeout(timeoutMs)
-  const surname = book.author?.split(',')[0]?.trim().split(/\s+/).pop() ?? ''
+  const surname = file.author?.split(',')[0]?.trim().split(/\s+/).pop() ?? ''
   try {
-    const results = await searchNovels(`${book.title} ${surname}`.trim(), language, signal)
-    const match = (book.isbn ? results.find((item) => item.isbn === book.isbn) : undefined) ?? pickMatch(results, book)
-    if (!match || match.synopsis || !match.refs.openlibrary) return match ?? null
-    return { ...match, synopsis: await openLibrarySummary(match.refs.openlibrary, signal).catch(() => '') }
+    const results = await searchNovels(`${file.title} ${surname}`.trim(), language, signal)
+    const decision = decideMatch(results, file)
+    let enrich = decision.kind === 'confident' ? decision.item : pickMatch(results, file)
+    if (enrich && !enrich.synopsis && enrich.refs.openlibrary) {
+      enrich = { ...enrich, synopsis: await openLibrarySummary(enrich.refs.openlibrary, signal).catch(() => '') }
+    }
+    return { decision: decision.kind === 'confident' && enrich ? { kind: 'confident', item: enrich } : decision, enrich }
   } catch (error) {
-    console.warn(`[livres] fiche introuvable pour « ${book.title} » : ${error instanceof Error ? error.message : String(error)}`)
-    return null
+    console.warn(`[livres] fiche introuvable pour « ${file.title} » : ${error instanceof Error ? error.message : String(error)}`)
+    return NO_MATCH
   }
 }
 

@@ -8,9 +8,9 @@
 export const MAX_BOOSTERS = 2
 /** Un booster se régénère toutes les 3 heures. */
 export const BOOSTER_INTERVAL_MS = 3 * 60 * 60 * 1000
-/** Cartes par booster. */
-export const CARDS_PER_PACK = 5
-/** Le 30e booster consécutif sans Mythique en garantit une sur son slot 5. */
+/** Cartes par booster : deux de base, une wildcard Rare+, une Épique+ garantie. */
+export const CARDS_PER_PACK = 4
+/** Le 30e booster consécutif sans Mythique en garantit une sur son dernier slot. */
 export const HARD_PITY_PACKS = 30
 
 export const RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] as const
@@ -18,7 +18,7 @@ export type Rarity = (typeof RARITIES)[number]
 
 export const isRarity = (value: string): value is Rarity => (RARITIES as readonly string[]).includes(value)
 
-/** Slots 1 à 3 : cartes de base. */
+/** Premiers slots (1 et 2) : cartes de base. */
 export const BASE_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0.7,
   RARE: 0.25,
@@ -27,7 +27,7 @@ export const BASE_SLOT_RATES: Record<Rarity, number> = {
   MYTHIC: 0,
 }
 
-/** Slot 4 : wildcard Rare+. */
+/** Avant-dernier slot (3) : wildcard Rare+. */
 export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0.65,
@@ -36,7 +36,7 @@ export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
   MYTHIC: 0.01,
 }
 
-/** Slot 5 : haute rareté garantie. */
+/** Dernier slot (4) : haute rareté garantie. */
 export const HIGH_RARITY_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
@@ -135,10 +135,22 @@ function nearestAvailable(rarity: Rarity, has: (rarity: Rarity) => boolean): Rar
 }
 
 /**
- * Tire les cinq cartes d'un booster selon la table propre à chaque slot, puis
- * une carte au hasard dans cette rareté. Pas deux fois la même carte dans un
+ * Table d'un slot, comptée depuis la fin du booster : le dernier est à haute
+ * rareté (Mythique forcée par le hard pity), l'avant-dernier est la wildcard,
+ * les autres sont de base. Changer `CARDS_PER_PACK` ne retire donc jamais les
+ * deux garanties.
+ */
+export function slotRates(slot: number, size: number, forceMythic = false): Record<Rarity, number> {
+  if (slot === size - 1) return forceMythic ? MYTHIC_ONLY_RATES : HIGH_RARITY_SLOT_RATES
+  if (slot === size - 2) return WILDCARD_SLOT_RATES
+  return BASE_SLOT_RATES
+}
+
+/**
+ * Tire les cartes d'un booster selon la table propre à chaque slot, puis une
+ * carte au hasard dans cette rareté. Pas deux fois la même carte dans un
  * booster tant que le set le permet. Le hard pity ne remplace que la table du
- * slot 5, sans modifier les quatre autres tirages.
+ * dernier slot, sans modifier les autres tirages.
  */
 export function drawPack<C extends { id: string; rarity: string }>(
   cards: readonly C[],
@@ -152,15 +164,7 @@ export function drawPack<C extends { id: string; rarity: string }>(
   const picked: C[] = []
   const used = new Set<string>()
   for (let slot = 0; slot < size; slot += 1) {
-    const rates =
-      slot < 3
-        ? BASE_SLOT_RATES
-        : slot === 3
-          ? WILDCARD_SLOT_RATES
-          : options.forceMythic && slot === 4
-            ? MYTHIC_ONLY_RATES
-            : HIGH_RARITY_SLOT_RATES
-    const wanted = drawRarity(random, rates)
+    const wanted = drawRarity(random, slotRates(slot, size, options.forceMythic))
     const fresh = (rarity: Rarity) => byRarity.get(rarity)!.some((card) => !used.has(card.id))
     const any = (rarity: Rarity) => byRarity.get(rarity)!.length > 0
     const rarity = nearestAvailable(wanted, fresh) ?? nearestAvailable(wanted, any)
@@ -174,7 +178,7 @@ export function drawPack<C extends { id: string; rarity: string }>(
   return picked
 }
 
-/** Le prochain booster est le 30e de la série sèche : son slot 5 est forcé. */
+/** Le prochain booster est le 30e de la série sèche : son dernier slot est forcé. */
 export const hasReachedHardPity = (boostersSinceLastMythic: number): boolean =>
   boostersSinceLastMythic >= HARD_PITY_PACKS - 1
 

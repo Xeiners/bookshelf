@@ -1,9 +1,11 @@
 import { useRef, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { BookOpen, Heart, Play, Star } from 'lucide-react'
 import { useCoverTone } from '../../hooks/useCoverTone'
+import { useLinkedNovel } from '../../hooks/useNovels'
 import { useT } from '../../i18n'
 import { formatAuthors, primaryCategory } from '../../lib/format'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
+import { useUiStore } from '../../store/useUiStore'
 import type { LibraryEntry } from '../../types/book'
 import { Pill } from '../ui/Pill'
 import { Pressable } from '../ui/Pressable'
@@ -37,6 +39,9 @@ export function FeaturedBook({ entry, width, layout = 'row', onOpen, onStart }: 
   const t = useT()
   const { book, status, progress } = entry
   const tone = useCoverTone(book)
+  // Roman dont le fichier EPUB est sur le compte : le bouton principal l'ouvre.
+  const epub = useLinkedNovel(book.id)
+  const openReader = useUiStore((state) => state.openReader)
 
   const rootRef = useRef<HTMLElement>(null)
   const bookRef = useRef<HTMLDivElement>(null)
@@ -89,8 +94,13 @@ export function FeaturedBook({ entry, width, layout = 'row', onOpen, onStart }: 
   }
 
   const percent = Math.round(progress * 100)
-  const primary =
-    status === 'reading'
+  const primary = epub
+    ? {
+        label: progress > 0 && status !== 'read' ? t.library.resume : t.novels.epub.read,
+        icon: Play,
+        action: () => openReader({ source: 'cloud', bookId: epub.id }),
+      }
+    : status === 'reading'
       ? { label: t.library.resume, icon: Play, action: onOpen }
       : status === 'wishlist'
         ? { label: t.library.startReading, icon: Play, action: onStart }

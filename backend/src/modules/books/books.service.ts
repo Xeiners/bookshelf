@@ -9,12 +9,23 @@ import { prisma } from '../../db.js'
 import type { UserBook } from '../../generated/prisma/client.js'
 import { HttpError, notFound } from '../../lib/errors.js'
 import type { Language } from '../../lib/language.js'
+import { BookSchema, type Book } from './book.schema.js'
+import type { MatchDecision } from './epub.match.js'
 import { InvalidEpubError, parseEpub, type EpubMetadata } from './epub.parser.js'
-import { lookupNovel } from './metadata.service.js'
+import { toBook } from './metadata.normalize.js'
+import { matchNovel } from './metadata.service.js'
 
 /**
  * Romans importés (EPUB) : réception du fichier, lecture de ses métadonnées,
- * enrichissement en ligne, stockage, et position de lecture synchronisée.
+ * enrichissement en ligne, rattachement à une fiche de la bibliothèque,
+ * stockage, et position de lecture synchronisée.
+ *
+ * Chaque fichier se rattache à une fiche (`workId`, cf. `epub.match.ts`) : un
+ * roman en ligne (`ol:…`, `gb:…`) reconnu d'office ou choisi par
+ * l'utilisateur, sinon une fiche tirée du fichier lui-même (`novel:<id>`). La
+ * fiche vit dans la bibliothèque (`LibraryEntry`, écrite par le client comme
+ * toute entrée) : le livre importé y apparaît avec les mangas et les romans
+ * ajoutés depuis la recherche.
  *
  * Disque : `BOOKS_DIR/<userId>/<sha256>.epub` (+ `.cover.<ext>`). Les chemins
  * ne viennent jamais d'une saisie (id de compte + empreinte du contenu) : pas
@@ -108,10 +119,107 @@ export async function assertQuota(userId: string, incomingBytes: number): Promis
 
 const isUniqueViolation = (error: unknown) => (error as { code?: string } | null)?.code === 'P2002'
 
+/* ---- Rattachement à une fiche --------------------------------------------------- */
+
+const OWN_PREFIX = 'novel:'
+/** Fiche tirée du fichier lui-même : même identifiant que le livre importé. */
+export const ownWorkId = (bookId: string) => `${OWN_PREFIX}${bookId}`
+/** Fiches de roman en ligne auxquelles un fichier peut être rattaché (Open Library, Google Books). */
+export const ONLINE_NOVEL_ID = /^(ol:OL\d+W|gb:[\w-]{1,64})$/
+
+/**
+ * Issue d'un import (ou d'un nouveau rapprochement) : la fiche à placer dans
+ * la bibliothèque, ou les fiches entre lesquelles l'utilisateur doit choisir.
+ * `record: null` : la fiche est déjà connue du client (import depuis sa fiche).
+ */
+export type ImportMatch =
+  | { status: 'linked'; record: Book | null }
+  | { status: 'created'; record: Book }
+  | { status: 'choose'; candidates: Book[] }
+
+/** Fiche `Book` tirée du fichier (titre, auteur, couverture, résumé de l'EPUB et de sa fiche en ligne). */
+export function ownRecord(book: UserBook): Book {
+  const language = book.language === 'fr' || book.language === 'en' ? book.language : null
+  return {
+    id: ownWorkId(book.id),
+    title: book.title,
+    subtitle: null,
+    authors: book.author ? book.author.split(',').map((name) => name.trim()).filter(Boolean) : [],
+    cover: toDto(book).coverUrl,
+    synopsis: book.synopsis,
+    categories: [],
+    rating: null,
+    ratingsCount: 0,
+    pages: book.pages,
+    year: book.year,
+    publisher: book.publisher,
+    previewLink: null,
+    kind: 'book',
+    languages: language ? [language] : [],
+    ...(language && { lang: language }),
+    synopsisLanguage: book.synopsis ? language : null,
+  }
+}
+
+export const workAlreadyLinked = () =>
+  new HttpError(409, 'work_already_linked', 'Un autre fichier EPUB est déjà associé à cette fiche.')
+
+/** Rattache le fichier à une fiche. Une fiche n'a qu'un fichier : 409 si elle en a déjà un autre. */
+async function setWorkId(book: UserBook, workId: string): Promise<UserBook> {
+  if (book.workId === workId) return book
+  try {
+    return await prisma.userBook.update({ where: { id: book.id }, data: { workId } })
+  } catch (error) {
+    if (isUniqueViolation(error)) throw workAlreadyLinked()
+    throw error
+  }
+}
+
+/** Fiche déjà rattachée, telle que la bibliothèque du compte la connaît. */
+async function linkedRecord(book: UserBook): Promise<Book | null> {
+  if (!book.workId) return null
+  if (book.workId === ownWorkId(book.id)) return ownRecord(book)
+  const entry = await prisma.libraryEntry.findUnique({
+    where: { userId_workId: { userId: book.userId, workId: book.workId } },
+    select: { snapshot: true },
+  })
+  if (!entry) return null
+  try {
+    const parsed = BookSchema.safeParse(JSON.parse(entry.snapshot))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Applique une décision de rapprochement. Fiche en ligne sûre mais déjà
+ * occupée par un autre fichier du compte (deux éditions du même roman) :
+ * celui-ci garde sa propre fiche plutôt que d'en déloger l'autre.
+ */
+async function applyDecision(book: UserBook, decision: MatchDecision, language: Language, interactive: boolean): Promise<{ book: UserBook; match: ImportMatch }> {
+  if (decision.kind === 'confident') {
+    try {
+      const linked = await setWorkId(book, decision.item.id)
+      return { book: linked, match: { status: 'linked', record: toBook(decision.item, language) } }
+    } catch (error) {
+      if (!(error instanceof HttpError && error.code === 'work_already_linked')) throw error
+    }
+  }
+  if (decision.kind === 'choose' && interactive) {
+    return { book, match: { status: 'choose', candidates: decision.candidates.map((item) => toBook(item, language)) } }
+  }
+  const own = await setWorkId(book, ownWorkId(book.id))
+  return { book: own, match: { status: 'created', record: ownRecord(own) } }
+}
+
 /**
  * Enregistre un EPUB reçu : même fichier déjà importé → la fiche existante
  * (`duplicate`) ; sinon métadonnées du fichier, complétées en ligne (résumé,
  * couverture HD si le fichier n'en a pas, pagination, parution).
+ *
+ * Rattachement : `target` (import depuis la fiche d'un roman) l'impose ;
+ * sinon il est décidé d'après les fiches en ligne (cf. `epub.match.ts`).
  * Le fichier temporaire est toujours consommé.
  */
 export async function importBook(
@@ -119,10 +227,17 @@ export async function importBook(
   upload: ReceivedUpload,
   originalName: string,
   language: Language,
-): Promise<{ book: UserBook; duplicate: boolean }> {
+  target: string | null = null,
+): Promise<{ book: UserBook; duplicate: boolean; match: ImportMatch }> {
   try {
     const existing = await prisma.userBook.findUnique({ where: { userId_sha256: { userId, sha256: upload.sha256 } } })
-    if (existing) return { book: existing, duplicate: true }
+    if (existing) {
+      if (target) return { book: await setWorkId(existing, target), duplicate: true, match: { status: 'linked', record: null } }
+      const record = await linkedRecord(existing)
+      if (existing.workId && record) return { book: existing, duplicate: true, match: { status: 'linked', record } }
+      const found = await matchNovel({ title: existing.title, author: existing.author, isbn: null }, language)
+      return { ...(await applyDecision(existing, found.decision, language, true)), duplicate: true }
+    }
     await assertQuota(userId, upload.size)
 
     let metadata: EpubMetadata
@@ -135,7 +250,9 @@ export async function importBook(
 
     const title = metadata.title ?? titleFromFileName(originalName)
     const lookupLanguage = metadata.language === 'fr' || metadata.language === 'en' ? metadata.language : language
-    const online = await lookupNovel({ title, author: metadata.author, isbn: metadata.isbn }, lookupLanguage)
+    // Fiche imposée : la recherche ne sert qu'à compléter les métadonnées du fichier.
+    const found = await matchNovel({ title, author: metadata.author, isbn: metadata.isbn }, lookupLanguage)
+    const online = found.enrich
 
     await mkdir(storagePath(userId), { recursive: true })
     const filePath = `${userId}/${upload.sha256}.epub`
@@ -146,8 +263,9 @@ export async function importBook(
       await writeFile(storagePath(coverPath), metadata.cover.data)
     }
 
+    let book: UserBook
     try {
-      const book = await prisma.userBook.create({
+      book = await prisma.userBook.create({
         data: {
           userId,
           title: title.slice(0, 500),
@@ -166,7 +284,6 @@ export async function importBook(
           pages: online?.pages ?? null,
         },
       })
-      return { book, duplicate: false }
     } catch (error) {
       // Le même fichier envoyé deux fois en même temps : le premier arrivé gagne.
       // Les fichiers ont le même chemin (même empreinte) : surtout ne pas les supprimer.
@@ -177,11 +294,62 @@ export async function importBook(
       }
       const winner = await prisma.userBook.findUnique({ where: { userId_sha256: { userId, sha256: upload.sha256 } } })
       if (!winner) throw error
-      return { book: winner, duplicate: true }
+      return { book: winner, duplicate: true, match: { status: 'linked', record: await linkedRecord(winner) } }
     }
+
+    if (target) {
+      try {
+        return { book: await setWorkId(book, target), duplicate: false, match: { status: 'linked', record: null } }
+      } catch (error) {
+        // Fiche déjà dotée d'un fichier : l'import est gardé, rattaché à sa propre fiche, et le client prévenu.
+        if (!(error instanceof HttpError && error.code === 'work_already_linked')) throw error
+        await setWorkId(book, ownWorkId(book.id))
+        throw error
+      }
+    }
+    return { ...(await applyDecision(book, found.decision, lookupLanguage, true)), duplicate: false }
   } finally {
     await rm(upload.tempPath, { force: true })
   }
+}
+
+/**
+ * Rattache un livre importé à la fiche choisie par l'utilisateur (parmi les
+ * propositions, ou une recherche), ou à une fiche tirée du fichier (`own`).
+ */
+export async function linkBook(
+  userId: string,
+  id: string,
+  choice: { record: Book } | { own: true },
+): Promise<{ book: UserBook; record: Book }> {
+  const book = await getBook(userId, id)
+  if ('own' in choice) {
+    const own = await setWorkId(book, ownWorkId(book.id))
+    return { book: own, record: ownRecord(own) }
+  }
+  if (!ONLINE_NOVEL_ID.test(choice.record.id) || choice.record.kind !== 'book') {
+    throw new HttpError(400, 'not_a_novel', 'Seule une fiche de roman peut recevoir un fichier EPUB.')
+  }
+  return { book: await setWorkId(book, choice.record.id), record: choice.record }
+}
+
+/**
+ * Nouveau rapprochement d'un livre importé : pour les imports d'avant le
+ * rattachement (`auto` : jamais de question, une fiche propre au fichier en
+ * cas de doute), ou pour revoir les propositions (`interactive`).
+ */
+export async function matchBook(
+  userId: string,
+  id: string,
+  language: Language,
+  mode: 'auto' | 'interactive',
+): Promise<{ book: UserBook; match: ImportMatch }> {
+  const book = await getBook(userId, id)
+  if (book.workId && mode === 'auto') {
+    return { book, match: { status: 'linked', record: (await linkedRecord(book)) ?? ownRecord(book) } }
+  }
+  const found = await matchNovel({ title: book.title, author: book.author, isbn: null }, language)
+  return applyDecision(book, found.decision, language, mode === 'interactive')
 }
 
 /* ---- Lecture, fiche, position -------------------------------------------------------- */
@@ -207,6 +375,8 @@ export function toDto(book: UserBook) {
     lastCfi: book.lastCfi,
     /** Horodatage client de la position (ms), `null` si jamais ouvert. */
     progressAt: book.progressAt?.getTime() ?? null,
+    /** Fiche de la bibliothèque rattachée (`ol:…`, `gb:…`, `novel:<id>`), `null` si pas encore rattaché. */
+    workId: book.workId,
     createdAt: book.createdAt.toISOString(),
     updatedAt: book.updatedAt.toISOString(),
   }

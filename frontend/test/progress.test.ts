@@ -10,6 +10,7 @@ import {
   pagedRatio,
   remainingMinutes,
   scrollRatio,
+  virtualPage,
 } from '../src/lib/reader/progress'
 import type { ReaderChapter, ReadingPosition } from '../src/types/reader'
 
@@ -133,5 +134,18 @@ describe('temps de lecture restant (mode texte)', () => {
     assert.equal(remainingMinutes(2300, 6, 10), 5)
     assert.equal(remainingMinutes(2300, 10, 10), 1)
     assert.equal(remainingMinutes(0, 1, 10), 0)
+  })
+})
+
+describe('pagination virtuelle EPUB', () => {
+  it('convertit la location epub.js en Page actuelle / Total', () => {
+    assert.deepEqual(virtualPage(0, 312), { page: 1, total: 312 })
+    assert.deepEqual(virtualPage(41, 312), { page: 42, total: 312 })
+    assert.deepEqual(virtualPage(999, 312), { page: 312, total: 312 })
+  })
+
+  it('ignore une table de locations absente ou invalide', () => {
+    assert.equal(virtualPage(-1, 312), null)
+    assert.equal(virtualPage(0, 0), null)
   })
 })

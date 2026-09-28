@@ -121,6 +121,16 @@ const EnvSchema = z.object({
   BOOKS_METADATA_LOOKUP: z.enum(['on', 'off']).optional(),
   /** Clé Google Books : sans elle, le quota anonyme partagé renvoie souvent 429 (Open Library prend alors le relais). */
   GOOGLE_BOOKS_API_KEY: z.string().trim().optional(),
+
+  /*
+   * Recherche YouTube de la musique d'ambiance (cf. src/modules/music/). Avec
+   * une clé YouTube Data API v3 : recherche officielle (100 unités par
+   * recherche, 10 000 par jour). Sans clé, ou quota épuisé : page de
+   * résultats publique de youtube.com.
+   */
+  YOUTUBE_API_KEY: z.string().trim().optional(),
+  /** `off` : aucune requête vers YouTube (la recherche répond 503). */
+  MUSIC_SEARCH: z.enum(['on', 'off']).optional(),
 })
 
 const csv = (value: string | undefined) =>
@@ -230,6 +240,10 @@ export const config = {
     quotaBytes: env.BOOKS_QUOTA_MB * 1024 * 1024,
     metadataLookup: (env.BOOKS_METADATA_LOOKUP ?? (env.NODE_ENV === 'test' ? 'off' : 'on')) === 'on',
     googleApiKey: env.GOOGLE_BOOKS_API_KEY || undefined,
+  },
+  music: {
+    search: (env.MUSIC_SEARCH ?? 'on') === 'on',
+    youtubeApiKey: env.YOUTUBE_API_KEY || undefined,
   },
   mail: {
     transport: resolveMailTransport(),

@@ -45,6 +45,8 @@ export const ProfilePatchSchema = z
       .refine((ids) => new Set(ids).size === ids.length, 'Une même carte ne peut être exposée deux fois.')
       .optional(),
     activeTitle: z.enum(TITLE_IDS).nullable().optional(),
+    /** Profil public complet ; privé : seuls pseudo, avatar, titre et vitrine restent visibles. */
+    isProfilePublic: z.boolean().optional(),
   })
   .refine((patch) => Object.values(patch).some((value) => value !== undefined), { message: 'Rien à modifier.' })
 

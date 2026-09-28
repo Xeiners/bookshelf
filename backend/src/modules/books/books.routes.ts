@@ -6,12 +6,16 @@ import { HttpError, notFound } from '../../lib/errors.js'
 import { LangQuerySchema } from '../../lib/language.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
+import { BookSchema } from './book.schema.js'
 import {
+  ONLINE_NOVEL_ID,
   assertQuota,
   deleteBook,
   getBook,
   importBook,
+  linkBook,
   listBooks,
+  matchBook,
   payloadTooLarge,
   receiveUpload,
   safeFileName,
@@ -19,6 +23,7 @@ import {
   storageUsed,
   toDto,
   updateMetadata,
+  workAlreadyLinked,
 } from './books.service.js'
 import { toBook } from './metadata.normalize.js'
 import { discoverNovels, novelSummary, searchNovels } from './metadata.service.js'
@@ -122,15 +127,25 @@ const UPLOAD_TYPES = new Set(['application/epub+zip', 'application/octet-stream'
 
 const uploadLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 60 })
 
+const UploadQuery = z.object({
+  lang: LangQuerySchema,
+  /** Import depuis la fiche d'un roman : le fichier lui est rattaché d'office. */
+  workId: z.string().regex(ONLINE_NOVEL_ID).optional(),
+})
+
 /**
  * Import d'un EPUB : le fichier est le CORPS de la requête (pas de
  * multipart), son nom dans l'en-tête `X-File-Name` (encodé URI). Une seule
  * lecture en flux vers le disque, sans tampon mémoire ni dépendance.
  * 201 : importé ; 200 + `duplicate` : ce fichier était déjà là.
+ *
+ * `match` dit où le livre se range : fiche en ligne reconnue ou imposée
+ * (`linked`), fiche tirée du fichier (`created`), ou fiches à départager
+ * par l'utilisateur (`choose`, puis `POST /:id/link`).
  */
 booksRouter.post('/upload', uploadLimiter, async (req, res) => {
   const userId = currentUserId(req)
-  const { lang } = z.object({ lang: LangQuerySchema }).parse(req.query)
+  const { lang, workId } = UploadQuery.parse(req.query)
   const type = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase()
   const declared = Number(req.headers['content-length'])
 
@@ -139,6 +154,9 @@ booksRouter.post('/upload', uploadLimiter, async (req, res) => {
   if (!UPLOAD_TYPES.has(type)) refusal = new HttpError(415, 'unsupported_type', 'Seuls les fichiers EPUB sont acceptés.')
   else if (declared > config.books.maxUploadBytes) {
     refusal = payloadTooLarge(`Fichier trop volumineux (${Math.round(config.books.maxUploadBytes / 1024 / 1024)} Mo maximum).`)
+  } else if (workId && (await prisma.userBook.count({ where: { userId, workId } })) > 0) {
+    // Fiche déjà dotée d'un fichier : refusé avant de recevoir le moindre octet.
+    refusal = workAlreadyLinked()
   } else if (Number.isFinite(declared)) {
     refusal = await assertQuota(userId, declared).then(
       () => null,
@@ -151,8 +169,8 @@ booksRouter.post('/upload', uploadLimiter, async (req, res) => {
   }
 
   const upload = await receiveUpload(req)
-  const { book, duplicate } = await importBook(userId, upload, safeFileName(req.header('x-file-name')), lang)
-  res.status(duplicate ? 200 : 201).json({ book: toDto(book), duplicate })
+  const { book, duplicate, match } = await importBook(userId, upload, safeFileName(req.header('x-file-name')), lang, workId ?? null)
+  res.status(duplicate ? 200 : 201).json({ book: toDto(book), duplicate, match })
 })
 
 booksRouter.get('/', async (req, res) => {
@@ -261,6 +279,31 @@ const MetadataBody = z
   })
   .partial()
   .strict()
+
+const LinkBody = z.union([
+  z.object({ record: BookSchema }).strict(),
+  z.object({ own: z.literal(true) }).strict(),
+])
+
+/**
+ * Rattache le fichier à une fiche : celle choisie parmi les propositions (ou
+ * trouvée par une recherche), ou une fiche tirée du fichier (`own`). 409 si
+ * la fiche a déjà un autre fichier.
+ */
+booksRouter.post('/:id/link', async (req, res) => {
+  const choice = LinkBody.parse(req.body)
+  const { book, record } = await linkBook(currentUserId(req), IdParam.parse(req.params.id), choice)
+  res.json({ book: toDto(book), record })
+})
+
+const MatchBody = z.object({ lang: LangQuerySchema, mode: z.enum(['auto', 'interactive']).default('interactive') })
+
+/** Nouveau rapprochement (import d'avant le rattachement, ou propositions à revoir). */
+booksRouter.post('/:id/match', uploadLimiter, async (req, res) => {
+  const { lang, mode } = MatchBody.parse(req.body ?? {})
+  const { book, match } = await matchBook(currentUserId(req), IdParam.parse(req.params.id), lang, mode)
+  res.json({ book: toDto(book), match })
+})
 
 /** Corrige la fiche. `coverUrl: null` revient à la couverture du fichier. */
 booksRouter.patch('/:id', async (req, res) => {

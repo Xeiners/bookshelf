@@ -42,6 +42,9 @@ model User {
   activeTitle  String?
   /// Boosters ouverts depuis la création du compte (boosters d'essai compris).
   boostersOpened Int     @default(0)
+  /// Profil public (cf. `publicProfile.service.ts`) : présentation, statistiques et lectures visibles
+  /// par tous. Privé : seuls le pseudo, l'avatar, le titre et la vitrine restent visibles.
+  isProfilePublic Boolean @default(true)
   /// Langue de l'interface et du catalogue : 'fr' | 'en' (validée par l'API).
   preferredLanguage String @default("fr")
   /// Oracle : dernier jour de tirage (YYYY-MM-DD, calendrier local de l'utilisateur).
@@ -158,7 +161,7 @@ model UserBooster {
   userId            String    @id
   /// Boosters prêts à ouvrir, 2 au plus.
   availableBoosters Int       @default(2)
-  /// Boosters consécutifs sans Mythique ; le 30e force le slot 5.
+  /// Boosters consécutifs sans Mythique ; le 30e force le dernier slot.
   boostersSinceLastMythic Int  @default(0)
   /// Dernière ouverture.
   lastClaimedAt     DateTime?
@@ -249,12 +252,18 @@ model UserBook {
   lastCfi         String?
   /// Horodatage CLIENT de cette position : entre deux appareils, la plus récente gagne.
   progressAt      DateTime?
+  /// Fiche de la bibliothèque à laquelle ce fichier est rattaché (`LibraryEntry.workId`) : roman
+  /// en ligne (`ol:OL…W`, `gb:…`) ou fiche tirée du fichier lui-même (`novel:<id>`).
+  /// `null` : pas encore rattaché (choix en attente, ou import d'avant le rattachement).
+  workId          String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, sha256])
+  /// Un fichier par fiche : « Lire » ouvre toujours le même.
+  @@unique([userId, workId])
   @@index([userId, updatedAt])
 }
 

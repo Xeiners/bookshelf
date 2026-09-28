@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, Lock, Plus, X } from 'lucide-react'
+import { Lock, Plus, UserRound, X } from 'lucide-react'
 import { useCollection } from '../../hooks/useCollection'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
@@ -35,7 +35,7 @@ interface Draft {
   activeTitle: TitleId | null
 }
 
-type Picking = { mode: 'avatar' } | { mode: 'featured'; slot: number }
+type Picking = { mode: 'featured'; slot: number }
 
 type CardLike = Pick<ProfileCard, 'id' | 'imageUrl' | 'rarity' | 'name' | 'title'>
 
@@ -122,8 +122,7 @@ export function ProfileEditor() {
   const pick = (card: CollectionCard) => {
     if (!draft || !picking) return
     vibrate(6)
-    if (picking.mode === 'avatar') edit({ avatarCardId: card.id, avatarUrl: null })
-    else edit({ featured: draft.featured.map((id, slot) => (slot === picking.slot ? card.id : id)) })
+    edit({ featured: draft.featured.map((id, slot) => (slot === picking.slot ? card.id : id)) })
     setPicking(null)
   }
 
@@ -184,15 +183,11 @@ export function ProfileEditor() {
         </div>
       ) : picking ? (
         <CardPicker
-          heading={picking.mode === 'avatar' ? t.profile.editor.pickAvatar : t.profile.editor.pickFeatured(picking.slot + 1)}
+          heading={t.profile.editor.pickFeatured(picking.slot + 1)}
           cards={album?.cards ?? []}
           loading={!album}
-          selectedId={picking.mode === 'avatar' ? draft.avatarCardId : draft.featured[picking.slot]!}
-          unavailableIds={
-            picking.mode === 'featured'
-              ? new Set(draft.featured.filter((id, slot): id is string => id !== null && slot !== picking.slot))
-              : undefined
-          }
+          selectedId={draft.featured[picking.slot]!}
+          unavailableIds={new Set(draft.featured.filter((id, slot): id is string => id !== null && slot !== picking.slot))}
           onPick={pick}
           onBack={() => setPicking(null)}
         />
@@ -206,18 +201,11 @@ export function ProfileEditor() {
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setPicking({ mode: 'avatar' })}
-                  className="glass rounded-full px-3.5 py-1.5 text-[11px] text-cream/85"
-                >
-                  {t.profile.editor.chooseAvatar}
-                </button>
-                <button
-                  type="button"
                   onClick={() => setLibraryPickerOpen(true)}
                   className="glass flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] text-cream/85"
                 >
-                  <BookOpen size={12} />
-                  {t.profile.editor.chooseFromLibrary}
+                  <UserRound size={12} />
+                  {t.profile.editor.chooseProfilePhoto}
                 </button>
                 {(draft.avatarCardId || draft.avatarUrl) && (
                   <button

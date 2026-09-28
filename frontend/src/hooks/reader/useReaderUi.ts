@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useUiStore } from '../../store/useUiStore'
 import { useBackToClose, useThemeColor, useWakeLock } from './useReaderEnvironment'
 
-export type ReaderPanel = 'contents' | 'settings' | null
+/** `ambient` : popover de musique d'ambiance (les moteurs ignorent le clavier tant qu'un panneau est ouvert). */
+export type ReaderPanel = 'contents' | 'settings' | 'ambient' | null
 
 /**
  * État d'interface commun aux trois moteurs (images, texte, document) :

@@ -1,3 +1,5 @@
+import type { Book } from './book'
+
 /**
  * Romans du compte (EPUB stockés sur le serveur). Contrat partagé avec l'API :
  * `toDto` dans `backend/src/modules/books/books.service.ts`.
@@ -22,6 +24,11 @@ export interface CloudBook {
   lastCfi: string | null
   /** Horodatage (ms) de cette position, pris sur l'appareil qui l'a écrite. */
   progressAt: number | null
+  /**
+   * Fiche de la bibliothèque rattachée : roman en ligne (`ol:…`, `gb:…`) ou
+   * fiche tirée du fichier (`novel:<id>`). `null` : pas encore rattaché.
+   */
+  workId: string | null
   createdAt: string
   updatedAt: string
 }
@@ -44,3 +51,17 @@ export interface CloudBookPatch {
   year?: number | null
   pages?: number | null
 }
+
+/**
+ * Où ranger un livre importé (réponse de l'import et du rattachement) :
+ * fiche en ligne reconnue ou imposée (`linked`, `record: null` si le client
+ * la connaît déjà), fiche tirée du fichier (`created`), ou fiches entre
+ * lesquelles choisir (`choose`).
+ */
+export type ImportMatch =
+  | { status: 'linked'; record: Book | null }
+  | { status: 'created'; record: Book }
+  | { status: 'choose'; candidates: Book[] }
+
+/** Préfixe des fiches tirées du fichier lui-même (`novel:<id du livre importé>`). */
+export const OWN_NOVEL_PREFIX = 'novel:'

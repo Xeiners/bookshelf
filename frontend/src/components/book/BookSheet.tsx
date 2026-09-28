@@ -5,6 +5,7 @@ import { sourceOfLink } from '../../lib/brand'
 import { DUR, Draggable, EASE, InertiaPlugin, gsap, useGSAP } from '../../lib/gsap'
 import { formatAuthors, formatReadingTime } from '../../lib/format'
 import { hasOfficialLinks, isReadable } from '../../lib/reader/readable'
+import { NovelFileAction } from './NovelFileAction'
 import { useOfficialPlatforms } from '../../hooks/useOfficialPlatforms'
 import { vibrate } from '../../lib/haptics'
 import { useLibraryStore } from '../../store/useLibraryStore'
@@ -338,6 +339,8 @@ export function BookSheet({ book }: BookSheetProps) {
         )}
 
         <div className="shrink-0 px-6 pt-4 pb-2" data-sheet-item>
+          {/* Roman : son fichier EPUB (lire, ou l'associer à cette fiche). */}
+          {book.kind === 'book' && <NovelFileAction book={entry?.book ?? book} />}
           {isReadable(book) && (
             // Lecteur intégré : reprend la dernière position, sinon le premier chapitre non lu.
             <Pressable

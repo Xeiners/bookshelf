@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, HardDriveDownload, ImageOff, LoaderCircle, Search,
 import { useLanguage, useT } from '../../i18n'
 import { hasExternalCover, novelAsBook, patchFromRecord } from '../../lib/novels'
 import type { CachedCloudBook } from '../../lib/reader/cloudBooks'
+import { ApiError } from '../../services/api'
 import { booksApi } from '../../services/booksApi'
 import { displayPercent, useNovelStore } from '../../store/useNovelStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -14,7 +15,8 @@ type SearchState = { phase: 'idle' } | { phase: 'loading' } | { phase: 'error' }
 /**
  * Fiche d'un roman du compte : couverture, résumé, avancement, et
  * « Corriger la fiche » — recherche Open Library / Google Books, puis la
- * fiche choisie remplace titre, auteur, résumé et couverture.
+ * fiche choisie remplace titre, auteur, résumé et couverture, et le fichier
+ * rejoint cette fiche dans la bibliothèque (statut et avancement compris).
  */
 export function NovelDetails({ userId, entry, onBack }: { userId: string; entry: CachedCloudBook; onBack: () => void }) {
   const t = useT()
@@ -37,10 +39,22 @@ export function NovelDetails({ userId, entry, onBack }: { userId: string; entry:
     }
   }
 
-  const apply = async (patch: Parameters<typeof booksApi.update>[1], key: string) => {
+  const apply = async (patch: Parameters<typeof booksApi.update>[1], key: string, record?: Book) => {
     setApplying(key)
     try {
-      await useNovelStore.getState().update(userId, book.id, patch)
+      const store = useNovelStore.getState()
+      await store.update(userId, book.id, patch)
+      if (record && record.id !== book.workId) {
+        try {
+          await store.relink(userId, book.id, record)
+        } catch (error) {
+          // Fiche déjà dotée d'un autre fichier : la correction est faite, le fichier garde sa fiche.
+          if (!(error instanceof ApiError && error.code === 'work_already_linked')) throw error
+          notify(t.novels.errors['already-linked'], 'neutral')
+          setSearch({ phase: 'idle' })
+          return
+        }
+      }
       notify(t.novels.sheet.applied, 'like')
       setSearch({ phase: 'idle' })
     } catch {
@@ -148,7 +162,7 @@ export function NovelDetails({ userId, entry, onBack }: { userId: string; entry:
                 <button
                   type="button"
                   disabled={applying !== null}
-                  onClick={() => void apply(patchFromRecord(record), record.id)}
+                  onClick={() => void apply(patchFromRecord(record), record.id, record)}
                   aria-label={t.novels.sheet.apply(record.title)}
                   className="flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-left hover:bg-white/[0.05] disabled:opacity-60"
                 >

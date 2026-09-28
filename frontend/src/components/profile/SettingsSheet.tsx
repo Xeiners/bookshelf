@@ -4,6 +4,9 @@ import {
   CloudCheck,
   CloudOff,
   CloudUpload,
+  Eye,
+  Globe,
+  Link2,
   HardDrive,
   KeyRound,
   LogOut,
@@ -18,10 +21,13 @@ import { apiErrorMessage } from '../../lib/apiErrors'
 import { formatBytes } from '../../lib/format'
 import { vibrate } from '../../lib/haptics'
 import { clearLocalCache, deviceUsage } from '../../lib/localCache'
+import { profileLink } from '../../lib/profileLink'
 import { profileApi, type BooksStorage } from '../../services/profileApi'
+import { useAmbientStore } from '../../store/useAmbientStore'
 import { useAuthStore, usePendingSync } from '../../store/useAuthStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useNovelStore } from '../../store/useNovelStore'
+import { useProfileStore } from '../../store/useProfileStore'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
 import { useUiStore } from '../../store/useUiStore'
 import type { ReaderLayout, TextTheme } from '../../types/reader'
@@ -241,6 +247,8 @@ function ReadingSection() {
   const setText = useReaderStore((state) => state.setText)
   const layout = useReaderStore((state) => state.defaultLayout)
   const setDefaultLayout = useReaderStore((state) => state.setDefaultLayout)
+  const ambientAuto = useAmbientStore((state) => state.autoPlay)
+  const setAmbientAuto = useAmbientStore((state) => state.setAutoPlay)
   const { min, max, step } = TEXT_LIMITS.fontSize
   const themes = t.settings.reading.themes
 
@@ -290,6 +298,96 @@ function ReadingSection() {
           onChange={(value) => setDefaultLayout(value === 'auto' ? null : value)}
         />
         <p className="mt-2 text-[10px] leading-relaxed text-mist">{t.settings.reading.layoutHint}</p>
+      </div>
+
+      <div>
+        <label className="flex cursor-pointer items-center justify-between gap-3 text-xs text-cream/85">
+          {t.settings.reading.ambientAuto}
+          <input
+            type="checkbox"
+            checked={ambientAuto}
+            onChange={(event) => setAmbientAuto(event.target.checked)}
+            className="size-4 shrink-0 accent-glow"
+          />
+        </label>
+        <p className="mt-2 text-[10px] leading-relaxed text-mist">{t.settings.reading.ambientAutoHint}</p>
+      </div>
+    </Section>
+  )
+}
+
+/* ---- Profil public ------------------------------------------------------------- */
+
+function PublicProfileSection({ userId }: { userId: string }) {
+  const t = useT()
+  const copy = t.settings.publicProfile
+  const profile = useProfileStore((state) => state.data)
+  const loadProfile = useProfileStore((state) => state.load)
+  const updateProfile = useProfileStore((state) => state.update)
+  const openPublicProfile = useUiStore((state) => state.openPublicProfile)
+  const notify = useUiStore((state) => state.notify)
+  const [saving, setSaving] = useState(false)
+  // Profil d'un autre compte (changement de session en cours) : ignoré.
+  const own = profile?.profile.id === userId ? profile.profile : null
+
+  useEffect(() => {
+    if (!own) void loadProfile()
+  }, [own, loadProfile])
+
+  const toggle = async (isProfilePublic: boolean) => {
+    setSaving(true)
+    try {
+      await updateProfile({ isProfilePublic })
+      vibrate(8)
+    } catch {
+      notify(copy.saveError, 'nope')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(profileLink(userId, window.location.origin, window.location.pathname))
+      vibrate(6)
+      notify(t.publicProfile.linkCopied, 'like')
+    } catch {
+      // Presse-papiers refusé : le bouton « Voir » propose aussi le partage.
+    }
+  }
+
+  return (
+    <Section icon={Globe} title={copy.title}>
+      <div>
+        <label className="flex cursor-pointer items-center justify-between gap-3 text-xs text-cream/85">
+          {copy.isPublic}
+          <input
+            type="checkbox"
+            checked={own?.isProfilePublic ?? true}
+            disabled={!own || saving}
+            onChange={(event) => void toggle(event.target.checked)}
+            className="size-4 shrink-0 accent-glow disabled:opacity-50"
+          />
+        </label>
+        <p className="mt-2 text-[10px] leading-relaxed text-mist">{copy.isPublicHint}</p>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => openPublicProfile(userId)}
+          className="glass flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full py-2.5 text-xs text-cream/85"
+        >
+          <Eye size={14} className="shrink-0" />
+          <span className="truncate">{copy.view}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void copyLink()}
+          className="glass flex shrink-0 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs text-cream/85"
+        >
+          <Link2 size={14} />
+          {copy.copyLink}
+        </button>
       </div>
     </Section>
   )
@@ -472,7 +570,8 @@ export function SettingsSheet() {
   const t = useT()
   const close = useUiStore((state) => state.closeSettings)
   const openAuth = useUiStore((state) => state.openAuth)
-  const signedIn = useAuthStore((state) => state.user !== null)
+  const userId = useAuthStore((state) => state.user?.id ?? null)
+  const signedIn = userId !== null
 
   return (
     <Sheet label={t.settings.title} title={t.settings.title} subtitle={t.settings.subtitle} onClose={close}>
@@ -486,6 +585,7 @@ export function SettingsSheet() {
             }}
           />
           <ReadingSection />
+          {userId && <PublicProfileSection userId={userId} />}
           <StorageSection />
           {signedIn && <SessionSection onDone={dismiss} />}
         </div>

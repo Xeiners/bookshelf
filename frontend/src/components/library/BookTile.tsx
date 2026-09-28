@@ -1,5 +1,6 @@
 import { useRef } from 'react'
-import { Heart, Star } from 'lucide-react'
+import { BookOpenText, Heart, Star } from 'lucide-react'
+import { useLinkedNovel } from '../../hooks/useNovels'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { useT } from '../../i18n'
 import { formatAuthors } from '../../lib/format'
@@ -17,6 +18,8 @@ export function BookTile({ entry, onOpen }: BookTileProps) {
   const t = useT()
   const rootRef = useRef<HTMLButtonElement>(null)
   const { book, status, progress } = entry
+  // Roman dont le fichier EPUB est sur le compte : « Lire » depuis sa fiche.
+  const hasEpub = useLinkedNovel(book.id) !== null
 
   useGSAP(
     () => {
@@ -64,9 +67,18 @@ export function BookTile({ entry, onOpen }: BookTileProps) {
           style={{ backgroundColor: STATUS_TOKEN[status] }}
         />
 
-        {entry.favorite && (
-          <span className="absolute top-2 left-2 grid size-6 place-items-center rounded-full bg-void/70 text-nope">
-            <Heart size={12} strokeWidth={2.6} className="fill-nope" />
+        {(entry.favorite || hasEpub) && (
+          <span className="absolute top-2 left-2 flex flex-col gap-1">
+            {entry.favorite && (
+              <span className="grid size-6 place-items-center rounded-full bg-void/70 text-nope">
+                <Heart size={12} strokeWidth={2.6} className="fill-nope" />
+              </span>
+            )}
+            {hasEpub && (
+              <span role="img" aria-label={t.novels.epub.available} className="grid size-6 place-items-center rounded-full bg-gold text-void">
+                <BookOpenText size={12} strokeWidth={2.4} />
+              </span>
+            )}
           </span>
         )}
 

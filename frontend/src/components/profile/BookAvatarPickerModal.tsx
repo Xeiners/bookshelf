@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, BookOpen, Check, Hexagon, Search, UserRound, X } from 'lucide-react'
-import { useT } from '../../i18n'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, BookOpen, Check, ChevronRight, Hexagon, Search, Upload, UserRound, X } from 'lucide-react'
+import { useLanguage, useT } from '../../i18n'
 import { avatarMaskStyle, avatarUrlWithCrop, DEFAULT_AVATAR_CROP, type AvatarCrop } from '../../lib/avatarCrop'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
+import { browse, DEFAULT_FILTERS } from '../../services/browse'
 import { profileApi, type AvatarOption } from '../../services/profileApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
@@ -11,7 +12,7 @@ import { Pressable } from '../ui/Pressable'
 
 interface AvatarWork {
   key: string
-  kind: 'library' | 'book'
+  kind: 'library' | 'book' | 'catalog'
   id: string
   title: string
   subtitle: string
@@ -29,23 +30,30 @@ const normalize = (value: string) =>
 /** Galerie bibliothèque → visuels de l'œuvre → cadrage persistant de l'avatar. */
 export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModalProps) {
   const t = useT()
+  const language = useLanguage()
   const user = useAuthStore((state) => state.user)
   const entries = useLibraryStore((state) => state.entries)
   const novels = useNovelStore((state) => state.books)
   const refreshNovels = useNovelStore((state) => state.refresh)
   const rootRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const randomPageRef = useRef<number | null>(null)
   const [query, setQuery] = useState('')
   const [work, setWork] = useState<AvatarWork | null>(null)
   const [options, setOptions] = useState<AvatarOption[] | null>(null)
   const [image, setImage] = useState<AvatarOption | null>(null)
   const [crop, setCrop] = useState<AvatarCrop>(DEFAULT_AVATAR_CROP)
   const [error, setError] = useState(false)
+  const [catalogWorks, setCatalogWorks] = useState<AvatarWork[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(false)
 
   useEffect(() => {
     if (user && novels === null) void refreshNovels(user.id)
   }, [user, novels, refreshNovels])
 
-  const works = useMemo<AvatarWork[]>(() => {
+  const libraryWorks = useMemo<AvatarWork[]>(() => {
     const library = Object.values(entries).map(({ book }) => ({
       key: `library:${book.id}`,
       kind: 'library' as const,
@@ -65,10 +73,46 @@ export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModal
     return [...library, ...imported].sort((a, b) => a.title.localeCompare(b.title, t.locale))
   }, [entries, novels, t])
 
-  const filtered = useMemo(() => {
+  const filteredLibrary = useMemo(() => {
     const needle = normalize(query)
-    return needle ? works.filter((item) => normalize(`${item.title} ${item.subtitle}`).includes(needle)) : works
-  }, [query, works])
+    return needle ? libraryWorks.filter((item) => normalize(`${item.title} ${item.subtitle}`).includes(needle)) : libraryWorks
+  }, [query, libraryWorks])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    if (randomPageRef.current === null) {
+      const random = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
+      randomPageRef.current = 1 + (random % 100)
+    }
+    const timer = window.setTimeout(() => {
+      setCatalogLoading(true)
+      void browse(
+        { ...DEFAULT_FILTERS, query, sort: 'relevance' },
+        { language, page: query.trim() ? 1 : randomPageRef.current ?? 1, limit: 30, signal: controller.signal },
+      ).then(({ books }) => {
+        const ownedIds = new Set(libraryWorks.map((item) => item.id))
+        setCatalogWorks(books
+          .filter((book) => !ownedIds.has(book.id))
+          .map((book) => ({
+            key: `catalog:${book.id}`,
+            kind: 'catalog' as const,
+            id: book.id,
+            title: book.title,
+            subtitle: book.authors.join(', '),
+            cover: book.cover,
+          })))
+        setCatalogLoading(false)
+      }).catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return
+        setCatalogWorks([])
+        setCatalogLoading(false)
+      })
+    }, query.trim() ? 300 : 0)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [language, libraryWorks, query])
 
   useGSAP(
     () => {
@@ -83,7 +127,7 @@ export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModal
     () => {
       gsap.fromTo('.avatar-picker-item', { y: 12, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.32, stagger: 0.025, ease: EASE.swift })
     },
-    { dependencies: [work, image, filtered.length], scope: rootRef },
+    { dependencies: [work, image, filteredLibrary.length, catalogWorks.length], scope: rootRef },
   )
 
   useEffect(() => {
@@ -97,7 +141,7 @@ export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModal
     return () => window.removeEventListener('keydown', escape)
   }, [image, work, onClose])
 
-  const chooseWork = async (selected: AvatarWork) => {
+  const chooseWork = useCallback(async (selected: AvatarWork) => {
     setWork(selected)
     setOptions(null)
     setError(false)
@@ -106,17 +150,35 @@ export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModal
       setOptions(response.options)
     } catch {
       setError(true)
-      setOptions(selected.cover ? [{ url: selected.cover, label: t.profile.editor.avatarLibrary.mainCover, source: 'cover' }] : [])
+      setOptions([])
     }
-  }
+  }, [])
 
   const back = () => {
     if (image) {
       setImage(null)
       setCrop(DEFAULT_AVATAR_CROP)
+      if (work?.key === 'upload') setWork(null)
     } else {
       setWork(null)
       setOptions(null)
+    }
+  }
+
+  const uploadPhoto = async (file: File | undefined) => {
+    if (!file || uploading) return
+    setUploadError(false)
+    setUploading(true)
+    try {
+      const avatarUrl = await profileApi.uploadAvatar(file)
+      setWork({ key: 'upload', kind: 'book', id: 'upload', title: t.profile.editor.avatarLibrary.uploadPhoto, subtitle: '', cover: null })
+      setImage({ url: avatarUrl, label: file.name, source: 'upload' })
+      setCrop(DEFAULT_AVATAR_CROP)
+    } catch {
+      setUploadError(true)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -150,24 +212,53 @@ export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModal
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 md:p-6">
           {!work ? (
             <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => void uploadPhoto(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="mb-4 flex w-full items-center justify-center gap-2 rounded-full bg-cream py-3 text-sm font-medium text-void disabled:opacity-60"
+              >
+                <Upload size={16} />
+                {uploading ? t.profile.editor.avatarLibrary.uploading : t.profile.editor.avatarLibrary.uploadPhoto}
+              </button>
+              {uploadError && <p role="alert" className="mb-4 text-center text-xs text-nope">{t.profile.editor.avatarLibrary.uploadError}</p>}
               <label className="glass flex items-center gap-2 rounded-full px-4 py-2.5">
                 <Search size={15} className="shrink-0 text-mist" />
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.profile.editor.avatarLibrary.search} autoFocus className="min-w-0 flex-1 bg-transparent text-sm text-cream outline-none placeholder:text-mist/60" />
               </label>
-              {filtered.length > 0 ? (
-                <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
-                  {filtered.map((item) => (
-                    <button key={item.key} type="button" onClick={() => void chooseWork(item)} className="avatar-picker-item group min-w-0 text-left">
-                      <span className="relative block aspect-2/3 overflow-hidden rounded-xl bg-cream/5 ring-1 ring-white/10">
-                        {item.cover ? <img src={item.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" /> : <span className="grid h-full place-items-center text-mist"><BookOpen size={24} /></span>}
-                      </span>
-                      <span className="mt-2 block truncate text-xs font-medium text-cream/90">{item.title}</span>
-                      <span className="mt-0.5 block truncate text-[10px] text-mist">{item.subtitle}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid min-h-56 place-items-center text-center text-sm text-mist">{works.length ? t.profile.editor.avatarLibrary.noMatch : t.profile.editor.avatarLibrary.empty}</div>
+              {([
+                { label: t.profile.editor.avatarLibrary.librarySection, items: filteredLibrary },
+                { label: query.trim() ? t.profile.editor.avatarLibrary.resultsSection : t.profile.editor.avatarLibrary.discoverSection, items: catalogWorks },
+              ] as const).map((section) => section.items.length > 0 && (
+                <section key={section.label} className="mt-5">
+                  <h3 className="mb-3 text-[10px] font-semibold tracking-[0.2em] text-mist uppercase">{section.label}</h3>
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                    {section.items.map((item) => (
+                      <button key={item.key} type="button" onClick={() => void chooseWork(item)} className="avatar-picker-item group min-w-0 text-left">
+                        <span className="relative block aspect-2/3 overflow-hidden rounded-xl bg-cream/5 ring-1 ring-white/10">
+                          {item.cover ? <img src={item.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" /> : <span className="grid h-full place-items-center text-mist"><BookOpen size={24} /></span>}
+                          <span className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-1 rounded-full bg-void/85 px-2.5 py-1.5 text-[9px] font-medium text-cream backdrop-blur-sm">
+                            <span className="truncate">{t.profile.editor.avatarLibrary.openCharacters}</span>
+                            <ChevronRight size={12} className="shrink-0" />
+                          </span>
+                        </span>
+                        <span className="mt-2 block truncate text-xs font-medium text-cream/90">{item.title}</span>
+                        <span className="mt-0.5 block truncate text-[10px] text-mist">{item.subtitle}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+              {catalogLoading && <div className="grid min-h-28 place-items-center"><div className="size-7 animate-spin rounded-full border-2 border-cream/15 border-t-glow" /></div>}
+              {!catalogLoading && filteredLibrary.length === 0 && catalogWorks.length === 0 && (
+                <div className="grid min-h-56 place-items-center text-center text-sm text-mist">{t.profile.editor.avatarLibrary.noMatch}</div>
               )}
             </>
           ) : image ? (
@@ -209,7 +300,7 @@ export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModal
                 {options.map((option) => (
                   <button key={option.url} type="button" onClick={() => { setImage(option); setCrop(DEFAULT_AVATAR_CROP) }} className="avatar-picker-item group text-left">
                     <span className="block aspect-square overflow-hidden rounded-2xl bg-cream/5 ring-1 ring-white/10">
-                      <img src={option.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                      <img src={option.url} alt="" loading="lazy" decoding="async" className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04] ${option.source === 'character' || option.source === 'card' || option.source === 'upload' ? 'object-top' : ''}`} />
                     </span>
                     <span className="mt-2 block truncate text-xs text-cream/85">{option.label}</span>
                     <span className="mt-0.5 block text-[9px] tracking-wider text-mist uppercase">{t.profile.editor.avatarLibrary.sources[option.source]}</span>

@@ -19,6 +19,7 @@ import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import type { ReaderLayout } from '../../types/reader'
 import { Pressable } from '../ui/Pressable'
+import { AmbientYouTubeButton, AmbientYouTubeWidget } from './AmbientYouTubeWidget'
 
 export interface ReaderSlider {
   value: number
@@ -155,6 +156,7 @@ export function ReaderControls({
               <List size={19} />
             </Pressable>
           )}
+          <AmbientYouTubeButton />
           <Pressable
             onClick={onOpenSettings}
             aria-label={t.reader.settings}
@@ -228,6 +230,8 @@ export function ReaderControls({
           </div>
         </div>
       </footer>
+
+      <AmbientYouTubeWidget />
     </>
   )
 }

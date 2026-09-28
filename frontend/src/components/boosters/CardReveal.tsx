@@ -35,7 +35,8 @@ const STAGING: Record<Rarity, Staging> = {
 
 interface CardRevealProps {
   cards: PulledCard[]
-  width: number
+  /** Colonnes, largeur d'une carte et écart (px) : cf. `revealLayout`. */
+  layout: { columns: number; width: number; gap: number }
   onAllRevealed: () => void
   /** Gerbe de particules à lancer sur le canevas plein écran. */
   onBurst: (burst: Burst) => void
@@ -56,7 +57,8 @@ interface CardRevealProps {
  *   traverse la carte, onde de choc et explosion de particules — plus ample
  *   à chaque rang.
  */
-export function CardReveal({ cards, width, onAllRevealed, onBurst, onShake, onInspect, footer }: CardRevealProps) {
+export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onInspect, footer }: CardRevealProps) {
+  const { columns, width, gap } = layout
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
@@ -76,7 +78,9 @@ export function CardReveal({ cards, width, onAllRevealed, onBurst, onShake, onIn
       nodes.forEach((node, index) => {
         const box = node.getBoundingClientRect()
         const fromX = center - (box.left + box.width / 2)
-        const tilt = (index - (nodes.length - 1) / 2) * 6
+        // Éventail par rangée : en grille 2 × 2, chaque colonne penche de son côté.
+        const perRow = Math.min(columns, nodes.length)
+        const tilt = ((index % perRow) - (perRow - 1) / 2) * (perRow <= 2 ? 5 : 4)
         gsap
           .timeline({ delay: index * 0.14 })
           .fromTo(node, { x: fromX, scale: 0.3, rotation: tilt * 7, autoAlpha: 0 }, { x: 0, scale: 1, rotation: tilt, autoAlpha: 1, duration: 1, ease: 'power1.out' })
@@ -183,7 +187,11 @@ export function CardReveal({ cards, width, onAllRevealed, onBurst, onShake, onIn
 
   return (
     <div ref={rootRef} className="flex flex-col items-center gap-7">
-      <div ref={rowRef} className="flex items-end justify-center gap-3 sm:gap-6">
+      <div
+        ref={rowRef}
+        className="grid items-end justify-center"
+        style={{ gridTemplateColumns: `repeat(${columns}, ${width}px)`, gap }}
+      >
         {cards.map((pulled, index) => {
           const style = RARITY_STYLE[pulled.card.rarity]
           const shown = revealed[index]
@@ -271,7 +279,9 @@ export function CardReveal({ cards, width, onAllRevealed, onBurst, onShake, onIn
       <div className="flex h-32 w-full flex-col items-center justify-start gap-3">
         {remaining > 0 ? (
           <>
-            <p className="text-center text-xs tracking-[0.2em] text-cream/60 uppercase">{t.boosters.tapToReveal}</p>
+            <p className="max-w-xs px-4 text-center text-xs leading-relaxed tracking-[0.2em] text-cream/60 uppercase">
+              {t.boosters.tapToReveal}
+            </p>
             <button
               type="button"
               onClick={revealAll}

@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import { AmbientSuggestionContext, useAmbientSession } from '../../hooks/useAmbientMusic'
 import { useLocalPosition } from '../../hooks/reader/useLocalPosition'
 import { ReaderUiContext, useReaderChrome, useReaderUi } from '../../hooks/reader/useReaderUi'
 import { useT } from '../../i18n'
+import { suggestAmbientPreset, type AmbientPresetId } from '../../lib/audio/ambientPresets'
 import { getFile, getFileBlob, localLocationsKey, markOpened, type LocalFile } from '../../lib/reader/localFiles'
 import type { ReaderSession } from '../../types/reader'
 import { ArchiveReader } from './ArchiveReader'
@@ -23,17 +25,29 @@ const CloudReader = lazy(() => import('./CloudReader').then((module) => ({ defau
  */
 export function UniversalReader({ session }: { session: ReaderSession }) {
   const ui = useReaderUi()
+  // Musique d'ambiance : suggérée par les genres (MangaDex) ; romans et fichiers → pluie & piano.
+  const ambient: AmbientPresetId =
+    session.source === 'mangadex' ? suggestAmbientPreset(session.book.categories, 'lofi') : 'rain'
+  useAmbientSession(ambient)
   return (
     <ReaderUiContext value={ui}>
-      {session.source === 'mangadex' ? (
-        <MangaReader key={session.book.id} book={session.book} chapterId={session.chapterId} />
-      ) : session.source === 'cloud' ? (
-        <Suspense fallback={<Opening />}>
-          <CloudReader key={session.bookId} bookId={session.bookId} />
-        </Suspense>
-      ) : (
-        <LocalReader key={session.fileId} fileId={session.fileId} />
-      )}
+      <AmbientSuggestionContext value={ambient}>
+        <div
+          data-universal-reader
+          onContextMenu={(event) => event.preventDefault()}
+          className="fixed inset-0 z-[100] select-none [-webkit-touch-callout:none]"
+        >
+          {session.source === 'mangadex' ? (
+            <MangaReader key={session.book.id} book={session.book} chapterId={session.chapterId} />
+          ) : session.source === 'cloud' ? (
+            <Suspense fallback={<Opening />}>
+              <CloudReader key={session.bookId} bookId={session.bookId} />
+            </Suspense>
+          ) : (
+            <LocalReader key={session.fileId} fileId={session.fileId} />
+          )}
+        </div>
+      </AmbientSuggestionContext>
     </ReaderUiContext>
   )
 }
