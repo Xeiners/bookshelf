@@ -335,6 +335,8 @@ export async function openBooster(
       })
       cards.push({ card: toCardDto(owned.card), isNew: existing === null, count: owned.count })
     }
+    // Statistique du profil : compte aussi les ouvertures de recette.
+    await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })
     if (!unlimited) {
       await tx.userBooster.update({
         where: { userId },
@@ -350,7 +352,7 @@ export async function openBooster(
   })
 }
 
-const toCardDto = (card: { id: string; number: number; series: number; name: string; mangaTitle: string; title: string; characterName: string | null; description: string; power: number; imageUrl: string; rarity: string; mangaId: string }): CardDto => ({
+export const toCardDto = (card: { id: string; number: number; series: number; name: string; mangaTitle: string; title: string; characterName: string | null; description: string; power: number; imageUrl: string; rarity: string; mangaId: string }): CardDto => ({
   id: card.id,
   number: card.number,
   series: card.series,
@@ -478,7 +480,8 @@ export async function guestCollection(receipts: readonly string[]): Promise<Coll
  * Renvoie le nombre de cartes ajoutées.
  */
 export async function claimGuestPacks(userId: string, receipts: readonly string[]): Promise<number> {
-  const owned = guestOwnership(readGuestPacks(receipts))
+  const packs = readGuestPacks(receipts)
+  const owned = guestOwnership(packs)
   if (owned.size === 0) return 0
   // Seules les cartes du set comptent (par prudence : le set ne perd jamais de carte).
   const known = await prisma.card.findMany({ where: { id: { in: [...owned.keys()] } }, select: { id: true } })
@@ -493,6 +496,8 @@ export async function claimGuestPacks(userId: string, receipts: readonly string[
       })
       claimed += entry.count
     }
+    // Les boosters d'essai comptent dans les statistiques du profil.
+    await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: packs.length } } })
   })
   return claimed
 }

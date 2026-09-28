@@ -13,6 +13,7 @@ import { libraryRouter } from './modules/library/library.routes.js'
 import { coverRouter, mangaRouter } from './modules/manga/manga.routes.js'
 import { oracleRouter } from './modules/oracle/oracle.routes.js'
 import { proxyRouter } from './modules/proxy/proxy.routes.js'
+import { profileRouter } from './modules/users/profile.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/api/discover', discoverRouter)
   app.use('/api/boosters', boostersRouter)
   app.use('/api/cards', cardsRouter)
+  app.use('/api/profile', profileRouter)
   // Romans EPUB : l'envoi d'un fichier est lu en flux par sa route, jamais par `express.json`.
   app.use('/api/books', booksRouter)
 

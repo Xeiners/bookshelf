@@ -136,3 +136,20 @@ export async function clearCloudCache(): Promise<void> {
     }
   })
 }
+
+/**
+ * Vidage du cache : les fichiers téléchargés et les positions EPUB précalculées
+ * partent, les fiches et les positions de lecture pas encore envoyées restent.
+ * Les romans se retéléchargent depuis le compte à la prochaine ouverture.
+ */
+export async function forgetAllDownloads(): Promise<void> {
+  await run([BOOKS, BLOBS, LOCATIONS], 'readwrite', (tx) => {
+    tx.objectStore(BLOBS).clear()
+    tx.objectStore(LOCATIONS).clear()
+    const books = tx.objectStore(BOOKS)
+    const all = books.getAll()
+    all.onsuccess = () => {
+      for (const entry of all.result as CachedCloudBook[]) books.put({ ...entry, downloaded: false })
+    }
+  })
+}

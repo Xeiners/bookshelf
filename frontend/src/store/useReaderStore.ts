@@ -47,6 +47,8 @@ interface ReaderPrefs {
   text: TextSettings
   /** Heure et batterie discrètes en haut de l'écran pendant la lecture. */
   showStatus: boolean
+  /** Mode des mangas sans réglage propre ; `null` : selon le type (webtoon pour manhwa et manhua). */
+  defaultLayout: ReaderLayout | null
 }
 
 interface ReaderState extends ReaderPrefs {
@@ -58,6 +60,7 @@ interface ReaderState extends ReaderPrefs {
   setChapterLanguage: (language: ChapterLanguage) => void
   setText: (change: Partial<TextSettings>) => void
   toggleStatus: () => void
+  setDefaultLayout: (layout: ReaderLayout | null) => void
 }
 
 /** Ajoute une clé en fin d'objet (ordre d'insertion = ancienneté) et borne la taille. */
@@ -88,6 +91,7 @@ export const useReaderStore = create<ReaderState>()(
       chapterLanguage: null,
       text: DEFAULT_TEXT,
       showStatus: true,
+      defaultLayout: null,
 
       setLayout: (workId, layout) => set((state) => ({ layoutByWork: remember(state.layoutByWork, workId, layout) })),
       setDirection: (workId, direction) =>
@@ -109,6 +113,7 @@ export const useReaderStore = create<ReaderState>()(
           }
         }),
       toggleStatus: () => set((state) => ({ showStatus: !state.showStatus })),
+      setDefaultLayout: (defaultLayout) => set({ defaultLayout }),
     }),
     {
       name: 'bookshelf:reader:v1',
@@ -122,6 +127,7 @@ export const useReaderStore = create<ReaderState>()(
         chapterLanguage: state.chapterLanguage,
         text: state.text,
         showStatus: state.showStatus,
+        defaultLayout: state.defaultLayout,
       }),
       // Réglages d'une ancienne version ou corrompus : on complète avec les défauts.
       merge: (persisted, current) => {
@@ -133,6 +139,7 @@ export const useReaderStore = create<ReaderState>()(
           layoutByWork: saved.layoutByWork ?? {},
           directionByWork: saved.directionByWork ?? {},
           sourceByWork: saved.sourceByWork ?? {},
+          defaultLayout: saved.defaultLayout === 'paged' || saved.defaultLayout === 'webtoon' ? saved.defaultLayout : null,
         }
       },
     },

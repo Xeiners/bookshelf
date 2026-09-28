@@ -82,7 +82,7 @@ export function ImageReader(props: ImageReaderProps) {
   const t = useT()
   const ui = useReaderChrome()
 
-  const layout = useReaderStore((state) => state.layoutByWork[workId] ?? defaultLayout(kind))
+  const layout = useReaderStore((state) => state.layoutByWork[workId] ?? state.defaultLayout ?? defaultLayout(kind))
   const direction = useReaderStore((state) => state.directionByWork[workId] ?? defaultDirection(kind))
   const spread = useReaderStore((state) => state.spread)
   const showStatus = useReaderStore((state) => state.showStatus)

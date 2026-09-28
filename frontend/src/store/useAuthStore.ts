@@ -17,6 +17,7 @@ import { useGuestCardsStore } from './useGuestCardsStore'
 import { useNovelStore } from './useNovelStore'
 import { librarySnapshot, useLibraryStore } from './useLibraryStore'
 import { useOracleStore } from './useOracleStore'
+import { useProfileStore } from './useProfileStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useUiStore } from './useUiStore'
 
@@ -64,6 +65,7 @@ function endSession(reason: 'expired' | 'logout') {
   }
   useBoosterStore.getState().reset()
   useCollectionStore.getState().reset()
+  useProfileStore.getState().reset()
   useAuthStore.setState({ user: null, offline: false })
 }
 
@@ -136,6 +138,7 @@ export const useAuthStore = create<AuthState>()(
         useGuestCardsStore.getState().clear()
         useCollectionStore.getState().reset()
         useBoosterStore.getState().reset()
+        useProfileStore.getState().reset()
         useUiStore.getState().notify(getT().activities.guest.welcome(guestCards), 'like')
       },
 
@@ -154,6 +157,7 @@ export const useAuthStore = create<AuthState>()(
         // L'album affiché était celui de l'invité. Ses cartes d'essai restent sur
         // l'appareil : seule une INSCRIPTION les fait entrer dans un compte.
         useCollectionStore.getState().reset()
+        useProfileStore.getState().reset()
       },
 
       logout: async () => {

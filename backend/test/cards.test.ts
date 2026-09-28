@@ -29,7 +29,6 @@ import {
   secondsUntilNext,
   type Rarity,
 } from '../src/modules/cards/boosters.logic.js'
-import { TOTAL_CARD_COUNT } from '../src/modules/cards/series2.seed.js'
 import { seededRandom } from '../src/lib/seeded.js'
 import type { WorkStatistics } from '../src/services/catalog.service.js'
 import { catalogManga } from './fixtures.js'
@@ -39,6 +38,9 @@ prepareEnvironment('cards')
 installMangadexMock()
 const { client, close } = await startServer()
 after(close)
+// Import dynamique : un import statique chargerait `db.js` (donc la config) AVANT
+// `prepareEnvironment`, et le test tournerait sur la base de développement.
+const { TOTAL_CARD_COUNT } = await import('../src/modules/cards/series2.seed.js')
 
 const HOUR = 60 * 60 * 1000
 const T0 = new Date('2026-09-28T12:00:00Z')

@@ -30,6 +30,18 @@ model User {
   email        String   @unique
   passwordHash String
   displayName  String?
+  /// Profil (cf. `src/modules/users/`) : présentation libre, 160 caractères au plus.
+  bio          String?
+  /// Carte choisie comme avatar : toujours une carte POSSÉDÉE (vérifié par l'API).
+  avatarCardId String?
+  /// Couverture d'une œuvre de la bibliothèque. Prioritaire sur `avatarCardId`.
+  avatarUrl    String?
+  /// Vitrine : JSON `string[]` de 3 ids de cartes possédées au plus, dans l'ordre d'affichage.
+  featuredCardIds String @default("[]")
+  /// Titre affiché sous le pseudo : un id de `TITLES`, débloqué par les statistiques.
+  activeTitle  String?
+  /// Boosters ouverts depuis la création du compte (boosters d'essai compris).
+  boostersOpened Int     @default(0)
   /// Langue de l'interface et du catalogue : 'fr' | 'en' (validée par l'API).
   preferredLanguage String @default("fr")
   /// Oracle : dernier jour de tirage (YYYY-MM-DD, calendrier local de l'utilisateur).

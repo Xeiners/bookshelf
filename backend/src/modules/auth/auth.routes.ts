@@ -66,6 +66,14 @@ const PatchMeSchema = z
     message: 'Rien à modifier.',
   })
 
+const PasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z
+    .string()
+    .min(8, 'Le mot de passe doit contenir au moins 8 caractères.')
+    .max(200, 'Mot de passe trop long.'),
+})
+
 const LoginSchema = z.object({
   email: Email,
   password: z.string().min(1).max(200),
@@ -313,6 +321,26 @@ authRouter.patch('/me', requireAuth, async (req, res) => {
   }
   const user = await prisma.user.findUniqueOrThrow({ where: { id: currentUserId(req) } })
   res.json({ user: publicUser(user) })
+})
+
+/**
+ * Changement de mot de passe : l'actuel est exigé (une session volée ne suffit
+ * pas). La session de cet appareil est réémise ; 400 `wrong_password` sinon.
+ */
+authRouter.post('/password', authLimiter, requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = PasswordSchema.parse(req.body)
+  const userId = currentUserId(req)
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } })
+  if (!user) {
+    clearSession(res)
+    throw unauthorized()
+  }
+  if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+    throw new HttpError(400, 'wrong_password', 'Mot de passe actuel incorrect.')
+  }
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword) } })
+  await issueSession(res, userId)
+  res.status(204).end()
 })
 
 authRouter.post('/logout', (_req, res) => {

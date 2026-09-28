@@ -74,3 +74,19 @@ export function primaryCategory(book: Book, t: Dictionary): string {
   return short.length > 22 ? `${short.slice(0, 21)}…` : short // i18n-ignore
 }
 
+/** Taille lisible dans la langue de l'interface : « 12,3 Mo », « 1.2 GB »… */
+export function formatBytes(bytes: number, locale: string): string {
+  const units = ['kilobyte', 'megabyte', 'gigabyte'] as const
+  let value = Math.max(0, bytes) / 1024
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: units[unit],
+    unitDisplay: 'short',
+    maximumFractionDigits: value < 10 ? 1 : 0,
+  }).format(value)
+}

@@ -34,6 +34,10 @@ interface UiState {
   activity: ActivityScreen
   /** Ouverture de booster en plein écran. */
   boosterOpen: boolean
+  /** Feuille « Paramètres » (ouverte depuis le Profil). */
+  settingsOpen: boolean
+  /** Feuille « Éditer le profil ». */
+  profileEditorOpen: boolean
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -56,6 +60,10 @@ interface UiState {
   openActivity: (activity: ActivityScreen) => void
   openBooster: () => void
   closeBooster: () => void
+  openSettings: () => void
+  closeSettings: () => void
+  openProfileEditor: () => void
+  closeProfileEditor: () => void
   notify: (message: string, tone?: ToastTone) => void
   dismissToast: () => void
 }
@@ -74,6 +82,8 @@ export const useUiStore = create<UiState>((set) => ({
   novelsOpen: false,
   activity: 'hub',
   boosterOpen: false,
+  settingsOpen: false,
+  profileEditorOpen: false,
 
   setView: (view) => set({ view }),
   openDetail: (detail) => set({ detail }),
@@ -92,6 +102,10 @@ export const useUiStore = create<UiState>((set) => ({
   openActivity: (activity) => set({ view: 'activities', activity }),
   openBooster: () => set({ boosterOpen: true, detail: null }),
   closeBooster: () => set({ boosterOpen: false }),
+  openSettings: () => set({ settingsOpen: true, profileEditorOpen: false }),
+  closeSettings: () => set({ settingsOpen: false }),
+  openProfileEditor: () => set({ profileEditorOpen: true, settingsOpen: false }),
+  closeProfileEditor: () => set({ profileEditorOpen: false }),
 
   notify: (message, tone = 'neutral') => {
     toastId += 1

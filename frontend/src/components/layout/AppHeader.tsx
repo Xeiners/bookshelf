@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookText, FolderOpen } from 'lucide-react'
+import { BookText, FolderOpen, Settings } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -26,6 +26,7 @@ export function AppHeader({ view }: AppHeaderProps) {
   const copy = t.header[shownView]
   const openFiles = useUiStore((state) => state.openFiles)
   const openNovels = useUiStore((state) => state.openNovels)
+  const openSettings = useUiStore((state) => state.openSettings)
 
   useGSAP(
     () => {
@@ -105,6 +106,20 @@ export function AppHeader({ view }: AppHeaderProps) {
         <div className="lg:hidden">
           <LanguageToggle />
         </div>
+        {/* Profil : paramètres (compte, lecture, stockage, session), tout en haut à droite. */}
+        {view === 'profile' && (
+          <Pressable
+            onClick={() => {
+              vibrate(6)
+              openSettings()
+            }}
+            aria-label={t.settings.open}
+            title={t.settings.open}
+            className="glass grid size-11 place-items-center rounded-full text-cream/70"
+          >
+            <Settings size={17} />
+          </Pressable>
+        )}
       </div>
     </header>
   )

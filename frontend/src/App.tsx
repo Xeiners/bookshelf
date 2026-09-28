@@ -18,6 +18,8 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { SplashIntro } from './components/layout/SplashIntro'
 import { ToastHost } from './components/ui/ToastHost'
 import { AuthSheet } from './components/profile/AuthSheet'
+import { ProfileEditor } from './components/profile/ProfileEditor'
+import { SettingsSheet } from './components/profile/SettingsSheet'
 import { useLibraryLocalization } from './hooks/useLibraryLocalization'
 import { useLanguage, useT } from './i18n'
 import { useAuthStore } from './store/useAuthStore'
@@ -53,6 +55,8 @@ export default function App() {
   const filesOpen = useUiStore((state) => state.filesOpen)
   const novelsOpen = useUiStore((state) => state.novelsOpen)
   const boosterOpen = useUiStore((state) => state.boosterOpen)
+  const settingsOpen = useUiStore((state) => state.settingsOpen)
+  const profileEditorOpen = useUiStore((state) => state.profileEditorOpen)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
   useEffect(() => {
@@ -176,6 +180,8 @@ export default function App() {
       <ToastHost />
 
       {detail && <BookSheet key={detail.id} book={detail} />}
+      {settingsOpen && <SettingsSheet />}
+      {profileEditorOpen && <ProfileEditor />}
       {authOpen && <AuthSheet />}
       {filesOpen && <LocalFilesSheet />}
       {novelsOpen && (

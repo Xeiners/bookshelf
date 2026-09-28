@@ -39,6 +39,12 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.emailUnavailable
     case 'email_send_failed':
       return t.errors.emailSendFailed
+    case 'wrong_password':
+      return t.errors.wrongPassword
+    case 'card_not_owned':
+      return t.errors.cardNotOwned
+    case 'title_locked':
+      return t.errors.titleLocked
     case 'validation_error':
     case 'invalid_json':
       return t.errors.invalidInput

@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import { config } from '../../config.js'
+import { prisma } from '../../db.js'
 import { HttpError, notFound } from '../../lib/errors.js'
 import { LangQuerySchema } from '../../lib/language.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
@@ -15,6 +16,7 @@ import {
   receiveUpload,
   safeFileName,
   saveProgress,
+  storageUsed,
   toDto,
   updateMetadata,
 } from './books.service.js'
@@ -157,6 +159,14 @@ booksRouter.get('/', async (req, res) => {
   res.set('Cache-Control', 'no-store')
   const books = await listBooks(currentUserId(req))
   res.json({ books: books.map(toDto) })
+})
+
+/** Espace occupé par les romans du compte, et quota. Avant `/:id` : « storage » n'est pas un id. */
+booksRouter.get('/storage', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  const userId = currentUserId(req)
+  const [usedBytes, count] = await Promise.all([storageUsed(userId), prisma.userBook.count({ where: { userId } })])
+  res.json({ usedBytes, quotaBytes: config.books.quotaBytes, count })
 })
 
 const IdParam = z.string().min(1).max(64).regex(/^[\w-]+$/)
