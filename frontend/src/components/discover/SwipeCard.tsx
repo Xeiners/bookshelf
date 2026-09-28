@@ -142,49 +142,58 @@ export function SwipeCard({ book, depth }: SwipeCardProps) {
           Retour visuel du geste, un calque par direction (opacité pilotée par
           le doigt) : le bord vers lequel on glisse se colore, et le tampon
           nomme la décision. Au-dessus du texte, pour rester lisible.
+
+          `will-change: opacity` : chaque calque a sa propre couche GPU. Sans
+          ça, changer son opacité à chaque frame repeignait TOUTE la carte
+          (couverture, dégradés, ombres) pendant le geste. Montés sur la carte
+          du dessus seulement (et celles qui s'éjectent) : les autres n'en font rien.
         */}
-        <div data-stamp="like" className="pointer-events-none absolute inset-0 opacity-0">
-          <div
-            className="absolute inset-0 rounded-[2.25rem]"
-            style={{
-              background: 'linear-gradient(to left, color-mix(in oklab, var(--color-like) 45%, transparent), transparent 60%)',
-              boxShadow: 'inset 0 0 0 3px var(--color-like)',
-            }}
-          />
-          <span className="absolute top-20 left-6 flex rotate-[-13deg] items-center gap-2 rounded-2xl border-2 border-like/70 bg-void/65 px-4 py-2 font-display text-3xl leading-none text-like">
-            <Heart size={22} strokeWidth={2.5} className="fill-like" />
-            {t.deck.stampLike}
-          </span>
-        </div>
-        <div data-stamp="skip" className="pointer-events-none absolute inset-0 opacity-0">
-          <div
-            className="absolute inset-0 rounded-[2.25rem]"
-            style={{
-              background: 'linear-gradient(to right, color-mix(in oklab, var(--color-nope) 45%, transparent), transparent 60%)',
-              boxShadow: 'inset 0 0 0 3px var(--color-nope)',
-            }}
-          />
-          <span className="absolute top-20 right-6 flex rotate-[13deg] items-center gap-2 rounded-2xl border-2 border-nope/70 bg-void/65 px-4 py-2 font-display text-3xl leading-none text-nope">
-            <X size={22} strokeWidth={3} />
-            {t.deck.stampSkip}
-          </span>
-        </div>
-        {/* Glisser vers le haut : « déjà lu » */}
-        <div data-stamp="read" className="pointer-events-none absolute inset-0 opacity-0">
-          <div
-            className="absolute inset-0 rounded-[2.25rem]"
-            style={{
-              background: 'linear-gradient(to bottom, color-mix(in oklab, var(--color-gold) 45%, transparent), transparent 55%)',
-              boxShadow: 'inset 0 0 0 3px var(--color-gold)',
-            }}
-          />
-          <div className="absolute inset-x-0 top-[34%] flex justify-center">
-            <span className="flex rotate-[-4deg] items-center gap-2 rounded-2xl border-2 border-gold/70 bg-void/65 px-4 py-2 font-display text-3xl leading-none text-gold">
-              <BookCheck size={22} strokeWidth={2.5} />
-              {t.deck.stampRead}
-            </span>
-          </div>
-        </div>
+        {isTop && (
+          <>
+            <div data-stamp="like" className="pointer-events-none absolute inset-0 opacity-0 will-change-[opacity]">
+              <div
+                className="absolute inset-0 rounded-[2.25rem]"
+                style={{
+                  background: 'linear-gradient(to left, color-mix(in oklab, var(--color-like) 45%, transparent), transparent 60%)',
+                  boxShadow: 'inset 0 0 0 3px var(--color-like)',
+                }}
+              />
+              <span className="absolute top-20 left-6 flex rotate-[-13deg] items-center gap-2 rounded-2xl border-2 border-like/70 bg-void/65 px-4 py-2 font-display text-3xl leading-none text-like">
+                <Heart size={22} strokeWidth={2.5} className="fill-like" />
+                {t.deck.stampLike}
+              </span>
+            </div>
+            <div data-stamp="skip" className="pointer-events-none absolute inset-0 opacity-0 will-change-[opacity]">
+              <div
+                className="absolute inset-0 rounded-[2.25rem]"
+                style={{
+                  background: 'linear-gradient(to right, color-mix(in oklab, var(--color-nope) 45%, transparent), transparent 60%)',
+                  boxShadow: 'inset 0 0 0 3px var(--color-nope)',
+                }}
+              />
+              <span className="absolute top-20 right-6 flex rotate-[13deg] items-center gap-2 rounded-2xl border-2 border-nope/70 bg-void/65 px-4 py-2 font-display text-3xl leading-none text-nope">
+                <X size={22} strokeWidth={3} />
+                {t.deck.stampSkip}
+              </span>
+            </div>
+            {/* Glisser vers le haut : « déjà lu » */}
+            <div data-stamp="read" className="pointer-events-none absolute inset-0 opacity-0 will-change-[opacity]">
+              <div
+                className="absolute inset-0 rounded-[2.25rem]"
+                style={{
+                  background: 'linear-gradient(to bottom, color-mix(in oklab, var(--color-gold) 45%, transparent), transparent 55%)',
+                  boxShadow: 'inset 0 0 0 3px var(--color-gold)',
+                }}
+              />
+              <div className="absolute inset-x-0 top-[34%] flex justify-center">
+                <span className="flex rotate-[-4deg] items-center gap-2 rounded-2xl border-2 border-gold/70 bg-void/65 px-4 py-2 font-display text-3xl leading-none text-gold">
+                  <BookCheck size={22} strokeWidth={2.5} />
+                  {t.deck.stampRead}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="pointer-events-none absolute inset-0 rounded-[2.25rem] ring-1 ring-white/12 ring-inset" />
       </div>

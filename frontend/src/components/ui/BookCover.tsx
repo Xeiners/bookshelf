@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { gsap, useGSAP } from '../../lib/gsap'
 import { useT } from '../../i18n'
 import { initials, proceduralGradient } from '../../lib/format'
 import type { Book } from '../../types/book'
@@ -62,20 +61,7 @@ function CoverImage({ book, eager = false, className = '' }: BookCoverProps) {
   // liste basculaient en procédural avant même d'avoir été demandées.
   const [inView, setInView] = useState(() => eager || typeof IntersectionObserver === 'undefined')
   const rootRef = useRef<HTMLDivElement>(null)
-  const layerRef = useRef<HTMLDivElement>(null)
   const src = attempts[attempt] ?? null
-
-  useGSAP(
-    () => {
-      if (!loaded) return
-      gsap.fromTo(
-        layerRef.current,
-        { autoAlpha: 0, scale: 1.06 },
-        { autoAlpha: 1, scale: 1, duration: 0.85, ease: 'power2.out' },
-      )
-    },
-    { dependencies: [loaded] },
-  )
 
   const handleError = useCallback(() => setAttempt((current) => current + 1), [])
 
@@ -134,7 +120,16 @@ function CoverImage({ book, eager = false, className = '' }: BookCoverProps) {
         </div>
       )}
 
-      <div ref={layerRef} className="absolute inset-0 opacity-0">
+      {/*
+        Fondu en transition CSS et non en tween GSAP : le compositeur la joue
+        seul. En style inline, l'image était redessinée à chaque frame (échelle
+        changeante), pour chaque couverture — saccades à l'arrivée d'une vue.
+      */}
+      <div
+        className={`absolute inset-0 transition-[opacity,transform] duration-[850ms] ease-[cubic-bezier(0.33,1,0.68,1)] ${
+          loaded ? 'scale-100 opacity-100' : 'scale-[1.06] opacity-0'
+        }`}
+      >
         <img
           src={src}
           alt={t.book.coverAlt(book.title)}

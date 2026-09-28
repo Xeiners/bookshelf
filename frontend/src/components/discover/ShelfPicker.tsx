@@ -32,11 +32,21 @@ export function ShelfPicker({ shelves, active, onSelect }: ShelfPickerProps) {
   )
 
   // Recentre la puce active quand elle change (utile après un tap au bord).
+  // Défilement du rail seul (`scrollIntoView` remontait aussi les parents) et
+  // instantané au montage : pas de scroll animé par-dessus l'entrée de la vue.
+  const centered = useRef(false)
   useGSAP(
     () => {
-      rowRef.current
-        ?.querySelector<HTMLElement>('[data-active="true"]')
-        ?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+      const row = rowRef.current
+      const chip = row?.querySelector<HTMLElement>('[data-active="true"]')
+      if (!row || !chip) return
+      const rowBox = row.getBoundingClientRect()
+      const chipBox = chip.getBoundingClientRect()
+      row.scrollTo({
+        left: row.scrollLeft + chipBox.left - rowBox.left - (row.clientWidth - chipBox.width) / 2,
+        behavior: centered.current ? 'smooth' : 'instant',
+      })
+      centered.current = true
     },
     { dependencies: [active.id] },
   )

@@ -92,14 +92,35 @@ async function harvestDeck(
 const matchesSources = (book: Book, sources: readonly DeckSource[]) =>
   book.kind === 'book' ? sources.includes('novel') : !!book.kind && sources.includes(book.kind)
 
+/** Au-delà, la file gardée en mémoire est jugée périmée : on recharge. */
+const MEMO_TTL_MS = 30 * 60_000
+
+/**
+ * File laissée par la dernière visite de Découverte. Sans elle, chaque retour
+ * sur l'onglet refaisait la requête : la réponse tombait n'importe quand
+ * pendant l'animation d'entrée (squelette → deck, images, synopsis), d'où des
+ * saccades aléatoires. Avec elle, le deck est là dès le premier rendu.
+ */
+interface QueueMemo {
+  key: string
+  nonce: number
+  queue: Book[]
+  cursor: number
+  phase: QueuePhase
+  offline: boolean
+  drained: boolean
+  exhausted: Set<DeckPart>
+  at: number
+}
+
+let memo: QueueMemo | null = null
+
 export function useDiscoveryQueue(): DiscoveryQueue {
   const language = useLanguage()
   const entries = useLibraryStore((state) => state.entries)
   const skipped = useLibraryStore((state) => state.skipped)
   const known = useMemo(() => knownIds(entries, skipped), [entries, skipped])
 
-  const [queue, setQueue] = useState<Book[]>([])
-  const [cursor, setCursor] = useState(0)
   // Sélection et étagère gardées sur l'appareil. Une étagère absente des types
   // cochés (« Thriller » sans les romans) retombe sur la première : dérivé, pas d'effet.
   const sources = useDeckStore((state) => state.sources)
@@ -107,8 +128,20 @@ export function useDiscoveryQueue(): DiscoveryQueue {
   const shelves = useMemo(() => shelvesFor(sources), [sources])
   const shelf = shelves.find((item) => item.id === savedShelf) ?? shelves[0]!
   const sourcesKey = sources.join('+')
-  const [phase, setPhase] = useState<QueuePhase>('loading')
-  const [offline, setOffline] = useState(false)
+
+  // Reprise de la visite précédente, si elle porte sur la même requête. Les
+  // cartes déjà jugées (ou ajoutées ailleurs entre-temps) sont écartées.
+  const [restored] = useState(() => {
+    if (!memo || Date.now() - memo.at > MEMO_TTL_MS) return null
+    if (memo.key !== `${shelf.id}|${sourcesKey}|${language}|${memo.nonce}`) return null
+    const rest = memo.queue.slice(memo.cursor).filter((book) => !known.has(book.id))
+    return rest.length > 0 ? { ...memo, queue: rest } : null
+  })
+
+  const [queue, setQueue] = useState<Book[]>(() => restored?.queue ?? [])
+  const [cursor, setCursor] = useState(0)
+  const [phase, setPhase] = useState<QueuePhase>(() => restored?.phase ?? 'loading')
+  const [offline, setOffline] = useState(() => restored?.offline ?? false)
 
   /*
    * États DÉRIVÉS plutôt que posés dans un effet (pas de rendu en cascade) :
@@ -117,10 +150,10 @@ export function useDiscoveryQueue(): DiscoveryQueue {
    * - « renfort en cours » = la file s'épuise et rien n'indique encore que
    *   l'étagère est vide pour cette requête (`drainedKey`).
    */
-  const [nonce, setNonce] = useState(0)
+  const [nonce, setNonce] = useState(() => restored?.nonce ?? 0)
   const requestKey = `${shelf.id}|${sourcesKey}|${language}|${nonce}`
-  const [loadedKey, setLoadedKey] = useState<string | null>(null)
-  const [drainedKey, setDrainedKey] = useState<string | null>(null)
+  const [loadedKey, setLoadedKey] = useState<string | null>(() => restored?.key ?? null)
+  const [drainedKey, setDrainedKey] = useState<string | null>(() => (restored?.drained ? restored.key : null))
   const effectivePhase: QueuePhase = loadedKey === requestKey ? phase : 'loading'
   const remaining = queue.length - cursor
   const refilling =
@@ -141,7 +174,9 @@ export function useDiscoveryQueue(): DiscoveryQueue {
   const hydratingRef = useRef(new Set<string>())
   const preloadedCoversRef = useRef(new Set<string>())
   /** Moitiés (catalogue, romans) épuisées pour la requête en cours. */
-  const exhaustedRef = useRef(new Set<DeckPart>())
+  const exhaustedRef = useRef(restored ? new Set(restored.exhausted) : new Set<DeckPart>())
+  /** Requête déjà servie par la mémoire : pas de fetch tant qu'elle ne change pas. */
+  const restoredKeyRef = useRef(restored?.key ?? null)
 
   const load = useCallback(
     (target: Shelf, targetSources: readonly DeckSource[], mode: 'replace' | 'append', lang: Language, key: string, round: number) => {
@@ -195,8 +230,27 @@ export function useDiscoveryQueue(): DiscoveryQueue {
   )
 
   useEffect(() => {
+    // Ref gardée tant que la clé ne bouge pas : le double effet de <StrictMode> ne refetch pas non plus.
+    if (requestKey === restoredKeyRef.current) return
+    restoredKeyRef.current = null
     load(shelf, sources, 'replace', language, requestKey, nonce)
   }, [requestKey, shelf, sources, language, load, nonce])
+
+  // Mémorise la file à chaque changement, pour la prochaine visite.
+  useEffect(() => {
+    if (loadedKey !== requestKey) return
+    memo = {
+      key: requestKey,
+      nonce,
+      queue,
+      cursor,
+      phase,
+      offline,
+      drained: drainedKey === requestKey,
+      exhausted: new Set(exhaustedRef.current),
+      at: Date.now(),
+    }
+  }, [loadedKey, requestKey, nonce, queue, cursor, phase, offline, drainedKey])
 
   // Recharge anticipée : l'utilisateur ne doit jamais voir le fond de la pile.
   useEffect(() => {

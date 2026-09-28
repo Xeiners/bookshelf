@@ -693,23 +693,25 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
         ref={stageRef}
         className="relative mx-auto min-h-0 w-full max-w-[26rem] flex-1 [perspective:1100px]"
       >
-        {/* Lueurs de bord d'écran, sous les cartes : débordent dans la marge de la page. */}
+        {/* Lueurs de bord d'écran, sous les cartes : débordent dans la marge de la page.
+            `will-change: opacity` : leur fondu suit le doigt à chaque frame et
+            doit rester sur le GPU, sans repeindre les dégradés radiaux. */}
         <div
           data-glow="skip"
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 -left-5 w-2/5 opacity-0"
+          className="pointer-events-none absolute inset-y-0 -left-5 w-2/5 opacity-0 will-change-[opacity]"
           style={{ background: 'radial-gradient(ellipse 100% 60% at 0% 50%, color-mix(in oklab, var(--color-nope) 55%, transparent), transparent)' }}
         />
         <div
           data-glow="like"
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 -right-5 w-2/5 opacity-0"
+          className="pointer-events-none absolute inset-y-0 -right-5 w-2/5 opacity-0 will-change-[opacity]"
           style={{ background: 'radial-gradient(ellipse 100% 60% at 100% 50%, color-mix(in oklab, var(--color-like) 55%, transparent), transparent)' }}
         />
         <div
           data-glow="read"
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-8 h-2/5 opacity-0"
+          className="pointer-events-none absolute inset-x-0 -top-8 h-2/5 opacity-0 will-change-[opacity]"
           style={{ background: 'radial-gradient(ellipse 60% 100% at 50% 0%, color-mix(in oklab, var(--color-gold) 55%, transparent), transparent)' }}
         />
 
