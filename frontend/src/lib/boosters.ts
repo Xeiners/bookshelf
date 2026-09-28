@@ -95,8 +95,14 @@ export function observedRate(tally: DropTally, rarity: Rarity): number {
 export interface CollectionCard {
   id: string
   number: number
+  series: 1 | 2
+  name: string
+  mangaTitle: string
   title: string
+  character: string | null
   characterName: string | null
+  description: string
+  power: number
   imageUrl: string
   rarity: Rarity
   mangaId: string
@@ -107,15 +113,17 @@ export interface CollectionCard {
 }
 
 export type Ownership = 'all' | 'owned' | 'missing'
+export type CardSeries = 1 | 2
 
 export interface CollectionFilter {
   rarity: Rarity | 'all'
+  series: CardSeries | 'all'
   ownership: Ownership
   /** Texte libre sur le titre de l'œuvre. */
   query: string
 }
 
-export const DEFAULT_FILTER: CollectionFilter = { rarity: 'all', ownership: 'all', query: '' }
+export const DEFAULT_FILTER: CollectionFilter = { rarity: 'all', series: 'all', ownership: 'all', query: '' }
 
 /** « Kimetsu no Yaiba » ≈ « kimetsu » : minuscules, sans accents ni ponctuation. */
 const normalize = (value: string) =>
@@ -132,8 +140,9 @@ export function filterCollection<C extends CollectionCard>(cards: readonly C[], 
   return cards.filter(
     (card) =>
       (filter.rarity === 'all' || card.rarity === filter.rarity) &&
+      (filter.series === 'all' || card.series === filter.series) &&
       (filter.ownership === 'all' || (filter.ownership === 'owned') === card.owned) &&
-      (!query || normalize(card.title).includes(query)),
+      (!query || normalize([card.name, card.mangaTitle, card.characterName].filter(Boolean).join(' ')).includes(query)),
   )
 }
 

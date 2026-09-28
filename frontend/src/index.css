@@ -25,7 +25,13 @@
   --radius-4xl: 2rem;
   --radius-5xl: 2.75rem;
 
-  --shadow-card: 0 48px 88px -24px rgb(0 0 0 / 0.9), 0 12px 28px -12px rgb(0 0 0 / 0.7);
+  /*
+   * Ombre serrée : l'ancienne (`0 48px 88px`) étalait un flou de 88 px autour
+   * de chaque carte du deck — couches GPU bien plus grandes et chaque nouveau
+   * dessin de carte coûteux. Les cartes gardent leur propre couche
+   * (`will-change: transform`) : l'ombre est dessinée une fois, puis déplacée.
+   */
+  --shadow-card: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 4px 12px -4px rgb(0 0 0 / 0.5);
   --shadow-lift: 0 18px 40px -18px rgb(0 0 0 / 0.8);
   --shadow-glow: 0 0 48px -12px rgb(124 92 255 / 0.55);
 

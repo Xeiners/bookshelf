@@ -114,7 +114,7 @@ export const fr = {
     booster: {
       eyebrow: 'L’autel des boosters',
       title: 'Ouvrir un booster',
-      body: '3 cartes à collectionner. Un booster toutes les 3 h, 2 en réserve au plus.',
+      body: '5 cartes à collectionner. Un booster toutes les 3 h, 2 en réserve au plus.',
       open: 'Ouvrir',
       next: (time: string) => `Prochain booster dans ${time}`,
       full: 'Réserve pleine',
@@ -178,6 +178,8 @@ export const fr = {
     progress: (owned: number, total: number) => `${owned}/${total} cartes débloquées`,
     filters: {
       label: 'Filtres de l’album',
+      series: 'Série',
+      seriesName: (series: number) => `Série ${series}`,
       rarity: 'Rareté',
       all: 'Toutes',
       owned: 'Possédées',

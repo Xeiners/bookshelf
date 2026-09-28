@@ -1,130 +1,167 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
-import { useLanguage, useT } from '../../i18n'
-import { gsap, useGSAP } from '../../lib/gsap'
+import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
 import type { ViewId } from '../../store/useUiStore'
-import { NAV_COLOR_ACTIVE, NAV_COLOR_IDLE, NAV_ITEMS } from './navItems'
+import { NAV_ITEMS } from './navItems'
 
-/** Marge intérieure horizontale d'un onglet (px-3) et espace icône ↔ libellé (gap-1.5). */
-const TAB_PADDING_X = 12
-const ICON_LABEL_GAP = 6
-/** Largeur minimale d'un onglet replié : son icône, avec un peu d'air. */
-const COLLAPSED_MIN = 36
+/** Durée et courbe des transitions (≈ `power3.out`). */
+const DURATION = 450
+const EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
+/** Rebond de l'icône activée (≈ `back.out(2)`). */
+const BOUNCE = 'cubic-bezier(0.34, 1.8, 0.64, 1)'
 
 interface BottomNavProps {
   view: ViewId
   onChange: (view: ViewId) => void
 }
 
+/** Pose de la capsule : bord gauche et largeur de l'onglet actif, diamètre de ses bouts. */
+interface PillPose {
+  x: number
+  w: number
+  cap: number
+}
+
+/*
+ * La capsule est faite de trois pièces pour ne bouger qu'en `transform` : deux
+ * bouts ronds translatés et un segment central étiré en `scaleX` (couleur
+ * unie : l'étirement ne se voit pas, les bouts ne sont jamais déformés).
+ */
+const pillTransforms = ({ x, w, cap }: PillPose) => [
+  `translateX(${x}px)`,
+  `translateX(${x + cap / 2}px) scaleX(${Math.max(0, w - cap)})`,
+  `translateX(${x + Math.max(w, cap) - cap}px)`,
+]
+
+/**
+ * Mesure la barre (offsets : insensibles aux animations en vol) et pose la
+ * capsule sur l'onglet actif, sans animation. Rend la position de repos du
+ * contenu de chaque onglet, point de départ du FLIP suivant.
+ */
+function layOut(nav: HTMLElement, parts: HTMLElement[]) {
+  const lefts = new Map<ViewId, number>()
+  let pill: PillPose | null = null
+  for (const item of NAV_ITEMS) {
+    const tab = nav.querySelector<HTMLElement>(`[data-tab="${item.id}"]`)
+    const content = tab?.querySelector<HTMLElement>('[data-tab-content]')
+    if (!tab || !content) continue
+    lefts.set(item.id, tab.offsetLeft + content.offsetLeft)
+    if (tab.getAttribute('aria-current') === 'page') {
+      pill = { x: tab.offsetLeft, w: tab.offsetWidth, cap: parts[0]?.offsetWidth ?? 0 }
+    }
+  }
+  if (pill) {
+    pillTransforms(pill).forEach((transform, index) => {
+      const part = parts[index]
+      if (part) part.style.transform = transform
+    })
+  }
+  return { lefts, pill }
+}
+
+/** Décalage horizontal courant d'un élément (animation en vol comprise). */
+function translateXOf(node: HTMLElement): number {
+  const transform = getComputedStyle(node).transform
+  return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41
+}
+
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
 /**
  * Barre de navigation flottante (mobile), à onglet actif « déployé ».
  *
  * Avec cinq entrées, cinq libellés côte à côte se tassaient. Ici seul l'onglet
- * actif affiche son libellé, à côté de l'icône, dans une capsule plus large ;
- * les autres ne gardent que l'icône (et leur nom pour les lecteurs d'écran).
+ * actif affiche son libellé, à côté de l'icône ; les autres ne gardent que
+ * l'icône (et leur nom pour les lecteurs d'écran).
  *
- * L'onglet actif prend EXACTEMENT la largeur de son contenu (icône + libellé,
- * mesurés) ; les autres se partagent le reste à parts égales. Un ratio fixe
- * rognait les libellés longs (« Recherche », « Discover ») sur les petits
- * écrans : la largeur mesurée tient quelle que soit la langue.
+ * Largeurs en flex STATIQUE : l'onglet actif prend la largeur de son contenu
+ * (le libellé se tronque s'il manque de place), les autres se partagent le
+ * reste. Le navigateur fait une seule mise en page par changement d'onglet.
  *
- * Au changement de vue, GSAP anime ensemble la largeur des onglets
- * (`flexBasis` / `flexGrow`), l'ouverture du libellé (`maxWidth`) et la capsule,
- * qui suit l'onglet actif image par image. Pas de dépassement d'easing :
- * l'`overflow-hidden` rognerait la capsule aux extrémités.
+ * Le mouvement est un FLIP en Web Animations, uniquement `transform` et
+ * `opacity` : le compositeur le joue seul, même si le thread principal est
+ * occupé à monter la nouvelle vue. Auparavant, GSAP animait `flexBasis`,
+ * `maxWidth` et la largeur de la capsule en relisant `offsetLeft` à chaque
+ * frame : une mise en page forcée par image, pile pendant la transition de vue.
  */
 export function BottomNav({ view, onChange }: BottomNavProps) {
   const t = useT()
-  const language = useLanguage()
   const activities = useActivitiesStatus()
   const navRef = useRef<HTMLElement>(null)
-  /** Dernière vue / langue mises en page : sert à savoir s'il faut animer. */
-  const laidOut = useRef<{ view: ViewId; language: string } | null>(null)
+  /** Position de repos du contenu de chaque onglet, depuis le bord de la barre. */
+  const restLefts = useRef(new Map<ViewId, number>())
+  /** Vue déjà mise en page : sert à savoir s'il faut animer. */
+  const shownView = useRef<ViewId | null>(null)
 
-  /*
-   * Deux causes de remise en page SANS animation : les polices web qui
-   * arrivent après le premier rendu (Inter est plus large que la police de
-   * secours : la largeur mesurée au montage rognait le libellé), et la
-   * largeur de la barre qui change (rotation, fenêtre).
-   */
-  const [fontsReady, setFontsReady] = useState(false)
-  const [navWidth, setNavWidth] = useState(0)
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const parts = [...nav.querySelectorAll<HTMLElement>('[data-pill]')]
+    const contents = new Map(
+      NAV_ITEMS.map((item) => [item.id, nav.querySelector<HTMLElement>(`[data-tab="${item.id}"] [data-tab-content]`)]),
+    )
 
-  useEffect(() => {
-    let active = true
-    void document.fonts?.ready.then(() => {
-      if (active) setFontsReady(true)
-    })
-    return () => {
-      active = false
+    const previous = shownView.current
+    shownView.current = view
+    const animate = previous !== null && previous !== view && !reducedMotion()
+
+    // État VISUEL de départ, animations en vol comprises : un tap pendant une
+    // transition repart d'où en sont les éléments, sans saut.
+    const fromPill = animate ? parts.map((part) => getComputedStyle(part).transform) : []
+    const fromLefts = new Map<ViewId, number>()
+    if (animate) {
+      for (const [id, content] of contents) {
+        const rest = restLefts.current.get(id)
+        if (content && rest !== undefined) fromLefts.set(id, rest + translateXOf(content))
+      }
     }
-  }, [])
 
+    const { lefts, pill } = layOut(nav, parts)
+    restLefts.current = lefts
+    if (!animate || !pill) return
+
+    const timing = { duration: DURATION, easing: EASING }
+    pillTransforms(pill).forEach((to, index) => {
+      const part = parts[index]
+      if (!part) return
+      part.getAnimations().forEach((running) => running.cancel())
+      part.animate({ transform: [fromPill[index] ?? to, to] }, timing)
+    })
+
+    for (const [id, content] of contents) {
+      if (!content) continue
+      content.getAnimations().forEach((running) => running.cancel())
+      const from = fromLefts.get(id)
+      const to = lefts.get(id)
+      if (from === undefined || to === undefined || Math.abs(from - to) < 0.5) continue
+      content.animate({ transform: [`translateX(${from - to}px)`, 'translateX(0)'] }, timing)
+    }
+
+    nav
+      .querySelector(`[data-label="${view}"]`)
+      ?.animate(
+        { opacity: [0, 1], transform: ['translateX(-6px)', 'translateX(0)'] },
+        { duration: 300, delay: 90, easing: EASING, fill: 'backwards' },
+      )
+    nav
+      .querySelector(`[data-icon="${view}"]`)
+      ?.animate({ transform: ['scale(0.84)', 'scale(1)'] }, { duration: DURATION, easing: BOUNCE })
+  }, [view])
+
+  // Polices web qui arrivent, langue, rotation : le flex se recale seul, la
+  // capsule suit sans animation.
   useEffect(() => {
     const nav = navRef.current
     if (!nav) return
-    const observer = new ResizeObserver(([entry]) => setNavWidth(Math.round(entry?.contentRect.width ?? 0)))
+    const parts = [...nav.querySelectorAll<HTMLElement>('[data-pill]')]
+    const observer = new ResizeObserver(() => {
+      restLefts.current = layOut(nav, parts).lefts
+    })
     observer.observe(nav)
+    for (const tab of nav.querySelectorAll('[data-tab]')) observer.observe(tab)
     return () => observer.disconnect()
   }, [])
-
-  /** Cale la capsule sur l'onglet actif (position et largeur réelles). */
-  const syncIndicator = () => {
-    const nav = navRef.current
-    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
-    const indicator = nav?.querySelector<HTMLElement>('[data-indicator]')
-    if (!active || !indicator) return
-    gsap.set(indicator, { x: active.offsetLeft, width: active.offsetWidth })
-  }
-
-  useGSAP(
-    () => {
-      // On n'anime que les vrais changements de vue ou de langue.
-      const previous = laidOut.current
-      const animate = previous !== null && (previous.view !== view || previous.language !== language)
-      laidOut.current = { view, language }
-      const duration = animate ? 0.45 : 0
-
-      const timeline = gsap.timeline({ defaults: { duration, ease: 'power3.out' }, onUpdate: syncIndicator, onComplete: syncIndicator })
-
-      const nav = navRef.current
-      // Place laissée à l'onglet actif : les autres gardent au moins leur icône.
-      const inner = nav ? nav.clientWidth - 12 - 4 * (NAV_ITEMS.length - 1) : 0
-      const room = inner - COLLAPSED_MIN * (NAV_ITEMS.length - 1)
-
-      for (const item of NAV_ITEMS) {
-        const active = item.id === view
-        const label = nav?.querySelector<HTMLElement>(`[data-label="${item.id}"]`)
-        const icon = nav?.querySelector<HTMLElement>(`[data-icon="${item.id}"]`)
-
-        if (active && label && icon) {
-          const natural = icon.offsetWidth + ICON_LABEL_GAP + label.scrollWidth + TAB_PADDING_X * 2
-          timeline.to(`[data-tab="${item.id}"]`, { flexGrow: 0, flexBasis: Math.min(natural, room) }, 0)
-        } else {
-          timeline.to(`[data-tab="${item.id}"]`, { flexGrow: 1, flexBasis: 0 }, 0)
-        }
-
-        if (label) {
-          timeline.to(
-            label,
-            // `scrollWidth` : largeur réelle du texte, même replié à 0.
-            { maxWidth: active ? label.scrollWidth : 0, autoAlpha: active ? 1 : 0, duration: active ? duration : duration * 0.6 },
-            active ? duration * 0.25 : 0,
-          )
-        }
-        timeline.to(`[data-tint="${item.id}"]`, { color: active ? NAV_COLOR_ACTIVE : NAV_COLOR_IDLE, duration: duration * 0.8 }, 0)
-      }
-
-      if (duration > 0) {
-        // Échelle uniquement : un décalage vertical se lirait comme une barre qui saute.
-        gsap.fromTo(`[data-icon="${view}"]`, { scale: 0.84 }, { scale: 1, duration: 0.45, ease: 'back.out(2)' })
-      }
-      syncIndicator()
-    },
-    // Vue, langue (longueur des libellés), polices chargées, largeur de la barre.
-    { dependencies: [view, language, fontsReady, navWidth], scope: navRef },
-  )
 
   return (
     <nav
@@ -132,12 +169,12 @@ export function BottomNav({ view, onChange }: BottomNavProps) {
       aria-label={t.nav.label}
       className="glass-strong relative flex w-full items-stretch gap-1 overflow-hidden rounded-full p-1.5 shadow-lift"
     >
-      {/* Capsule active : suit l'onglet déployé */}
-      <span
-        data-indicator
-        aria-hidden
-        className="pointer-events-none absolute top-1.5 bottom-1.5 left-0 rounded-full bg-cream will-change-transform"
-      />
+      {/* Capsule active : deux bouts ronds + un segment central, posés par `layOut`. */}
+      <span aria-hidden className="pointer-events-none absolute top-1.5 bottom-1.5 left-0">
+        <span data-pill className="absolute inset-y-0 left-0 w-12 rounded-full bg-cream" />
+        <span data-pill className="absolute inset-y-0 left-0 w-px origin-left bg-cream" />
+        <span data-pill className="absolute inset-y-0 left-0 w-12 rounded-full bg-cream" />
+      </span>
 
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon
@@ -154,25 +191,27 @@ export function BottomNav({ view, onChange }: BottomNavProps) {
               vibrate(8)
               onChange(item.id)
             }}
-            // Largeurs posées par GSAP au premier rendu (avant la peinture), puis animées.
-            className="relative z-10 flex h-12 min-w-0 shrink-0 grow basis-0 items-center justify-center gap-1.5 rounded-full px-3"
+            className={`relative z-10 flex h-12 items-center justify-center rounded-full px-3 ${
+              isActive ? 'min-w-0 shrink grow-0 basis-auto' : 'min-w-9 shrink-0 grow basis-0'
+            }`}
           >
-            <span data-icon={item.id} data-tint={item.id} className="relative shrink-0 text-mist">
-              <Icon size={20} strokeWidth={2} />
-              {/* Tirage du jour ou booster prêt : une étincelle dorée sur les Activités. */}
-              {item.id === 'activities' && activities.attention && (
-                <span aria-hidden className="absolute -top-0.5 -right-1 size-2 rounded-full bg-gold shadow-[0_0_8px_var(--color-gold)]" />
+            <span data-tab-content className="flex min-w-0 items-center gap-1.5">
+              <span
+                data-icon={item.id}
+                className={`relative shrink-0 transition-colors duration-300 ${isActive ? 'text-void' : 'text-mist'}`}
+              >
+                <Icon size={20} strokeWidth={2} />
+                {/* Tirage du jour ou booster prêt : une étincelle dorée sur les Activités. */}
+                {item.id === 'activities' && activities.attention && (
+                  <span aria-hidden className="absolute -top-0.5 -right-1 size-2 rounded-full bg-gold shadow-[0_0_8px_var(--color-gold)]" />
+                )}
+              </span>
+              {/* Nom déjà porté par `aria-label` : le libellé visible est masqué aux lecteurs d'écran. */}
+              {isActive && (
+                <span data-label={item.id} aria-hidden className="truncate text-[12px] font-semibold text-void">
+                  {t.nav[item.id]}
+                </span>
               )}
-            </span>
-            {/* Nom déjà porté par `aria-label` : le libellé visible est masqué aux lecteurs d'écran. */}
-            <span
-              data-label={item.id}
-              data-tint={item.id}
-              aria-hidden
-              className="overflow-hidden text-[12px] font-semibold whitespace-nowrap text-mist"
-              style={isActive ? undefined : { maxWidth: 0, opacity: 0, visibility: 'hidden' }}
-            >
-              {t.nav[item.id]}
             </span>
           </button>
         )

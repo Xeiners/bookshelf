@@ -12,8 +12,10 @@ import {
   assignRarities,
   consume,
   drawPack,
+  hasReachedHardPity,
   initialState,
   isRarity,
+  nextPityCount,
   numberSet,
   prestige,
   remainingQuotas,
@@ -23,6 +25,7 @@ import {
   type Rarity,
 } from './boosters.logic.js'
 import { GUEST_BOOSTERS, readGuestPacks, signGuestPack, type GuestPack } from './guestPacks.js'
+import { SERIES_2, seedSeries2 } from './series2.seed.js'
 
 /*
  * Collection de cartes et boosters. Le serveur est l'unique horloge : le
@@ -44,11 +47,16 @@ const ORIGIN_QUOTAS: [country: string, share: number][] = [
  * origine, selon les quotas du set ENTIER (les cartes déjà au set comptent
  * dans le quota de leur origine), complétées au besoin par les plus suivies.
  */
-export function pickSetWorks(items: readonly CatalogItem[], size = SET_SIZE, existing: ReadonlySet<string> = new Set()): CatalogItem[] {
+export function pickSetWorks(
+  items: readonly CatalogItem[],
+  size = SET_SIZE,
+  existing: ReadonlySet<string> = new Set(),
+  excluded: ReadonlySet<string> = existing,
+): CatalogItem[] {
   const need = size - existing.size
   if (need <= 0) return []
   const byPopularity = [...items]
-    .filter((item) => !existing.has(item.mangadexId))
+    .filter((item) => !excluded.has(item.mangadexId))
     .sort((a, b) => b.popularity - a.popularity || a.mangadexId.localeCompare(b.mangadexId))
   const already = (country: string) => items.filter((item) => item.country === country && existing.has(item.mangadexId)).length
   const chosen = new Set<CatalogItem>()
@@ -78,13 +86,21 @@ const notReady = () => new HttpError(503, 'collection_not_ready', 'La collection
  */
 export async function growCardSet(layout: Record<Rarity, number> = SET_LAYOUT): Promise<void> {
   const size = Object.values(layout).reduce((sum, count) => sum + count, 0)
-  const existing = await prisma.card.findMany({ select: { id: true, mangaId: true, rarity: true } })
+  const [existing, allCards] = await Promise.all([
+    prisma.card.findMany({ where: { series: 1 }, select: { id: true, mangaId: true, rarity: true } }),
+    prisma.card.findMany({ select: { mangaId: true } }),
+  ])
   if (existing.length >= size) return
   const { items, byId } = await getPool()
   // Premier set : il faut un catalogue assez fourni. Agrandissement : on fait avec ce qu'il y a.
   if (existing.length === 0 && items.length < size) throw notReady()
 
-  const works = pickSetWorks(items, size, new Set(existing.map((card) => card.mangaId)))
+  const works = pickSetWorks(
+    items,
+    size,
+    new Set(existing.map((card) => card.mangaId)),
+    new Set(allCards.map((card) => card.mangaId)),
+  )
   const documents = await loadDocuments(works)
   const quotas = remainingQuotas(existing.map((card) => card.rarity).filter(isRarity), layout)
   const assigned = assignRarities(works.map((work) => ({ mangaId: work.mangadexId, popularity: work.popularity, rating: work.rating })), quotas)
@@ -94,7 +110,20 @@ export async function growCardSet(layout: Record<Rarity, number> = SET_LAYOUT): 
     if (!manga || !work) return []
     // Titre anglais (ou romanisé) : il reste lisible dans les deux langues de l'interface.
     const book = normalizeManga(manga, work.rating, 'en')
-    return book.cover ? [{ title: book.title, imageUrl: book.cover, rarity, mangaId, characterName: null }] : []
+    return book.cover
+      ? [{
+          series: 1,
+          name: book.title,
+          mangaTitle: book.title,
+          title: book.title,
+          imageUrl: book.cover,
+          rarity,
+          mangaId,
+          characterName: null,
+          description: book.synopsis || `${book.title}, carte fondatrice de la Série 1.`,
+          power: ({ COMMON: 20, RARE: 40, EPIC: 60, LEGENDARY: 80, MYTHIC: 100 } as const)[rarity],
+        }]
+      : []
   })
   if (rows.length === 0) {
     if (existing.length === 0) throw notReady()
@@ -129,7 +158,7 @@ const RETRY_GROWTH_MS = 10 * 60 * 1000
  * qui échoue n'empêche jamais d'ouvrir un booster avec le set actuel.
  */
 export async function ensureCardSet(): Promise<{ id: string; rarity: string }[]> {
-  const count = await prisma.card.count()
+  const count = await prisma.card.count({ where: { series: 1 } })
   // La pause ne vaut que pour un agrandissement : un premier set est toujours retenté.
   const recentlyStalled = count > 0 && stalled !== null && stalled.count === count && Date.now() - stalled.at < RETRY_GROWTH_MS
   if (count < SET_SIZE && !recentlyStalled) {
@@ -140,8 +169,26 @@ export async function ensureCardSet(): Promise<{ id: string; rarity: string }[]>
       if (count === 0) throw error
       console.warn('[cartes] agrandissement du set impossible pour l’instant :', error instanceof Error ? error.message : error)
     }
-    const after = await prisma.card.count()
+    const after = await prisma.card.count({ where: { series: 1 } })
     stalled = after < SET_SIZE ? { count: after, at: Date.now() } : null
+  }
+  const [series1Count, series2Count] = await Promise.all([
+    prisma.card.count({ where: { series: 1 } }),
+    prisma.card.count({ where: { series: SERIES_2 } }),
+  ])
+  if (series1Count >= SET_SIZE && series2Count < SET_SIZE) {
+    const total = series1Count + series2Count
+    const recentlyStalledSeries2 = stalled !== null && stalled.count === total && Date.now() - stalled.at < RETRY_GROWTH_MS
+    if (!recentlyStalledSeries2) {
+      generating ??= seedSeries2().then(() => undefined).finally(() => (generating = null))
+      try {
+        await generating
+        stalled = null
+      } catch (error) {
+        stalled = { count: total, at: Date.now() }
+        console.warn('[cartes] Série 2 en attente :', error instanceof Error ? error.message : error)
+      }
+    }
   }
   return prisma.card.findMany({ select: { id: true, rarity: true } })
 }
@@ -195,8 +242,14 @@ export interface PulledCard {
 export interface CardDto {
   id: string
   number: number
+  series: number
+  name: string
+  mangaTitle: string
   title: string
+  character: string | null
   characterName: string | null
+  description: string
+  power: number
   imageUrl: string
   rarity: Rarity
   mangaId: string
@@ -211,7 +264,12 @@ const isUniqueViolation = (error: unknown) =>
  * dépensent jamais le même booster). `(available, nextBoosterAt)` change à
  * chaque consommation : c'est la clé de ce verrou optimiste.
  */
-async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: Date): Promise<BoosterState> {
+interface SpentBooster {
+  state: BoosterState
+  boostersSinceLastMythic: number
+}
+
+async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: Date): Promise<SpentBooster> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const row = await tx.userBooster.findUnique({ where: { userId } })
     const next = consume(toState(row), now)
@@ -225,17 +283,22 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
     if (!row) {
       try {
         await tx.userBooster.create({ data: { userId, ...data } })
-        return next
+        return { state: next, boostersSinceLastMythic: 0 }
       } catch (error) {
         if (isUniqueViolation(error)) continue
         throw error
       }
     }
     const { count } = await tx.userBooster.updateMany({
-      where: { userId, availableBoosters: row.availableBoosters, nextBoosterAt: row.nextBoosterAt },
+      where: {
+        userId,
+        availableBoosters: row.availableBoosters,
+        nextBoosterAt: row.nextBoosterAt,
+        boostersSinceLastMythic: row.boostersSinceLastMythic,
+      },
       data,
     })
-    if (count === 1) return next
+    if (count === 1) return { state: next, boostersSinceLastMythic: row.boostersSinceLastMythic }
   }
   throw conflict('Ouverture déjà en cours, réessaie.', 'booster_busy')
 }
@@ -254,9 +317,14 @@ export async function openBooster(
   if (set.length === 0) throw notReady()
   // Dépense et cartes ensemble : un booster n'est jamais dépensé sans ses cartes.
   return prisma.$transaction(async (tx) => {
-    const state = unlimited ? initialState() : await spendBooster(tx, userId, now)
+    const spent = unlimited
+      ? { state: initialState(), boostersSinceLastMythic: 0 }
+      : await spendBooster(tx, userId, now)
+    const drawn = drawPack(set, random, {
+      forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
+    })
     const cards: PulledCard[] = []
-    for (const { id } of drawPack(set, random)) {
+    for (const { id } of drawn) {
       const key = { userId_cardId: { userId, cardId: id } }
       const existing = await tx.userCard.findUnique({ where: key, select: { count: true } })
       const owned = await tx.userCard.upsert({
@@ -267,15 +335,32 @@ export async function openBooster(
       })
       cards.push({ card: toCardDto(owned.card), isNew: existing === null, count: owned.count })
     }
-    return { cards, status: statusOf(state, now, unlimited) }
+    if (!unlimited) {
+      await tx.userBooster.update({
+        where: { userId },
+        data: {
+          boostersSinceLastMythic: nextPityCount(
+            spent.boostersSinceLastMythic,
+            drawn.map((card) => card.rarity),
+          ),
+        },
+      })
+    }
+    return { cards, status: statusOf(spent.state, now, unlimited) }
   })
 }
 
-const toCardDto = (card: { id: string; number: number; title: string; characterName: string | null; imageUrl: string; rarity: string; mangaId: string }): CardDto => ({
+const toCardDto = (card: { id: string; number: number; series: number; name: string; mangaTitle: string; title: string; characterName: string | null; description: string; power: number; imageUrl: string; rarity: string; mangaId: string }): CardDto => ({
   id: card.id,
   number: card.number,
+  series: card.series,
+  name: card.name || card.title,
+  mangaTitle: card.mangaTitle || card.title,
   title: card.title,
+  character: card.characterName,
   characterName: card.characterName,
+  description: card.description,
+  power: card.power,
   imageUrl: card.imageUrl,
   rarity: card.rarity as Rarity,
   mangaId: card.mangaId,

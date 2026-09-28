@@ -7,23 +7,29 @@ import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
 import {
   BOOSTER_INTERVAL_MS,
-  DROP_RATES,
-  GUARANTEED_RATES,
+  BASE_SLOT_RATES,
+  CARDS_PER_PACK,
+  HARD_PITY_PACKS,
+  HIGH_RARITY_SLOT_RATES,
   MAX_BOOSTERS,
   RARITIES,
   SET_LAYOUT,
   SET_SIZE,
+  WILDCARD_SLOT_RATES,
   assignRarities,
   consume,
   numberSet,
   remainingQuotas,
   drawPack,
   drawRarity,
+  hasReachedHardPity,
   initialState,
+  nextPityCount,
   regenerate,
   secondsUntilNext,
   type Rarity,
 } from '../src/modules/cards/boosters.logic.js'
+import { TOTAL_CARD_COUNT } from '../src/modules/cards/series2.seed.js'
 import { seededRandom } from '../src/lib/seeded.js'
 import type { WorkStatistics } from '../src/services/catalog.service.js'
 import { catalogManga } from './fixtures.js'
@@ -96,56 +102,79 @@ describe('boosters — régénération (1 toutes les 3 h, 2 au plus)', () => {
 /* ---- Tirage ------------------------------------------------------------------------ */
 
 describe('boosters — tirage aléatoire', () => {
-  it('probabilités cumulées : bornes exactes', () => {
+  it('slots 1–3 : probabilités cumulées 70 / 25 / 5', () => {
     assert.equal(drawRarity(() => 0), 'COMMON')
-    assert.equal(drawRarity(() => 0.5999), 'COMMON')
-    assert.equal(drawRarity(() => 0.6), 'RARE')
-    assert.equal(drawRarity(() => 0.9), 'EPIC')
-    assert.equal(drawRarity(() => 0.96), 'LEGENDARY')
-    assert.equal(drawRarity(() => 0.985), 'LEGENDARY')
-    assert.equal(drawRarity(() => 0.995), 'MYTHIC')
-    assert.equal(drawRarity(() => 0.99999999), 'MYTHIC')
+    assert.equal(drawRarity(() => 0.6999), 'COMMON')
+    assert.equal(drawRarity(() => 0.7), 'RARE')
+    assert.equal(drawRarity(() => 0.9499), 'RARE')
+    assert.equal(drawRarity(() => 0.95), 'EPIC')
+    assert.equal(drawRarity(() => 0.99999999), 'EPIC')
   })
 
-  it('les probabilités somment à 1, la garantie exclut les Communes', () => {
+  it('chaque table de slot somme à 1 et respecte ses raretés garanties', () => {
     const sum = (rates: Record<Rarity, number>) => RARITIES.reduce((total, rarity) => total + rates[rarity], 0)
-    assert.ok(Math.abs(sum(DROP_RATES) - 1) < 1e-9)
-    assert.ok(Math.abs(sum(GUARANTEED_RATES) - 1) < 1e-9)
-    assert.equal(GUARANTEED_RATES.COMMON, 0)
-  })
-
-  it('sur 200 000 tirages, chaque rareté suit sa probabilité (± 0,5 point)', () => {
-    const random = seededRandom('rates')
-    const counts = Object.fromEntries(RARITIES.map((rarity) => [rarity, 0])) as Record<Rarity, number>
-    const draws = 200_000
-    for (let index = 0; index < draws; index += 1) counts[drawRarity(random)] += 1
-    for (const rarity of RARITIES) {
-      assert.ok(Math.abs(counts[rarity] / draws - DROP_RATES[rarity]) < 0.005, `${rarity} : ${counts[rarity] / draws}`)
+    for (const rates of [BASE_SLOT_RATES, WILDCARD_SLOT_RATES, HIGH_RARITY_SLOT_RATES]) {
+      assert.ok(Math.abs(sum(rates) - 1) < 1e-9)
     }
+    assert.deepEqual(BASE_SLOT_RATES, { COMMON: 0.7, RARE: 0.25, EPIC: 0.05, LEGENDARY: 0, MYTHIC: 0 })
+    assert.deepEqual(WILDCARD_SLOT_RATES, { COMMON: 0, RARE: 0.65, EPIC: 0.25, LEGENDARY: 0.09, MYTHIC: 0.01 })
+    assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.7, LEGENDARY: 0.25, MYTHIC: 0.05 })
   })
 
   const SET = RARITIES.flatMap((rarity) => Array.from({ length: SET_LAYOUT[rarity] }, (_, index) => ({ id: `${rarity}-${index}`, rarity })))
 
-  it('un booster : 3 cartes distinctes, la dernière toujours Rare ou mieux', () => {
+  it('10 000 boosters suivent la distribution de chaque slot', () => {
+    const random = seededRandom('ten-thousand-packs')
+    const counts = Array.from({ length: CARDS_PER_PACK }, () =>
+      Object.fromEntries(RARITIES.map((rarity) => [rarity, 0])) as Record<Rarity, number>,
+    )
+    let mythicPacks = 0
+    const packs = 10_000
+    for (let pack = 0; pack < packs; pack += 1) {
+      const cards = drawPack(SET, random)
+      if (cards.some((card) => card.rarity === 'MYTHIC')) mythicPacks += 1
+      cards.forEach((card, slot) => (counts[slot]![card.rarity as Rarity] += 1))
+    }
+    const expected = [BASE_SLOT_RATES, BASE_SLOT_RATES, BASE_SLOT_RATES, WILDCARD_SLOT_RATES, HIGH_RARITY_SLOT_RATES]
+    counts.forEach((slot, index) => {
+      for (const rarity of RARITIES) {
+        assert.ok(Math.abs(slot[rarity] / packs - expected[index]![rarity]) < 0.015, `slot ${index + 1} ${rarity}`)
+      }
+    })
+    // 1 - (99 % × 95 %) = 5,95 % des boosters contiennent naturellement une Mythique.
+    assert.ok(mythicPacks / packs > 0.05 && mythicPacks / packs < 0.07, `boosters mythiques : ${mythicPacks}`)
+  })
+
+  it('un booster : 5 cartes distinctes, slots 4 Rare+ et 5 Épique+', () => {
     const random = seededRandom('packs')
     for (let pack = 0; pack < 5000; pack += 1) {
       const cards = drawPack(SET, random)
-      assert.equal(cards.length, 3)
-      assert.equal(new Set(cards.map((card) => card.id)).size, 3)
-      assert.notEqual(cards[2]!.rarity, 'COMMON')
+      assert.equal(cards.length, CARDS_PER_PACK)
+      assert.equal(new Set(cards.map((card) => card.id)).size, CARDS_PER_PACK)
+      assert.ok(['RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'].includes(cards[3]!.rarity))
+      assert.ok(['EPIC', 'LEGENDARY', 'MYTHIC'].includes(cards[4]!.rarity))
     }
+  })
+
+  it('hard pity : le 30e booster sec force une Mythique au slot 5 puis remet le compteur à zéro', () => {
+    assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 2), false)
+    assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 1), true)
+    const cards = drawPack(SET, () => 0, { forceMythic: true })
+    assert.equal(cards[4]!.rarity, 'MYTHIC')
+    assert.equal(nextPityCount(29, cards.map((card) => card.rarity)), 0)
+    assert.equal(nextPityCount(8, ['COMMON', 'RARE', 'EPIC']), 9)
   })
 
   it('rareté absente du set : repli sur la rareté voisine, jamais de carte fantôme', () => {
     const noMythic = SET.filter((card) => card.rarity !== 'MYTHIC')
     const cards = drawPack(noMythic, () => 0.9999)
-    assert.equal(cards.length, 3)
-    assert.ok(cards.every((card) => card.rarity === 'LEGENDARY'))
+    assert.equal(cards.length, CARDS_PER_PACK)
+    assert.deepEqual(cards.map((card) => card.rarity), ['EPIC', 'EPIC', 'EPIC', 'LEGENDARY', 'LEGENDARY'])
   })
 
   it('set minuscule : les doublons d’un même booster sont tolérés plutôt que de manquer une carte', () => {
     const cards = drawPack([{ id: 'only', rarity: 'RARE' }], seededRandom('tiny'))
-    assert.deepEqual(cards.map((card) => card.id), ['only', 'only', 'only'])
+    assert.deepEqual(cards.map((card) => card.id), ['only', 'only', 'only', 'only', 'only'])
   })
 })
 
@@ -221,7 +250,7 @@ describe('set de cartes — raretés', () => {
 /* ---- API --------------------------------------------------------------------------- */
 
 const statistics = new Map<string, WorkStatistics>()
-const WORKS = Array.from({ length: 360 }, (_, index) => {
+const WORKS = Array.from({ length: 720 }, (_, index) => {
   const manga = catalogManga({ genres: ['Action'], originalLanguage: (['ja', 'ja', 'ko', 'zh'] as const)[index % 4] })
   statistics.set(manga.id, { follows: 1000 + index * 37, rating: 6 + (index % 35) / 10 })
   return manga
@@ -279,11 +308,28 @@ describe('API — boosters et collection', () => {
     }
   })
 
+  it('seed Série 2 : 300 nouvelles cartes, quotas exacts, IDs Série 1 intacts et relance idempotente', async () => {
+    const { seedSeries2 } = await import('../src/modules/cards/series2.seed.js')
+    const { prisma } = await import('../src/db.js')
+    const series1Before = await prisma.card.findMany({ where: { series: 1 }, orderBy: { number: 'asc' }, select: { id: true } })
+
+    const first = await seedSeries2()
+    const second = await seedSeries2()
+    const series1After = await prisma.card.findMany({ where: { series: 1 }, orderBy: { number: 'asc' }, select: { id: true } })
+
+    assert.equal(first.total, SET_SIZE)
+    assert.equal(second.inserted, 0)
+    assert.deepEqual(first.byRarity, SET_LAYOUT)
+    assert.deepEqual(series1After, series1Before)
+    assert.equal(await prisma.card.count(), TOTAL_CARD_COUNT)
+    assert.equal(await prisma.card.count({ where: { series: 2 } }), SET_SIZE)
+  })
+
   it('invité : 2 boosters d’essai, reçus signés, album reconstitué, puis 409', async () => {
     const guest = client()
     const first = await guest.request('POST', '/boosters/guest/open', { receipts: [] })
     assert.equal(first.status, 200)
-    assert.equal(first.body.cards.length, 3)
+    assert.equal(first.body.cards.length, CARDS_PER_PACK)
     assert.equal(first.body.remaining, 1)
     assert.ok(first.body.cards.every((pulled: { isNew: boolean; count: number }) => pulled.count >= 1))
 
@@ -299,8 +345,8 @@ describe('API — boosters et collection', () => {
     assert.equal((await guest.request('POST', '/boosters/guest/open', { receipts: [first.body.receipt, first.body.receipt] })).status, 200)
 
     const album = (await guest.request('POST', '/cards/guest/collection', { receipts })).body
-    assert.equal(album.total, SET_SIZE)
-    assert.equal(album.cards.reduce((sum: number, card: { count: number }) => sum + card.count, 0), 6)
+    assert.equal(album.total, TOTAL_CARD_COUNT)
+    assert.equal(album.cards.reduce((sum: number, card: { count: number }) => sum + card.count, 0), 2 * CARDS_PER_PACK)
     assert.equal(album.cards.filter((card: { isFavorite: boolean }) => card.isFavorite).length, 0)
   })
 
@@ -324,7 +370,7 @@ describe('API — boosters et collection', () => {
 
     const created = await guest.signUp({ email: `guest-${Date.now()}@example.com`, password: 'motdepasse-test', guestPacks: receipts })
     assert.equal(created.status, 201)
-    assert.equal(created.body.guestCards, 6)
+    assert.equal(created.body.guestCards, 2 * CARDS_PER_PACK)
     assert.equal((await guest.request('GET', '/boosters/status')).body.available, 2)
     const collection = (await guest.request('GET', '/cards/collection')).body
     const counts = (album: { cards: { id: string; count: number }[] }) => album.cards.filter((card) => card.count > 0).map((card) => `${card.id}×${card.count}`)
@@ -340,11 +386,11 @@ describe('API — boosters et collection', () => {
     assert.ok(Math.abs(Date.parse(body.serverTime) - Date.now()) < 5000)
   })
 
-  it('ouvrir : 3 cartes enregistrées, stock décrémenté, minuteur de 3 h ; stock vide → 409', async () => {
+  it('ouvrir : 5 cartes enregistrées, stock décrémenté, minuteur de 3 h ; stock vide → 409', async () => {
     const account = await signedUp()
     const first = await account.request('POST', '/boosters/open')
     assert.equal(first.status, 200)
-    assert.equal(first.body.cards.length, 3)
+    assert.equal(first.body.cards.length, CARDS_PER_PACK)
     for (const pulled of first.body.cards) {
       assert.ok(RARITIES.includes(pulled.card.rarity))
       assert.match(pulled.card.imageUrl, /^\/api\/covers\//)
@@ -360,13 +406,13 @@ describe('API — boosters et collection', () => {
     assert.ok(empty.body.error.secondsUntilNext > 0)
 
     const collection = (await account.request('GET', '/cards/collection')).body
-    assert.equal(collection.total, SET_SIZE)
+    assert.equal(collection.total, TOTAL_CARD_COUNT)
     const owned = collection.cards.filter((card: { owned: boolean }) => card.owned)
     assert.equal(collection.owned, owned.length)
-    // 6 cartes tirées : leurs exemplaires (doublons compris) font 6.
-    assert.equal(owned.reduce((sum: number, card: { count: number }) => sum + card.count, 0), 6)
+    // 10 cartes tirées : leurs exemplaires (doublons compris) font 10.
+    assert.equal(owned.reduce((sum: number, card: { count: number }) => sum + card.count, 0), 2 * CARDS_PER_PACK)
     assert.ok(collection.cards.filter((card: { owned: boolean }) => !card.owned).every((card: { count: number }) => card.count === 0))
-    assert.equal(collection.byRarity.MYTHIC.total, SET_LAYOUT.MYTHIC)
+    assert.equal(collection.byRarity.MYTHIC.total, SET_LAYOUT.MYTHIC * 2)
   })
 
   it('ouvertures simultanées : jamais plus de boosters dépensés que le stock', async () => {
@@ -375,6 +421,21 @@ describe('API — boosters et collection', () => {
     const statuses = results.map((result) => result.status).sort()
     assert.deepEqual(statuses.filter((status) => status === 200).length, 2, statuses.join(','))
     assert.equal((await account.request('GET', '/boosters/status')).body.available, 0)
+  })
+
+  it('hard pity serveur : le 30e booster sec force le slot 5 et remet le compteur persistant à zéro', async () => {
+    const account = await signedUp()
+    const { openBooster } = await import('../src/modules/cards/cards.service.js')
+    const { prisma } = await import('../src/db.js')
+    await prisma.userBooster.create({
+      data: { userId: account.userId, boostersSinceLastMythic: HARD_PITY_PACKS - 1 },
+    })
+
+    const opened = await openBooster(account.userId, { random: () => 0 })
+
+    assert.equal(opened.cards.length, CARDS_PER_PACK)
+    assert.equal(opened.cards[4]!.card.rarity, 'MYTHIC')
+    assert.equal((await prisma.userBooster.findUniqueOrThrow({ where: { userId: account.userId } })).boostersSinceLastMythic, 0)
   })
 
   it('le temps du serveur fait foi : 3 h plus tard, un booster est revenu', async () => {
@@ -412,7 +473,7 @@ describe('API — boosters et collection', () => {
     const { prisma } = await import('../src/db.js')
     for (let pack = 0; pack < 6; pack += 1) {
       const { cards, status } = await openBooster(account.userId, { unlimited: true })
-      assert.equal(cards.length, 3)
+      assert.equal(cards.length, CARDS_PER_PACK)
       assert.equal(status.unlimited, true)
       assert.equal(status.available, status.max)
       assert.equal(status.secondsUntilNext, null)
@@ -421,7 +482,7 @@ describe('API — boosters et collection', () => {
     assert.equal(await prisma.userBooster.count({ where: { userId: account.userId } }), 0)
     assert.equal((await boosterStatus(account.userId, new Date(), false)).available, 2)
     const copies = await prisma.userCard.aggregate({ where: { userId: account.userId }, _sum: { count: true } })
-    assert.equal(copies._sum.count, 18)
+    assert.equal(copies._sum.count, 6 * CARDS_PER_PACK)
   })
 
   it('mode recette coupé par défaut : le statut le dit', async () => {
@@ -436,6 +497,6 @@ describe('API — boosters et collection', () => {
     await Promise.all([ensureCardSet(), ensureCardSet()])
     const after = await prisma.card.findMany({ orderBy: { number: 'asc' }, select: { id: true } })
     assert.deepEqual(after, before)
-    assert.equal(after.length, SET_SIZE)
+    assert.equal(after.length, TOTAL_CARD_COUNT)
   })
 })

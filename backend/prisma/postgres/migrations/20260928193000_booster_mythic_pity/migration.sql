@@ -1,0 +1,1 @@
+ALTER TABLE "UserBooster" ADD COLUMN "boostersSinceLastMythic" INTEGER NOT NULL DEFAULT 0;

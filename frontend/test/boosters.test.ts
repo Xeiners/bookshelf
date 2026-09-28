@@ -60,11 +60,17 @@ describe('raretés', () => {
 })
 
 describe('album — filtres', () => {
-  const card = (number: number, rarity: Rarity, owned: boolean, title: string): CollectionCard => ({
+  const card = (number: number, rarity: Rarity, owned: boolean, title: string, series: 1 | 2 = 1): CollectionCard => ({
     id: `c${number}`,
     number,
+    series,
+    name: title,
+    mangaTitle: title,
     title,
+    character: null,
     characterName: null,
+    description: '',
+    power: 20,
     imageUrl: '/api/covers/x/y.jpg?size=512',
     rarity,
     mangaId: `m${number}`,
@@ -76,8 +82,8 @@ describe('album — filtres', () => {
   const CARDS = [
     card(1, 'MYTHIC', true, 'Berserk'),
     card(2, 'LEGENDARY', false, 'Vagabond'),
-    card(3, 'COMMON', true, 'Kimetsu no Yaiba'),
-    card(4, 'COMMON', false, 'L’Épée du Roi'),
+    card(3, 'COMMON', true, 'Kimetsu no Yaiba', 2),
+    card(4, 'COMMON', false, 'L’Épée du Roi', 2),
   ]
   const numbers = (cards: CollectionCard[]) => cards.map((entry) => entry.number)
 
@@ -89,7 +95,9 @@ describe('album — filtres', () => {
     assert.deepEqual(numbers(filterCollection(CARDS, { ...DEFAULT_FILTER, rarity: 'COMMON' })), [3, 4])
     assert.deepEqual(numbers(filterCollection(CARDS, { ...DEFAULT_FILTER, ownership: 'owned' })), [1, 3])
     assert.deepEqual(numbers(filterCollection(CARDS, { ...DEFAULT_FILTER, ownership: 'missing' })), [2, 4])
-    assert.deepEqual(numbers(filterCollection(CARDS, { rarity: 'COMMON', ownership: 'missing', query: '' })), [4])
+    assert.deepEqual(numbers(filterCollection(CARDS, { rarity: 'COMMON', series: 'all', ownership: 'missing', query: '' })), [4])
+    assert.deepEqual(numbers(filterCollection(CARDS, { ...DEFAULT_FILTER, series: 1 })), [1, 2])
+    assert.deepEqual(numbers(filterCollection(CARDS, { ...DEFAULT_FILTER, series: 2 })), [3, 4])
   })
 
   it('titre : sans casse, accents ni ponctuation', () => {

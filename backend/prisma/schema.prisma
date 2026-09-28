@@ -144,6 +144,8 @@ model UserBooster {
   userId            String    @id
   /// Boosters prêts à ouvrir, 2 au plus.
   availableBoosters Int       @default(2)
+  /// Boosters consécutifs sans Mythique ; le 30e force le slot 5.
+  boostersSinceLastMythic Int  @default(0)
   /// Dernière ouverture.
   lastClaimedAt     DateTime?
   /// Arrivée du prochain booster ; `null` quand le stock est plein.
@@ -159,9 +161,17 @@ model Card {
   id            String   @id @default(cuid())
   /// Numéro dans l'album (1 → taille du set), ordre d'affichage.
   number        Int      @unique
+  /// Série éditoriale : 1 pour les cartes historiques, 2 pour l'extension.
+  series        Int      @default(1)
+  /// Nom affiché de la carte et titre canonique de l'œuvre.
+  name          String   @default("")
+  mangaTitle    String   @default("")
   title         String
   /// Personnage représenté ; `null` : la carte représente l'œuvre.
   characterName String?
+  description   String   @default("")
+  /// Valeur de collection dérivée de la rareté et du prestige de l'œuvre.
+  power         Int      @default(0)
   /// Couverture, servie par le relais `/api/covers`.
   imageUrl      String
   /// COMMON | RARE | EPIC | LEGENDARY | MYTHIC
@@ -173,6 +183,7 @@ model Card {
   owners UserCard[]
 
   @@index([rarity])
+  @@index([series, rarity])
 }
 
 /// Carte possédée par un compte ; `count` compte les doublons.

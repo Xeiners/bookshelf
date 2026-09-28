@@ -107,7 +107,7 @@ export const en: Dictionary = {
     booster: {
       eyebrow: 'The booster altar',
       title: 'Open a booster',
-      body: '3 cards to collect. One booster every 3 hours, up to 2 in reserve.',
+      body: '5 cards to collect. One booster every 3 hours, up to 2 in reserve.',
       open: 'Open',
       next: (time: string) => `Next booster in ${time}`,
       full: 'Reserve full',
@@ -170,6 +170,8 @@ export const en: Dictionary = {
     progress: (owned: number, total: number) => `${owned}/${total} cards unlocked`,
     filters: {
       label: 'Album filters',
+      series: 'Series',
+      seriesName: (series: number) => `Series ${series}`,
       rarity: 'Rarity',
       all: 'All',
       owned: 'Owned',

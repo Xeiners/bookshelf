@@ -46,7 +46,7 @@ boostersRouter.get('/status', async (req, res) => {
  */
 const openLimiter = rateLimit({ windowMs: 60 * 1000, max: config.cards.unlimited ? 600 : 20 })
 
-/** Ouvre un booster : 3 cartes tirées, enregistrées, et le stock à jour. 409 si le stock est vide. */
+/** Ouvre un booster : 5 cartes tirées, enregistrées, et le stock à jour. 409 si le stock est vide. */
 boostersRouter.post('/open', openLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store')
   res.json(await openBooster(currentUserId(req)))

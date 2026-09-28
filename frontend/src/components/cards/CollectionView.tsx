@@ -21,7 +21,7 @@ import { CollectibleCard } from './CollectibleCard'
 const GAP = 12
 
 /**
- * Rangées montées d'un coup, puis à chaque approche du bas de l'album : 300
+ * Rangées montées d'un coup, puis à chaque approche du bas de l'album : 600
  * cartes créées d'un seul bloc (pendant que la page glisse) faisaient ramer
  * l'entrée sur téléphone.
  */
@@ -138,6 +138,20 @@ export function CollectionView() {
             className="min-w-0 flex-1 bg-transparent text-sm text-cream outline-none placeholder:text-mist"
           />
         </label>
+        <div className="glass flex self-start rounded-full p-1" role="radiogroup" aria-label={t.cards.filters.series}>
+          {(['all', 1, 2] as const).map((series) => (
+            <button
+              key={series}
+              type="button"
+              role="radio"
+              aria-checked={filter.series === series}
+              onClick={() => setFilter((current) => ({ ...current, series }))}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${filter.series === series ? 'bg-glow text-white' : 'text-cream/75'}`}
+            >
+              {series === 'all' ? t.cards.filters.all : t.cards.filters.seriesName(series)}
+            </button>
+          ))}
+        </div>
         <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label={t.cards.filters.rarity}>
           {(['all', ...RARITIES] as const).map((rarity) => {
             const active = filter.rarity === rarity
