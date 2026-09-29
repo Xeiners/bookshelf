@@ -45,6 +45,8 @@ export type DeckPart = 'catalog' | 'novel'
 
 export interface DeckOptions {
   shelf: ShelfId
+  /** Genres cochés ensemble : chaque API ne reçoit que ceux qu'elle connaît. */
+  genres?: readonly ShelfId[]
   /** Types cochés : mangas (par origine), romans, ou les deux. */
   sources: readonly DeckSource[]
   language: Language
@@ -79,8 +81,14 @@ export async function fetchDeck(options: DeckOptions): Promise<DeckPage> {
   const { shelf, sources, language, history, limit = 20, signal } = options
   const exhausted = options.exhausted ?? new Set<DeckPart>()
   const origins = catalogOrigins(sources)
-  const wantCatalog = origins.length > 0 && isCatalogShelf(shelf) && !exhausted.has('catalog')
-  const wantNovel = sources.includes('novel') && isNovelShelf(shelf) && !exhausted.has('novel')
+  const genres = options.genres ?? []
+  // Genres cochés : un côté n'est interrogé que s'il en connaît au moins un (« Isekai » : mangas seuls).
+  const catalogGenres = genres.filter(isCatalogShelf)
+  const novelGenres = genres.filter(isNovelShelf)
+  const catalogServes = genres.length > 0 ? catalogGenres.length > 0 : isCatalogShelf(shelf)
+  const novelServes = genres.length > 0 ? novelGenres.length > 0 : isNovelShelf(shelf)
+  const wantCatalog = origins.length > 0 && catalogServes && !exhausted.has('catalog')
+  const wantNovel = sources.includes('novel') && novelServes && !exhausted.has('novel')
   // Deux moitiés : chacune remplit un peu plus de la moitié de la fournée.
   const share = wantCatalog && wantNovel ? Math.ceil(limit / 2) + 2 : limit
   const seen = splitSeen(options.seen)
@@ -91,6 +99,7 @@ export async function fetchDeck(options: DeckOptions): Promise<DeckPage> {
           method: 'POST',
           body: {
             shelf,
+            genres: catalogGenres,
             origin: origins.length === 1 ? origins[0] : 'all',
             origins,
             lang: language,
@@ -105,7 +114,16 @@ export async function fetchDeck(options: DeckOptions): Promise<DeckPage> {
     wantNovel
       ? api<PartPage>('/books/discover', {
           method: 'POST',
-          body: { shelf, lang: language, limit: share, round: options.round ?? 0, seen: seen.novel, liked: history.liked, skipped: history.skipped },
+          body: {
+            shelf,
+            genres: novelGenres,
+            lang: language,
+            limit: share,
+            round: options.round ?? 0,
+            seen: seen.novel,
+            liked: history.liked,
+            skipped: history.skipped,
+          },
           signal,
         })
       : Promise.resolve(null),

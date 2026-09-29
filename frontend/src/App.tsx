@@ -7,7 +7,6 @@ import { ProfileView } from './components/profile/ProfileView'
 import { SearchView } from './components/search/SearchView'
 import { ActivitiesView } from './components/activities/ActivitiesView'
 import { BoosterPackModal } from './components/boosters/BoosterPackModal'
-import { AmbientMiniPlayer } from './components/ambient/AmbientMiniPlayer'
 import { MusicSheet } from './components/ambient/MusicSheet'
 import { AmbientBackdrop } from './components/layout/AmbientBackdrop'
 import { AppHeader } from './components/layout/AppHeader'
@@ -195,9 +194,6 @@ export default function App() {
           <BottomNav view={view} onChange={setView} />
         </div>
       </div>
-
-      {/* Musique d'ambiance : continue d'une vue à l'autre, mini-lecteur flottant tant qu'elle est lancée. */}
-      <AmbientMiniPlayer />
 
       <ToastHost />
 

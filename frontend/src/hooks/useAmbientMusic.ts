@@ -1,8 +1,8 @@
-import { createContext, useEffect, useSyncExternalStore } from 'react'
+import { createContext, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { useT } from '../i18n'
 import { isCustomKey, playAmbient, playlistIdOf } from '../lib/audio/ambientPlayback'
 import { isAmbientPresetId, type AmbientPresetId } from '../lib/audio/ambientPresets'
-import { ambientPlayer } from '../lib/audio/youtubePlayer'
+import { ambientPlayer, type AmbientProgress } from '../lib/audio/youtubePlayer'
 import { useAmbientStore } from '../store/useAmbientStore'
 
 /** Ambiance suggérée pour l'œuvre ouverte (selon ses genres) ; `null` hors du lecteur. */
@@ -58,4 +58,20 @@ export function useAmbientLabel(): { title: string; detail: string | null } {
     }
   }
   return { title: snapshot.title ?? copy.custom, detail: status }
+}
+
+/**
+ * Temps écoulé et durée du morceau en cours, relus deux fois par seconde tant
+ * qu'il joue (l'API YouTube ne prévient pas). `refresh` : relecture
+ * immédiate, après un déplacement dans le morceau à l'arrêt.
+ */
+export function useAmbientProgress(playing: boolean): { progress: AmbientProgress; refresh: () => void } {
+  const [progress, setProgress] = useState<AmbientProgress>(ambientPlayer.getProgress)
+  useEffect(() => {
+    if (!playing) return
+    const timer = window.setInterval(() => setProgress(ambientPlayer.getProgress()), 500)
+    return () => window.clearInterval(timer)
+  }, [playing])
+  const refresh = useCallback(() => setProgress(ambientPlayer.getProgress()), [])
+  return { progress, refresh }
 }

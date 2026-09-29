@@ -1,24 +1,21 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
-import { Check, ListMusic, Loader2, Play, Plus, Search } from 'lucide-react'
+import { AudioLines, Check, ListMusic, Loader2, Pause, Play, Plus, Search } from 'lucide-react'
+import { useAmbientPlayer } from '../../hooks/useAmbientMusic'
 import { useLanguage, useT } from '../../i18n'
 import { fetchYouTubeTitle, playAmbient } from '../../lib/audio/ambientPlayback'
-import { parseYouTubeSource, type AmbientSource } from '../../lib/audio/youtubePlayer'
+import { ambientPlayer, parseYouTubeSource, type AmbientSource } from '../../lib/audio/youtubePlayer'
 import { apiErrorMessage } from '../../lib/apiErrors'
+import { vibrate } from '../../lib/haptics'
 import { musicApi, type MusicSearchResult, type MusicSearchType } from '../../services/musicApi'
-
-/** Morceau prêt à enregistrer dans une playlist. */
-export interface PickedTrack {
-  kind: 'video' | 'playlist'
-  ref: string
-  title: string | null
-}
+import type { AddTrackResult } from '../../store/useAmbientStore'
+import { AddToPlaylist, type PickedTrack } from './AddToPlaylist'
 
 interface YouTubeSearchProps {
   /**
-   * Ajout à une playlist ; absent, les résultats se jouent seulement. `false`
-   * si l'ajout est refusé (playlist pleine).
+   * Ajout direct à une playlist précise (éditeur de playlist) : un tap suffit.
+   * Absent : le « + » ouvre le choix de la playlist.
    */
-  onAdd?: (track: PickedTrack) => boolean
+  onAdd?: (track: PickedTrack) => AddTrackResult
 }
 
 type SearchState =
@@ -33,24 +30,22 @@ const DEBOUNCE_MS = 450
 /**
  * Champ unique « recherche YouTube ou lien » : un lien (ou ID) se joue ou
  * s'ajoute tel quel ; du texte (« the cure ») lance une recherche de
- * morceaux ou de playlists, dont chaque résultat s'écoute ou s'ajoute.
+ * morceaux ou de playlists. Le morceau en cours de lecture est mis en avant
+ * (en tête, en couleur) et son bouton devient pause / reprise.
  */
 export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
   const t = useT()
   const copy = t.ambient.search
   const language = useLanguage()
   const inputId = useId()
+  const snapshot = useAmbientPlayer()
   const [query, setQuery] = useState('')
   const [type, setType] = useState<MusicSearchType>('video')
   const [result, setResult] = useState<SearchState>({ status: 'idle' })
-  /** Identifiants ajoutés depuis cette recherche : ✓ au lieu de +. */
-  const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
-  const [adding, setAdding] = useState<string | null>(null)
 
   const trimmed = query.trim()
   const link = parseYouTubeSource(trimmed)
   const searchable = link === null && trimmed.length >= 2
-
   // Champ vidé ou lien collé : plus de résultats affichés, sans remettre l'état à zéro dans l'effet.
   const state: SearchState = searchable ? result : { status: 'idle' }
 
@@ -72,21 +67,18 @@ export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
     }
   }, [searchable, trimmed, type, language, t])
 
-  const add = async (source: AmbientSource, knownTitle: string | null) => {
-    if (!onAdd || adding) return
-    setAdding(source.id)
-    const title = knownTitle ?? (await fetchYouTubeTitle(source))
-    if (onAdd({ kind: source.kind, ref: source.id, title })) setAdded((current) => new Set(current).add(source.id))
-    setAdding(null)
-  }
-
-  // Entrée sur un lien : ajout (ou lecture sans playlist) ; sur du texte, la recherche part déjà seule.
+  // Entrée sur un lien : lecture.
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!link) return
-    if (onAdd) void add(link, null)
-    else playAmbient(trimmed)
+    if (link) playAmbient(trimmed)
   }
+
+  const currentId = snapshot.source?.id ?? null
+  // Le morceau en cours d'abord : on sait toujours ce qu'on écoute.
+  const results =
+    state.status === 'done'
+      ? [...state.results].sort((a, b) => Number(b.id === currentId) - Number(a.id === currentId))
+      : []
 
   return (
     <div className="space-y-2">
@@ -95,17 +87,17 @@ export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
           {copy.label}
         </label>
         <div className="relative mt-2">
-          <Search size={14} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mist" />
+          <Search size={14} aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-mist" />
           <input
             id={inputId}
             type="search"
-            enterKeyHint={link ? 'done' : 'search'}
+            enterKeyHint={link ? 'go' : 'search'}
             autoComplete="off"
             spellCheck={false}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={copy.placeholder}
-            className="w-full rounded-full border border-white/10 bg-white/[0.04] py-2 pl-9 pr-3.5 text-xs text-cream placeholder:text-mist/60 focus:border-glow/60 focus:outline-none"
+            className="w-full rounded-full border border-white/10 bg-white/[0.04] py-2 pr-3.5 pl-9 text-xs text-cream placeholder:text-mist/60 focus:border-glow/60 focus:outline-none"
           />
         </div>
       </form>
@@ -130,16 +122,7 @@ export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
       )}
 
       {link ? (
-        <ResultRow
-          title={copy.link}
-          meta={link.kind === 'playlist' ? copy.types.playlist : link.id}
-          kind={link.kind}
-          thumbnail={link.kind === 'video' ? `https://i.ytimg.com/vi/${link.id}/mqdefault.jpg` : null}
-          onPlay={() => playAmbient(trimmed)}
-          onAdd={onAdd ? () => void add(link, null) : undefined}
-          added={added.has(link.id)}
-          busy={adding === link.id}
-        />
+        <LinkRow source={link} input={trimmed} onAdd={onAdd} />
       ) : state.status === 'loading' ? (
         <p className="flex items-center gap-2 px-1 py-2 text-[11px] text-mist">
           <Loader2 size={13} className="animate-spin" />
@@ -149,27 +132,19 @@ export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
         <p role="alert" className="px-1 py-2 text-[11px] text-nope">
           {state.message}
         </p>
-      ) : state.status === 'done' && state.results.length === 0 ? (
+      ) : state.status === 'done' && results.length === 0 ? (
         <p className="px-1 py-2 text-[11px] text-mist">{copy.empty}</p>
-      ) : state.status === 'done' ? (
-        <ul className="-mx-1 max-h-72 space-y-0.5 overflow-y-auto overscroll-contain px-1">
-          {state.results.map((result) => (
-            <li key={`${result.kind}-${result.id}`}>
+      ) : results.length > 0 ? (
+        <ul className="-mx-1 max-h-80 space-y-0.5 overflow-y-auto overscroll-contain px-1">
+          {results.map((item) => (
+            <li key={`${item.kind}-${item.id}`}>
               <ResultRow
-                title={result.title}
-                meta={[
-                  result.channel,
-                  result.live ? copy.live : result.kind === 'playlist' ? result.videoCount : result.duration,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-                kind={result.kind}
-                live={result.live}
-                thumbnail={result.thumbnail}
-                onPlay={() => playAmbient(result.id)}
-                onAdd={onAdd ? () => void add({ kind: result.kind, id: result.id }, result.title) : undefined}
-                added={added.has(result.id)}
-                busy={adding === result.id}
+                source={{ kind: item.kind, id: item.id }}
+                title={item.title}
+                meta={[item.channel, item.live ? copy.live : item.kind === 'playlist' ? item.videoCount : item.duration].filter(Boolean).join(' · ')}
+                live={item.live}
+                thumbnail={item.thumbnail}
+                onAdd={onAdd}
               />
             </li>
           ))}
@@ -179,33 +154,79 @@ export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
   )
 }
 
-interface ResultRowProps {
-  title: string
-  meta: string
-  kind: 'video' | 'playlist'
-  live?: boolean
-  thumbnail: string | null
-  onPlay: () => void
-  onAdd?: () => void
-  added: boolean
-  busy: boolean
+/** Lien collé : une seule ligne, titre lu en ligne (oEmbed). */
+function LinkRow({ source, input, onAdd }: { source: AmbientSource; input: string; onAdd?: (track: PickedTrack) => AddTrackResult }) {
+  const t = useT()
+  const [title, setTitle] = useState<string | null>(null)
+  const { kind, id } = source
+  // Dépend de l'identifiant, pas de l'objet (recréé à chaque rendu : la requête repartirait sans fin).
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetchYouTubeTitle({ kind, id } as AmbientSource, controller.signal).then((found) => {
+      if (!controller.signal.aborted) setTitle(found)
+    })
+    return () => controller.abort()
+  }, [kind, id])
+  return (
+    <ResultRow
+      source={source}
+      title={title ?? t.ambient.search.link}
+      meta={source.kind === 'playlist' ? t.ambient.search.types.playlist : input}
+      thumbnail={source.kind === 'video' ? `https://i.ytimg.com/vi/${source.id}/mqdefault.jpg` : null}
+      onAdd={onAdd}
+      knownTitle={title}
+    />
+  )
 }
 
-function ResultRow({ title, meta, kind, live = false, thumbnail, onPlay, onAdd, added, busy }: ResultRowProps) {
+interface ResultRowProps {
+  source: AmbientSource
+  title: string
+  meta: string
+  live?: boolean
+  thumbnail: string | null
+  onAdd?: (track: PickedTrack) => AddTrackResult
+  /** Titre réel (lien collé) : `title` peut n'être qu'un libellé d'attente. */
+  knownTitle?: string | null
+}
+
+function ResultRow({ source, title, meta, live = false, thumbnail, onAdd, knownTitle }: ResultRowProps) {
   const t = useT()
   const copy = t.ambient.search
+  const snapshot = useAmbientPlayer()
+  const current = snapshot.source?.id === source.id
+  const playing = current && (snapshot.state === 'playing' || snapshot.state === 'loading')
+  const track: PickedTrack = { kind: source.kind, ref: source.id, title: knownTitle === undefined ? title : knownTitle }
+
+  const toggle = () => {
+    vibrate(6)
+    if (playing) ambientPlayer.pause()
+    else if (current && snapshot.state === 'paused') ambientPlayer.resume()
+    else playAmbient(source.id)
+  }
+
   return (
-    <div className="flex items-center gap-2 rounded-xl p-1 hover:bg-white/[0.04]">
+    <div
+      className={`flex items-center gap-2 rounded-xl p-1 transition-colors ${
+        current ? 'bg-glow/12 ring-1 ring-glow/45' : 'hover:bg-white/[0.04]'
+      }`}
+    >
       <div className="relative aspect-video w-16 shrink-0 overflow-hidden rounded-lg bg-white/[0.06]">
         {thumbnail && <img src={thumbnail} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
-        {kind === 'playlist' && (
+        {source.kind === 'playlist' && (
           <span aria-hidden className="absolute inset-y-0 right-0 grid w-6 place-items-center bg-black/70 text-cream">
             <ListMusic size={12} />
           </span>
         )}
+        {current && (
+          <span aria-hidden className="absolute inset-0 grid place-items-center bg-void/55 text-glow">
+            <AudioLines size={18} className={playing ? 'animate-pulse' : ''} />
+          </span>
+        )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-[11px] leading-snug text-cream">{title}</p>
+        {current && <p className="text-[9px] font-semibold tracking-[0.16em] text-glow uppercase">{copy.nowPlaying}</p>}
+        <p className={`line-clamp-2 text-[11px] leading-snug ${current ? 'font-medium text-cream' : 'text-cream'}`}>{title}</p>
         {meta && (
           <p className={`truncate text-[10px] ${live ? 'text-nope' : 'text-mist'}`}>
             {live && <span aria-hidden className="mr-1 inline-block size-1.5 rounded-full bg-nope align-middle" />}
@@ -215,25 +236,46 @@ function ResultRow({ title, meta, kind, live = false, thumbnail, onPlay, onAdd, 
       </div>
       <button
         type="button"
-        onClick={onPlay}
-        aria-label={copy.play(title)}
-        className="grid size-8 shrink-0 place-items-center rounded-full text-cream/75 hover:bg-white/10"
+        onClick={toggle}
+        aria-label={playing ? t.ambient.pause : copy.play(title)}
+        className={`grid size-8 shrink-0 place-items-center rounded-full ${current ? 'bg-glow text-white' : 'text-cream/75 hover:bg-white/10'}`}
       >
-        <Play size={14} className="translate-x-px" />
+        {playing ? <Pause size={14} /> : <Play size={14} className="translate-x-px" />}
       </button>
-      {onAdd && (
-        <button
-          type="button"
-          onClick={onAdd}
-          disabled={added || busy}
-          aria-label={added ? copy.added : copy.add(title)}
-          className={`grid size-8 shrink-0 place-items-center rounded-full ${
-            added ? 'bg-like/15 text-like' : 'bg-cream text-void disabled:opacity-50'
-          }`}
-        >
-          {busy ? <Loader2 size={14} className="animate-spin" /> : added ? <Check size={14} /> : <Plus size={14} />}
-        </button>
-      )}
+      {onAdd ? <DirectAdd track={track} onAdd={onAdd} /> : <AddToPlaylist track={track} importable={source.kind === 'playlist'} />}
     </div>
+  )
+}
+
+/** Ajout d'un tap dans la playlist ouverte, avec son retour (✓, ou « déjà dedans »). */
+function DirectAdd({ track, onAdd }: { track: PickedTrack; onAdd: (track: PickedTrack) => AddTrackResult }) {
+  const t = useT()
+  const [result, setResult] = useState<AddTrackResult | null>(null)
+  const [busy, setBusy] = useState(false)
+  const settled = result === 'added' || result === 'duplicate'
+
+  const add = async () => {
+    setBusy(true)
+    // Lien collé sans titre encore lu : on le demande avant d'enregistrer.
+    const title = track.title ?? (await fetchYouTubeTitle({ kind: track.kind, id: track.ref }))
+    const outcome = onAdd({ ...track, title })
+    setBusy(false)
+    setResult(outcome)
+    if (outcome === 'added') vibrate(12)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void add()}
+      disabled={settled || busy}
+      aria-label={settled ? (result === 'added' ? t.ambient.search.added : t.ambient.addTo.already) : t.ambient.search.add(track.title ?? t.ambient.youtube)}
+      title={result === 'duplicate' ? t.ambient.addTo.already : undefined}
+      className={`grid size-8 shrink-0 place-items-center rounded-full transition-colors ${
+        result === 'added' ? 'bg-like/20 text-like' : result === 'duplicate' ? 'bg-gold/15 text-gold' : 'bg-cream text-void disabled:opacity-50'
+      }`}
+    >
+      {busy ? <Loader2 size={14} className="animate-spin" /> : settled ? <Check size={14} strokeWidth={2.6} /> : <Plus size={14} strokeWidth={2.4} />}
+    </button>
   )
 }

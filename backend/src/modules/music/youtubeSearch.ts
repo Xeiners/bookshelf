@@ -33,11 +33,11 @@ export interface MusicSearchResult {
 }
 
 const MAX_RESULTS = 15
-const TIMEOUT_MS = 8000
+export const TIMEOUT_MS = 8000
 const cache = new TtlCache<MusicSearchResult[]>({ maxEntries: 300, ttlMs: 30 * 60 * 1000 })
 
-const REGION: Record<Language, string> = { fr: 'FR', en: 'US' }
-const BROWSER_UA =
+export const REGION: Record<Language, string> = { fr: 'FR', en: 'US' }
+export const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'
 /** Filtre « Playlists » de la page de résultats. */
 const PLAYLIST_FILTER = 'EgIQAw=='
@@ -50,11 +50,11 @@ const videoThumbnail = (id: string) => `https://i.ytimg.com/vi/${id}/mqdefault.j
 /* ---- Page de résultats (sans clé) ---------------------------------------------- */
 
 type Json = Record<string, unknown>
-const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
-const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null)
+export const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
+export const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null)
 
 /** Chemin de propriétés dans un objet JSON quelconque ; `undefined` dès qu'un maillon manque. */
-function at(node: unknown, ...path: (string | number)[]): unknown {
+export function at(node: unknown, ...path: (string | number)[]): unknown {
   let current = node
   for (const key of path) {
     if (Array.isArray(current) && typeof key === 'number') current = current[key]
@@ -65,7 +65,7 @@ function at(node: unknown, ...path: (string | number)[]): unknown {
 }
 
 /** Toutes les valeurs d'une clé, à n'importe quelle profondeur, dans l'ordre du document. */
-function collect(node: unknown, key: string, out: unknown[] = []): unknown[] {
+export function collect(node: unknown, key: string, out: unknown[] = []): unknown[] {
   if (Array.isArray(node)) {
     for (const item of node) collect(item, key, out)
   } else if (isObject(node)) {
@@ -89,7 +89,7 @@ export function extractInitialData(html: string): unknown {
 }
 
 /** Ancien format de résultat vidéo (`videoRenderer`). */
-function fromVideoRenderer(renderer: unknown): MusicSearchResult | null {
+export function fromVideoRenderer(renderer: unknown): MusicSearchResult | null {
   const id = text(at(renderer, 'videoId'))
   const title = text(at(renderer, 'title', 'runs', 0, 'text')) ?? text(at(renderer, 'title', 'simpleText'))
   if (!id || !title) return null
@@ -111,7 +111,7 @@ function fromVideoRenderer(renderer: unknown): MusicSearchResult | null {
 }
 
 /** Nouveau format (`lockupViewModel`) : playlists, et certaines vidéos. */
-function fromLockup(lockup: unknown): MusicSearchResult | null {
+export function fromLockup(lockup: unknown): MusicSearchResult | null {
   const id = text(at(lockup, 'contentId'))
   const type = at(lockup, 'contentType')
   const title = text(at(lockup, 'metadata', 'lockupMetadataViewModel', 'title', 'content'))

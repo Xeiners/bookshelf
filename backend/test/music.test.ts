@@ -16,6 +16,7 @@ installMangadexMock()
 const { decodeEntities, extractInitialData, parseDataApiResponse, parseResultsPage, clearMusicSearchCache } = await import(
   '../src/modules/music/youtubeSearch.js'
 )
+const { parsePlaylistPage, videosIn, clearPlaylistCache } = await import('../src/modules/music/youtubePlaylist.js')
 
 /* ---- Page de résultats simulée ------------------------------------------------------ */
 
@@ -101,6 +102,44 @@ describe('page de résultats youtube.com', () => {
   })
 })
 
+/* ---- Playlist YouTube (import) ---------------------------------------------------- */
+
+const PLAYLIST_PAGE = `<html><script>var ytcfg = {"INNERTUBE_API_KEY":"clé-test","INNERTUBE_CLIENT_VERSION":"2.20260925.08.00"};</script><script>var ytInitialData = ${JSON.stringify({
+  metadata: { playlistMetadataRenderer: { title: 'The Best of The Cure' } },
+  contents: {
+    items: [
+      lockup('scif2vfg1ug', 'VIDEO', 'The Cure - In Between Days', '3:09'),
+      lockup('n3nPiBai66M', 'VIDEO', 'The Cure - Just Like Heaven', '3:27'),
+      // Même vidéo deux fois dans la playlist : un seul morceau.
+      lockup('n3nPiBai66M', 'VIDEO', 'The Cure - Just Like Heaven', '3:27'),
+      videoRenderer('mGgMZpGYiy8', "The Cure - Friday I'm In Love"),
+      { continuationItemViewModel: { continuationCommand: {} } },
+      { continuationItemViewModel: { continuationCommand: { token: 'suite-1' } } },
+    ],
+  },
+})};</script></html>`
+
+describe('playlist YouTube : import', () => {
+  it('lit le titre, les vidéos (deux formats), le jeton de la suite et les réglages pour la demander', () => {
+    const page = parsePlaylistPage(PLAYLIST_PAGE)
+    assert.equal(page.title, 'The Best of The Cure')
+    assert.deepEqual(page.videos.map((video) => video.id), ['scif2vfg1ug', 'n3nPiBai66M', 'n3nPiBai66M', 'mGgMZpGYiy8'])
+    assert.equal(page.videos[0]?.duration, '3:09')
+    assert.equal(page.continuation, 'suite-1', 'le premier jeton vide est ignoré')
+    assert.equal(page.apiKey, null, 'clé hors du format attendu : ignorée')
+    assert.equal(page.clientVersion, '2.20260925.08.00')
+  })
+
+  it('vidéos seulement : ni playlists suggérées, ni directs', () => {
+    const videos = videosIn([
+      lockup('PLxA687tYuMWjwLHZv1RP_4uw7OFRk443S', 'PLAYLIST', 'Autre playlist', '40 vidéos'),
+      videoRenderer('jfKfPfyJRdk', 'lofi hip hop radio', { lengthText: undefined, badges: [{ metadataBadgeRenderer: { style: 'BADGE_STYLE_TYPE_LIVE_NOW' } }] }),
+      videoRenderer('mGgMZpGYiy8', "The Cure - Friday I'm In Love"),
+    ])
+    assert.deepEqual(videos.map((video) => video.id), ['mGgMZpGYiy8'])
+  })
+})
+
 describe('YouTube Data API', () => {
   it('décode les titres échappés et ignore les entrées incomplètes', () => {
     assert.equal(decodeEntities('Rock &amp; Roll &#39;n&#x27; &quot;Soul&quot;'), `Rock & Roll 'n' "Soul"`)
@@ -131,6 +170,10 @@ describe('YouTube Data API', () => {
 mockedHosts.add('www.youtube.com')
 mockedHosts.add('www.googleapis.com')
 extraMocks.push((url) => {
+  if (url.hostname === 'www.googleapis.com' && !url.pathname.endsWith('/search')) {
+    // Playlists : quota épuisé, l'import se replie sur la page publique.
+    return new Response('{"error":{"code":403}}', { status: 403 })
+  }
   if (url.hostname === 'www.googleapis.com') {
     // Quota épuisé pour « the cure » : repli sur la page ; réponse normale sinon.
     if (url.searchParams.get('q')?.toLowerCase() === 'the cure') return new Response('{"error":{"code":403}}', { status: 403 })
@@ -139,6 +182,11 @@ extraMocks.push((url) => {
     })
   }
   if (url.hostname === 'www.youtube.com' && url.pathname === '/results') return new Response(RESULTS)
+  if (url.hostname === 'www.youtube.com' && url.pathname === '/playlist') return new Response(PLAYLIST_PAGE)
+  if (url.hostname === 'www.youtube.com' && url.pathname === '/youtubei/v1/browse') {
+    // La suite : une vidéo de plus, puis des playlists suggérées (fin de l'import).
+    return Response.json({ onResponseReceivedActions: [{ appendContinuationItemsAction: { continuationItems: [lockup('ks_qOI0lzho', 'VIDEO', 'The Cure - Lovesong', '3:29'), { continuationItemViewModel: { continuationCommand: { token: 'suite-2' } } }] } }] })
+  }
   return undefined
 })
 
@@ -175,5 +223,18 @@ describe('GET /api/music/search', () => {
     const again = await client().request('GET', '/music/search?q=the%20cure&type=playlist&lang=fr')
     assert.equal(again.status, 200)
     assert.equal(upstreamCalls.length, calls)
+  })
+})
+
+describe('GET /api/music/playlist/:id', () => {
+  beforeEach(() => clearPlaylistCache())
+
+  it('API en échec → page publique : titre et vidéos, sans doublon ; mix automatique refusé (400)', async () => {
+    const response = await client().request('GET', '/music/playlist/PLxA687tYuMWjwLHZv1RP_4uw7OFRk443S?lang=fr')
+    assert.equal(response.status, 200)
+    assert.equal(response.body.title, 'The Best of The Cure')
+    assert.deepEqual(response.body.videos.map((video: { id: string }) => video.id), ['scif2vfg1ug', 'n3nPiBai66M', 'mGgMZpGYiy8'])
+    assert.equal(response.body.truncated, false)
+    assert.equal((await client().request('GET', '/music/playlist/RDEMLUGe1lzhB7MnQLLEheFTww')).status, 400)
   })
 })

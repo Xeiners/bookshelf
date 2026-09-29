@@ -69,22 +69,46 @@ const OL_LANGUAGE: Record<Language, string> = { fr: 'fre', en: 'eng' }
 const subjectClause = (subject: string) => (subject.includes(' ') ? `subject:"${subject}"` : `subject:${subject}`)
 
 /**
- * Requête Open Library d'une étagère : sujet(s), romans ayant une édition dans
- * la langue voulue, triés par popularité (`readinglog` : lecteurs qui l'ont
- * dans une liste) — ou par note pour « Pour toi », plus exigeant.
+ * Romans parus ces dernières années. Sans ce filtre, le tri par popularité
+ * d'Open Library ne sert que des classiques (Austen, Dumas…) : seule
+ * l'étagère « Classiques » s'en passe.
+ */
+export const RECENT_YEARS = 15
+export const recentClause = (now: Date) => `first_publish_year:[${now.getFullYear() - RECENT_YEARS} TO *]`
+
+/** Genres combinables (hors « Pour toi » et « Tendances »), dans l'ordre des étagères. */
+export const isNovelGenre = (id: string): id is keyof typeof SUBJECTS => id in SUBJECTS
+
+/**
+ * Requête Open Library du deck, triée par popularité (`readinglog` : lecteurs
+ * qui l'ont dans une liste) :
+ *  - `genres` (plusieurs puces cochées) : l'un OU l'autre de ces sujets ;
+ *  - sinon l'étagère : son sujet, « Tendances » (fiction), ou « Pour toi »
+ *    (genres des romans déjà gardés, fiction sans historique).
+ * Toujours des romans ayant une édition dans la langue voulue, et récents
+ * sauf pour les classiques.
  */
 export function novelShelfQuery(
   shelf: NovelShelfId,
   language: Language,
   liked: readonly { id: string; categories: readonly string[] }[] = [],
-): { q: string; sort: 'readinglog' | 'rating' } {
+  genres: readonly string[] = [],
+  now = new Date(),
+): { q: string; sort: 'readinglog' } {
   const lang = `language:${OL_LANGUAGE[language]}`
-  if (shelf === 'tendances') return { q: `subject:fiction ${lang}`, sort: 'readinglog' }
-  if (shelf === 'pour-toi') {
-    const genres = favoriteGenres(liked)
-    if (genres.length === 0) return { q: `subject:fiction ${lang}`, sort: 'rating' }
-    const subjects = genres.map((genre) => subjectClause(SUBJECTS[genre]))
-    return { q: `(${subjects.join(' OR ')}) ${lang}`, sort: 'rating' }
+  const recent = recentClause(now)
+  const query = (picked: readonly (keyof typeof SUBJECTS)[]) => {
+    const subjects = picked.map((genre) => subjectClause(SUBJECTS[genre]))
+    const clause = subjects.length > 1 ? `(${subjects.join(' OR ')})` : subjects[0]!
+    return picked.includes('classiques') ? `${clause} ${lang}` : `${clause} ${lang} ${recent}`
   }
-  return { q: `${subjectClause(SUBJECTS[shelf])} ${lang}`, sort: 'readinglog' }
+
+  const picked = [...new Set(genres)].filter(isNovelGenre)
+  if (picked.length > 0) return { q: query(picked), sort: 'readinglog' }
+  if (shelf === 'tendances') return { q: `subject:fiction ${lang} ${recent}`, sort: 'readinglog' }
+  if (shelf === 'pour-toi') {
+    const favorites = favoriteGenres(liked)
+    return { q: favorites.length > 0 ? query(favorites) : `subject:fiction ${lang} ${recent}`, sort: 'readinglog' }
+  }
+  return { q: query([shelf]), sort: 'readinglog' }
 }

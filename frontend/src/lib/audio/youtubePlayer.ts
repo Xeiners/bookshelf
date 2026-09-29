@@ -92,8 +92,10 @@ interface YTPlayer {
   setVolume(volume: number): void
   unMute(): void
   seekTo(seconds: number, allowSeekAhead: boolean): void
-  /** Non documentée mais stable depuis des années ; absente, on se passe du titre. */
-  getVideoData?: () => { title?: string } | undefined
+  getCurrentTime(): number
+  getDuration(): number
+  /** Non documentée mais stable depuis des années ; absente, on se passe du titre (et du direct). */
+  getVideoData?: () => { title?: string; isLive?: boolean } | undefined
   destroy(): void
 }
 
@@ -397,6 +399,34 @@ function stop() {
   for (const listener of listeners) listener()
 }
 
+/** Où en est le morceau : secondes écoulées, durée (0 : inconnue), direct (pas de durée, pas d'avance rapide). */
+export interface AmbientProgress {
+  current: number
+  duration: number
+  live: boolean
+}
+
+const NO_PROGRESS: AmbientProgress = { current: 0, duration: 0, live: false }
+
+function getProgress(): AmbientProgress {
+  if (!player || !ready || snapshot.state === 'idle') return NO_PROGRESS
+  try {
+    const live = player.getVideoData?.()?.isLive === true
+    const duration = live ? 0 : player.getDuration() || 0
+    return { current: Math.max(0, player.getCurrentTime() || 0), duration, live }
+  } catch {
+    return NO_PROGRESS
+  }
+}
+
+/** Avance ou recule dans le morceau en cours (sans effet sur un direct). */
+function seek(seconds: number) {
+  if (!player || !ready) return
+  const { duration, live } = getProgress()
+  if (live || duration <= 0) return
+  player.seekTo(Math.min(Math.max(0, seconds), duration - 0.5), true)
+}
+
 function setVolume(value: number) {
   volume = Math.round(Math.min(100, Math.max(0, value)))
   if (!player || !ready) return
@@ -414,6 +444,8 @@ export const ambientPlayer = {
   resume,
   stop,
   setVolume,
+  seek,
+  getProgress,
   getPlayingState: (): AmbientPlayingState => snapshot.state,
   getSnapshot: (): AmbientSnapshot => snapshot,
   subscribe: (listener: () => void) => {

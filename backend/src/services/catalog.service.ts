@@ -252,6 +252,8 @@ export type DeckBook = Book & { matchPercentage: number; discovery: boolean }
 
 export interface DeckRequest {
   shelf: string
+  /** Genres cochés ensemble (puces du deck) : une œuvre en porte au moins un. Prime sur l'étagère. */
+  genres?: readonly string[]
   origin: DeckOrigin
   /** Plusieurs origines cochées (manga + manhwa…) : prime sur `origin`. */
   origins?: readonly Exclude<DeckOrigin, 'all'>[]
@@ -288,13 +290,15 @@ export async function composeDeck(request: DeckRequest): Promise<DeckPage> {
   }
   if (current.items.length < MIN_CATALOG) return mangadexDeck(request)
 
-  const shelf = DECK_SHELVES[request.shelf] ?? {}
+  const picked = deckGenres(request.genres)
+  const shelf = picked.length > 0 ? {} : (DECK_SHELVES[request.shelf] ?? {})
   const countries = shelf.origin ? ORIGIN_COUNTRIES[shelf.origin] : deckCountries(request)
   const candidates = current.items.filter(
     (item) =>
       (!countries || countries.includes(item.country)) &&
       (!shelf.genre || item.features.genres.includes(shelf.genre)) &&
-      (!shelf.tag || item.features.tags.some((tag) => tag.name === shelf.tag)),
+      (!shelf.tag || item.features.tags.some((tag) => tag.name === shelf.tag)) &&
+      (picked.length === 0 || picked.some((genre) => hasGenre(item.features, genre))),
   )
 
   // Un de plus que demandé : sait s'il reste des cartes sans deuxième passe.
@@ -316,9 +320,22 @@ export async function composeDeck(request: DeckRequest): Promise<DeckPage> {
   }
 }
 
+/** Étagères de genre cochées ensemble (les ids inconnus, ou sans genre ni thème, sont ignorés). */
+export function deckGenres(ids: readonly string[] = []): DeckShelf[] {
+  return [...new Set(ids)].flatMap((id) => {
+    const shelf = DECK_SHELVES[id]
+    return shelf && (shelf.genre || shelf.tag) ? [shelf] : []
+  })
+}
+
+/** L'œuvre relève-t-elle de ce genre (genre MangaDex, ou thème pour « Arts martiaux ») ? */
+const hasGenre = (features: WorkFeatures, shelf: DeckShelf) =>
+  (!!shelf.genre && features.genres.includes(shelf.genre)) || (!!shelf.tag && features.tags.some((tag) => tag.name === shelf.tag))
+
 /** Repli : l'étagère MangaDex équivalente, notée par le même moteur. */
 async function mangadexDeck(request: DeckRequest): Promise<DeckPage> {
-  const shelfId = request.shelf === 'pour-toi' ? (request.origin === 'all' ? 'tendances' : request.origin) : request.shelf
+  const firstGenre = request.genres?.find((id) => deckGenres([id]).length > 0)
+  const shelfId = firstGenre ?? (request.shelf === 'pour-toi' ? (request.origin === 'all' ? 'tendances' : request.origin) : request.shelf)
   const shelf = findShelf(shelfId) ?? SHELVES[0]!
   const page = 1 + Math.floor((request.random ?? Math.random)() * 6)
   const { books } = await listShelf(shelf, page, 24, request.language)

@@ -7,7 +7,7 @@ import { useUiStore, type ViewId } from '../../store/useUiStore'
 import { LanguageToggle } from '../ui/LanguageToggle'
 import { Pressable } from '../ui/Pressable'
 import { BrandLogo } from '../ui/BrandLogo'
-import { MusicHeaderButton } from '../ambient/AmbientMiniPlayer'
+import { MusicHeaderButton } from '../ambient/MusicHeaderButton'
 import { LibraryMenu } from './LibraryMenu'
 
 interface AppHeaderProps {
@@ -76,7 +76,7 @@ export function AppHeader({ view }: AppHeaderProps) {
       <div className="flex shrink-0 items-center gap-2 pt-1">
         {/* Bibliothèque : une bulle vers les romans du compte et les fichiers de l'appareil. */}
         {view === 'library' && <LibraryMenu />}
-        {/* Musique d'ambiance : sur toutes les vues. */}
+        {/* Musique d'ambiance, et son mini-lecteur (anneau d'avancement, commandes en bulle) : sur toutes les vues. */}
         <MusicHeaderButton />
         {/* Sur ordinateur, la langue se règle dans la barre latérale. */}
         <div className="lg:hidden">

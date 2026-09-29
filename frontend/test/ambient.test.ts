@@ -122,3 +122,35 @@ describe('playlists enregistrées', () => {
     assert.equal(useAmbientStore.getState().lastSource, null)
   })
 })
+
+describe('lecteur : durée et ajouts', () => {
+  it('durée lisible', async () => {
+    const { formatClock } = await import('../src/lib/audio/clock')
+    assert.equal(formatClock(0), '0:00')
+    assert.equal(formatClock(187.9), '3:07')
+    assert.equal(formatClock(3765), '1:02:45')
+    assert.equal(formatClock(Number.NaN), '0:00')
+    assert.equal(formatClock(-5), '0:00')
+  })
+
+  it('ajout : doublon signalé, dernière playlist retenue', () => {
+    const store = useAmbientStore.getState()
+    const id = store.createPlaylist('Pluie') as string
+    assert.equal(store.addTrack(id, { kind: 'video', ref: 'jfKfPfyJRdk', title: 'Lofi' }), 'added')
+    assert.equal(store.addTrack(id, { kind: 'video', ref: 'jfKfPfyJRdk', title: 'Lofi' }), 'duplicate')
+    assert.equal(store.addTrack('inconnue', { kind: 'video', ref: 'x', title: null }), 'missing')
+    assert.equal(useAmbientStore.getState().lastPlaylistId, id)
+  })
+
+  it('import d’une playlist YouTube : une playlist garnie d’un coup, sans doublon', () => {
+    const id = useAmbientStore.getState().importPlaylist('The Best of The Cure', [
+      { kind: 'video', ref: 'scif2vfg1ug', title: 'In Between Days' },
+      { kind: 'video', ref: 'n3nPiBai66M', title: 'Just Like Heaven' },
+      { kind: 'video', ref: 'n3nPiBai66M', title: 'Just Like Heaven' },
+    ])
+    const playlist = useAmbientStore.getState().playlists.find((entry) => entry.id === id)
+    assert.equal(playlist?.name, 'The Best of The Cure')
+    assert.deepEqual(playlist?.tracks.map((track) => track.ref), ['scif2vfg1ug', 'n3nPiBai66M'])
+    assert.equal(useAmbientStore.getState().lastPlaylistId, id)
+  })
+})

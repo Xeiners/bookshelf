@@ -58,6 +58,8 @@ booksRouter.get('/search', searchLimiter, async (req, res) => {
 /** Historique envoyé par le deck, comme pour `/api/discover/deck` (champs en trop ignorés). */
 const DeckBody = z.object({
   shelf: z.enum(NOVEL_SHELF_IDS).default('pour-toi'),
+  /** Genres cochés ensemble (puces) : l'un ou l'autre. Prime sur l'étagère. */
+  genres: z.array(z.string().max(40)).max(12).default([]),
   lang: LangQuerySchema,
   limit: z.number().int().min(1).max(30).default(20),
   /** « Nouvelle sélection » : décale le point de départ dans le classement. */
@@ -84,7 +86,7 @@ booksRouter.post('/discover', deckLimiter, async (req, res) => {
   // Une relance repart plus loin dans le classement (5 points de départ, puis on reboucle).
   const offset = (body.round % 5) * 40 + body.seen.length
   const { books, hasMore } = await discoverNovels({
-    query: novelShelfQuery(body.shelf, body.lang, body.liked),
+    query: novelShelfQuery(body.shelf, body.lang, body.liked, body.genres),
     language: body.lang,
     offset,
     exclude,

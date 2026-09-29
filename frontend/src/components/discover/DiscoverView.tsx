@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { RotateCcw, Shuffle, WifiOff } from 'lucide-react'
 import { useDiscoveryQueue } from '../../hooks/useDiscoveryQueue'
 import type { DeckSource } from '../../lib/deckSources'
+import type { ShelfId } from '../../services/catalog'
 import { withoutDeckFields } from '../../services/discover'
 import { useT } from '../../i18n'
 import { type LibrarySnapshot, useLibraryStore } from '../../store/useLibraryStore'
@@ -73,6 +74,7 @@ export function DiscoverView() {
     cursor,
     remaining,
     shelf,
+    genres,
     shelves,
     sources,
     phase,
@@ -81,6 +83,7 @@ export function DiscoverView() {
     advance,
     rewind,
     selectShelf,
+    toggleGenre,
     toggleSource,
     selectAllSources,
     reload,
@@ -130,6 +133,10 @@ export function DiscoverView() {
     setHistory([])
     selectShelf(next)
   }
+  const changeGenre = (genre: ShelfId) => {
+    setHistory([])
+    toggleGenre(genre)
+  }
   const changeSource = (source: DeckSource) => {
     setHistory([])
     toggleSource(source)
@@ -154,7 +161,14 @@ export function DiscoverView() {
       {/* Rail d'étagères + filtres, sur une seule ligne ; au-dessus du deck pour le panneau de filtres */}
       <div className="relative z-20 flex items-center gap-2">
         {/* Remonté quand la sélection change : le nouveau rail d'étagères rejoue son entrée. */}
-        <ShelfPicker key={sourcesKey} shelves={shelves} active={shelf} onSelect={changeShelf} />
+        <ShelfPicker
+          key={sourcesKey}
+          shelves={shelves}
+          active={shelf}
+          genres={genres}
+          onSelect={changeShelf}
+          onToggleGenre={changeGenre}
+        />
 
         {offline && (
           <span
@@ -176,7 +190,7 @@ export function DiscoverView() {
       ) : (
         <SwipeDeck
           // Remonter le deck à chaque étagère (ou origine) rejoue l'entrée en éventail.
-          key={`${shelf.id}|${sourcesKey}`}
+          key={`${genres.length > 0 ? genres.join(',') : shelf.id}|${sourcesKey}`}
           queue={queue}
           cursor={cursor}
           onDecision={handleDecision}

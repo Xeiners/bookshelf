@@ -17,7 +17,21 @@ export interface MusicSearchResult {
   thumbnail: string | null
 }
 
+/** Playlist YouTube à importer (`GET /api/music/playlist/:id`). */
+export interface ImportedPlaylist {
+  id: string
+  title: string
+  channel: string | null
+  videos: { id: string; title: string; channel: string | null; duration: string | null }[]
+  /** Plus de vidéos que la limite d'une playlist : seules les premières sont là. */
+  truncated: boolean
+}
+
 export const musicApi = {
+  /** 404 : playlist introuvable ou privée ; 400 : mix automatique (non importable). */
+  playlist: (id: string, lang: Language, signal?: AbortSignal) =>
+    api<ImportedPlaylist>(`/music/playlist/${encodeURIComponent(id)}?lang=${lang}`, { signal }),
+
   search: (query: string, type: MusicSearchType, lang: Language, signal?: AbortSignal) =>
     api<{ results: MusicSearchResult[] }>(
       `/music/search?${new URLSearchParams({ q: query, type, lang }).toString()}`,

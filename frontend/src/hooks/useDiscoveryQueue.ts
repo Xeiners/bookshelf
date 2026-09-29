@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Shelf } from '../services/catalog'
+import { isGenreShelf, type Shelf, type ShelfId } from '../services/catalog'
 import type { DeckSource } from '../lib/deckSources'
 import { fetchSynopsis, getCachedSynopsis, shelvesFor } from '../services/catalog'
 import { fetchDeck, libraryHistory, type DeckPart } from '../services/discover'
@@ -30,6 +30,8 @@ export interface DiscoveryQueue {
   cursor: number
   remaining: number
   shelf: Shelf
+  /** Genres cochés ensemble (puces), parmi les étagères proposées. */
+  genres: ShelfId[]
   /** Étagères proposées : celles du catalogue, ou celles des romans. */
   shelves: Shelf[]
   /** Types cochés : manga, manhwa, manhua, romans (plusieurs à la fois, gardés sur l'appareil). */
@@ -43,6 +45,7 @@ export interface DiscoveryQueue {
   /** Recule d'une carte (annulation du dernier choix). */
   rewind: () => void
   selectShelf: (shelf: Shelf) => void
+  toggleGenre: (genre: ShelfId) => void
   toggleSource: (source: DeckSource) => void
   selectAllSources: () => void
   reload: () => void
@@ -72,6 +75,7 @@ async function harvestDeck(
 ): Promise<{ books: Book[]; hasMore: boolean }> {
   const { books, hasMore, parts } = await fetchDeck({
     shelf: target.id,
+    genres: target.genres,
     sources,
     language: lang,
     round,
@@ -128,12 +132,21 @@ export function useDiscoveryQueue(): DiscoveryQueue {
   const shelves = useMemo(() => shelvesFor(sources), [sources])
   const shelf = shelves.find((item) => item.id === savedShelf) ?? shelves[0]!
   const sourcesKey = sources.join('+')
+  // Genres cochés et proposés par les types cochés (« Isekai » disparaît sans les mangas).
+  const savedGenres = useDeckStore((state) => state.genres)
+  const genresKey = savedGenres.filter((genre) => isGenreShelf(genre) && shelves.some((item) => item.id === genre)).join(',')
+  // Ce que le deck demande : les genres cochés (triés comme « Pour toi »), sinon l'étagère.
+  const target = useMemo<Shelf>(
+    () => (genresKey ? { id: 'pour-toi', genres: genresKey.split(',') as ShelfId[] } : shelf),
+    [genresKey, shelf],
+  )
+  const targetKey = genresKey ? `genres:${genresKey}` : shelf.id
 
   // Reprise de la visite précédente, si elle porte sur la même requête. Les
   // cartes déjà jugées (ou ajoutées ailleurs entre-temps) sont écartées.
   const [restored] = useState(() => {
     if (!memo || Date.now() - memo.at > MEMO_TTL_MS) return null
-    if (memo.key !== `${shelf.id}|${sourcesKey}|${language}|${memo.nonce}`) return null
+    if (memo.key !== `${targetKey}|${sourcesKey}|${language}|${memo.nonce}`) return null
     const rest = memo.queue.slice(memo.cursor).filter((book) => !known.has(book.id))
     return rest.length > 0 ? { ...memo, queue: rest } : null
   })
@@ -151,7 +164,7 @@ export function useDiscoveryQueue(): DiscoveryQueue {
    *   l'étagère est vide pour cette requête (`drainedKey`).
    */
   const [nonce, setNonce] = useState(() => restored?.nonce ?? 0)
-  const requestKey = `${shelf.id}|${sourcesKey}|${language}|${nonce}`
+  const requestKey = `${targetKey}|${sourcesKey}|${language}|${nonce}`
   const [loadedKey, setLoadedKey] = useState<string | null>(() => restored?.key ?? null)
   const [drainedKey, setDrainedKey] = useState<string | null>(() => (restored?.drained ? restored.key : null))
   const effectivePhase: QueuePhase = loadedKey === requestKey ? phase : 'loading'
@@ -233,8 +246,8 @@ export function useDiscoveryQueue(): DiscoveryQueue {
     // Ref gardée tant que la clé ne bouge pas : le double effet de <StrictMode> ne refetch pas non plus.
     if (requestKey === restoredKeyRef.current) return
     restoredKeyRef.current = null
-    load(shelf, sources, 'replace', language, requestKey, nonce)
-  }, [requestKey, shelf, sources, language, load, nonce])
+    load(target, sources, 'replace', language, requestKey, nonce)
+  }, [requestKey, target, sources, language, load, nonce])
 
   // Mémorise la file à chaque changement, pour la prochaine visite.
   useEffect(() => {
@@ -256,8 +269,8 @@ export function useDiscoveryQueue(): DiscoveryQueue {
   useEffect(() => {
     if (effectivePhase !== 'ready' || offline || drainedKey === requestKey) return
     if (remaining > REFILL_THRESHOLD) return
-    load(shelf, sources, 'append', language, requestKey, nonce)
-  }, [effectivePhase, offline, drainedKey, requestKey, remaining, shelf, sources, language, load, nonce])
+    load(target, sources, 'append', language, requestKey, nonce)
+  }, [effectivePhase, offline, drainedKey, requestKey, remaining, target, sources, language, load, nonce])
 
   // Préchauffage des synopsis : la carte du dessus a son texte avant d'arriver.
   const hydrationTargets = queue
@@ -336,6 +349,7 @@ export function useDiscoveryQueue(): DiscoveryQueue {
   const rewind = useCallback(() => setCursor((value) => Math.max(0, value - 1)), [])
 
   const selectShelf = useCallback((next: Shelf) => useDeckStore.getState().setShelf(next.id), [])
+  const toggleGenre = useCallback((genre: ShelfId) => useDeckStore.getState().toggleGenre(genre), [])
   const toggleSource = useCallback((source: DeckSource) => useDeckStore.getState().toggleSource(source), [])
   const selectAllSources = useCallback(() => useDeckStore.getState().selectAllSources(), [])
 
@@ -350,6 +364,7 @@ export function useDiscoveryQueue(): DiscoveryQueue {
     cursor,
     remaining,
     shelf,
+    genres: target.genres ?? [],
     shelves,
     sources,
     phase: effectivePhase,
@@ -358,6 +373,7 @@ export function useDiscoveryQueue(): DiscoveryQueue {
     advance,
     rewind,
     selectShelf,
+    toggleGenre,
     toggleSource,
     selectAllSources,
     reload,

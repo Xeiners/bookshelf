@@ -18,7 +18,12 @@ export type ShelfId = keyof Dictionary['shelves']['names']
 
 export interface Shelf {
   id: ShelfId
+  /** Genres cochés ensemble (puces du deck) : priment sur l'étagère. */
+  genres?: ShelfId[]
 }
+
+/** « Pour toi » et « Tendances » sont des modes ; les autres étagères sont des genres, combinables. */
+export const isGenreShelf = (id: ShelfId) => id !== 'pour-toi' && id !== 'tendances'
 
 /**
  * Étagères du deck : « Pour toi » (recommandations) en tête. L'origine

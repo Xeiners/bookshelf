@@ -37,6 +37,8 @@ const DeckBody = z.intersection(
   HistorySchema,
   z.object({
     shelf: z.string().trim().max(40).default('pour-toi'),
+    /** Genres cochés ensemble (puces) : une œuvre en porte au moins un. Prime sur l'étagère. */
+    genres: z.array(z.string().trim().max(40)).max(12).default([]),
     origin: OriginSchema,
     /** Origines cochées dans le deck (plusieurs à la fois) ; absent : `origin`. */
     origins: z.array(z.enum(['manga', 'manhwa', 'manhua'])).max(3).optional(),
@@ -101,6 +103,7 @@ discoverRouter.post('/deck', optionalAuth, async (req, res) => {
   const single = body.origins?.length === 1 ? body.origins[0]! : null
   const deck = await composeDeck({
     shelf: body.shelf,
+    genres: body.genres,
     origin: single ?? body.origin,
     origins: body.origins,
     language: body.lang,

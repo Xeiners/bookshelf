@@ -28,7 +28,12 @@ interface AmbientPrefs {
   /** Dernière écoute : identifiant d'ambiance, `playlist:<id>`, ou lien / ID YouTube collé. */
   lastSource: string | null
   playlists: AmbientPlaylist[]
+  /** Dernière playlist où un morceau a été ajouté : proposée en premier. */
+  lastPlaylistId: string | null
 }
+
+/** Issue d'un ajout : `duplicate` si le morceau y est déjà, `full` au-delà de la limite. */
+export type AddTrackResult = 'added' | 'duplicate' | 'full' | 'missing'
 
 interface AmbientState extends AmbientPrefs {
   setAutoPlay: (autoPlay: boolean) => void
@@ -38,8 +43,9 @@ interface AmbientState extends AmbientPrefs {
   createPlaylist: (name: string) => string | null
   renamePlaylist: (id: string, name: string) => void
   deletePlaylist: (id: string) => void
-  /** `false` si la playlist est pleine ou introuvable. */
-  addTrack: (playlistId: string, track: Omit<AmbientTrack, 'id'>) => boolean
+  addTrack: (playlistId: string, track: Omit<AmbientTrack, 'id'>) => AddTrackResult
+  /** Crée une playlist garnie d'un coup (import d'une playlist YouTube). `null` au-delà de la limite. */
+  importPlaylist: (name: string, tracks: Omit<AmbientTrack, 'id'>[]) => string | null
   removeTrack: (playlistId: string, trackId: string) => void
   moveTrack: (playlistId: string, trackId: string, delta: -1 | 1) => void
 }
@@ -100,6 +106,7 @@ export const useAmbientStore = create<AmbientState>()(
       volume: DEFAULT_VOLUME,
       lastSource: null,
       playlists: [],
+      lastPlaylistId: null,
 
       setAutoPlay: (autoPlay) => set({ autoPlay }),
       setVolume: (volume) => set({ volume: Math.round(Math.min(100, Math.max(0, volume))) }),
@@ -120,18 +127,35 @@ export const useAmbientStore = create<AmbientState>()(
         set((state) => ({
           playlists: state.playlists.filter((playlist) => playlist.id !== id),
           lastSource: state.lastSource === `playlist:${id}` ? null : state.lastSource,
+          lastPlaylistId: state.lastPlaylistId === id ? null : state.lastPlaylistId,
         })),
 
       addTrack: (playlistId, track) => {
         const target = get().playlists.find((playlist) => playlist.id === playlistId)
-        if (!target || target.tracks.length >= AMBIENT_LIMITS.tracks) return false
+        if (!target) return 'missing'
+        if (target.tracks.some((entry) => entry.ref === track.ref)) return 'duplicate'
+        if (target.tracks.length >= AMBIENT_LIMITS.tracks) return 'full'
         set((state) => ({
+          lastPlaylistId: playlistId,
           playlists: updatePlaylist(state.playlists, playlistId, (playlist) => ({
             ...playlist,
             tracks: [...playlist.tracks, { ...track, id: newId() }],
           })),
         }))
-        return true
+        return 'added'
+      },
+      importPlaylist: (name, tracks) => {
+        if (get().playlists.length >= AMBIENT_LIMITS.playlists) return null
+        const seen = new Set<string>()
+        const unique = tracks.filter((track) => !seen.has(track.ref) && seen.add(track.ref)).slice(0, AMBIENT_LIMITS.tracks)
+        const playlist: AmbientPlaylist = {
+          id: newId(),
+          name: cleanName(name) || '…',
+          tracks: unique.map((track) => ({ ...track, id: newId() })),
+          createdAt: Date.now(),
+        }
+        set((state) => ({ playlists: [...state.playlists, playlist], lastPlaylistId: playlist.id }))
+        return playlist.id
       },
       removeTrack: (playlistId, trackId) =>
         set((state) => ({
@@ -161,6 +185,7 @@ export const useAmbientStore = create<AmbientState>()(
         volume: state.volume,
         lastSource: state.lastSource,
         playlists: state.playlists,
+        lastPlaylistId: state.lastPlaylistId,
       }),
       // Valeurs corrompues : retour aux défauts, champ par champ.
       merge: (persisted, current) => {
@@ -174,6 +199,7 @@ export const useAmbientStore = create<AmbientState>()(
               : DEFAULT_VOLUME,
           lastSource: typeof saved.lastSource === 'string' && saved.lastSource.trim() ? saved.lastSource : null,
           playlists: sanitizePlaylists(saved.playlists),
+          lastPlaylistId: typeof saved.lastPlaylistId === 'string' ? saved.lastPlaylistId : null,
         }
       },
     },

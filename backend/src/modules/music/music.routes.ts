@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { LangQuerySchema } from '../../lib/language.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
+import { IMPORTABLE_PLAYLIST, importYouTubePlaylist } from './youtubePlaylist.js'
 import { searchYouTube } from './youtubeSearch.js'
 
 const SearchQuery = z.object({
@@ -21,4 +22,17 @@ musicRouter.get('/search', rateLimit({ windowMs: 60_000, max: 30 }), async (req,
   const results = await searchYouTube(q, type, lang)
   res.set('Cache-Control', 'private, max-age=600')
   res.json({ results })
+})
+
+const PlaylistQuery = z.object({ lang: LangQuerySchema })
+
+/**
+ * Vidéos d'une playlist YouTube (titre compris), pour la recréer en playlist
+ * d'ambiance. Mix automatiques (`RD…`) refusés : ils n'existent que pour un visiteur.
+ */
+musicRouter.get('/playlist/:id', rateLimit({ windowMs: 60_000, max: 20 }), async (req, res) => {
+  const id = z.string().regex(IMPORTABLE_PLAYLIST).parse(req.params.id)
+  const { lang } = PlaylistQuery.parse(req.query)
+  res.set('Cache-Control', 'private, max-age=600')
+  res.json(await importYouTubePlaylist(id, lang))
 })

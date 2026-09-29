@@ -11,9 +11,12 @@ export const AMBIENT_PRESET_IDS = ['lofi', 'dark', 'synth', 'rain'] as const
 export type AmbientPresetId = (typeof AMBIENT_PRESET_IDS)[number]
 
 export const AMBIENT_PRESETS: Record<AmbientPresetId, { videoId: string; keywords: readonly string[] }> = {
-  /** Lofi Girl, « lofi hip hop radio » (direct). */
+  /**
+   * Lofi Girl, « 1 A.M Study Session » (1 h, en boucle). Leurs directs
+   * (`jfKfPfyJRdk`…) refusent désormais la lecture intégrée.
+   */
   lofi: {
-    videoId: 'jfKfPfyJRdk',
+    videoId: 'lTRiuFIWV54',
     keywords: ['romance', 'slice of life', 'tranche de vie', 'comedy', 'comedie', 'school', 'scolaire', 'shoujo', 'josei'],
   },
   /** Ambiances Elden Ring, 3 h. */

@@ -25,7 +25,7 @@ import {
   type GoogleVolume,
   type OpenLibraryDoc,
 } from '../src/modules/books/metadata.normalize.js'
-import { favoriteGenres, isNovelId, novelShelfQuery } from '../src/modules/books/novels.discover.js'
+import { favoriteGenres, isNovelId, novelShelfQuery, recentClause } from '../src/modules/books/novels.discover.js'
 import { extraMocks, mockedHosts, installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
 /* ---- Environnement : AVANT le chargement de l'API ----------------------------------- */
@@ -355,13 +355,30 @@ describe('fiches en ligne — normalisation, fusion, rapprochement', () => {
 describe('deck « Romans » — étagères', () => {
   const liked = (id: string, ...categories: string[]) => ({ id, categories })
 
-  it('étagère thématique : sujet Open Library, langue voulue, triée par popularité', () => {
-    assert.deepEqual(novelShelfQuery('romance', 'fr'), { q: 'subject:romance language:fre', sort: 'readinglog' })
-    assert.deepEqual(novelShelfQuery('science-fiction', 'en'), { q: 'subject:"science fiction" language:eng', sort: 'readinglog' })
-    assert.deepEqual(novelShelfQuery('tendances', 'fr'), { q: 'subject:fiction language:fre', sort: 'readinglog' })
+  const NOW = new Date('2026-09-29T12:00:00Z')
+  const RECENT = 'first_publish_year:[2011 TO *]'
+
+  it('étagère thématique : sujet Open Library, langue voulue, romans récents, triée par popularité', () => {
+    assert.equal(recentClause(NOW), RECENT)
+    assert.deepEqual(novelShelfQuery('romance', 'fr', [], [], NOW), { q: `subject:romance language:fre ${RECENT}`, sort: 'readinglog' })
+    assert.deepEqual(novelShelfQuery('science-fiction', 'en', [], [], NOW), { q: `subject:"science fiction" language:eng ${RECENT}`, sort: 'readinglog' })
+    assert.deepEqual(novelShelfQuery('tendances', 'fr', [], [], NOW), { q: `subject:fiction language:fre ${RECENT}`, sort: 'readinglog' })
+    assert.deepEqual(novelShelfQuery('classiques', 'fr', [], [], NOW), { q: 'subject:classics language:fre', sort: 'readinglog' }, 'les classiques restent anciens')
   })
 
-  it('« Pour toi » : les genres des romans gardés (les mangas ne comptent pas) ; sans historique, les mieux notés', () => {
+  it('plusieurs genres cochés : l’un OU l’autre, sans doublon ni étagère inconnue ; ils priment sur l’étagère', () => {
+    assert.deepEqual(novelShelfQuery('tendances', 'fr', [], ['romance', 'fantasy', 'romance', 'isekai'], NOW), {
+      q: `(subject:romance OR subject:fantasy) language:fre ${RECENT}`,
+      sort: 'readinglog',
+    })
+    assert.deepEqual(novelShelfQuery('pour-toi', 'en', [], ['thriller'], NOW), { q: `subject:thriller language:eng ${RECENT}`, sort: 'readinglog' })
+    assert.deepEqual(novelShelfQuery('pour-toi', 'fr', [], ['classiques', 'romance'], NOW), {
+      q: '(subject:classics OR subject:romance) language:fre',
+      sort: 'readinglog',
+    })
+  })
+
+  it('« Pour toi » : les genres des romans gardés (les mangas ne comptent pas) ; sans historique, la fiction récente', () => {
     const history = [
       liked('ol:OL1W', 'Romance', 'Fiction, romance, contemporary'),
       liked('gb:abc', 'Fiction / Romance / General'),
@@ -369,8 +386,8 @@ describe('deck « Romans » — étagères', () => {
       liked('11111111-1111-4111-8111-111111111111', 'Horror', 'Horror'),
     ]
     assert.deepEqual(favoriteGenres(history), ['romance', 'fantasy'])
-    assert.deepEqual(novelShelfQuery('pour-toi', 'fr', history), { q: '(subject:romance OR subject:fantasy) language:fre', sort: 'rating' })
-    assert.deepEqual(novelShelfQuery('pour-toi', 'fr', []), { q: 'subject:fiction language:fre', sort: 'rating' })
+    assert.deepEqual(novelShelfQuery('pour-toi', 'fr', history, [], NOW), { q: `(subject:romance OR subject:fantasy) language:fre ${RECENT}`, sort: 'readinglog' })
+    assert.deepEqual(novelShelfQuery('pour-toi', 'fr', [], [], NOW), { q: `subject:fiction language:fre ${RECENT}`, sort: 'readinglog' })
     assert.equal(isNovelId('ol:OL1W'), true)
     assert.equal(isNovelId('11111111-1111-4111-8111-111111111111'), false)
   })
@@ -461,7 +478,7 @@ describe('POST /api/books/discover — deck « Romans »', () => {
     assert.deepEqual(response.body.books.map((book: { id: string }) => book.id), ['ol:OL2000W', 'ol:OL1000W'], 'sans couverture : écartée')
     assert.ok(response.body.books.every((book: { kind: string }) => book.kind === 'book'))
     assert.equal(response.body.hasMore, false)
-    assert.equal(mock.lastSearch?.get('q'), 'subject:romance language:fre')
+    assert.equal(mock.lastSearch?.get('q'), `subject:romance language:fre ${recentClause(new Date())}`)
     assert.equal(mock.lastSearch?.get('sort'), 'readinglog')
     assert.equal(mock.lastSearch?.get('lang'), 'fr')
   })
@@ -476,6 +493,18 @@ describe('POST /api/books/discover — deck « Romans »', () => {
     assert.deepEqual(response.body.books, [])
     await client().request('POST', '/books/discover', { shelf: 'thriller', lang: 'en', round: 2 })
     assert.equal(mock.lastSearch?.get('offset'), '80')
+  })
+
+  it('genres cochés ensemble : une seule requête Open Library, l’un OU l’autre', async () => {
+    const response = await client().request('POST', '/books/discover', { shelf: 'tendances', genres: ['romance', 'fantasy'], lang: 'fr', limit: 5 })
+    assert.equal(response.status, 200)
+    assert.equal(mock.lastSearch?.get('q'), `(subject:romance OR subject:fantasy) language:fre ${recentClause(new Date())}`)
+  })
+
+  it('genres du deck manga : les étagères de genre seulement, sans doublon', async () => {
+    const { deckGenres } = await import('../src/services/catalog.service.js')
+    assert.deepEqual(deckGenres(['romance', 'arts-martiaux', 'romance', 'pour-toi', 'tendances', 'inconnue']), [{ genre: 'Romance' }, { tag: 'Martial Arts' }])
+    assert.deepEqual(deckGenres([]), [])
   })
 
   it('étagère inconnue → 400 ; résumé d’un roman du deck ; id invalide → 400', async () => {
