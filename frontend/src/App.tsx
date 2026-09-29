@@ -24,6 +24,7 @@ import { SettingsSheet } from './components/profile/SettingsSheet'
 import { useLibraryLocalization } from './hooks/useLibraryLocalization'
 import { useLanguage, useT } from './i18n'
 import { useAuthStore } from './store/useAuthStore'
+import { useProfileStore } from './store/useProfileStore'
 import { useUiStore } from './store/useUiStore'
 import { LocalFilesSheet } from './components/reader/LocalFilesSheet'
 import { EpubMatchModal } from './components/novels/EpubMatchModal'
@@ -42,6 +43,9 @@ const PublicProfileView = lazy(() =>
 )
 
 // « Mes romans » : chargé à la première ouverture (liste, fiche, recherche de fiches).
+/** Laisse passer le démarrage (bibliothèque, découverte) avant de précharger le profil. */
+const PROFILE_PRELOAD_DELAY_MS = 1500
+
 const NovelsSheet = lazy(() => import('./components/novels/NovelsSheet').then((module) => ({ default: module.NovelsSheet })))
 
 const SPLASH_KEY = 'bookshelf:splash-seen'
@@ -90,6 +94,14 @@ export default function App() {
 
   // Playlists de musique : les mêmes sur tous les appareils du compte.
   usePlaylistSync()
+
+  // Profil du compte : chargé en avance, après le démarrage, pour que l'onglet Profil s'ouvre à jour.
+  const accountId = useAuthStore((state) => state.user?.id ?? null)
+  useEffect(() => {
+    if (!accountId) return
+    const timer = window.setTimeout(() => void useProfileStore.getState().preload(), PROFILE_PRELOAD_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [accountId])
 
   // 1–5, Ctrl/⌘ K, Ctrl/⌘ B.
   useKeyboardShortcuts()

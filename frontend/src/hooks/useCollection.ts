@@ -6,9 +6,10 @@ import { useGuestCardsStore } from '../store/useGuestCardsStore'
 
 /**
  * Album du compte connecté — ou, en invité, celui de ses boosters d'essai —
- * chargé au besoin et rechargé après chaque booster ouvert.
+ * chargé au besoin et rechargé après chaque booster ouvert. `enabled: false` :
+ * l'album déjà en mémoire, sans le demander (il pèse tout le set de cartes).
  */
-export function useCollection() {
+export function useCollection({ enabled = true }: { enabled?: boolean } = {}) {
   const signedIn = useAuthStore((state) => state.user !== null)
   const receipts = useGuestCardsStore((state) => state.receipts)
   const version = useBoosterStore((state) => state.collectionVersion)
@@ -19,8 +20,8 @@ export function useCollection() {
   const source = signedIn ? null : receipts
 
   useEffect(() => {
-    if (loadedVersion !== version) void load(version, source)
-  }, [version, loadedVersion, load, source])
+    if (enabled && loadedVersion !== version) void load(version, source)
+  }, [enabled, version, loadedVersion, load, source])
 
   return { signedIn, data, status, retry: () => void load(version, source) }
 }

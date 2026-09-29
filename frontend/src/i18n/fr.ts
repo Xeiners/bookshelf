@@ -797,6 +797,10 @@ export const fr = {
       add: (title: string) => `Ajouter « ${title} » à la playlist`,
       added: 'Ajouté à la playlist',
       nowPlaying: 'En cours',
+      close: 'Fermer la recherche',
+      clear: 'Effacer',
+      hint: 'Un artiste, un titre, une ambiance… ou colle un lien YouTube.',
+      addingTo: (name: string) => `Ajout à « ${name} »`,
     },
     playlistFull: 'Cette playlist est pleine.',
     playlists: {

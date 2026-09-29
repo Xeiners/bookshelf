@@ -784,6 +784,10 @@ export const en: Dictionary = {
       add: (title: string) => `Add “${title}” to the playlist`,
       added: 'Added to the playlist',
       nowPlaying: 'Now playing',
+      close: 'Close search',
+      clear: 'Clear',
+      hint: 'An artist, a song, a mood… or paste a YouTube link.',
+      addingTo: (name: string) => `Adding to “${name}”`,
     },
     playlistFull: 'This playlist is full.',
     playlists: {

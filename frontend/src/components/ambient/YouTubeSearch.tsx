@@ -1,15 +1,20 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
-import { AudioLines, Check, ListMusic, Loader2, Pause, Play, Plus, Search } from 'lucide-react'
-import { useAmbientPlayer } from '../../hooks/useAmbientMusic'
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { ArrowLeft, AudioLines, Check, ListMusic, Loader2, Pause, Play, Plus, Search, X } from 'lucide-react'
+import { useAmbientLabel, useAmbientPlayer } from '../../hooks/useAmbientMusic'
 import { useLanguage, useT } from '../../i18n'
 import { fetchYouTubeTitle, playAmbient, tracksOf } from '../../lib/audio/ambientPlayback'
 import { ambientPlayer, parseYouTubeSource, type AmbientSource } from '../../lib/audio/youtubePlayer'
 import { apiErrorMessage } from '../../lib/apiErrors'
+import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { musicApi, type MusicSearchResult, type MusicSearchType } from '../../services/musicApi'
 import type { AddTracksReport } from '../../store/useAmbientStore'
 import { useUiStore } from '../../store/useUiStore'
 import { AddToPlaylist, type PickedTrack } from './AddToPlaylist'
+import { SeekBar, TransportControls, VolumeButton } from './AmbientControls'
+
+type OnAdd = (tracks: PickedTrack[]) => AddTracksReport | null
 
 interface YouTubeSearchProps {
   /**
@@ -17,7 +22,9 @@ interface YouTubeSearchProps {
    * une playlist YouTube y verse tous ses morceaux. Absent : le « + » ouvre le
    * choix de la playlist.
    */
-  onAdd?: (tracks: PickedTrack[]) => AddTracksReport | null
+  onAdd?: OnAdd
+  /** Nom de la playlist qui reçoit les ajouts directs, rappelé dans l'écran de recherche. */
+  target?: string
 }
 
 type SearchState =
@@ -30,26 +37,26 @@ type SearchState =
 const DEBOUNCE_MS = 450
 
 /**
- * Champ unique « recherche YouTube ou lien » : un lien (ou ID) se joue ou
- * s'ajoute tel quel ; du texte (« the cure ») lance une recherche de
- * morceaux ou de playlists. Le morceau en cours de lecture est mis en avant
- * (en tête, en couleur) et son bouton devient pause / reprise.
+ * Recherche YouTube ou lien. Dans le panneau, un simple champ ; touché, il
+ * ouvre un écran de recherche sur toute la hauteur (plein écran sur mobile) :
+ * champ, type (morceaux / playlists), résultats qui défilent seuls, et le
+ * lecteur en bas pour garder la main sur la musique. Un lien (ou ID) se joue
+ * ou s'ajoute tel quel ; du texte (« the cure ») lance une recherche. Le
+ * morceau en cours est mis en avant (en tête, en couleur), son bouton devient
+ * pause / reprise. La recherche est gardée d'une ouverture à l'autre.
  */
-export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
+export function YouTubeSearch({ onAdd, target }: YouTubeSearchProps) {
   const t = useT()
   const copy = t.ambient.search
   const language = useLanguage()
-  const inputId = useId()
-  const snapshot = useAmbientPlayer()
+  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [type, setType] = useState<MusicSearchType>('video')
   const [result, setResult] = useState<SearchState>({ status: 'idle' })
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const trimmed = query.trim()
-  const link = parseYouTubeSource(trimmed)
-  const searchable = link === null && trimmed.length >= 2
-  // Champ vidé ou lien collé : plus de résultats affichés, sans remettre l'état à zéro dans l'effet.
-  const state: SearchState = searchable ? result : { status: 'idle' }
+  const searchable = parseYouTubeSource(trimmed) === null && trimmed.length >= 2
 
   useEffect(() => {
     if (!searchable) return
@@ -69,95 +76,254 @@ export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
     }
   }, [searchable, trimmed, type, language, t])
 
-  // Entrée sur un lien : lecture.
+  const close = useCallback(() => {
+    setOpen(false)
+    triggerRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold tracking-[0.22em] text-mist uppercase">{copy.label}</p>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="mt-2 flex w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-left text-xs transition-colors hover:border-glow/50"
+      >
+        <Search size={14} aria-hidden className="shrink-0 text-mist" />
+        <span className={`truncate ${trimmed ? 'text-cream' : 'text-mist/60'}`}>{trimmed || copy.placeholder}</span>
+      </button>
+      {open && (
+        <SearchScreen
+          query={query}
+          onQuery={setQuery}
+          type={type}
+          onType={setType}
+          result={searchable ? result : { status: 'idle' }}
+          onAdd={onAdd}
+          target={target}
+          onClose={close}
+        />
+      )}
+    </div>
+  )
+}
+
+interface SearchScreenProps {
+  query: string
+  onQuery: (query: string) => void
+  type: MusicSearchType
+  onType: (type: MusicSearchType) => void
+  /** Déjà ramené à « rien » quand le champ est vide ou contient un lien. */
+  result: SearchState
+  onAdd?: OnAdd
+  target?: string
+  onClose: () => void
+}
+
+/**
+ * Écran de recherche : plein écran sur mobile, grand panneau centré sur
+ * ordinateur, au-dessus de la feuille (ou du lecteur). Échap le ferme — après
+ * une éventuelle bulle ouverte (choix de playlist, volume), qui part d'abord.
+ */
+function SearchScreen({ query, onQuery, type, onType, result, onAdd, target, onClose }: SearchScreenProps) {
+  const t = useT()
+  const copy = t.ambient.search
+  const inputId = useId()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Champ vide à l'ouverture : le clavier s'ouvre tout de suite. Recherche reprise : les résultats d'abord.
+  const [focusOnOpen] = useState(query === '')
+  const snapshot = useAmbientPlayer()
+
+  const trimmed = query.trim()
+  const link = parseYouTubeSource(trimmed)
+
+  useGSAP(
+    () => {
+      gsap
+        .timeline({ defaults: { ease: EASE.glide } })
+        .fromTo('[data-search-backdrop]', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25 }, 0)
+        // Opacité seule (pas `autoAlpha`) : un panneau `visibility: hidden` refuserait le focus du champ.
+        .fromTo('[data-search-panel]', { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, clearProps: 'transform' }, 0)
+    },
+    { scope: rootRef },
+  )
+
+  useEffect(() => {
+    if (focusOnOpen) inputRef.current?.focus({ preventScroll: true })
+  }, [focusOnOpen])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[data-floating-panel]')) return
+      // Ni la feuille ni le lecteur derrière ne se ferment avec.
+      event.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [onClose])
+
+  // Entrée : un lien se joue ; une recherche range le clavier pour laisser voir les résultats.
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (link) playAmbient(trimmed)
+    else inputRef.current?.blur()
   }
 
   const currentId = snapshot.source?.id ?? null
   // Le morceau en cours d'abord : on sait toujours ce qu'on écoute.
   const results =
-    state.status === 'done'
-      ? [...state.results].sort((a, b) => Number(b.id === currentId) - Number(a.id === currentId))
+    result.status === 'done'
+      ? [...result.results].sort((a, b) => Number(b.id === currentId) - Number(a.id === currentId))
       : []
 
+  return createPortal(
+    <div ref={rootRef} className="fixed inset-0 z-[110] flex justify-center md:items-center md:p-6" role="dialog" aria-modal aria-label={copy.label}>
+      <div data-search-backdrop aria-hidden onClick={onClose} className="absolute inset-0 bg-void/90 opacity-0" />
+      <div
+        data-search-panel
+        className="glass-strong relative flex h-dvh w-full flex-col text-cream opacity-0 md:h-[min(52rem,90dvh)] md:max-w-xl md:rounded-[2.25rem]"
+      >
+        <form onSubmit={submit} className="flex shrink-0 items-center gap-2 px-3 pt-safe pb-2 md:px-5 md:pt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={copy.close}
+            className="grid size-10 shrink-0 place-items-center rounded-full text-cream/75 hover:bg-white/10"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div className="relative min-w-0 flex-1">
+            <label htmlFor={inputId} className="sr-only">
+              {copy.label}
+            </label>
+            <Search size={15} aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-mist" />
+            <input
+              ref={inputRef}
+              id={inputId}
+              type="search"
+              enterKeyHint={link ? 'go' : 'search'}
+              autoComplete="off"
+              spellCheck={false}
+              value={query}
+              onChange={(event) => onQuery(event.target.value)}
+              placeholder={copy.placeholder}
+              className="w-full rounded-full border border-white/10 bg-white/[0.05] py-2.5 pr-10 pl-10 text-sm text-cream placeholder:text-mist/60 focus:border-glow/60 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  onQuery('')
+                  inputRef.current?.focus()
+                }}
+                aria-label={copy.clear}
+                className="absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-full text-mist hover:bg-white/10 hover:text-cream"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </form>
+
+        <div className="flex shrink-0 items-center gap-2 px-4 pb-3 md:px-6">
+          {!link && (
+            <div role="radiogroup" aria-label={copy.label} className="flex gap-1">
+              {(['video', 'playlist'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={type === value}
+                  onClick={() => onType(value)}
+                  className={`rounded-full px-3.5 py-1.5 text-xs transition-colors ${
+                    type === value ? 'bg-glow/20 text-cream ring-1 ring-glow/50' : 'text-cream/60 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  {copy.types[value]}
+                </button>
+              ))}
+            </div>
+          )}
+          {onAdd && target && (
+            <p className="ml-auto flex min-w-0 items-center gap-1.5 text-[11px] text-mist">
+              <ListMusic size={12} aria-hidden className="shrink-0" />
+              <span className="truncate">{copy.addingTo(target)}</span>
+            </p>
+          )}
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-white/8 px-2 py-2 md:px-4">
+          {link ? (
+            <LinkRow source={link} input={trimmed} onAdd={onAdd} />
+          ) : result.status === 'loading' ? (
+            <p className="flex items-center gap-2 px-2 py-3 text-xs text-mist">
+              <Loader2 size={14} className="animate-spin" />
+              {copy.searching}
+            </p>
+          ) : result.status === 'error' ? (
+            <p role="alert" className="px-2 py-3 text-xs text-nope">
+              {result.message}
+            </p>
+          ) : result.status === 'done' && results.length === 0 ? (
+            <p className="px-2 py-3 text-xs text-mist">{copy.empty}</p>
+          ) : results.length > 0 ? (
+            <ul className="space-y-1">
+              {results.map((item) => (
+                <li key={`${item.kind}-${item.id}`}>
+                  <ResultRow
+                    source={{ kind: item.kind, id: item.id }}
+                    title={item.title}
+                    meta={[item.channel, item.live ? copy.live : item.kind === 'playlist' ? item.videoCount : item.duration].filter(Boolean).join(' · ')}
+                    live={item.live}
+                    thumbnail={item.thumbnail}
+                    onAdd={onAdd}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="grid h-full place-items-center px-8 text-center">
+              <div className="space-y-2 text-mist">
+                <Search size={26} aria-hidden className="mx-auto opacity-40" />
+                <p className="text-xs">{copy.hint}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {snapshot.state !== 'idle' && <SearchPlayer />}
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+/** Lecteur au pied de l'écran de recherche : on écoute, on avance, on règle le son sans le quitter. */
+function SearchPlayer() {
+  const { title, detail } = useAmbientLabel()
   return (
-    <div className="space-y-2">
-      <form onSubmit={submit}>
-        <label htmlFor={inputId} className="text-[10px] font-semibold tracking-[0.22em] text-mist uppercase">
-          {copy.label}
-        </label>
-        <div className="relative mt-2">
-          <Search size={14} aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-mist" />
-          <input
-            id={inputId}
-            type="search"
-            enterKeyHint={link ? 'go' : 'search'}
-            autoComplete="off"
-            spellCheck={false}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={copy.placeholder}
-            className="w-full rounded-full border border-white/10 bg-white/[0.04] py-2 pr-3.5 pl-9 text-xs text-cream placeholder:text-mist/60 focus:border-glow/60 focus:outline-none"
-          />
+    <div className="shrink-0 space-y-1.5 border-t border-white/10 px-4 pt-2.5 pb-safe md:px-6 md:pb-5">
+      <div className="flex items-center gap-2.5">
+        <AudioLines size={16} aria-hidden className="shrink-0 text-glow" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium text-cream">{title}</p>
+          {detail && <p className="truncate text-[10px] text-mist">{detail}</p>}
         </div>
-      </form>
-
-      {!link && (
-        <div role="radiogroup" aria-label={copy.label} className="flex gap-1">
-          {(['video', 'playlist'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={type === value}
-              onClick={() => setType(value)}
-              className={`rounded-full px-3 py-1 text-[11px] transition-colors ${
-                type === value ? 'bg-glow/20 text-cream ring-1 ring-glow/50' : 'text-cream/60 hover:bg-white/[0.06]'
-              }`}
-            >
-              {copy.types[value]}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {link ? (
-        <LinkRow source={link} input={trimmed} onAdd={onAdd} />
-      ) : state.status === 'loading' ? (
-        <p className="flex items-center gap-2 px-1 py-2 text-[11px] text-mist">
-          <Loader2 size={13} className="animate-spin" />
-          {copy.searching}
-        </p>
-      ) : state.status === 'error' ? (
-        <p role="alert" className="px-1 py-2 text-[11px] text-nope">
-          {state.message}
-        </p>
-      ) : state.status === 'done' && results.length === 0 ? (
-        <p className="px-1 py-2 text-[11px] text-mist">{copy.empty}</p>
-      ) : results.length > 0 ? (
-        <ul className="-mx-1 max-h-80 space-y-0.5 overflow-y-auto overscroll-contain px-1">
-          {results.map((item) => (
-            <li key={`${item.kind}-${item.id}`}>
-              <ResultRow
-                source={{ kind: item.kind, id: item.id }}
-                title={item.title}
-                meta={[item.channel, item.live ? copy.live : item.kind === 'playlist' ? item.videoCount : item.duration].filter(Boolean).join(' · ')}
-                live={item.live}
-                thumbnail={item.thumbnail}
-                onAdd={onAdd}
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+        <VolumeButton placement="above" />
+      </div>
+      <SeekBar compact />
+      <TransportControls size="sm" />
     </div>
   )
 }
 
 /** Lien collé : une seule ligne, titre lu en ligne (oEmbed). */
-function LinkRow({ source, input, onAdd }: { source: AmbientSource; input: string; onAdd?: (tracks: PickedTrack[]) => AddTracksReport | null }) {
+function LinkRow({ source, input, onAdd }: { source: AmbientSource; input: string; onAdd?: OnAdd }) {
   const t = useT()
   const [title, setTitle] = useState<string | null>(null)
   const { kind, id } = source
@@ -187,7 +353,7 @@ interface ResultRowProps {
   meta: string
   live?: boolean
   thumbnail: string | null
-  onAdd?: (tracks: PickedTrack[]) => AddTracksReport | null
+  onAdd?: OnAdd
   /** Titre réel (lien collé) : `title` peut n'être qu'un libellé d'attente. */
   knownTitle?: string | null
 }
@@ -209,11 +375,11 @@ function ResultRow({ source, title, meta, live = false, thumbnail, onAdd, knownT
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-xl p-1 transition-colors ${
+      className={`flex items-center gap-2.5 rounded-xl p-1.5 transition-colors ${
         current ? 'bg-glow/12 ring-1 ring-glow/45' : 'hover:bg-white/[0.04]'
       }`}
     >
-      <div className="relative aspect-video w-16 shrink-0 overflow-hidden rounded-lg bg-white/[0.06]">
+      <div className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-white/[0.06]">
         {thumbnail && <img src={thumbnail} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
         {source.kind === 'playlist' && (
           <span aria-hidden className="absolute inset-y-0 right-0 grid w-6 place-items-center bg-black/70 text-cream">
@@ -228,9 +394,9 @@ function ResultRow({ source, title, meta, live = false, thumbnail, onAdd, knownT
       </div>
       <div className="min-w-0 flex-1">
         {current && <p className="text-[9px] font-semibold tracking-[0.16em] text-glow uppercase">{copy.nowPlaying}</p>}
-        <p className={`line-clamp-2 text-[11px] leading-snug ${current ? 'font-medium text-cream' : 'text-cream'}`}>{title}</p>
+        <p className={`line-clamp-2 text-xs leading-snug ${current ? 'font-medium text-cream' : 'text-cream'}`}>{title}</p>
         {meta && (
-          <p className={`truncate text-[10px] ${live ? 'text-nope' : 'text-mist'}`}>
+          <p className={`mt-0.5 truncate text-[11px] ${live ? 'text-nope' : 'text-mist'}`}>
             {live && <span aria-hidden className="mr-1 inline-block size-1.5 rounded-full bg-nope align-middle" />}
             {meta}
           </p>
@@ -240,7 +406,7 @@ function ResultRow({ source, title, meta, live = false, thumbnail, onAdd, knownT
         type="button"
         onClick={toggle}
         aria-label={playing ? t.ambient.pause : copy.play(title)}
-        className={`grid size-8 shrink-0 place-items-center rounded-full ${current ? 'bg-glow text-white' : 'text-cream/75 hover:bg-white/10'}`}
+        className={`grid size-9 shrink-0 place-items-center rounded-full ${current ? 'bg-glow text-white' : 'text-cream/75 hover:bg-white/10'}`}
       >
         {playing ? <Pause size={14} /> : <Play size={14} className="translate-x-px" />}
       </button>
@@ -256,7 +422,7 @@ type DirectResult = 'added' | 'duplicate' | 'full' | 'error'
  * Ajout d'un tap dans la playlist ouverte, avec son retour : ✓ vert (ajouté),
  * ✓ doré (déjà dedans). Une playlist YouTube y verse tous ses morceaux.
  */
-function DirectAdd({ track, onAdd }: { track: PickedTrack; onAdd: (tracks: PickedTrack[]) => AddTracksReport | null }) {
+function DirectAdd({ track, onAdd }: { track: PickedTrack; onAdd: OnAdd }) {
   const t = useT()
   const language = useLanguage()
   const notify = useUiStore((state) => state.notify)
@@ -293,7 +459,7 @@ function DirectAdd({ track, onAdd }: { track: PickedTrack; onAdd: (tracks: Picke
       disabled={settled || busy}
       aria-label={settled ? (result === 'added' ? t.ambient.search.added : t.ambient.addTo.already) : t.ambient.search.add(track.title ?? t.ambient.youtube)}
       title={result === 'duplicate' ? t.ambient.addTo.already : undefined}
-      className={`grid size-8 shrink-0 place-items-center rounded-full transition-colors ${
+      className={`grid size-9 shrink-0 place-items-center rounded-full transition-colors ${
         result === 'added' ? 'bg-like/20 text-like' : result === 'duplicate' ? 'bg-gold/15 text-gold' : 'bg-cream text-void disabled:opacity-50'
       }`}
     >

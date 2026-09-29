@@ -22,8 +22,9 @@ import { ReadingInsights } from './ReadingInsights'
  * cartes, statistiques de collection, de lecture et de boosters. Les
  * paramètres s'ouvrent depuis l'en-tête de l'app (bouton en haut à droite).
  *
- * Compte connecté : le profil vient du serveur, rechargé à chaque visite.
- * Invité (ou profil pas encore chargé) : tout est calculé sur l'appareil.
+ * Compte connecté : le profil vient du serveur ; le dernier connu (gardé sur
+ * l'appareil, préchargé au démarrage) s'affiche aussitôt, rafraîchi à chaque
+ * visite. Invité (ou profil jamais chargé) : tout est calculé sur l'appareil.
  */
 export function ProfileView() {
   const t = useT()
@@ -32,7 +33,8 @@ export function ProfileView() {
   const loadProfile = useProfileStore((state) => state.load)
   const entries = useLibraryStore((state) => state.entries)
   const guestPacks = useGuestCardsStore((state) => state.receipts.length)
-  const { data: album } = useCollection()
+  // Compte : les chiffres de collection viennent du profil, l'album entier n'est pas demandé.
+  const { data: album } = useCollection({ enabled: user === null })
   const openProfileEditor = useUiStore((state) => state.openProfileEditor)
   const openAuth = useUiStore((state) => state.openAuth)
   const openActivity = useUiStore((state) => state.openActivity)

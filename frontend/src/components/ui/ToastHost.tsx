@@ -44,7 +44,7 @@ export function ToastHost() {
   const Icon = ICON[toast.tone]
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[80] flex justify-center px-6 md:bottom-8">
+    <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[130] flex justify-center px-6 md:bottom-8">
       <div
         ref={cardRef}
         role="status"

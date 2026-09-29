@@ -397,7 +397,7 @@ function PlaylistEditor({ playlist, playingIndex }: { playlist: AmbientPlaylist;
         </ol>
       )}
 
-      <YouTubeSearch onAdd={add} />
+      <YouTubeSearch onAdd={add} target={playlist.name} />
       {full && (
         <p role="alert" className="text-[11px] text-nope">
           {t.ambient.playlistFull}
