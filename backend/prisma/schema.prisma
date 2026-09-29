@@ -62,6 +62,7 @@ model User {
   booster    UserBooster?
   cards      UserCard[]
   books      UserBook[]
+  musicPlaylists MusicPlaylist[]
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -291,4 +292,25 @@ model PendingRegistration {
   createdAt         DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+/// Playlist de musique d'ambiance d'un compte, synchronisée entre ses appareils
+/// (cf. `src/modules/music/playlists.ts`). L'identifiant vient de l'appareil qui
+/// l'a créée : unique par compte seulement. Fusion morceau par morceau impossible
+/// sans historique : la version la plus récente (`updatedAt`) d'une playlist gagne.
+model MusicPlaylist {
+  userId    String
+  id        String
+  name      String
+  /// JSON `{ id, kind, ref, title }[]` : vidéos (ou playlists YouTube) dans l'ordre choisi.
+  tracks    String   @default("[]")
+  createdAt DateTime
+  /// Horodatage CLIENT de la dernière modification : arbitre les fusions entre appareils.
+  updatedAt DateTime
+  /// Supprimée : gardée (sans morceaux) pour que la suppression atteigne les autres appareils.
+  deleted   Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, id])
 }

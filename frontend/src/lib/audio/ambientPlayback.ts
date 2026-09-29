@@ -1,4 +1,6 @@
-import { useAmbientStore } from '../../store/useAmbientStore'
+import type { Language } from '../../i18n'
+import { musicApi } from '../../services/musicApi'
+import { useAmbientStore, type AmbientTrack } from '../../store/useAmbientStore'
 import { isAmbientPresetId, resolveAmbientSource } from './ambientPresets'
 import { ambientPlayer, youTubeUrl, type AmbientSource } from './youtubePlayer'
 
@@ -52,5 +54,22 @@ export async function fetchYouTubeTitle(source: AmbientSource, signal?: AbortSig
     return typeof data.title === 'string' && data.title.trim() ? data.title.trim() : null
   } catch {
     return null
+  }
+}
+
+/**
+ * Morceaux à enregistrer pour un « + » : une vidéo telle quelle ; une playlist
+ * YouTube dépliée en ses vidéos (un morceau chacune), jamais gardée d'un bloc.
+ * `title` : nom de la playlist YouTube, pour baptiser une nouvelle playlist.
+ */
+export async function tracksOf(
+  track: Omit<AmbientTrack, 'id'>,
+  language: Language,
+): Promise<{ title: string | null; tracks: Omit<AmbientTrack, 'id'>[] }> {
+  if (track.kind !== 'playlist') return { title: track.title, tracks: [track] }
+  const playlist = await musicApi.playlist(track.ref, language)
+  return {
+    title: playlist.title,
+    tracks: playlist.videos.map((video) => ({ kind: 'video' as const, ref: video.id, title: video.title })),
   }
 }

@@ -1,7 +1,9 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { LangQuerySchema } from '../../lib/language.js'
+import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
+import { SyncBodySchema, syncPlaylists } from './playlists.js'
 import { IMPORTABLE_PLAYLIST, importYouTubePlaylist } from './youtubePlaylist.js'
 import { searchYouTube } from './youtubeSearch.js'
 
@@ -35,4 +37,16 @@ musicRouter.get('/playlist/:id', rateLimit({ windowMs: 60_000, max: 20 }), async
   const { lang } = PlaylistQuery.parse(req.query)
   res.set('Cache-Control', 'private, max-age=600')
   res.json(await importYouTubePlaylist(id, lang))
+})
+
+const syncLimiter = rateLimit({ windowMs: 60_000, max: 60 })
+
+/**
+ * Playlists d'ambiance du compte : l'appareil envoie les siennes (suppressions
+ * comprises), reçoit l'état fusionné de tous ses appareils. Corps vide : simple lecture.
+ */
+musicRouter.post('/playlists/sync', syncLimiter, requireAuth, async (req, res) => {
+  const { playlists } = SyncBodySchema.parse(req.body ?? {})
+  res.set('Cache-Control', 'no-store')
+  res.json({ playlists: await syncPlaylists(currentUserId(req), playlists) })
 })

@@ -2,20 +2,22 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import { AudioLines, Check, ListMusic, Loader2, Pause, Play, Plus, Search } from 'lucide-react'
 import { useAmbientPlayer } from '../../hooks/useAmbientMusic'
 import { useLanguage, useT } from '../../i18n'
-import { fetchYouTubeTitle, playAmbient } from '../../lib/audio/ambientPlayback'
+import { fetchYouTubeTitle, playAmbient, tracksOf } from '../../lib/audio/ambientPlayback'
 import { ambientPlayer, parseYouTubeSource, type AmbientSource } from '../../lib/audio/youtubePlayer'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { vibrate } from '../../lib/haptics'
 import { musicApi, type MusicSearchResult, type MusicSearchType } from '../../services/musicApi'
-import type { AddTrackResult } from '../../store/useAmbientStore'
+import type { AddTracksReport } from '../../store/useAmbientStore'
+import { useUiStore } from '../../store/useUiStore'
 import { AddToPlaylist, type PickedTrack } from './AddToPlaylist'
 
 interface YouTubeSearchProps {
   /**
-   * Ajout direct à une playlist précise (éditeur de playlist) : un tap suffit.
-   * Absent : le « + » ouvre le choix de la playlist.
+   * Ajout direct à une playlist précise (éditeur de playlist) : un tap suffit,
+   * une playlist YouTube y verse tous ses morceaux. Absent : le « + » ouvre le
+   * choix de la playlist.
    */
-  onAdd?: (track: PickedTrack) => AddTrackResult
+  onAdd?: (tracks: PickedTrack[]) => AddTracksReport | null
 }
 
 type SearchState =
@@ -155,7 +157,7 @@ export function YouTubeSearch({ onAdd }: YouTubeSearchProps) {
 }
 
 /** Lien collé : une seule ligne, titre lu en ligne (oEmbed). */
-function LinkRow({ source, input, onAdd }: { source: AmbientSource; input: string; onAdd?: (track: PickedTrack) => AddTrackResult }) {
+function LinkRow({ source, input, onAdd }: { source: AmbientSource; input: string; onAdd?: (tracks: PickedTrack[]) => AddTracksReport | null }) {
   const t = useT()
   const [title, setTitle] = useState<string | null>(null)
   const { kind, id } = source
@@ -185,7 +187,7 @@ interface ResultRowProps {
   meta: string
   live?: boolean
   thumbnail: string | null
-  onAdd?: (track: PickedTrack) => AddTrackResult
+  onAdd?: (tracks: PickedTrack[]) => AddTracksReport | null
   /** Titre réel (lien collé) : `title` peut n'être qu'un libellé d'attente. */
   knownTitle?: string | null
 }
@@ -242,26 +244,46 @@ function ResultRow({ source, title, meta, live = false, thumbnail, onAdd, knownT
       >
         {playing ? <Pause size={14} /> : <Play size={14} className="translate-x-px" />}
       </button>
-      {onAdd ? <DirectAdd track={track} onAdd={onAdd} /> : <AddToPlaylist track={track} importable={source.kind === 'playlist'} />}
+      {onAdd ? <DirectAdd track={track} onAdd={onAdd} /> : <AddToPlaylist track={track} />}
     </div>
   )
 }
 
-/** Ajout d'un tap dans la playlist ouverte, avec son retour (✓, ou « déjà dedans »). */
-function DirectAdd({ track, onAdd }: { track: PickedTrack; onAdd: (track: PickedTrack) => AddTrackResult }) {
+/** Issue d'un ajout direct, pour le bouton : ajouté, déjà là, playlist pleine, ou échec. */
+type DirectResult = 'added' | 'duplicate' | 'full' | 'error'
+
+/**
+ * Ajout d'un tap dans la playlist ouverte, avec son retour : ✓ vert (ajouté),
+ * ✓ doré (déjà dedans). Une playlist YouTube y verse tous ses morceaux.
+ */
+function DirectAdd({ track, onAdd }: { track: PickedTrack; onAdd: (tracks: PickedTrack[]) => AddTracksReport | null }) {
   const t = useT()
-  const [result, setResult] = useState<AddTrackResult | null>(null)
+  const language = useLanguage()
+  const notify = useUiStore((state) => state.notify)
+  const [result, setResult] = useState<DirectResult | null>(null)
   const [busy, setBusy] = useState(false)
   const settled = result === 'added' || result === 'duplicate'
 
   const add = async () => {
     setBusy(true)
-    // Lien collé sans titre encore lu : on le demande avant d'enregistrer.
-    const title = track.title ?? (await fetchYouTubeTitle({ kind: track.kind, id: track.ref }))
-    const outcome = onAdd({ ...track, title })
-    setBusy(false)
-    setResult(outcome)
-    if (outcome === 'added') vibrate(12)
+    try {
+      // Lien collé sans titre encore lu : on le demande avant d'enregistrer.
+      const picked =
+        track.kind === 'video' && !track.title ? { ...track, title: await fetchYouTubeTitle({ kind: 'video', id: track.ref }) } : track
+      const { tracks } = await tracksOf(picked, language)
+      const report = onAdd(tracks)
+      const outcome: DirectResult = !report ? 'error' : report.added > 0 ? 'added' : report.overflow > 0 ? 'full' : 'duplicate'
+      setResult(outcome)
+      if (report && report.added > 0) {
+        vibrate(12)
+        if (track.kind === 'playlist') notify(t.ambient.addTo.addedHere(report.added), 'like')
+      }
+    } catch {
+      setResult('error')
+      notify(t.ambient.addTo.fetchError, 'nope')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

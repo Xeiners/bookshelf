@@ -1,13 +1,14 @@
 import { useContext, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, AudioLines, ChevronDown, ListMusic, Pause, PencilLine, Play, Plus, Square, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, AudioLines, ChevronDown, ListMusic, ListTree, Loader2, Pause, PencilLine, Play, Plus, Square, Trash2 } from 'lucide-react'
 import { AmbientSuggestionContext, useAmbientLabel, useAmbientPlayer } from '../../hooks/useAmbientMusic'
-import { useT } from '../../i18n'
-import { playAmbient, playlistIdOf, playlistKey } from '../../lib/audio/ambientPlayback'
+import { useLanguage, useT } from '../../i18n'
+import { playAmbient, playlistIdOf, playlistKey, tracksOf } from '../../lib/audio/ambientPlayback'
 import { AMBIENT_PRESET_IDS } from '../../lib/audio/ambientPresets'
 import { ambientPlayer } from '../../lib/audio/youtubePlayer'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { AMBIENT_LIMITS, useAmbientStore, type AmbientPlaylist } from '../../store/useAmbientStore'
+import { AMBIENT_LIMITS, useAmbientStore, type AmbientPlaylist, type AmbientTrack } from '../../store/useAmbientStore'
+import { useUiStore } from '../../store/useUiStore'
 import { AddToPlaylist, type PickedTrack } from './AddToPlaylist'
 import { SeekBar, TransportControls, VolumeButton } from './AmbientControls'
 import { PlaylistImport } from './PlaylistImport'
@@ -126,7 +127,7 @@ function NowPlaying() {
           )}
         </div>
         <VolumeButton />
-        {track && <AddToPlaylist track={track} importable={track.kind === 'playlist'} />}
+        {track && <AddToPlaylist track={track} />}
         {snapshot.state !== 'idle' && (
           <button type="button" onClick={ambientPlayer.stop} aria-label={copy.stop} className={iconButton}>
             <Square size={13} />
@@ -340,15 +341,15 @@ function PlaylistRow({ playlist, expanded, onToggle }: { playlist: AmbientPlayli
 function PlaylistEditor({ playlist, playingIndex }: { playlist: AmbientPlaylist; playingIndex: number | null }) {
   const t = useT()
   const copy = t.ambient.playlists
-  const { deletePlaylist, addTrack, removeTrack, moveTrack } = useAmbientStore.getState()
+  const { deletePlaylist, addTracks, removeTrack, moveTrack } = useAmbientStore.getState()
   const [full, setFull] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const key = playlistKey(playlist.id)
 
-  const add = (track: PickedTrack) => {
-    const result = addTrack(playlist.id, track)
-    setFull(result === 'full')
-    return result
+  const add = (tracks: PickedTrack[]) => {
+    const report = addTracks(playlist.id, tracks)
+    setFull(!!report && report.added === 0 && report.overflow > 0)
+    return report
   }
 
   return (
@@ -371,9 +372,10 @@ function PlaylistEditor({ playlist, playingIndex }: { playlist: AmbientPlaylist;
                   <span className="grid w-4 shrink-0 place-items-center text-[10px] text-mist tabular-nums">
                     {now ? <AudioLines size={12} className="text-glow" /> : index + 1}
                   </span>
-                  {track.kind === 'playlist' && <ListMusic size={12} aria-hidden className="shrink-0 text-mist" />}
+                    {track.kind === 'playlist' && <ListMusic size={12} aria-hidden className="shrink-0 text-mist" />}
                   <span className="truncate text-[11px]">{label}</span>
                 </button>
+                {track.kind === 'playlist' && <ExpandTrack playlistId={playlist.id} track={track} label={label} />}
                 <button type="button" onClick={() => moveTrack(playlist.id, track.id, -1)} disabled={index === 0} aria-label={copy.moveUp} className={iconButton}>
                   <ArrowUp size={13} />
                 </button>
@@ -421,5 +423,45 @@ function PlaylistEditor({ playlist, playingIndex }: { playlist: AmbientPlaylist;
         {confirmDelete ? copy.deleteConfirm : copy.delete}
       </button>
     </div>
+  )
+}
+
+/**
+ * Playlist YouTube gardée d'un seul bloc (ajout d'avant le dépliage) : un
+ * bouton la remplace par tous ses morceaux, à sa place dans la playlist.
+ */
+function ExpandTrack({ playlistId, track, label }: { playlistId: string; track: AmbientTrack; label: string }) {
+  const t = useT()
+  const language = useLanguage()
+  const notify = useUiStore((state) => state.notify)
+  const [busy, setBusy] = useState(false)
+
+  const expand = async () => {
+    setBusy(true)
+    try {
+      const { tracks } = await tracksOf(track, language)
+      const report = useAmbientStore.getState().expandTrack(playlistId, track.id, tracks)
+      if (report) {
+        vibrate(12)
+        notify(t.ambient.addTo.addedHere(report.added), 'like')
+      }
+    } catch {
+      notify(t.ambient.addTo.fetchError, 'nope')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void expand()}
+      disabled={busy}
+      aria-label={t.ambient.playlists.expand(label)}
+      title={t.ambient.playlists.expand(label)}
+      className="grid size-8 shrink-0 place-items-center rounded-full text-glow hover:bg-glow/15 disabled:opacity-50"
+    >
+      {busy ? <Loader2 size={13} className="animate-spin" /> : <ListTree size={13} />}
+    </button>
   )
 }

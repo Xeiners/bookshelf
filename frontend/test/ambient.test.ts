@@ -154,3 +154,70 @@ describe('lecteur : durée et ajouts', () => {
     assert.equal(useAmbientStore.getState().lastPlaylistId, id)
   })
 })
+
+describe('playlist YouTube versée morceau par morceau', () => {
+  const video = (ref: string) => ({ kind: 'video' as const, ref, title: ref })
+
+  it('ajout groupé : sans doublon, dans la limite, avec son bilan', () => {
+    const store = useAmbientStore.getState()
+    const id = store.createPlaylist('Cure') as string
+    store.addTrack(id, video('a1'))
+    const report = store.addTracks(id, [video('a1'), video('b2'), video('c3'), video('c3')])
+    assert.deepEqual(report, { added: 2, duplicates: 2, overflow: 0 })
+    assert.deepEqual(useAmbientStore.getState().playlists.find((p) => p.id === id)?.tracks.map((t) => t.ref), ['a1', 'b2', 'c3'])
+    assert.equal(store.addTracks('inconnue', [video('x')]), null)
+  })
+
+  it('une playlist gardée d’un bloc est remplacée par ses morceaux, à sa place', () => {
+    const store = useAmbientStore.getState()
+    const id = store.createPlaylist('Ancienne') as string
+    store.addTrack(id, video('avant'))
+    store.addTrack(id, { kind: 'playlist', ref: 'PLxA687tYuMWjwLHZv1RP_4uw7OFRk443S', title: 'Best of' })
+    store.addTrack(id, video('apres'))
+    const block = useAmbientStore.getState().playlists.find((p) => p.id === id)!.tracks[1]!
+    const report = store.expandTrack(id, block.id, [video('m1'), video('avant'), video('m2')])
+    assert.deepEqual(report, { added: 2, duplicates: 1, overflow: 0 })
+    const tracks = useAmbientStore.getState().playlists.find((p) => p.id === id)!.tracks
+    assert.deepEqual(tracks.map((t) => t.ref), ['avant', 'm1', 'm2', 'apres'])
+    assert.ok(tracks.every((t) => t.kind === 'video'))
+  })
+})
+
+describe('playlists synchronisées avec le compte', () => {
+  const track = { id: 't1', kind: 'video' as const, ref: 'lTRiuFIWV54', title: 'Lofi' }
+  const local = (id: string, name: string, updatedAt: number) => ({ id, name, tracks: [track], createdAt: 1, updatedAt })
+  const remote = (id: string, name: string, updatedAt: number, deleted = false) => ({ id, name, tracks: deleted ? [] : [track], createdAt: 1, updatedAt, deleted })
+
+  it('créée sur un autre appareil : elle arrive ; modifiée ici depuis : la nôtre reste', async () => {
+    const { mergeRemote } = await import('../src/store/useAmbientStore')
+    const merged = mergeRemote([local('a', 'Ici, plus récente', 50)], [], [remote('a', 'Compte', 40), remote('b', 'Du PC', 30)])
+    assert.deepEqual(merged.playlists.map((p) => p.name), ['Ici, plus récente', 'Du PC'])
+    const newer = mergeRemote([local('a', 'Ancienne', 10)], [], [remote('a', 'Renommée sur le PC', 40)])
+    assert.equal(newer.playlists[0]?.name, 'Renommée sur le PC')
+  })
+
+  it('suppressions : dans les deux sens, confirmées puis oubliées', async () => {
+    const { mergeRemote } = await import('../src/store/useAmbientStore')
+    // Supprimée sur le PC après notre dernière modification : elle disparaît ici.
+    assert.deepEqual(mergeRemote([local('a', 'A', 10)], [], [remote('a', 'A', 20, true)]).playlists, [])
+    // Modifiée ici après la suppression sur le PC : elle reste (et repartira).
+    assert.equal(mergeRemote([local('a', 'A', 30)], [], [remote('a', 'A', 20, true)]).playlists.length, 1)
+    // Supprimée ici, pas encore envoyée : le compte la renvoie vivante, elle reste supprimée.
+    const pending = mergeRemote([], [{ id: 'a', createdAt: 1, deletedAt: 25 }], [remote('a', 'A', 20)])
+    assert.deepEqual(pending.playlists, [])
+    assert.equal(pending.deletedPlaylists.length, 1)
+    // Le compte a enregistré la suppression : plus rien en attente.
+    assert.deepEqual(mergeRemote([], [{ id: 'a', createdAt: 1, deletedAt: 25 }], [remote('a', 'A', 25, true)]).deletedPlaylists, [])
+  })
+
+  it('chaque modification date la playlist ; une suppression part en attente d’envoi', () => {
+    const store = useAmbientStore.getState()
+    const id = store.createPlaylist('Datée') as string
+    const before = useAmbientStore.getState().playlists.find((p) => p.id === id)!.updatedAt
+    store.renamePlaylist(id, 'Datée 2')
+    const after = useAmbientStore.getState().playlists.find((p) => p.id === id)!.updatedAt
+    assert.ok(after > before)
+    store.deletePlaylist(id)
+    assert.ok(useAmbientStore.getState().deletedPlaylists.some((entry) => entry.id === id && entry.deletedAt > after - 1))
+  })
+})

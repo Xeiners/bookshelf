@@ -1,5 +1,7 @@
 import { createContext, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { useT } from '../i18n'
+import { isApplyingRemote, schedulePlaylistSync, syncPlaylistsNow } from '../lib/audio/playlistSync'
+import { useAuthStore } from '../store/useAuthStore'
 import { isCustomKey, playAmbient, playlistIdOf } from '../lib/audio/ambientPlayback'
 import { isAmbientPresetId, type AmbientPresetId } from '../lib/audio/ambientPresets'
 import { ambientPlayer, type AmbientProgress } from '../lib/audio/youtubePlayer'
@@ -74,4 +76,34 @@ export function useAmbientProgress(playing: boolean): { progress: AmbientProgres
   }, [playing])
   const refresh = useCallback(() => setProgress(ambientPlayer.getProgress()), [])
   return { progress, refresh }
+}
+
+/**
+ * Playlists synchronisées avec le compte, tant qu'on est connecté : au
+ * démarrage (celles créées ailleurs arrivent), après chaque modification,
+ * au retour sur l'application et au retour du réseau. Une première
+ * connexion envoie au compte les playlists déjà faites sur l'appareil.
+ */
+export function usePlaylistSync(): void {
+  const userId = useAuthStore((state) => state.user?.id ?? null)
+  useEffect(() => {
+    if (!userId) return
+    void syncPlaylistsNow()
+    const unsubscribe = useAmbientStore.subscribe((state, previous) => {
+      if (isApplyingRemote()) return
+      if (state.playlists !== previous.playlists || state.deletedPlaylists !== previous.deletedPlaylists) schedulePlaylistSync()
+    })
+    const onVisible = () => {
+      // Retour sur l'appli (l'autre appareil a pu changer quelque chose) ; départ : envoi immédiat.
+      void syncPlaylistsNow()
+    }
+    const onOnline = () => void syncPlaylistsNow()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', onOnline)
+    return () => {
+      unsubscribe()
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [userId])
 }

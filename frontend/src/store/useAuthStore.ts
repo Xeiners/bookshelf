@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getT } from '../i18n'
+import { cancelPlaylistSync } from '../lib/audio/playlistSync'
 import { outbox } from '../lib/syncOutbox'
 import { ApiError } from '../services/api'
 import {
@@ -11,6 +12,7 @@ import {
   type Credentials,
   type PendingRegistration,
 } from '../services/accountApi'
+import { useAmbientStore } from './useAmbientStore'
 import { useBoosterStore } from './useBoosterStore'
 import { useCollectionStore } from './useCollectionStore'
 import { useGuestCardsStore } from './useGuestCardsStore'
@@ -62,6 +64,9 @@ function endSession(reason: 'expired' | 'logout') {
     useLibraryStore.getState().replaceAll({ entries: [], skipped: [] })
     // Romans du compte (fichiers, positions, couvertures) : rien ne reste sur l'appareil.
     void useNovelStore.getState().clear()
+    // Playlists de musique : elles sont sur le compte, pas pour le prochain qui se connecte ici.
+    cancelPlaylistSync()
+    useAmbientStore.getState().clearPlaylists()
   }
   useBoosterStore.getState().reset()
   useCollectionStore.getState().reset()

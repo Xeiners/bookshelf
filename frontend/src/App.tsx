@@ -28,6 +28,7 @@ import { useUiStore } from './store/useUiStore'
 import { LocalFilesSheet } from './components/reader/LocalFilesSheet'
 import { EpubMatchModal } from './components/novels/EpubMatchModal'
 import { usePendingNovelProgress } from './hooks/useNovels'
+import { usePlaylistSync } from './hooks/useAmbientMusic'
 import { profileIdFromSearch, withoutProfileParam } from './lib/profileLink'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
@@ -86,6 +87,9 @@ export default function App() {
 
   // Positions de romans lues hors-ligne : envoyées dès que possible.
   usePendingNovelProgress()
+
+  // Playlists de musique : les mêmes sur tous les appareils du compte.
+  usePlaylistSync()
 
   // 1–5, Ctrl/⌘ K, Ctrl/⌘ B.
   useKeyboardShortcuts()
