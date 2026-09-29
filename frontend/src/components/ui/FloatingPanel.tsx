@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 
@@ -22,8 +22,11 @@ interface FloatingPanelProps {
 /**
  * Bulle flottante, rendue à la racine du document : jamais rognée par une
  * liste qui défile, une feuille ou le lecteur. Alignée sur le bouton,
- * ramenée dans l'écran. Fermée par un tap à côté, Échap (elle seule, pas la
- * feuille dessous), ou un défilement (le bouton a bougé).
+ * gardée dans l'écran (au-dessus du bouton s'il n'y a pas la place dessous).
+ * Fermée par un tap à côté, Échap (elle seule, pas la feuille dessous), un
+ * défilement (le bouton a bougé) ou un changement de largeur. Le clavier du
+ * téléphone, lui, ne la ferme pas : il ne fait que réduire la hauteur, et le
+ * défilement qu'il provoque vient de la saisie — la bulle se replace.
  */
 export function FloatingPanel({ anchor, trigger, placement = 'below', width, label, role = 'dialog', onClose, children }: FloatingPanelProps) {
   const ref = useRef<HTMLDivElement>(null)
@@ -31,6 +34,18 @@ export function FloatingPanel({ anchor, trigger, placement = 'below', width, lab
   useEffect(() => {
     closeRef.current = onClose
   })
+  /** Position du bouton, relue quand le clavier change la hauteur de l'écran. */
+  const [rect, setRect] = useState(anchor)
+  /** Hauteur de la bulle, pour la garder dans l'écran. */
+  const [height, setHeight] = useState<number | null>(null)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const observer = new ResizeObserver(() => setHeight(node.offsetHeight))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -45,11 +60,26 @@ export function FloatingPanel({ anchor, trigger, placement = 'below', width, lab
       event.stopPropagation()
       closeRef.current()
     }
+    const reposition = () => {
+      if (trigger?.isConnected) setRect(trigger.getBoundingClientRect())
+    }
+    // Saisie en cours dans la bulle : défilements et hauteur qui change viennent du clavier.
+    const typing = () => {
+      const active = document.activeElement
+      return !!active && !!ref.current?.contains(active) && active.matches('input, textarea')
+    }
     const onScroll = (event: Event) => {
       if (ref.current?.contains(event.target as Node)) return
-      closeRef.current()
+      if (typing()) reposition()
+      else closeRef.current()
     }
-    const onResize = () => closeRef.current()
+    let width = window.innerWidth
+    const onResize = () => {
+      if (window.innerWidth !== width) {
+        width = window.innerWidth
+        closeRef.current()
+      } else reposition()
+    }
     window.addEventListener('pointerdown', onPointerDown, true)
     window.addEventListener('keydown', onKeyDown, true)
     window.addEventListener('scroll', onScroll, true)
@@ -74,12 +104,30 @@ export function FloatingPanel({ anchor, trigger, placement = 'below', width, lab
   })
 
   const viewport = window.innerWidth
+  const screen = window.innerHeight
   const panelWidth = Math.min(width, viewport - GUTTER * 2)
-  const left = Math.min(Math.max(GUTTER, anchor.right - panelWidth), viewport - GUTTER - panelWidth)
-  const style: CSSProperties =
-    placement === 'below'
-      ? { position: 'fixed', top: anchor.bottom + 8, left, width: panelWidth }
-      : { position: 'fixed', bottom: window.innerHeight - anchor.top + 8, left, width: panelWidth }
+  const left = Math.min(Math.max(GUTTER, rect.right - panelWidth), viewport - GUTTER - panelWidth)
+  // Côté demandé, sauf si la bulle n'y tient pas et qu'il y a plus de place de l'autre.
+  const roomBelow = screen - rect.bottom - 8 - GUTTER
+  const roomAbove = rect.top - 8 - GUTTER
+  const side =
+    height === null
+      ? placement
+      : placement === 'below'
+        ? height > roomBelow && roomAbove > roomBelow ? 'above' : 'below'
+        : height > roomAbove && roomBelow > roomAbove ? 'below' : 'above'
+  // Puis ramenée dans l'écran, quitte à chevaucher le bouton ; jamais plus haute que lui.
+  const highest = Math.max(GUTTER, screen - GUTTER - (height ?? 0))
+  const style: CSSProperties = {
+    position: 'fixed',
+    left,
+    width: panelWidth,
+    maxHeight: screen - GUTTER * 2,
+    overflowY: 'auto',
+    ...(side === 'below'
+      ? { top: Math.max(GUTTER, Math.min(rect.bottom + 8, highest)) }
+      : { bottom: Math.max(GUTTER, Math.min(screen - rect.top + 8, highest)) }),
+  }
 
   return createPortal(
     <div
