@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import { ZoomOut } from 'lucide-react'
 import { usePinch } from '../../hooks/reader/usePinch'
 import { useT } from '../../i18n'
-import { EASE, gsap, useGSAP } from '../../lib/gsap'
+import { EASE, gsap } from '../../lib/gsap'
 import { buildSpreads, spreadIndexOf, swipeAction, tapAction } from '../../lib/reader/navigation'
 import { pagedRatio } from '../../lib/reader/progress'
 import type { ReaderPage, ReaderViewController, ReadingDirection, SpreadMode, ViewPosition } from '../../types/reader'
@@ -13,6 +13,12 @@ const DOUBLE_MIN_WIDTH = 900
 const MAX_ZOOM = 4
 /** Référence stable (dépendance d'effet) quand le chapitre n'a aucune page. */
 const NO_SPREAD: number[] = []
+/** Planches montées de part et d'autre de la planche affichée : prêtes (décodées) avant d'arriver. */
+const NEIGHBOURS = [-1, 0, 1] as const
+/** Glissement d'une planche à la suivante, en secondes. */
+const SLIDE_DURATION = 0.3
+/** Au-delà de la première ou de la dernière planche, le doigt ne tire plus qu'un peu (élastique). */
+const EDGE_RESISTANCE = 0.3
 
 interface PagedViewProps {
   pages: ReaderPage[]
@@ -53,6 +59,12 @@ interface Gesture {
  * écran ; sens japonais ou occidental. On tourne la page par swipe, flèches
  * clavier ou tap sur les tiers latéraux ; le centre affiche les commandes.
  * Pincer zoome (un doigt déplace alors la page au lieu de la tourner).
+ *
+ * Carrousel : la planche précédente et la suivante sont montées à côté de
+ * celle affichée (images déjà décodées). Tourner la page fait glisser la
+ * piste — une transformation, jamais de passage par le noir — puis la planche
+ * arrivée garde le même élément `<img>` (clé = numéro de planche) : rien à
+ * recharger ni à redécoder, donc aucun clignotement.
  */
 export function PagedView({
   pages,
@@ -82,13 +94,17 @@ export function PagedView({
   const index = spreadIndexOf(spreads, page)
   const spread = spreads[index] ?? NO_SPREAD
   const atEnd = index === spreads.length - 1
+  /** Sens visuel : en sens japonais, la planche suivante est à gauche. */
+  const sign = direction === 'rtl' ? -1 : 1
 
   const zoom = useRef<Zoom>({ scale: 1, x: 0, y: 0 })
   const pinchBase = useRef<Zoom | null>(null)
   const gesture = useRef<Gesture | null>(null)
   const pointers = useRef(new Set<number>())
-  /** Sens visuel du dernier changement de planche (-1 : le contenu part à gauche). */
-  const lastMove = useRef(0)
+  /** Glissement en cours vers la planche `target`. */
+  const sliding = useRef<{ tween: gsap.core.Tween; target: number } | null>(null)
+  /** Tap reçu pendant un glissement : joué dès que la planche est arrivée. */
+  const queued = useRef<1 | -1 | null>(null)
 
   const latest = useRef({ onPosition, onEnd, onBeyondEnd, onBeforeStart, onInteract })
   useEffect(() => {
@@ -155,59 +171,67 @@ export function PagedView({
 
   /* ---- Changement de planche ---------------------------------------------- */
 
+  /** Planche arrivée : l'état suit, la piste revient à zéro dans la même image (cf. l'effet ci-dessous). */
+  const arrive = (target: number) => {
+    sliding.current = null
+    setPage(spreads[target]?.[0] ?? 0)
+  }
+
   const navigate = (step: 1 | -1) => {
-    const target = index + step
-    if (target >= spreads.length) {
-      latest.current.onBeyondEnd()
+    // Tap pendant un glissement : la planche en route arrive d'un coup, puis la suivante part.
+    if (sliding.current) {
+      const { tween, target } = sliding.current
+      tween.kill()
+      queued.current = step
+      arrive(target)
       return
     }
-    if (target < 0) {
-      latest.current.onBeforeStart()
+    const target = index + step
+    if (target >= spreads.length || target < 0) {
+      gsap.to(trackRef.current, { x: 0, duration: 0.3, ease: EASE.swift, overwrite: 'auto' })
+      if (target >= spreads.length) latest.current.onBeyondEnd()
+      else latest.current.onBeforeStart()
       return
     }
     if (zoom.current.scale > 1) resetZoom(false)
-    const forwardIsLeft = direction === 'ltr'
-    const out = (step === 1) === forwardIsLeft ? -1 : 1
-    lastMove.current = out
-    const width = stageRef.current?.clientWidth ?? 400
-    gsap.to(trackRef.current, {
-      x: out * width * 0.25,
-      autoAlpha: 0,
-      duration: 0.14,
-      ease: EASE.exit,
+    // La piste glisse d'une planche (depuis là où le doigt l'a laissée) : la suivante est déjà là, décodée.
+    const tween = gsap.to(trackRef.current, {
+      x: 0,
+      xPercent: -sign * step * 100,
+      duration: SLIDE_DURATION,
+      ease: 'power3.out',
       overwrite: 'auto',
-      onComplete: () => setPage(spreads[target]?.[0] ?? 0),
+      onComplete: () => arrive(target),
     })
+    sliding.current = { tween, target }
     latest.current.onInteract()
   }
 
-  // Entrée de la nouvelle planche, depuis le côté opposé à la sortie.
-  useGSAP(
-    () => {
-      if (lastMove.current === 0) return
-      const width = stageRef.current?.clientWidth ?? 400
-      gsap.fromTo(
-        trackRef.current,
-        { x: -lastMove.current * width * 0.2, autoAlpha: 0 },
-        { x: 0, autoAlpha: 1, duration: 0.32, ease: EASE.swift, overwrite: 'auto' },
-      )
-    },
-    { dependencies: [index] },
-  )
-
   const navigateRef = useRef(navigate)
   const resetRef = useRef(resetZoom)
-  useEffect(() => {
+  // Avant l'effet de mise en place ci-dessous : un tap en attente doit partir de la planche arrivée.
+  useLayoutEffect(() => {
     navigateRef.current = navigate
     resetRef.current = resetZoom
   })
 
+  // Nouvelle planche affichée : React vient de la placer au centre, la piste revient à zéro AVANT
+  // l'affichage (aucune image intermédiaire), puis le tap reçu pendant le glissement part.
+  useLayoutEffect(() => {
+    gsap.set(trackRef.current, { x: 0, xPercent: 0 })
+    const step = queued.current
+    queued.current = null
+    if (step) navigateRef.current(step)
+  }, [index])
+
   useEffect(() => {
     controllerRef.current = {
       goTo: (target) => {
+        sliding.current?.tween.kill()
+        sliding.current = null
+        queued.current = null
         resetRef.current(false)
-        lastMove.current = 0
-        gsap.set(trackRef.current, { x: 0, autoAlpha: 1 })
+        gsap.set(trackRef.current, { x: 0, xPercent: 0 })
         setPage(target)
       },
       step: (step) => navigateRef.current(step),
@@ -244,15 +268,25 @@ export function PagedView({
     if (!current || current.id !== event.pointerId) return
     const dx = event.clientX - current.x0
     const dy = event.clientY - current.y0
-    if (!current.moved && Math.hypot(dx, dy) > 8) current.moved = true
+    if (!current.moved && Math.hypot(dx, dy) > 8) {
+      current.moved = true
+      // Le doigt reprend la main : une planche encore en route arrive d'un coup.
+      if (sliding.current) {
+        sliding.current.tween.kill()
+        arrive(sliding.current.target)
+      }
+    }
     if (zoom.current.scale > 1) {
       applyZoom({
         scale: zoom.current.scale,
         x: zoom.current.x + event.clientX - current.lastX,
         y: zoom.current.y + event.clientY - current.lastY,
       })
-    } else if (current.moved && Math.abs(dx) > Math.abs(dy)) {
-      gsap.set(trackRef.current, { x: dx })
+    } else if (current.moved && !sliding.current && Math.abs(dx) > Math.abs(dy)) {
+      // La planche voisine suit le doigt ; sans voisine (bout du chapitre), un léger élastique.
+      const toward = dx > 0 ? -sign : sign
+      const neighbour = index + toward >= 0 && index + toward < spreads.length
+      gsap.set(trackRef.current, { x: neighbour ? dx : dx * EDGE_RESISTANCE })
     }
     current.lastX = event.clientX
     current.lastY = event.clientY
@@ -263,7 +297,7 @@ export function PagedView({
     const current = gesture.current
     if (!current || current.id !== event.pointerId) return
     gesture.current = null
-    const springBack = () => gsap.to(trackRef.current, { x: 0, duration: 0.45, ease: EASE.snap, overwrite: 'auto' })
+    const springBack = () => gsap.to(trackRef.current, { x: 0, duration: 0.4, ease: EASE.swift, overwrite: 'auto' })
     if (cancelled) {
       springBack()
       return
@@ -294,23 +328,38 @@ export function PagedView({
       onPointerCancel={(event) => endGesture(event, true)}
       className="relative h-full w-full touch-none overflow-hidden select-none"
     >
-      <div ref={trackRef} className="absolute inset-0">
-        <div
-          ref={zoomRef}
-          className={`flex h-full w-full items-center justify-center ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}
-        >
-          {spread.map((pageIndex) => {
-            const item = pages[pageIndex]
-            if (!item) return null
-            return (
-              <PageImage
-                key={item.url}
-                page={item}
-                className={`h-auto max-h-full w-auto object-contain ${spread.length > 1 ? 'max-w-[50%]' : 'max-w-full'}`}
-              />
-            )
-          })}
-        </div>
+      <div ref={trackRef} className="absolute inset-0 will-change-transform">
+        {NEIGHBOURS.map((offset) => {
+          const at = index + offset
+          const planche = spreads[at]
+          if (!planche) return null
+          return (
+            <div
+              // Clé = numéro de planche : la suivante devient l'actuelle sans être recréée.
+              key={at}
+              aria-hidden={offset !== 0}
+              className="absolute inset-0"
+              style={{ transform: `translateX(${offset * sign * 100}%)` }}
+            >
+              <div
+                ref={offset === 0 ? zoomRef : undefined}
+                className={`flex h-full w-full items-center justify-center ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}
+              >
+                {planche.map((pageIndex) => {
+                  const item = pages[pageIndex]
+                  if (!item) return null
+                  return (
+                    <PageImage
+                      key={item.url}
+                      page={item}
+                      className={`h-auto max-h-full w-auto object-contain ${planche.length > 1 ? 'max-w-[50%]' : 'max-w-full'}`}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {zoomed && (

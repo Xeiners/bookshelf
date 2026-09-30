@@ -903,6 +903,9 @@ export const fr = {
       wider: 'Élargir les marges',
       theme: 'Thème',
       themes: { dark: 'Sombre', black: 'OLED', sepia: 'Sépia', light: 'Clair', night: 'Nuit' },
+      pageTurn: 'Tourner les pages',
+      pageTurns: { book: 'Comme un livre', instant: 'Instantané' },
+      pageTurnHint: 'Au doigt, la page suit ton geste ; un tap la tourne aussitôt.',
       minutesLeft: (minutes: number) =>
         minutes <= 1 ? 'Moins d’une minute restante dans ce chapitre' : `${minutes} min restantes dans ce chapitre`,
       locating: 'Calcul de la progression…',

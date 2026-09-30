@@ -4,8 +4,10 @@ import { useThemeColor } from '../../hooks/reader/useReaderEnvironment'
 import { useReaderChrome } from '../../hooks/reader/useReaderUi'
 import { useT } from '../../i18n'
 import { getLocations, saveLocations } from '../../lib/reader/db'
-import { FONT_ORDER, FONT_STACKS, THEMES, THEME_ORDER, fontFaceRules, readerCss } from '../../lib/reader/epubStyle'
+import { FONT_ORDER, FONT_STACKS, READER_STYLE_ID, THEMES, THEME_ORDER, fontFaceRules, readerCss } from '../../lib/reader/epubStyle'
 import { keyAction, swipeAction, tapAction } from '../../lib/reader/navigation'
+import type { TurnCorner, TurnDirection } from '../../lib/reader/pageTurn'
+import { PageTurner } from '../../lib/reader/pageTurner'
 import { countWords, remainingMinutes, virtualPage } from '../../lib/reader/progress'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
 import { ChapterDrawer, type DrawerItem } from './ChapterDrawer'
@@ -36,15 +38,32 @@ export interface EpubSource {
 /** Caractères par position epub.js : partie de la clé du cache (changer l'un invalide l'autre). */
 const CHARS_PER_LOCATION = 1600
 
-const STYLE_ID = 'bookshelf-reader-style'
 const FONTS_STYLE_ID = 'bookshelf-reader-fonts'
+/** Déplacement du doigt (px) à partir duquel la feuille se soulève et le suit. */
+const GRAB_DISTANCE = 12
+/** Doigt immobile depuis plus longtemps : il lâche la feuille sans élan. */
+const STILL_MS = 100
+
+/** Coin de la feuille à tirer : celui du haut si le doigt est dans la moitié haute de la page. */
+function cornerAt(event: MouseEvent | Touch, view: Window | null, host: HTMLElement): TurnCorner {
+  const frame = view?.frameElement
+  const y = (frame?.getBoundingClientRect().top ?? 0) + event.clientY
+  const box = host.getBoundingClientRect()
+  return y < box.top + box.height / 2 ? 'top' : 'bottom'
+}
+
+/** Double page affichée : epub.js ne l'expose que par son gestionnaire de vues. */
+function isSpread(rendition: Rendition | null): boolean {
+  const manager = (rendition as unknown as { manager?: { layout?: { divisor?: number } } } | null)?.manager
+  return manager?.layout?.divisor === 2
+}
 
 function applyCss(contents: Contents, css: string) {
   const document = contents.document
-  let style = document.getElementById(STYLE_ID)
+  let style = document.getElementById(READER_STYLE_ID)
   if (!style) {
     style = document.createElement('style')
-    style.id = STYLE_ID
+    style.id = READER_STYLE_ID
     document.head.appendChild(style)
   }
   style.textContent = css
@@ -77,12 +96,26 @@ export function EpubReader({ source }: { source: EpubSource }) {
   const text = useReaderStore((state) => state.text)
   const setText = useReaderStore((state) => state.setText)
   const showStatus = useReaderStore((state) => state.showStatus)
+  const pageTurn = useReaderStore((state) => state.pageTurn)
+  const setPageTurn = useReaderStore((state) => state.setPageTurn)
   const theme = THEMES[text.theme] ?? THEMES.dark
   useThemeColor(theme.background)
 
+  const stageRef = useRef<HTMLDivElement>(null)
+  const pageClipRef = useRef<HTMLDivElement>(null)
+  const pageRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const bookRef = useRef<EpubBook | null>(null)
   const renditionRef = useRef<Rendition | null>(null)
+  const turnerRef = useRef<PageTurner | null>(null)
+  /** Dernière position affichée : la page qui tourne sait s'il reste une page, et si elle est dans le chapitre. */
+  const locationRef = useRef<Location | null>(null)
+  /** Feuille tenue au doigt : la position n'est rapportée qu'une fois la page décidée. */
+  const holdRef = useRef<{ holding: boolean; held: Location | null; report: ((location: Location) => void) | null }>({
+    holding: false,
+    held: null,
+    report: null,
+  })
   const [phase, setPhase] = useState<Phase>('loading')
   const [tick, setTick] = useState(0)
   const [toc, setToc] = useState<{ item: NavItem; depth: number }[]>([])
@@ -109,6 +142,60 @@ export function EpubReader({ source }: { source: EpubSource }) {
     return () => style.remove()
   }, [fontFaces])
 
+  /* ---- Page qui tourne --------------------------------------------------- */
+
+  useEffect(() => {
+    const stage = stageRef.current
+    const pageClip = pageClipRef.current
+    const page = pageRef.current
+    const host = hostRef.current
+    if (!stage || !pageClip || !page || !host) return
+    const hold = holdRef.current
+    const turner = new PageTurner({
+      stage,
+      page,
+      pageClip,
+      host,
+      navigate: (direction) => {
+        const rendition = renditionRef.current
+        if (!rendition) return Promise.resolve()
+        return direction === 'next' ? rendition.next() : rendition.prev()
+      },
+      canTurn: (direction) => {
+        const location = locationRef.current
+        return !!location && !(direction === 'next' ? location.atEnd : location.atStart)
+      },
+      staysInChapter: (direction) => {
+        const location = locationRef.current
+        if (!location) return false
+        return direction === 'next'
+          ? location.end.displayed.page < location.end.displayed.total
+          : location.start.displayed.page > 1
+      },
+      isSpread: () => isSpread(renditionRef.current),
+      onHoldChange: (holding) => {
+        hold.holding = holding
+        // Page décidée (tournée, ou retombée à sa place) : sa position part enfin.
+        const held = hold.held
+        hold.held = null
+        if (!holding && held) hold.report?.(held)
+      },
+    })
+    turnerRef.current = turner
+    return () => {
+      turner.destroy()
+      turnerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    turnerRef.current?.setTheme(theme)
+  }, [theme])
+
+  useEffect(() => {
+    turnerRef.current?.setEnabled(pageTurn === 'book')
+  }, [pageTurn])
+
   /* ---- Ouverture du livre ------------------------------------------------ */
 
   useEffect(() => {
@@ -118,6 +205,14 @@ export function EpubReader({ source }: { source: EpubSource }) {
     let book: EpubBook | null = null
     latest.current.locationsReady = false
     setAbsolutePage(null)
+
+    /** Tap, flèche, swipe : la page tourne comme une feuille (ou d'un coup, selon le réglage). */
+    const turnPage = (direction: TurnDirection, corner: TurnCorner = 'bottom') => {
+      const turner = turnerRef.current
+      const rendition = renditionRef.current
+      if (turner) turner.turn(direction, corner)
+      else if (rendition) void (direction === 'next' ? rendition.next() : rendition.prev())
+    }
 
     const report = (next: Location) => {
       const percentage = next.start.percentage
@@ -131,6 +226,8 @@ export function EpubReader({ source }: { source: EpubSource }) {
         ratio: latest.current.locationsReady && Number.isFinite(percentage) ? percentage : null,
       })
     }
+    const hold = holdRef.current
+    hold.report = report
 
     const open = async () => {
       const blob = await opening.load()
@@ -168,11 +265,17 @@ export function EpubReader({ source }: { source: EpubSource }) {
 
       rendition.on('relocated', (next: Location) => {
         setLocation(next)
-        report(next)
+        locationRef.current = next
+        // Nouvelle page, peut-être nouveau chapitre ou nouvelle mise en page : la copie suit.
+        turnerRef.current?.invalidate()
+        // Feuille tenue au doigt : la page n'est pas encore décidée.
+        if (hold.holding) hold.held = next
+        else report(next)
       })
       rendition.on('rendered', (section: { index: number }, view: { contents?: Contents }) => {
         const body = view.contents?.document.body
         if (body) setWords((current) => ({ ...current, [section.index]: countWords(body.textContent ?? '') }))
+        turnerRef.current?.invalidate()
       })
 
       // Tap : tiers gauche / droit pour tourner la page, centre pour les commandes.
@@ -184,26 +287,74 @@ export function EpubReader({ source }: { source: EpubSource }) {
         const x = frame.getBoundingClientRect().left + event.clientX - box.left
         const action = tapAction(x, box.width, latest.current.direction)
         if (action === 'menu') latest.current.ui.toggleControls()
-        else void (action === 'next' ? rendition.next() : rendition.prev())
+        else turnPage(action, cornerAt(event, event.view as Window | null, host))
       })
 
-      // Swipe dans l'iframe : `screenX` est commun aux deux documents.
-      let touchStart: { x: number; time: number } | null = null
+      // Geste dans l'iframe (`screenX` est commun aux deux documents) : la feuille suit le doigt.
+      let touch: {
+        x: number
+        y: number
+        corner: TurnCorner
+        time: number
+        grabbed: boolean
+        tried: boolean
+        lastX: number
+        lastTime: number
+        velocity: number
+      } | null = null
       rendition.on('touchstart', (event: TouchEvent) => {
         ;(event.view as Window | null)?.getSelection()?.removeAllRanges()
-        const touch = event.changedTouches[0]
-        touchStart = touch ? { x: touch.screenX, time: performance.now() } : null
+        const point = event.changedTouches[0]
+        const now = performance.now()
+        touch = point
+          ? {
+              x: point.screenX,
+              y: point.screenY,
+              corner: cornerAt(point, event.view as Window | null, host),
+              time: now,
+              grabbed: false,
+              tried: false,
+              lastX: point.screenX,
+              lastTime: now,
+              velocity: 0,
+            }
+          : null
+      })
+      rendition.on('touchmove', (event: TouchEvent) => {
+        const point = event.changedTouches[0]
+        if (!touch || !point) return
+        const now = performance.now()
+        // Vitesse récente (lissée) : c'est l'élan au lâcher qui compte, pas la moyenne du geste.
+        const step = ((point.screenX - touch.lastX) / Math.max(1, now - touch.lastTime)) * 1000
+        touch.velocity = touch.velocity * 0.4 + step * 0.6
+        touch.lastX = point.screenX
+        touch.lastTime = now
+        const dx = point.screenX - touch.x
+        if (!touch.tried && Math.abs(dx) > GRAB_DISTANCE) {
+          touch.tried = true
+          // Sens occidental : pousser la page vers la gauche avance.
+          touch.grabbed = turnerRef.current?.grab(dx < 0 ? 'next' : 'prev', touch.corner) ?? false
+          if (touch.grabbed) latest.current.ui.hideControls()
+        }
+        if (touch.grabbed) turnerRef.current?.drag(dx, point.screenY - touch.y)
       })
       rendition.on('touchend', (event: TouchEvent) => {
-        const touch = event.changedTouches[0]
-        if (!touch || !touchStart) return
-        const dx = touch.screenX - touchStart.x
-        const velocity = (dx / Math.max(1, performance.now() - touchStart.time)) * 1000
-        touchStart = null
+        const point = event.changedTouches[0]
+        const start = touch
+        touch = null
+        if (!point || !start) return
+        const now = performance.now()
+        if (start.grabbed) {
+          turnerRef.current?.release(now - start.lastTime > STILL_MS ? 0 : start.velocity)
+          return
+        }
+        // Feuille qui ne pouvait pas suivre le doigt (chapitre voisin…) : un swipe classique la tourne.
+        const dx = point.screenX - start.x
+        const velocity = (dx / Math.max(1, now - start.time)) * 1000
         const action = swipeAction(dx, latest.current.direction, velocity)
         if (!action) return
         latest.current.ui.hideControls()
-        void (action === 'next' ? rendition.next() : rendition.prev())
+        turnPage(action, start.corner)
       })
       // Touches frappées dans le livre (focus dans l'iframe) : epub.js les relaie
       // depuis un écouteur passif, `preventDefault` y est impossible et inutile.
@@ -227,6 +378,7 @@ export function EpubReader({ source }: { source: EpubSource }) {
       const current = rendition.currentLocation() as unknown as Location | undefined
       if (current?.start) {
         setLocation({ ...current })
+        locationRef.current = current
         // Le pourcentage est enfin connu : la position courante le porte.
         report(current)
       }
@@ -235,10 +387,9 @@ export function EpubReader({ source }: { source: EpubSource }) {
     const handleKey = (event: KeyboardEvent, cancelable = true) => {
       if (latest.current.ui.panel) return
       const action = keyAction(event.key, latest.current.direction, event.shiftKey)
-      const rendition = renditionRef.current
-      if (!action || !rendition) return
+      if (!action || !renditionRef.current) return
       if (cancelable) event.preventDefault()
-      void (action === 'next' ? rendition.next() : rendition.prev())
+      turnPage(action)
     }
     const onWindowKey = (event: KeyboardEvent) => handleKey(event)
     window.addEventListener('keydown', onWindowKey)
@@ -250,6 +401,12 @@ export function EpubReader({ source }: { source: EpubSource }) {
     return () => {
       cancelled = true
       window.removeEventListener('keydown', onWindowKey)
+      // Livre refermé : la feuille en l'air et les copies du chapitre ne valent plus.
+      turnerRef.current?.reset()
+      hold.holding = false
+      hold.held = null
+      hold.report = null
+      locationRef.current = null
       renditionRef.current?.destroy()
       renditionRef.current = null
       book?.destroy()
@@ -264,6 +421,7 @@ export function EpubReader({ source }: { source: EpubSource }) {
     const rendition = renditionRef.current
     if (!rendition) return
     for (const contents of rendition.getContents() as unknown as Contents[]) applyCss(contents, cssRef.current)
+    turnerRef.current?.invalidate()
   }, [text, fontFaces])
 
   // Marges et taille d'écran : epub.js doit recalculer sa pagination.
@@ -272,7 +430,11 @@ export function EpubReader({ source }: { source: EpubSource }) {
     if (!host) return
     const observer = new ResizeObserver(([entry]) => {
       const box = entry?.contentRect
-      if (box && box.width > 0 && box.height > 0) renditionRef.current?.resize(box.width, box.height)
+      if (box && box.width > 0 && box.height > 0) {
+        turnerRef.current?.finish()
+        renditionRef.current?.resize(box.width, box.height)
+        turnerRef.current?.invalidate()
+      }
     })
     observer.observe(host)
     return () => observer.disconnect()
@@ -299,11 +461,16 @@ export function EpubReader({ source }: { source: EpubSource }) {
   }, [toc, currentHref])
 
   const currentTitle = items.find((item) => item.state === 'current')?.label ?? null
+  /** Saut (sommaire, curseur, chapitre voisin) : une feuille encore en l'air se pose d'abord. */
+  const jumpTo = (target: string) => {
+    turnerRef.current?.finish()
+    void renditionRef.current?.display(target)
+  }
   const goSection = (step: 1 | -1) => {
     const book = bookRef.current
     if (!book || !start) return
     const section = book.spine.get(start.index + step) as { href?: string } | undefined
-    if (section?.href) void renditionRef.current?.display(section.href)
+    if (section?.href) jumpTo(section.href)
   }
 
   const timeLeft = sectionWords > 0 ? t.reader.text.minutesLeft(minutes) : null
@@ -318,11 +485,19 @@ export function EpubReader({ source }: { source: EpubSource }) {
       onContextMenu={(event) => event.preventDefault()}
       style={{ background: theme.background, color: theme.color }}
     >
-      <div
-        ref={hostRef}
-        className="absolute top-[max(2rem,env(safe-area-inset-top))] bottom-10"
-        style={{ left: text.margin, right: text.margin }}
-      />
+      {/* Scène de la page qui tourne : la vraie page, et les calques posés par `PageTurner`. */}
+      <div ref={stageRef} className="absolute inset-0 overflow-hidden">
+        {/* Cadre de découpe de la vraie page : elle se déplie quand on revient en arrière. */}
+        <div ref={pageClipRef} className="absolute inset-0">
+          <div ref={pageRef} className="absolute inset-0" style={{ background: theme.background }}>
+            <div
+              ref={hostRef}
+              className="absolute top-[max(2rem,env(safe-area-inset-top))] bottom-10"
+              style={{ left: text.margin, right: text.margin }}
+            />
+          </div>
+        </div>
+      </div>
 
       {phase !== 'ready' && (
         <div className="absolute inset-0 bg-black">
@@ -368,7 +543,7 @@ export function EpubReader({ source }: { source: EpubSource }) {
                 valueText: pageLabel!,
                 onChange: (value) => {
                   const cfi = bookRef.current?.locations.cfiFromLocation(value)
-                  if (cfi) void renditionRef.current?.display(cfi)
+                  if (cfi) jumpTo(cfi)
                 },
               }
             : null
@@ -385,12 +560,20 @@ export function EpubReader({ source }: { source: EpubSource }) {
         onSelect={(id) => {
           ui.setPanel(null)
           const href = id.slice(id.indexOf(':') + 1)
-          void renditionRef.current?.display(href)
+          jumpTo(href)
         }}
         onClose={() => ui.setPanel(null)}
       />
 
       <ReaderSettings open={ui.panel === 'settings'} onClose={() => ui.setPanel(null)}>
+        <SettingGroup label={t.reader.text.pageTurn} hint={t.reader.text.pageTurnHint}>
+          <Choice
+            label={t.reader.text.pageTurn}
+            value={pageTurn}
+            onChange={setPageTurn}
+            options={(['book', 'instant'] as const).map((value) => ({ value, label: t.reader.text.pageTurns[value] }))}
+          />
+        </SettingGroup>
         <SettingGroup label={t.reader.text.theme}>
           <Choice
             label={t.reader.text.theme}

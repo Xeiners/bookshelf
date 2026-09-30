@@ -890,6 +890,9 @@ export const en: Dictionary = {
       wider: 'Wider margins',
       theme: 'Theme',
       themes: { dark: 'Dark', black: 'OLED', sepia: 'Sepia', light: 'Light', night: 'Night' },
+      pageTurn: 'Page turns',
+      pageTurns: { book: 'Like a book', instant: 'Instant' },
+      pageTurnHint: 'The page follows your finger; a tap turns it right away.',
       minutesLeft: (minutes: number) =>
         minutes <= 1 ? 'Less than a minute left in this chapter' : `${minutes} min left in this chapter`,
       locating: 'Measuring progress…',

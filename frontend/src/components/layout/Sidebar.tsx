@@ -8,6 +8,7 @@ import { vibrate } from '../../lib/haptics'
 import { commandKey } from '../../lib/platform'
 import { useAuthStore, usePendingSync } from '../../store/useAuthStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
+import { useProfileStore } from '../../store/useProfileStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { useUiStore, type ViewId } from '../../store/useUiStore'
 import type { LibraryEntry, LibraryTab } from '../../types/book'
@@ -15,6 +16,7 @@ import { FAVORITE_TOKEN, STATUS_TOKEN } from '../../types/book'
 import { BookCover } from '../ui/BookCover'
 import { LanguageToggle } from '../ui/LanguageToggle'
 import { BrandLogo } from '../ui/BrandLogo'
+import { CardAvatar } from '../profile/CardAvatar'
 import { NAV_ITEMS } from './navItems'
 
 const EXPANDED_WIDTH = 264
@@ -123,7 +125,10 @@ export function Sidebar({ view, onChange }: SidebarProps) {
 
   const SyncIcon = offline ? CloudOff : pending > 0 ? CloudUpload : CloudCheck
   const syncLabel = offline ? t.account.offline : pending > 0 ? t.account.pending(pending) : t.account.synced
-  const name = user ? (user.displayName ?? user.email.split('@')[0]) : t.account.guestTitle
+  // Profil du compte (préchargé au démarrage, gardé sur l'appareil) : même avatar et même pseudo que la page Profil.
+  const profile = useProfileStore((state) => state.data)
+  const own = user && profile?.profile.id === user.id ? profile.profile : null
+  const name = user ? (own?.displayName ?? user.displayName ?? user.email.split('@')[0]) : t.account.guestTitle
 
   return (
     <aside className="hidden h-full shrink-0 py-4 pl-4 lg:flex">
@@ -322,9 +327,12 @@ export function Sidebar({ view, onChange }: SidebarProps) {
             className="flex h-14 shrink-0 items-center gap-3 overflow-hidden rounded-2xl border border-white/8 px-2 text-left transition-colors hover:bg-cream/[0.05]"
           >
             {user ? (
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-linear-to-br from-glow to-like font-display text-lg text-void">
-                {name.charAt(0).toUpperCase()}
-              </span>
+              <CardAvatar
+                card={own?.avatar ?? null}
+                avatarUrl={own?.avatarUrl ?? null}
+                initial={name.charAt(0).toUpperCase()}
+                size={36}
+              />
             ) : (
               <span className="grid size-9 shrink-0 place-items-center rounded-full bg-glow/15 text-glow">
                 <UserRound size={16} />

@@ -4,6 +4,7 @@ import type { BookKind } from '../types/book'
 import type {
   ChapterLanguage,
   ImageQuality,
+  PageTurnStyle,
   ReaderLayout,
   ReadingDirection,
   SpreadMode,
@@ -49,6 +50,8 @@ interface ReaderPrefs {
   showStatus: boolean
   /** Mode des mangas sans réglage propre ; `null` : selon le type (webtoon pour manhwa et manhua). */
   defaultLayout: ReaderLayout | null
+  /** Romans : animation des pages. */
+  pageTurn: PageTurnStyle
 }
 
 interface ReaderState extends ReaderPrefs {
@@ -61,6 +64,7 @@ interface ReaderState extends ReaderPrefs {
   setText: (change: Partial<TextSettings>) => void
   toggleStatus: () => void
   setDefaultLayout: (layout: ReaderLayout | null) => void
+  setPageTurn: (pageTurn: PageTurnStyle) => void
 }
 
 /** Ajoute une clé en fin d'objet (ordre d'insertion = ancienneté) et borne la taille. */
@@ -92,6 +96,7 @@ export const useReaderStore = create<ReaderState>()(
       text: DEFAULT_TEXT,
       showStatus: true,
       defaultLayout: null,
+      pageTurn: 'book',
 
       setLayout: (workId, layout) => set((state) => ({ layoutByWork: remember(state.layoutByWork, workId, layout) })),
       setDirection: (workId, direction) =>
@@ -114,6 +119,7 @@ export const useReaderStore = create<ReaderState>()(
         }),
       toggleStatus: () => set((state) => ({ showStatus: !state.showStatus })),
       setDefaultLayout: (defaultLayout) => set({ defaultLayout }),
+      setPageTurn: (pageTurn) => set({ pageTurn }),
     }),
     {
       name: 'bookshelf:reader:v1',
@@ -128,6 +134,7 @@ export const useReaderStore = create<ReaderState>()(
         text: state.text,
         showStatus: state.showStatus,
         defaultLayout: state.defaultLayout,
+        pageTurn: state.pageTurn,
       }),
       // Réglages d'une ancienne version ou corrompus : on complète avec les défauts.
       merge: (persisted, current) => {
@@ -140,6 +147,7 @@ export const useReaderStore = create<ReaderState>()(
           directionByWork: saved.directionByWork ?? {},
           sourceByWork: saved.sourceByWork ?? {},
           defaultLayout: saved.defaultLayout === 'paged' || saved.defaultLayout === 'webtoon' ? saved.defaultLayout : null,
+          pageTurn: saved.pageTurn === 'instant' ? 'instant' : 'book',
         }
       },
     },

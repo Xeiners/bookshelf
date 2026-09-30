@@ -114,6 +114,9 @@ export type TextTheme = 'dark' | 'black' | 'light' | 'sepia' | 'night'
 /** `serif` / `sans` : polices du système ; les autres sont embarquées (lisibles hors-ligne). */
 export type TextFont = 'serif' | 'merriweather' | 'sans' | 'inter' | 'roboto' | 'dyslexic'
 
+/** Romans : la page tourne comme une feuille (`book`), ou change d'un coup (`instant`). */
+export type PageTurnStyle = 'book' | 'instant'
+
 /** Réglages typographiques du mode texte (EPUB). */
 export interface TextSettings {
   /** Taille de police, en % de la taille du livre. */

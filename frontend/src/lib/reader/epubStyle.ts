@@ -60,6 +60,9 @@ export function fontFaceRules(fonts: readonly EmbeddedFont[], baseUrl: string): 
     .join('\n')
 }
 
+/** `id` de la feuille injectée dans chaque chapitre (la page qui tourne s'en sert pour reconnaître une mise en page). */
+export const READER_STYLE_ID = 'bookshelf-reader-style'
+
 /** Feuille injectée dans chaque chapitre : nos réglages priment sur ceux du livre. */
 export function readerCss(settings: TextSettings, fontFaces: string): string {
   const theme = THEMES[settings.theme] ?? THEMES.dark
