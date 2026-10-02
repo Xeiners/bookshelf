@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, BookOpen, Check, Eye, Loader2, Lock, Plus, Share2 } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, ChevronRight, Eye, Layers, Loader2, Lock, Plus, Share2 } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -12,6 +12,7 @@ import { useUiStore } from '../../store/useUiStore'
 import { CardZoom } from '../cards/CardZoom'
 import { BookCover } from '../ui/BookCover'
 import { Pressable } from '../ui/Pressable'
+import { MemberCollectionView } from './MemberCollectionView'
 import { ProfileHeader } from './ProfileHeader'
 import { ProfileShowcase } from './ProfileShowcase'
 import { ProfileStats } from './ProfileStats'
@@ -38,11 +39,15 @@ export function PublicProfileView({ userId }: { userId: string }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [zoomed, setZoomed] = useState<ProfileCard | null>(null)
+  /** Album du membre ouvert par-dessus le profil. */
+  const [albumOpen, setAlbumOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const zoomedRef = useRef(zoomed)
+  const albumRef = useRef(albumOpen)
 
   useEffect(() => {
     zoomedRef.current = zoomed
+    albumRef.current = albumOpen
   })
 
   useEffect(() => {
@@ -61,7 +66,8 @@ export function PublicProfileView({ userId }: { userId: string }) {
   // Échap : ferme le profil, sauf si une fiche ou une carte en grand est ouverte par-dessus (elles ont leur propre Échap).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || useUiStore.getState().detail || zoomedRef.current) return
+      // L'album ouvert par-dessus a son propre Échap.
+      if (event.key !== 'Escape' || useUiStore.getState().detail || zoomedRef.current || albumRef.current) return
       close()
     }
     window.addEventListener('keydown', onKey)
@@ -142,16 +148,40 @@ export function PublicProfileView({ userId }: { userId: string }) {
             </div>
           </div>
         ) : (
-          <ProfileBody data={state.data} onZoom={setZoomed} />
+          <ProfileBody
+            data={state.data}
+            onZoom={setZoomed}
+            onOpenCollection={() => {
+              vibrate(6)
+              setAlbumOpen(true)
+            }}
+          />
         )}
       </div>
 
       {zoomed && createPortal(<CardZoom card={zoomed} onClose={() => setZoomed(null)} />, document.body)}
+      {albumOpen &&
+        state.status === 'ready' &&
+        createPortal(
+          <MemberCollectionView
+            userId={userId}
+            name={state.data.profile.displayName ?? t.publicProfile.anonymous}
+            isSelf={state.data.isSelf}
+            onClose={() => setAlbumOpen(false)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }
 
-function ProfileBody({ data, onZoom }: { data: PublicProfileData; onZoom: (card: ProfileCard) => void }) {
+interface ProfileBodyProps {
+  data: PublicProfileData
+  onZoom: (card: ProfileCard) => void
+  onOpenCollection: () => void
+}
+
+function ProfileBody({ data, onZoom, onOpenCollection }: ProfileBodyProps) {
   const t = useT()
   const { profile, stats, library, isSelf } = data
   // Vitrine vide sur un profil public : pas de grand cadre d'emplacements vides.
@@ -203,6 +233,37 @@ function ProfileBody({ data, onZoom }: { data: PublicProfileData; onZoom: (card:
             onOpenCard={onZoom}
             subtitle={t.publicProfile.showcaseSubtitle}
           />
+        </div>
+      )}
+
+      {/* Profil public : son album entier, ses doublons et ce qui me manque chez lui. */}
+      {stats && (
+        <div className="md:col-span-5">
+          <button
+            type="button"
+            data-anim
+            onClick={onOpenCollection}
+            className="glass group flex w-full items-center gap-3.5 rounded-4xl px-5 py-4 text-left transition-colors hover:bg-white/[0.06]"
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-gold/30 bg-gold/10 text-gold">
+              <Layers size={19} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-cream">
+                {isSelf
+                  ? t.publicProfile.collectionSelf(stats.collection.owned, stats.collection.total)
+                  : t.publicProfile.collectionOpen(stats.collection.owned, stats.collection.total)}
+              </span>
+              {/* Progression de l'album : une jauge fine, de la couleur des cartes. */}
+              <span aria-hidden className="mt-2 block h-1.5 overflow-hidden rounded-full bg-cream/10">
+                <span
+                  className="block h-full origin-left rounded-full bg-gradient-to-r from-glow via-nope to-gold"
+                  style={{ transform: `scaleX(${stats.collection.total > 0 ? stats.collection.owned / stats.collection.total : 0})` }}
+                />
+              </span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-cream/40 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </button>
         </div>
       )}
 

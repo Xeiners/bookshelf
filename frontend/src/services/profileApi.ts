@@ -1,6 +1,7 @@
 import type { Language } from '../i18n'
 import type { CollectionCard, Rarity } from '../lib/boosters'
 import type { Book } from '../types/book'
+import type { Collection } from './cardsApi'
 import { api, API_BASE, ApiError } from './api'
 
 /** Titres affichables sous le pseudo (cf. `backend/src/modules/users/titles.ts`). */
@@ -148,11 +149,19 @@ export const FEATURED_MAX = 3
 export const BIO_MAX = 160
 export const DISPLAY_NAME_MAX = 40
 
+/** `GET /api/users/:id/collection` : tout le set, ce que le membre possède et ses doublons. */
+export interface MemberCollection extends Collection {
+  owner: { id: string; displayName: string | null }
+}
+
 export const profileApi = {
   me: (signal?: AbortSignal) => api<ProfileData>('/profile/me', { signal }),
   /** Profil public d'un compte ; 404 `user_not_found` s'il n'existe pas. */
   publicProfile: (userId: string, lang: Language, signal?: AbortSignal) =>
     api<PublicProfileData>(`/users/${encodeURIComponent(userId)}?lang=${lang}`, { signal }),
+  /** Album d'un membre (profil public, ou le sien) ; 403 `profile_private` sinon. */
+  memberCollection: (userId: string, signal?: AbortSignal) =>
+    api<MemberCollection>(`/users/${encodeURIComponent(userId)}/collection`, { signal }),
   /** Membres par pseudo ; sans texte, les derniers inscrits. */
   searchMembers: (query: string, signal?: AbortSignal) =>
     api<{ members: MemberSummary[] }>(`/users?${new URLSearchParams({ q: query }).toString()}`, { signal }).then(

@@ -175,9 +175,11 @@ export const fr = {
   },
 
   cards: {
+    missingForYou: 'Te manque',
     rarity: { COMMON: 'Commune', RARE: 'Rare', EPIC: 'Épique', LEGENDARY: 'Légendaire', MYTHIC: 'Mythique' },
     progress: (owned: number, total: number) => `${owned}/${total} cartes débloquées`,
     filters: {
+      forMe: 'Qui me manquent',
       label: 'Filtres de l’album',
       series: 'Série',
       seriesName: (series: number) => `Série ${series}`,
@@ -935,6 +937,12 @@ export const fr = {
   },
 
   publicProfile: {
+    collectionOpen: (owned: number, total: number) => `Voir sa collection · ${owned}/${total}`,
+    collectionSelf: (owned: number, total: number) => `Voir ma collection · ${owned}/${total}`,
+    collectionTitle: (name: string) => `Collection de ${name}`,
+    collectionBack: 'Retour au profil',
+    collectionPrivate: 'Ce profil est privé : sa collection n’est pas visible.',
+    collectionError: 'Impossible de charger cette collection.',
     dialog: 'Profil',
     close: 'Fermer le profil',
     share: 'Partager le profil',

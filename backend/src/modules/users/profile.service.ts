@@ -6,6 +6,7 @@ import { HttpError, notFound, unauthorized } from '../../lib/errors.js'
 import { RARITIES, isRarity, type Rarity } from '../cards/boosters.logic.js'
 import { toCardDto, type CardDto } from '../cards/cards.service.js'
 import { booksFor, findWork } from '../../services/catalog.service.js'
+import { photoOwner, withPublicPhoto } from './avatarUpload.js'
 import type { ProfilePatch } from './profile.schemas.js'
 import { isUnlocked, titlesFor, type ProfileStats, type TitleId } from './titles.js'
 
@@ -213,6 +214,11 @@ export async function updateProfile(userId: string, patch: ProfilePatch): Promis
     throw new HttpError(400, 'title_locked', 'Ce titre n’est pas encore débloqué.')
   }
 
+  // Photo importée : seulement la sienne (l'adresse d'un autre compte ferait porter sa photo).
+  const avatarUrl = patch.avatarUrl ? withPublicPhoto(userId, patch.avatarUrl) : patch.avatarUrl
+  const owner = photoOwner(avatarUrl ?? null)
+  if (owner !== null && owner !== userId) throw new HttpError(400, 'avatar_not_owned', 'Utilise ta propre photo.')
+
   const data = {
     ...(patch.displayName !== undefined && { displayName: patch.displayName }),
     ...(patch.bio !== undefined && { bio: patch.bio }),
@@ -220,9 +226,9 @@ export async function updateProfile(userId: string, patch: ProfilePatch): Promis
       avatarCardId: patch.avatarCardId,
       ...(patch.avatarCardId !== null && { avatarUrl: null }),
     }),
-    ...(patch.avatarUrl !== undefined && {
-      avatarUrl: patch.avatarUrl,
-      ...(patch.avatarUrl !== null && { avatarCardId: null }),
+    ...(avatarUrl !== undefined && {
+      avatarUrl,
+      ...(avatarUrl !== null && { avatarCardId: null }),
     }),
     ...(patch.featuredCardIds !== undefined && { featuredCardIds: JSON.stringify(patch.featuredCardIds) }),
     ...(patch.activeTitle !== undefined && { activeTitle: patch.activeTitle }),

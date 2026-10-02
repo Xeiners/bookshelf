@@ -4,7 +4,7 @@ import { HttpError, badRequest, notFound } from '../../lib/errors.js'
 import { forgetStanding } from '../../lib/sessionGuard.js'
 import { boosterStatus, toCardDto, type BoosterStatus, type CardDto } from '../cards/cards.service.js'
 import { createNotification } from '../notifications/notifications.service.js'
-import { removeAvatar } from '../users/avatarUpload.js'
+import { photoOwner, removeAvatar } from '../users/avatarUpload.js'
 import { profileStats } from '../users/profile.service.js'
 import type { ProfileStats } from '../users/titles.js'
 import { isAdminEmail } from './admin.access.js'
@@ -172,8 +172,6 @@ export interface AdminUserDetail extends AdminUserRow {
   audit: AdminAuditEntry[]
 }
 
-const PHOTO_PREFIX = '/api/profile/avatar-image'
-
 export async function userDetail(userId: string): Promise<AdminUserDetail> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -192,7 +190,7 @@ export async function userDetail(userId: string): Promise<AdminUserDetail> {
     ...toRow(user),
     bio: user.bio,
     avatarUrl: user.avatarUrl,
-    hasPhoto: user.avatarUrl?.startsWith(PHOTO_PREFIX) ?? false,
+    hasPhoto: photoOwner(user.avatarUrl) !== null,
     isProfilePublic: user.isProfilePublic,
     preferredLanguage: user.preferredLanguage,
     emailVerified: user.emailVerifiedAt !== null,

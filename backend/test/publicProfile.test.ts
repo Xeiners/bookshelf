@@ -50,7 +50,7 @@ describe('GET /api/users/:id', () => {
     const patched = await owner.request('PATCH', '/profile', {
       displayName: 'Lectrice',
       bio: 'Shōnen et romans noirs.',
-      // Photo importée : servie à son seul propriétaire.
+      // Photo importée, à l'ancienne adresse : réécrite vers l'adresse publique du titulaire.
       avatarUrl: '/api/profile/avatar-image?v=1',
     })
     assert.equal(patched.status, 200)
@@ -69,7 +69,7 @@ describe('GET /api/users/:id', () => {
     assert.equal(profile.displayName, 'Lectrice')
     assert.equal(profile.bio, 'Shōnen et romans noirs.')
     assert.equal(typeof profile.createdAt, 'number')
-    assert.equal(profile.avatarUrl, null, 'photo privée exposée')
+    assert.match(profile.avatarUrl, /^\/api\/users\/[a-z0-9]+\/avatar\?v=1$/, 'photo visible des autres, à l’adresse de son titulaire')
     assert.equal(typeof stats.collection.total, 'number')
     assert.equal(stats.reading.reading, 1)
     assert.equal(stats.reading.read, 1)

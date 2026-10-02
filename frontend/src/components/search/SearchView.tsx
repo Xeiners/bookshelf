@@ -22,7 +22,13 @@ import { SortMenu } from './SortMenu'
 let servedFocusTick = 0
 
 /** Distance avant le bas de la grille à laquelle on charge la page suivante. */
-const PREFETCH_MARGIN = '0px 0px 900px 0px'
+/** Distance (sous l'écran) à laquelle la page suivante est demandée : assez tôt pour ne jamais buter sur le bas. */
+const PREFETCH_MARGIN = '0px 0px 1600px 0px'
+/** Défilement vers le haut qui fait revenir la barre de recherche, et vers le bas qui la cache (px cumulés). */
+const BAR_SHOW_DELTA = 10
+const BAR_HIDE_DELTA = 24
+/** En dessous : la barre reste toujours là (haut de la liste). */
+const BAR_PINNED_TOP = 120
 
 // i18n-ignore : classes CSS de la grille
 const GRID = 'grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 md:gap-x-4 lg:grid-cols-5 2xl:grid-cols-6'
@@ -77,17 +83,47 @@ export function SearchView() {
 
   const listRef = useRef<HTMLDivElement>(null)
 
-  // En descendant dans les résultats, l'en-tête de l'app et le choix Mangas / Romans / Membres se replient :
-  // seules la barre de recherche et les filtres restent en haut. Tout en haut, ils reviennent.
-  // Deux seuils (hystérésis) : un défilement qui hésite autour d'un seul seuil ferait clignoter l'en-tête.
+  // En descendant dans les résultats, tout le haut disparaît : l'en-tête de l'app et le choix
+  // Mangas / Romans / Membres (revenus seulement tout en haut, deux seuils pour ne pas clignoter),
+  // puis la barre de recherche et les filtres — qui reviennent, eux, dès qu'on remonte un peu.
   const collapsed = useUiStore((state) => state.chromeCollapsed)
   const setCollapsed = useUiStore((state) => state.setChromeCollapsed)
   const scopeRef = useRef<HTMLDivElement>(null)
   useCollapse(scopeRef, collapsed, 12)
+  const [barHidden, setBarHidden] = useState(false)
+  const barRef = useRef<HTMLDivElement>(null)
+  useCollapse(barRef, barHidden, 12)
+  /**
+   * Dernière position, chemin parcouru dans le sens courant (px), et pause de la détection :
+   * pendant que la barre se replie, la zone de défilement change de hauteur et le navigateur
+   * peut corriger la position (tout en bas) — ce n'est pas un geste, la barre ne doit pas clignoter.
+   */
+  const scrollTrack = useRef({ top: 0, travel: 0, quietUntil: 0 })
+  const showBar = (hidden: boolean) => {
+    if (hidden === barHidden) return
+    scrollTrack.current.quietUntil = performance.now() + 400
+    scrollTrack.current.travel = 0
+    setBarHidden(hidden)
+  }
   const onListScroll = () => {
     const top = listRef.current?.scrollTop ?? 0
     if (top > 56) setCollapsed(true)
     else if (top < 8) setCollapsed(false)
+
+    const track = scrollTrack.current
+    const delta = top - track.top
+    track.top = top
+    if (delta === 0) return
+    // Pendant la pause, une seule règle : en haut de la liste, la barre est toujours là.
+    if (performance.now() < track.quietUntil) {
+      if (top < BAR_PINNED_TOP) showBar(false)
+      return
+    }
+    // Le chemin repart de zéro à chaque changement de sens : un petit geste vers le haut suffit.
+    track.travel = Math.sign(delta) === Math.sign(track.travel) ? track.travel + delta : delta
+    const typing = document.activeElement === inputRef.current
+    if (top < BAR_PINNED_TOP || typing || track.travel <= -BAR_SHOW_DELTA) showBar(false)
+    else if (track.travel >= BAR_HIDE_DELTA) showBar(true)
   }
   // Quitter le catalogue (romans, membres, autre vue) : tout se redéplie.
   useEffect(() => {
@@ -121,8 +157,44 @@ export function SearchView() {
     inputRef.current?.select()
   }, [focusTick])
 
-  // Seules les tuiles jamais révélées s'animent : une page ajoutée en bas ne
-  // rejoue pas l'entrée de toute la grille.
+  // Défilement « génératif » : chaque tuile apparaît au moment où elle entre à l'écran (pas
+  // quand sa page arrive), en cascade avec ses voisines. Une page ajoutée en bas ne rejoue
+  // jamais l'entrée de la grille : seules les tuiles jamais vues sont mises en attente.
+  const revealRef = useRef<IntersectionObserver | null>(null)
+  const { contextSafe } = useGSAP({ scope: listRef })
+  useEffect(() => {
+    const root = listRef.current
+    if (!root) return
+    const reveal = contextSafe((tiles: Element[]) => {
+      gsap.to(tiles, {
+        y: 0,
+        scale: 1,
+        autoAlpha: 1,
+        duration: 0.55,
+        stagger: Math.min(0.06, 0.45 / tiles.length),
+        ease: EASE.swift,
+        clearProps: 'opacity,visibility,transform',
+      })
+    })
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entering = entries.filter((entry) => entry.isIntersecting).map((entry) => entry.target)
+        if (entering.length === 0) return
+        for (const tile of entering) observer.unobserve(tile)
+        // Dans l'ordre de la grille : la cascade descend ligne par ligne.
+        entering.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+        reveal(entering)
+      },
+      // Un peu avant le bord bas : la tuile finit d'apparaître quand on la regarde.
+      { root, rootMargin: '0px 0px -6% 0px', threshold: 0.01 },
+    )
+    revealRef.current = observer
+    return () => {
+      observer.disconnect()
+      revealRef.current = null
+    }
+  }, [contextSafe])
+
   const signature = `${phase}:${books.length}:${books[0]?.id ?? ''}`
   useGSAP(
     () => {
@@ -132,20 +204,16 @@ export function SearchView() {
         .filter((tile) => !tile.hasAttribute('data-revealed'))
       if (tiles.length === 0) return
       for (const tile of tiles) tile.setAttribute('data-revealed', '')
-      gsap.from(tiles, {
-        y: 24,
-        scale: 0.96,
-        autoAlpha: 0,
-        duration: 0.5,
-        stagger: Math.min(0.03, 0.4 / tiles.length),
-        ease: EASE.swift,
-        clearProps: 'opacity,visibility,transform',
-      })
+      const observer = revealRef.current
+      if (!observer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      gsap.set(tiles, { y: 28, scale: 0.95, autoAlpha: 0 })
+      for (const tile of tiles) observer.observe(tile)
     },
     { dependencies: [signature], scope: listRef },
   )
 
-  // Nouvelle recherche ou nouveaux filtres : on repart du haut.
+  // Nouvelle recherche ou nouveaux filtres : on repart du haut. Ce défilement passe par
+  // `onListScroll`, qui fait revenir la barre (en haut, elle est toujours là).
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0 })
   }, [sourceKey])
@@ -202,6 +270,8 @@ export function SearchView() {
       <div ref={scopeRef} className="shrink-0">
         <ScopeToggle />
       </div>
+      {/* Barre, filtres et compteur : un seul bloc, qui se replie en descendant et revient en remontant. */}
+      <div ref={barRef} className="flex shrink-0 flex-col gap-3">
       {/* Recherche */}
       <div className="glass flex items-center gap-3 rounded-2xl px-4 py-3.5 transition-shadow focus-within:shadow-glow">
         <SearchIcon size={18} className="shrink-0 text-mist" />
@@ -274,6 +344,7 @@ export function SearchView() {
           </span>
         )}
       </div>
+      </div>
 
       <div ref={listRef} onScroll={onListScroll} className="no-scrollbar -mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pt-1 pb-4">
         {(phase === 'loading' || (phase === 'ready' && books.length > 0)) && (
@@ -281,7 +352,9 @@ export function SearchView() {
             {phase === 'loading'
               ? Array.from({ length: 12 }, (_, index) => <CardSkeleton key={index} />)
               : books.map((book) => <CatalogCard key={book.id} book={book} />)}
-            {loadingMore && Array.from({ length: 4 }, (_, index) => <CardSkeleton key={`more-${index}`} />)}
+            {/* Tant qu'il reste des titres, des affiches fantômes attendent au bout : la suite se remplit à leur place. */}
+            {phase === 'ready' && (loadingMore || (hasMore && !moreError)) &&
+              Array.from({ length: 6 }, (_, index) => <CardSkeleton key={`more-${index}`} />)}
           </div>
         )}
 

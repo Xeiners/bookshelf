@@ -7,6 +7,27 @@ import { HttpError, notFound } from '../../lib/errors.js'
 
 export const AVATAR_MAX_BYTES = 8 * 1024 * 1024
 
+/**
+ * Adresse PUBLIQUE de la photo d'un compte : chacun voit celle du compte affiché
+ * (profil, recherche de membres, Marché), invités compris. L'ancienne adresse
+ * (`/api/profile/avatar-image`) servait la photo de la personne CONNECTÉE : les
+ * autres ne pouvaient pas la voir. Les comptes migrés passent sur celle-ci.
+ */
+export const photoPath = (userId: string) => `/api/users/${userId}/avatar`
+export const LEGACY_PHOTO_PATH = '/api/profile/avatar-image'
+const PHOTO = /^\/api\/users\/([A-Za-z0-9_-]{1,40})\/avatar(?=[?#]|$)/
+
+/** Photo importée : l'id de son compte, `legacy` pour l'ancienne adresse, `null` si ce n'en est pas une. */
+export function photoOwner(url: string | null): string | 'legacy' | null {
+  if (!url) return null
+  if (url.startsWith(LEGACY_PHOTO_PATH)) return 'legacy'
+  return PHOTO.exec(url)?.[1] ?? null
+}
+
+/** L'ancienne adresse d'une photo, réécrite vers l'adresse publique de son titulaire (recadrage compris). */
+export const withPublicPhoto = (userId: string, url: string) =>
+  url.startsWith(LEGACY_PHOTO_PATH) ? photoPath(userId) + url.slice(LEGACY_PHOTO_PATH.length) : url
+
 const FORMATS = {
   jpg: { contentType: 'image/jpeg' },
   png: { contentType: 'image/png' },
@@ -66,7 +87,7 @@ export async function storeAvatar(userId: string, data: Buffer): Promise<string>
     await rm(temporary, { force: true })
     throw error
   }
-  return `/api/profile/avatar-image?v=${Date.now()}`
+  return `${photoPath(userId)}?v=${Date.now()}`
 }
 
 export async function storedAvatar(userId: string): Promise<{ file: string; contentType: string }> {

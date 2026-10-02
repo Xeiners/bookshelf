@@ -167,9 +167,11 @@ export const en: Dictionary = {
   },
 
   cards: {
+    missingForYou: 'You lack it',
     rarity: { COMMON: 'Common', RARE: 'Rare', EPIC: 'Epic', LEGENDARY: 'Legendary', MYTHIC: 'Mythic' },
     progress: (owned: number, total: number) => `${owned}/${total} cards unlocked`,
     filters: {
+      forMe: 'Missing for me',
       label: 'Album filters',
       series: 'Series',
       seriesName: (series: number) => `Series ${series}`,
@@ -920,6 +922,12 @@ export const en: Dictionary = {
   },
 
   publicProfile: {
+    collectionOpen: (owned: number, total: number) => `See their collection · ${owned}/${total}`,
+    collectionSelf: (owned: number, total: number) => `See my collection · ${owned}/${total}`,
+    collectionTitle: (name: string) => `${name}’s collection`,
+    collectionBack: 'Back to profile',
+    collectionPrivate: 'This profile is private: its collection isn’t visible.',
+    collectionError: 'Couldn’t load this collection.',
     dialog: 'Profile',
     close: 'Close profile',
     share: 'Share profile',

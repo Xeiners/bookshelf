@@ -3,7 +3,8 @@ import { HttpError } from '../../lib/errors.js'
 import type { Language } from '../../lib/language.js'
 import type { Book } from '../books/book.schema.js'
 import { getMangas } from '../manga/manga.service.js'
-import { toCardDto } from '../cards/cards.service.js'
+import { collectionOf, toCardDto, type Collection } from '../cards/cards.service.js'
+import { photoOwner, withPublicPhoto } from './avatarUpload.js'
 import { ownedCards, parseFeatured, profileStats, type ProfileCard } from './profile.service.js'
 import { TITLE_IDS, titlesFor, type ProfileStats, type TitleId } from './titles.js'
 
@@ -75,14 +76,20 @@ export interface PublicProfile {
 export const userNotFound = () => new HttpError(404, 'user_not_found', 'Profil introuvable.')
 
 /**
- * Avatar visible par les autres : une image HTTPS ou une couverture relayée
- * (`/api/covers/`). La photo importée (`/api/profile/avatar-image`) et les
- * couvertures de romans (`/api/books/`) ne sont servies qu'à leur propriétaire :
- * l'avatar public retombe alors sur la carte, sinon l'initiale.
+ * Avatar visible par les autres : une image HTTPS, une couverture relayée
+ * (`/api/covers/`) ou la photo importée du compte lui-même (adresse publique,
+ * `/api/users/<id>/avatar`). Les couvertures de romans (`/api/books/`) ne sont
+ * servies qu'à leur propriétaire : l'avatar public retombe alors sur la carte,
+ * sinon l'initiale.
  */
-export function publicAvatarUrl(url: string | null): string | null {
+export function publicAvatarUrl(url: string | null, userId: string): string | null {
   if (!url) return null
-  if (url.startsWith('/api/')) return url.startsWith('/api/covers/') ? url : null
+  if (url.startsWith('/api/')) {
+    if (url.startsWith('/api/covers/')) return url
+    // Ancienne adresse (avant migration) : réécrite vers celle du titulaire. Jamais la photo d'un autre.
+    const photo = withPublicPhoto(userId, url)
+    return photoOwner(photo) === userId ? photo : null
+  }
   try {
     return new URL(url).protocol === 'https:' ? url : null
   } catch {
@@ -203,7 +210,7 @@ export async function getPublicProfile(userId: string, language: Language, viewe
       id: user.id,
       displayName: user.displayName,
       activeTitle,
-      avatarUrl: publicAvatarUrl(user.avatarUrl),
+      avatarUrl: publicAvatarUrl(user.avatarUrl, user.id),
       avatar: (user.avatarCardId && cards.get(user.avatarCardId)) || null,
       featured: featuredIds.flatMap((id) => cards.get(id) ?? []),
       isProfilePublic: open,
@@ -214,6 +221,20 @@ export async function getPublicProfile(userId: string, language: Language, viewe
     library: open ? await publicLibrary(user.id, language, stats.reading) : null,
     isSelf: viewerId === user.id,
   }
+}
+
+/* ---- Collection d'un membre ---------------------------------------------------- */
+
+export interface MemberCollection extends Collection {
+  owner: { id: string; displayName: string | null }
+}
+
+/** Album d'un autre compte : seulement si son profil est public (ou si c'est le sien). */
+export async function getMemberCollection(userId: string, viewerId: string | null): Promise<MemberCollection> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, displayName: true, isProfilePublic: true } })
+  if (!user) throw userNotFound()
+  if (!user.isProfilePublic && viewerId !== user.id) throw new HttpError(403, 'profile_private', 'Ce profil est privé.')
+  return { owner: { id: user.id, displayName: user.displayName }, ...(await collectionOf(user.id)) }
 }
 
 /* ---- Recherche de membres ------------------------------------------------------ */
@@ -312,7 +333,7 @@ export async function searchMembers(query: string, viewerId: string | null): Pro
     id: row.id,
     displayName: row.displayName,
     activeTitle: isTitleId(row.activeTitle) ? row.activeTitle : null,
-    avatarUrl: publicAvatarUrl(row.avatarUrl),
+    avatarUrl: publicAvatarUrl(row.avatarUrl, row.id),
     avatar: avatarOf.get(row.id) ?? null,
     isProfilePublic: row.isProfilePublic,
     cardsOwned: row.isProfilePublic ? (cardsOf.get(row.id) ?? 0) : null,
