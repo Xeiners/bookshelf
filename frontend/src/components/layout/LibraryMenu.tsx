@@ -66,7 +66,7 @@ export function LibraryMenu() {
         title={copy.open}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`glass grid size-11 place-items-center rounded-full transition-colors ${open ? 'text-cream' : 'text-cream/70'}`}
+        className={`glass grid size-10 place-items-center md:size-11 rounded-full transition-colors ${open ? 'text-cream' : 'text-cream/70'}`}
       >
         <BookCopy size={17} />
       </Pressable>

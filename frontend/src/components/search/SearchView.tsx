@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { RotateCcw, Search as SearchIcon, SearchX, SlidersHorizontal, Sparkles, Star, WifiOff, X } from 'lucide-react'
 import { useCatalog } from '../../hooks/useCatalog'
+import { useCollapse } from '../../hooks/useCollapse'
 import { useLanguage, useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -75,6 +76,24 @@ export function SearchView() {
   const { books, total, phase, hasMore, loadingMore, moreError, loadMore, sourceKey } = useCatalog(filters)
 
   const listRef = useRef<HTMLDivElement>(null)
+
+  // En descendant dans les résultats, l'en-tête de l'app et le choix Mangas / Romans / Membres se replient :
+  // seules la barre de recherche et les filtres restent en haut. Tout en haut, ils reviennent.
+  // Deux seuils (hystérésis) : un défilement qui hésite autour d'un seul seuil ferait clignoter l'en-tête.
+  const collapsed = useUiStore((state) => state.chromeCollapsed)
+  const setCollapsed = useUiStore((state) => state.setChromeCollapsed)
+  const scopeRef = useRef<HTMLDivElement>(null)
+  useCollapse(scopeRef, collapsed, 12)
+  const onListScroll = () => {
+    const top = listRef.current?.scrollTop ?? 0
+    if (top > 56) setCollapsed(true)
+    else if (top < 8) setCollapsed(false)
+  }
+  // Quitter le catalogue (romans, membres, autre vue) : tout se redéplie.
+  useEffect(() => {
+    if (scope !== 'catalog') setCollapsed(false)
+    return () => setCollapsed(false)
+  }, [scope, setCollapsed])
   const inputRef = useRef<HTMLInputElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   /** La sentinelle est-elle dans la zone de préchargement ? */
@@ -180,7 +199,9 @@ export function SearchView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
-      <ScopeToggle />
+      <div ref={scopeRef} className="shrink-0">
+        <ScopeToggle />
+      </div>
       {/* Recherche */}
       <div className="glass flex items-center gap-3 rounded-2xl px-4 py-3.5 transition-shadow focus-within:shadow-glow">
         <SearchIcon size={18} className="shrink-0 text-mist" />
@@ -254,7 +275,7 @@ export function SearchView() {
         )}
       </div>
 
-      <div ref={listRef} className="no-scrollbar -mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pt-1 pb-4">
+      <div ref={listRef} onScroll={onListScroll} className="no-scrollbar -mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pt-1 pb-4">
         {(phase === 'loading' || (phase === 'ready' && books.length > 0)) && (
           <div className={GRID}>
             {phase === 'loading'

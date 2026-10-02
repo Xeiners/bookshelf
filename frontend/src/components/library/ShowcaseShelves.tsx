@@ -66,7 +66,7 @@ function ShelfBook({ entry, width, onOpen }: ShelfBookProps) {
   return (
     <button
       ref={slotRef}
-      data-shelf-book
+      data-shelf-book={entry.book.id}
       type="button"
       title={entry.book.title}
       aria-label={entry.book.title}
@@ -183,10 +183,27 @@ export function ShowcaseShelves({ entries, onOpen }: ShowcaseShelvesProps) {
   }, [entries, available])
 
   const signature = `${width}:${rows.map((row) => row.map((entry) => entry.book.id).join(',')).join('|')}`
+  /** Livres déjà montés sur les étagères : après l'entrée, seuls les nouveaux venus s'animent. */
+  const shown = useRef<Set<string> | null>(null)
 
   useGSAP(
     () => {
       if (rows.length === 0) return
+      const ids = rows.flat().map((entry) => entry.book.id)
+      // Un livre ajouté, retiré, une note, un coup de cœur : la vitrine ne se rejoue PAS.
+      // Seuls les livres qui arrivent montent du rayon ; les autres restent où ils sont.
+      if (shown.current) {
+        const known = shown.current
+        const fresh = gsap.utils
+          .toArray<HTMLElement>('[data-shelf-book]')
+          .filter((node) => !known.has(node.dataset.shelfBook ?? ''))
+        shown.current = new Set(ids)
+        if (fresh.length > 0) {
+          gsap.from(fresh, { y: 52, autoAlpha: 0, duration: 0.7, stagger: 0.05, ease: EASE.snap, clearProps: 'opacity,visibility,transform' })
+        }
+        return
+      }
+      shown.current = new Set(ids)
       gsap
         .timeline({ defaults: { ease: EASE.swift } })
         .from('[data-plank]', { scaleX: 0, duration: 0.8, stagger: 0.12 }, 0)
@@ -205,7 +222,8 @@ export function ShowcaseShelves({ entries, onOpen }: ShowcaseShelvesProps) {
           0.35,
         )
     },
-    { dependencies: [signature], revertOnUpdate: true, scope: rootRef },
+    // Sans `revertOnUpdate` : revenir à l'état d'avant l'entrée ferait clignoter toute la vitrine.
+    { dependencies: [signature], scope: rootRef },
   )
 
   const bookHeight = Math.round(width * 1.5)

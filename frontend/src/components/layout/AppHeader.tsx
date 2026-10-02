@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Settings } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { useUiStore, type ViewId } from '../../store/useUiStore'
-import { LanguageToggle } from '../ui/LanguageToggle'
+import { LanguageSwitch, LanguageToggle } from '../ui/LanguageToggle'
 import { Pressable } from '../ui/Pressable'
 import { BrandLogo } from '../ui/BrandLogo'
 import { MusicHeaderButton } from '../ambient/MusicHeaderButton'
 import { LibraryMenu } from './LibraryMenu'
+import { useCollapse } from '../../hooks/useCollapse'
+import { NotificationBell } from '../notifications/NotificationBell'
+import { useAuthStore } from '../../store/useAuthStore'
 
 interface AppHeaderProps {
   view: ViewId
@@ -27,6 +30,11 @@ export function AppHeader({ view }: AppHeaderProps) {
   const [shownView, setShownView] = useState(view)
   const copy = t.header[shownView]
   const openSettings = useUiStore((state) => state.openSettings)
+  const signedIn = useAuthStore((state) => state.user !== null)
+  // Recherche défilée : l'en-tête se replie pour laisser la place aux résultats.
+  const collapsed = useUiStore((state) => state.chromeCollapsed) && view === 'search'
+  const collapseRef = useRef<HTMLDivElement>(null)
+  useCollapse(collapseRef, collapsed)
 
   useGSAP(
     () => {
@@ -54,6 +62,7 @@ export function AppHeader({ view }: AppHeaderProps) {
   )
 
   return (
+    <div ref={collapseRef} className="shrink-0">
     <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-3 md:pb-5">
       <div className="flex min-w-0 items-start gap-2.5">
         <BrandLogo variant="mark" size="sm" className="mt-0.5 md:hidden" />
@@ -78,8 +87,16 @@ export function AppHeader({ view }: AppHeaderProps) {
         {view === 'library' && <LibraryMenu />}
         {/* Musique d'ambiance, et son mini-lecteur (anneau d'avancement, commandes en bulle) : sur toutes les vues. */}
         <MusicHeaderButton />
-        {/* Sur ordinateur, la langue se règle dans la barre latérale. */}
-        <div className="lg:hidden">
+        {/* Notifications : échanges conclus, offres qui intéressent (comptes seulement). */}
+        {signedIn && <NotificationBell />}
+        {/*
+         * Langue. Téléphone : une pastille qui bascule (la place manque à côté de la
+         * musique et des notifications). Tablette : le sélecteur. Ordinateur : la barre latérale.
+         */}
+        <div className="md:hidden">
+          <LanguageSwitch />
+        </div>
+        <div className="hidden md:block lg:hidden">
           <LanguageToggle />
         </div>
         {/* Profil : paramètres (compte, lecture, stockage, session), tout en haut à droite. */}
@@ -91,12 +108,13 @@ export function AppHeader({ view }: AppHeaderProps) {
             }}
             aria-label={t.settings.open}
             title={t.settings.open}
-            className="glass grid size-11 place-items-center rounded-full text-cream/70"
+            className="glass grid size-10 place-items-center rounded-full text-cream/70 md:size-11"
           >
             <Settings size={17} />
           </Pressable>
         )}
       </div>
     </header>
+    </div>
   )
 }

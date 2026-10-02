@@ -1,5 +1,5 @@
 /**
- * Bruitages des boosters, synthétisés (WebAudio) : aucun fichier à charger.
+ * Bruitages des boosters (et carillon des notifications), synthétisés (WebAudio) : aucun fichier à charger.
  *
  * Une chaîne commune donne de l'espace et de la cohésion : chaque son part
  * « sec » vers un compresseur, et une partie passe par une réverbération
@@ -295,4 +295,17 @@ export function playReveal(rarity: Rarity): void {
       sparkle(e, at + 0.5, 18, 2637, 0.03)
       break
   }
+}
+
+/**
+ * Notification : deux notes de verre, douces et brèves (quinte montante) —
+ * reconnaissable sans couvrir la musique d'ambiance. Une offre conclue sonne
+ * un peu plus clair qu'une simple alerte.
+ */
+export function playChime(bright = false): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  bell(e, bright ? 1046.5 : 880, at, 0.9, 0.035, -0.15)
+  bell(e, bright ? 1568 : 1318.5, at + 0.11, 1.2, 0.03, 0.15)
 }

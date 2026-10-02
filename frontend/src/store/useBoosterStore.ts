@@ -16,7 +16,7 @@ interface BoosterState {
   loading: boolean
   /** Dernière synchronisation impossible (hors-ligne, serveur arrêté). */
   offline: boolean
-  /** Incrémenté à chaque booster ouvert : l'album sait qu'il doit se recharger. */
+  /** Incrémenté à chaque booster ouvert (ou échange conclu) : l'album sait qu'il doit se recharger. */
   collectionVersion: number
   /** Recette : raretés tirées depuis l'ouverture de l'app (taux observés). */
   tally: DropTally
@@ -28,6 +28,8 @@ interface BoosterState {
    * 503 : collection en préparation).
    */
   open: (as: 'account' | 'guest') => Promise<PulledCard[]>
+  /** L'album a changé ailleurs (échange au marché) : il se recharge, sans disparaître entre-temps. */
+  collectionChanged: () => void
   /** Compte déconnecté : plus de stock à afficher. */
   reset: () => void
 }
@@ -81,6 +83,8 @@ export const useBoosterStore = create<BoosterState>((set) => ({
     }))
     return cards
   },
+
+  collectionChanged: () => set((state) => ({ collectionVersion: state.collectionVersion + 1 })),
 
   reset: () => set({ status: null, syncedAt: 0, offline: false, tally: emptyTally() }),
 }))

@@ -568,6 +568,16 @@ le lancement de l'app (`useBoosterStore.tally`).
 - Moteur d'animation : GSAP (déjà dans le projet) plutôt que Framer Motion,
   pour ne pas ajouter une seconde bibliothèque d'animation.
 
+**Le Marché** (`activity = 'market'`, `components/trading/`) : artefact du hub, puis
+`TradingHubView` — offres des autres collectionneurs (carte reçue ⇄ carte cédée), filtres rareté / série /
+« seulement ce que je peux échanger », bouton « Échanger » à confirmer d'un second tap (désarmé après
+3,5 s). `CreateTradeSheet` en trois étapes (doublon libre → carte de même rareté, manquantes d'abord →
+confirmation), `MyTradesSheet` (offres en cours annulables, historique). Échange conclu :
+`TradeSwapAnimation`, les deux cartes se croisent en tournoyant (`rotationY` 360°, perspective dans la
+transformation, aucun flou), puis l'album se recharge (`useBoosterStore.collectionChanged`). Règles
+dupliquées côté front dans `lib/trades.ts` (pur, testé) pour ne proposer que ce que l'API acceptera ;
+l'API tranche (cf. docs/BACKEND.md §7 septies).
+
 ## 4 sexies. Performance du swipe
 
 Le geste saccadait principalement à cause des filtres de flou et du débordement.

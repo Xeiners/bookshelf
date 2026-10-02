@@ -15,6 +15,8 @@ import {
 import { useAmbientStore } from './useAmbientStore'
 import { useBoosterStore } from './useBoosterStore'
 import { useCollectionStore } from './useCollectionStore'
+import { useTradeStore } from './useTradeStore'
+import { useNotificationStore } from './useNotificationStore'
 import { useGuestCardsStore } from './useGuestCardsStore'
 import { useNovelStore } from './useNovelStore'
 import { librarySnapshot, useLibraryStore } from './useLibraryStore'
@@ -70,6 +72,8 @@ function endSession(reason: 'expired' | 'logout') {
   }
   useBoosterStore.getState().reset()
   useCollectionStore.getState().reset()
+  useTradeStore.getState().reset()
+  useNotificationStore.getState().reset()
   useProfileStore.getState().reset()
   useAuthStore.setState({ user: null, offline: false })
 }
@@ -142,6 +146,8 @@ export const useAuthStore = create<AuthState>()(
         // Les cartes d'essai sont désormais au compte : l'album et le stock viennent du serveur.
         useGuestCardsStore.getState().clear()
         useCollectionStore.getState().reset()
+        useTradeStore.getState().reset()
+        useNotificationStore.getState().reset()
         useBoosterStore.getState().reset()
         useProfileStore.getState().reset()
         useUiStore.getState().notify(getT().activities.guest.welcome(guestCards), 'like')
@@ -162,6 +168,8 @@ export const useAuthStore = create<AuthState>()(
         // L'album affiché était celui de l'invité. Ses cartes d'essai restent sur
         // l'appareil : seule une INSCRIPTION les fait entrer dans un compte.
         useCollectionStore.getState().reset()
+        useTradeStore.getState().reset()
+        useNotificationStore.getState().reset()
         useProfileStore.getState().reset()
       },
 

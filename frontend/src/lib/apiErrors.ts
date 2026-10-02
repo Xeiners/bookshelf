@@ -45,6 +45,24 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.cardNotOwned
     case 'title_locked':
       return t.errors.titleLocked
+    case 'not_duplicate':
+      return t.errors.notDuplicate
+    case 'rarity_mismatch':
+      return t.errors.rarityMismatch
+    case 'same_card':
+      return t.errors.sameCard
+    case 'offer_exists':
+      return t.errors.offerExists
+    case 'offer_limit':
+      return t.errors.offerLimit(numberDetail(error, 'max', 20))
+    case 'own_offer':
+      return t.errors.ownOffer
+    case 'offer_closed':
+      return t.errors.offerClosed
+    case 'offer_unavailable':
+      return t.errors.offerUnavailable
+    case 'card_not_available':
+      return t.errors.cardNotAvailable
     case 'validation_error':
     case 'invalid_json':
       return t.errors.invalidInput

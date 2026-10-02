@@ -79,12 +79,14 @@ extensions/        sources de chapitres (Strategy) : registre, agrégateur, fusi
 modules/discover   deck « Pour toi » et catalogue filtrable (/browse)
 modules/oracle     tirage quotidien, série (streak)
 modules/books      romans EPUB du compte : import, fichier (Range), position synchronisée ; fiches Open Library + Google Books
+modules/trades     marché d'échange de doublons : offres, réservation, échange atomique (cf. BACKEND §7 septies)
 services/          catalogue MangaDex en cache, moteur de recommandation
 ```
 
 Modèles Prisma : `User`, `LibraryEntry`, `SkippedWork`, `UserPreference`,
 `CatalogWork`, `CatalogSync`, `PendingRegistration`, `UserBooster`, `Card`,
-`UserCard`, `UserBook` (romans EPUB du compte, cf. docs/BACKEND.md §7 sexies).
+`UserCard`, `UserBook` (romans EPUB du compte, cf. docs/BACKEND.md §7 sexies),
+`MusicPlaylist`, `TradeOffer` (marché d'échange de doublons, cf. docs/BACKEND.md §7 septies).
 
 ### Frontend (`frontend/src`)
 

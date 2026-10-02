@@ -45,7 +45,7 @@ export function MusicHeaderButton() {
         aria-label={active ? copy.mini.expand : copy.openPlayer}
         aria-expanded={active ? anchor !== null : undefined}
         title={copy.open}
-        className={`glass relative grid size-11 place-items-center rounded-full ${active ? 'text-glow' : 'text-cream/70'}`}
+        className={`glass relative grid size-10 place-items-center md:size-11 rounded-full ${active ? 'text-glow' : 'text-cream/70'}`}
       >
         {active && (
           <svg aria-hidden viewBox="0 0 44 44" className="absolute inset-0 -rotate-90">

@@ -540,6 +540,21 @@ Toutes authentifiées sauf `search`. Le livre d'un autre compte répond **404**
 
 ---
 
+### Marché d'échange (cf. §7 septies)
+
+| Méthode | Route | Corps / requête | Réponse |
+| --- | --- | --- | --- |
+| GET | `/api/trades` | `?rarity=EPIC&series=1\|2&fillable=1` | `{ offers }` — offres ouvertes des AUTRES comptes, 100 au plus, les plus récentes d'abord |
+| GET | `/api/trades/mine` | — | `{ offers }` — mes offres ouvertes, puis l'historique (échangées, annulées, et celles que j'ai acceptées) |
+| POST | `/api/trades` | `{ offeredCardId, requestedCardId }` | 201 `{ offer }` · 409 `not_duplicate` / `offer_exists` / `offer_limit` · 400 `rarity_mismatch` / `same_card` · 404 |
+| POST | `/api/trades/:id/accept` | — | `{ offer, received, given }` · 409 `offer_closed` / `card_not_available` / `offer_unavailable` · 400 `own_offer` |
+| DELETE | `/api/trades/:id` | — | `{ offer }` (annulée) · 404 (offre d'un autre) · 409 `offer_closed` |
+
+Toutes authentifiées. Une offre porte `mine`, `canAccept` (exemplaire libre de la carte demandée) et
+`ownsOffered` ; le créateur n'est exposé que par son id et son pseudo, jamais son e-mail.
+
+---
+
 ## 5. Stratégie « invité d'abord »
 
 ```
@@ -945,6 +960,41 @@ entités, guide, couverture démesurée, refus), normalisation et fusion, puis l
 (recherche et pannes de sources, 401 / 413 / 415 / 422, import enrichi,
 doublon, `Range` / 416, position entre deux appareils, position périmée, horloge
 en avance, fiche corrigée, isolement entre comptes, quota, suppression).
+
+## 7 septies. Marché d'échange de doublons (`src/modules/trades/`)
+
+Un compte propose un doublon contre une carte **de même rareté** ; un autre accepte, et les deux cartes
+changent de main dans une seule transaction. Invités exclus (leurs cartes d'essai ne sont que des reçus).
+
+**Modèle `TradeOffer`** (migration `trade_offers`) : `userId` (créateur), `offeredCardId`,
+`requestedCardId`, `status` (`OPEN` · `COMPLETED` · `CANCELLED`, validé par l'API), `acceptedById`,
+`createdAt`, `updatedAt`.
+
+**Réservation** (sans colonne dédiée : déduite des offres ouvertes). On ne propose une carte que s'il en
+reste au moins deux exemplaires LIBRES : un pour l'offre, un que l'on garde toujours. Pour accepter, on
+cède un exemplaire libre de la carte demandée — le dernier est permis (« en double ou simple »), mais pas
+un exemplaire réservé par ses propres offres ouvertes. 20 offres ouvertes au plus, jamais deux identiques.
+
+**Aucune carte créée ni perdue.** Chaque écriture décisive est conditionnelle (`updateMany … where`) et
+son résultat vérifié ; une condition qui ne tient plus fait échouer toute la transaction, rien n'est
+écrit :
+
+1. l'offre passe de `OPEN` à `COMPLETED` (`where status = 'OPEN'`) — un seul acceptant y parvient ;
+2. le créateur cède son doublon (`where count >= 2`) ;
+3. celui qui accepte cède la carte demandée (`where count >= requis`, réservations comprises) ;
+4. chacun reçoit la carte de l'autre (`upsert`).
+
+Sous PostgreSQL, la première écriture verrouille la ligne ; une transaction concurrente attend, relit la
+condition et ne passe plus (409). SQLite sérialise les écritures. La création verrouille aussi la ligne
+« carte possédée » (écriture neutre) : deux offres simultanées sur le même doublon passent l'une après
+l'autre, et la seconde voit la réservation de la première.
+
+**Profil.** Une carte cédée jusqu'au dernier exemplaire quitte l'album (ligne supprimée), et avec lui
+l'avatar et la vitrine du profil, qui ne montrent jamais une carte non possédée.
+
+Tests : `backend/test/trades.test.ts` — doublon exigé, réservation, rareté, filtres du marché, échange
+et conservation des cartes, refus sans effet, acceptations et créations **simultanées**, deux offres du
+même doublon acceptées en même temps, avatar nettoyé, annulation, historique.
 
 ## 8. Limites connues et suites possibles
 

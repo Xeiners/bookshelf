@@ -65,6 +65,9 @@ model User {
   cards      UserCard[]
   books      UserBook[]
   musicPlaylists MusicPlaylist[]
+  tradeOffers    TradeOffer[] @relation("TradeOwner")
+  tradesAccepted TradeOffer[] @relation("TradeResponder")
+  notifications  Notification[]
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -199,6 +202,8 @@ model Card {
   createdAt     DateTime @default(now())
 
   owners UserCard[]
+  offeredIn   TradeOffer[] @relation("TradeOffered")
+  requestedIn TradeOffer[] @relation("TradeRequested")
 
   @@index([rarity])
   @@index([series, rarity])
@@ -315,4 +320,51 @@ model MusicPlaylist {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, id])
+}
+
+/// Offre d'échange de cartes (cf. `src/modules/trades/`) : un doublon proposé
+/// contre une carte de même rareté. Tant que l'offre est ouverte, son exemplaire
+/// est réservé : le créateur garde toujours au moins un exemplaire de la carte.
+model TradeOffer {
+  id              String   @id @default(cuid())
+  /// Créateur de l'offre.
+  userId          String
+  /// Doublon proposé.
+  offeredCardId   String
+  /// Carte demandée en échange (même rareté).
+  requestedCardId String
+  /// 'OPEN' | 'COMPLETED' | 'CANCELLED' (validé par l'API).
+  status          String   @default("OPEN")
+  /// Compte qui a accepté l'échange (offre `COMPLETED`).
+  acceptedById    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user          User  @relation("TradeOwner", fields: [userId], references: [id], onDelete: Cascade)
+  acceptedBy    User? @relation("TradeResponder", fields: [acceptedById], references: [id], onDelete: SetNull)
+  offeredCard   Card  @relation("TradeOffered", fields: [offeredCardId], references: [id], onDelete: Cascade)
+  requestedCard Card  @relation("TradeRequested", fields: [requestedCardId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, status])
+  @@index([acceptedById])
+}
+
+/// Notification d'un compte (cf. `src/modules/notifications/`) : un échange conclu, une offre du
+/// marché qui l'intéresse… Le texte est rédigé par le front, dans sa langue, depuis `type` et `data`.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  /// 'trade_accepted' | 'trade_match' (validé par l'API).
+  type      String
+  /// JSON propre au type : cartes concernées (instantanés), offre, autre collectionneur.
+  data      String    @default("{}")
+  /// `null` : pas encore lue.
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }

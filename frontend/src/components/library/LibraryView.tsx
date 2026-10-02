@@ -97,10 +97,16 @@ export function LibraryView() {
   const items = grouped[tab]
 
   // Vitrine : un titre à la une, le reste sur les étagères (dans l'ordre d'ajout).
-  const featured = useMemo(
+  const candidate = useMemo(
     () => items.reduce<LibraryEntry | null>((best, entry) => (!best || lastTouched(entry) > lastTouched(best) ? entry : best), null),
     [items],
   )
+  // La une reste la même tant qu'on est dans l'onglet : un coup de cœur ou une note
+  // (qui rajeunissent `updatedAt`) ne doivent pas faire tourner toute la vitrine.
+  const [pinned, setPinned] = useState<{ tab: LibraryTab; id: string } | null>(null)
+  const pinnedEntry = pinned?.tab === tab ? (items.find((entry) => entry.book.id === pinned.id) ?? null) : null
+  const featured = pinnedEntry ?? candidate
+  if (featured && (pinned?.tab !== tab || pinned.id !== featured.book.id)) setPinned({ tab, id: featured.book.id })
   const shelved = useMemo(() => items.filter((entry) => entry !== featured), [items, featured])
   // Deux colonnes seulement s'il y a des étagères à côté de la une.
   const wide = containerWidth >= WIDE_LAYOUT && shelved.length > 0
@@ -108,9 +114,8 @@ export function LibraryView() {
   const startReading = (entry: LibraryEntry) => {
     vibrate([10, 30, 14])
     setStatus(entry.book.id, 'reading')
+    // On reste sur l'onglet choisi : le toast dit où le livre est parti.
     notify(getT().book.movedTo(getT().status.reading), 'like')
-    // On suit le livre dans son nouvel onglet.
-    setTab('reading')
     if (isReadable(entry.book)) openReader({ source: 'mangadex', book: entry.book })
   }
 
@@ -134,7 +139,8 @@ export function LibraryView() {
         clearProps: 'opacity,visibility,transform',
       })
     },
-    { dependencies: [tab, layout, items.length], scope: scrollRef },
+    // Pas `items.length` : un coup de cœur ajouté (onglet Favoris) ne doit pas relancer toute la cascade.
+    { dependencies: [tab, layout], scope: scrollRef },
   )
 
   const empty = t.library.empty[tab]

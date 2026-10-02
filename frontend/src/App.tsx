@@ -31,6 +31,9 @@ import { EpubMatchModal } from './components/novels/EpubMatchModal'
 import { usePendingNovelProgress } from './hooks/useNovels'
 import { usePlaylistSync } from './hooks/useAmbientMusic'
 import { profileIdFromSearch, withoutProfileParam } from './lib/profileLink'
+import { useNotificationPolling } from './hooks/useNotifications'
+import { NotificationBanner } from './components/notifications/NotificationBanner'
+import { NotificationCenter } from './components/notifications/NotificationCenter'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
 const UniversalReader = lazy(() =>
@@ -72,6 +75,7 @@ export default function App() {
   const profileEditorOpen = useUiStore((state) => state.profileEditorOpen)
   const musicOpen = useUiStore((state) => state.musicOpen)
   const publicProfileId = useUiStore((state) => state.publicProfileId)
+  const notificationsOpen = useUiStore((state) => state.notificationsOpen)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
   useEffect(() => {
@@ -94,6 +98,9 @@ export default function App() {
 
   // Playlists de musique : les mêmes sur tous les appareils du compte.
   usePlaylistSync()
+
+  // Notifications du compte (échanges) : relevées en tâche de fond, page visible.
+  useNotificationPolling()
 
   // Profil du compte : chargé en avance, après le démarrage, pour que l'onglet Profil s'ouvre à jour.
   const accountId = useAuthStore((state) => state.user?.id ?? null)
@@ -225,6 +232,8 @@ export default function App() {
       )}
       {boosterOpen && <BoosterPackModal />}
       {musicOpen && <MusicSheet />}
+      {notificationsOpen && <NotificationCenter />}
+      <NotificationBanner />
       {/* « Quel livre est-ce ? » : un EPUB importé à rattacher à sa fiche. */}
       <EpubMatchModal />
       {publicProfileId && (

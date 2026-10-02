@@ -16,6 +16,8 @@ import { oracleRouter } from './modules/oracle/oracle.routes.js'
 import { proxyRouter } from './modules/proxy/proxy.routes.js'
 import { profileRouter } from './modules/users/profile.routes.js'
 import { publicProfileRouter } from './modules/users/publicProfile.routes.js'
+import { tradesRouter } from './modules/trades/trades.routes.js'
+import { notificationsRouter } from './modules/notifications/notifications.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -49,6 +51,8 @@ export function createApp() {
   app.use('/api/discover', discoverRouter)
   app.use('/api/boosters', boostersRouter)
   app.use('/api/cards', cardsRouter)
+  app.use('/api/trades', tradesRouter)
+  app.use('/api/notifications', notificationsRouter)
   app.use('/api/profile', profileRouter)
   app.use('/api/users', publicProfileRouter)
   app.use('/api/music', musicRouter)

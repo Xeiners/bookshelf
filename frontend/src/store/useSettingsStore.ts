@@ -26,6 +26,9 @@ interface SettingsState {
   /** Bandeau « connecte-toi » retiré par l'invité. Propre à l'appareil. */
   guestBannerDismissed: boolean
   dismissGuestBanner: () => void
+  /** Carillon à l'arrivée d'une notification. Propre à l'appareil. */
+  notificationSound: boolean
+  toggleNotificationSound: () => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -46,6 +49,9 @@ export const useSettingsStore = create<SettingsState>()(
       guestBannerDismissed: false,
       dismissGuestBanner: () => set({ guestBannerDismissed: true }),
 
+      notificationSound: true,
+      toggleNotificationSound: () => set((state) => ({ notificationSound: !state.notificationSound })),
+
       applyAccountLanguage: (language) => {
         if (get().language === language) return
         set({ language })
@@ -59,17 +65,20 @@ export const useSettingsStore = create<SettingsState>()(
         language: state.language,
         sidebarCollapsed: state.sidebarCollapsed,
         guestBannerDismissed: state.guestBannerDismissed,
+        notificationSound: state.notificationSound,
       }),
       // Valeur corrompue ou d'une langue retirée : on revient à la détection.
       merge: (persisted, current) => {
         const saved = persisted as
-          | { language?: unknown; sidebarCollapsed?: unknown; guestBannerDismissed?: unknown }
+          | { language?: unknown; sidebarCollapsed?: unknown; guestBannerDismissed?: unknown; notificationSound?: unknown }
           | undefined
         return {
           ...current,
           language: isLanguage(saved?.language) ? saved.language : current.language,
           sidebarCollapsed: saved?.sidebarCollapsed === true,
           guestBannerDismissed: saved?.guestBannerDismissed === true,
+          // Absent (réglages d'avant les notifications) : activé.
+          notificationSound: saved?.notificationSound !== false,
         }
       },
     },

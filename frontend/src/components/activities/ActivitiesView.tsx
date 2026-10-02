@@ -6,12 +6,13 @@ import { vibrate } from '../../lib/haptics'
 import { TarotPage } from '../../pages/TarotPage'
 import { useUiStore } from '../../store/useUiStore'
 import { CollectionView } from '../cards/CollectionView'
+import { TradingHubView } from '../trading/TradingHubView'
 import { ActivitiesHub } from './ActivitiesHub'
 import { SanctumBackdrop } from './SanctumBackdrop'
 
 /**
  * Onglet « Activités » : le hub, ou un de ses modules (l'Oracle, la
- * collection) avec un retour vers le hub. Chaque écran arrive en glissant.
+ * collection, le marché d'échange) avec un retour vers le hub. Chaque écran arrive en glissant.
  */
 export function ActivitiesView() {
   const t = useT()
@@ -47,7 +48,7 @@ export function ActivitiesView() {
               {t.activities.back}
             </button>
           </div>
-          {activity === 'oracle' ? <TarotPage /> : <CollectionView />}
+          {activity === 'oracle' ? <TarotPage /> : activity === 'market' ? <TradingHubView /> : <CollectionView />}
         </>
       )}
     </div>

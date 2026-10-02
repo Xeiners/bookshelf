@@ -1,9 +1,10 @@
 import { useRef, type CSSProperties, type ReactNode } from 'react'
-import { BookText, ChevronRight, FlaskConical, Gift, MoonStar, WifiOff, Zap } from 'lucide-react'
+import { BookText, ChevronRight, FlaskConical, Gift, Handshake, MoonStar, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
 import { useCollection } from '../../hooks/useCollection'
 import { useNovels } from '../../hooks/useNovels'
+import { useUnreadTrades } from '../../hooks/useNotifications'
 import { useOracleStatus } from '../../hooks/useOracleStatus'
 import { useT } from '../../i18n'
 import { completion, rarityRank } from '../../lib/boosters'
@@ -12,6 +13,7 @@ import { vibrate } from '../../lib/haptics'
 import { novelAsBook } from '../../lib/novels'
 import { formatCountdown } from '../../lib/oracle'
 import { displayPercent } from '../../store/useNovelStore'
+import { useTradeStore } from '../../store/useTradeStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
@@ -78,6 +80,7 @@ export function ActivitiesHub() {
         <OracleArtefact />
         <CollectionArtefact />
       </div>
+      <MarketArtefact />
       <NovelsArtefact />
     </div>
   )
@@ -369,6 +372,70 @@ function CollectionArtefact() {
             </span>
           </EnergyRing>
         )}
+      </span>
+    </button>
+  )
+}
+
+/* ---- Marché d'échange -------------------------------------------------------------------------- */
+
+/**
+ * Le Marché : échanger ses doublons avec les autres collectionneurs (comptes seulement).
+ * Une nouveauté (échange conclu, offre qui manque à l'album) allume l'artefact : pastille
+ * qui bat, poignée de main qui s'agite.
+ */
+function MarketArtefact() {
+  const t = useT()
+  const openActivity = useUiStore((state) => state.openActivity)
+  const unread = useUnreadTrades()
+  const mine = useTradeStore((state) => state.mine)
+  const openOffers = mine?.filter((offer) => offer.mine && offer.status === 'OPEN').length ?? null
+  const rootRef = useRef<HTMLButtonElement>(null)
+
+  useGSAP(
+    () => {
+      if (unread === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      gsap.fromTo('[data-market-ping]', { scale: 1, autoAlpha: 0.8 }, { scale: 2.4, autoAlpha: 0, duration: 1.4, ease: 'power1.out', repeat: -1 })
+      gsap.to('[data-market-icon]', { keyframes: { rotation: [0, -14, 12, -8, 0] }, duration: 0.9, ease: 'power1.inOut', repeat: -1, repeatDelay: 2.2 })
+    },
+    { scope: rootRef, dependencies: [unread > 0], revertOnUpdate: true },
+  )
+
+  return (
+    <button
+      ref={rootRef}
+      type="button"
+      data-artefact
+      onClick={() => openActivity('market')}
+      className={`${ARTEFACT_CLASS} w-full`}
+      style={unread > 0 ? { ...ARTEFACT_SURFACE, boxShadow: '0 0 0 1px rgba(63,224,160,0.45), 0 18px 46px -22px rgba(63,224,160,0.6)' } : ARTEFACT_SURFACE}
+    >
+      <span className="flex items-center gap-5 p-5">
+        <span
+          aria-hidden
+          className="relative grid size-14 shrink-0 place-items-center rounded-2xl border border-[#ffe39a]/35 bg-black/40 text-gold shadow-[inset_0_0_18px_rgba(255,196,107,0.18)]"
+        >
+          <span data-market-icon className="grid will-change-transform">
+            <Handshake size={26} />
+          </span>
+          {unread > 0 && (
+            <span className="absolute -top-1 -right-1 grid size-3.5 place-items-center">
+              <span data-market-ping className="absolute inset-0 rounded-full bg-like will-change-transform" />
+              <span className="relative size-3 rounded-full bg-like shadow-[0_0_0_2px_#050507]" />
+            </span>
+          )}
+        </span>
+        <span className="block min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-2xl text-cream">{t.trades.title}</span>
+            {unread > 0 && (
+              <span className="rounded-full bg-like/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-like uppercase">{t.trades.hubNew(unread)}</span>
+            )}
+          </span>
+          <span className="mt-1 block text-sm text-cream/60">{t.trades.body}</span>
+          {openOffers !== null && <span className="mt-1.5 block text-[11px] text-gold/80">{t.trades.hubOpen(openOffers)}</span>}
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
       </span>
     </button>
   )

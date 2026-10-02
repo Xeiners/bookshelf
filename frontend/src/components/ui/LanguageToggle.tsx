@@ -82,3 +82,50 @@ export function LanguageToggle() {
     </div>
   )
 }
+
+/**
+ * Variante compacte (en-tête du téléphone) : une pastille qui affiche la langue
+ * courante et bascule sur l'autre d'un tap — deux langues seulement, et la
+ * place manque à côté de la musique et des notifications. Le code roule à la
+ * bascule, comme un compteur mécanique.
+ */
+export function LanguageSwitch() {
+  const t = useT()
+  const language = useLanguage()
+  const setLanguage = useSettingsStore((state) => state.setLanguage)
+  const rootRef = useRef<HTMLButtonElement>(null)
+  const next = LANGUAGES[(LANGUAGES.indexOf(language) + 1) % LANGUAGES.length]!
+  const nextName = DICTIONARIES[next].language.names[next]
+  const firstRun = useRef(true)
+
+  useGSAP(
+    () => {
+      if (firstRun.current) {
+        firstRun.current = false
+        return
+      }
+      gsap.fromTo('[data-lang-code]', { yPercent: 70, autoAlpha: 0 }, { yPercent: 0, autoAlpha: 1, duration: 0.4, ease: 'back.out(2)' })
+    },
+    { dependencies: [language], scope: rootRef },
+  )
+
+  return (
+    <button
+      ref={rootRef}
+      type="button"
+      onClick={() => {
+        vibrate(8)
+        setLanguage(next)
+      }}
+      // Nommée dans la langue de destination : on retrouve la sienne même perdu dans l'autre.
+      aria-label={t.language.switchTo(nextName)}
+      title={t.language.switchTo(nextName)}
+      lang={next}
+      className="glass grid size-10 shrink-0 place-items-center overflow-hidden rounded-full"
+    >
+      <span data-lang-code className="text-[11px] font-semibold tracking-[0.12em] text-cream uppercase">
+        {language}
+      </span>
+    </button>
+  )
+}

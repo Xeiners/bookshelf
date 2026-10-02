@@ -26,7 +26,7 @@ extraMocks.push((url) => {
           },
         },
       }), { status: 200, headers: { 'Content-Type': 'application/json' } })
-    : undefined,
+    : undefined
 })
 const { client, close } = await startServer()
 after(close)

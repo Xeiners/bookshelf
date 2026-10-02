@@ -4,7 +4,7 @@ import type { ReaderSession } from '../types/reader'
 
 export type ViewId = 'discover' | 'activities' | 'search' | 'library' | 'profile'
 /** Écran de l'onglet « Activités » : le hub, ou un de ses modules. */
-export type ActivityScreen = 'hub' | 'oracle' | 'collection'
+export type ActivityScreen = 'hub' | 'oracle' | 'collection' | 'market'
 export type ToastTone = 'like' | 'nope' | 'neutral'
 
 export interface Toast {
@@ -42,6 +42,10 @@ interface UiState {
   musicOpen: boolean
   /** Profil public affiché en plein écran (id du compte), `null` = fermé. */
   publicProfileId: string | null
+  /** Centre de notifications (cloche de l'en-tête). */
+  notificationsOpen: boolean
+  /** Recherche défilée vers le bas : l'en-tête se replie, seules la barre et les filtres restent. */
+  chromeCollapsed: boolean
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -73,6 +77,9 @@ interface UiState {
   /** Profil d'un utilisateur : depuis un lien partagé (`?u=<id>`), un pseudo, un avatar… */
   openPublicProfile: (userId: string) => void
   closePublicProfile: () => void
+  openNotifications: () => void
+  setChromeCollapsed: (collapsed: boolean) => void
+  closeNotifications: () => void
   notify: (message: string, tone?: ToastTone) => void
   dismissToast: () => void
 }
@@ -95,14 +102,17 @@ export const useUiStore = create<UiState>((set) => ({
   profileEditorOpen: false,
   musicOpen: false,
   publicProfileId: null,
+  notificationsOpen: false,
+  chromeCollapsed: false,
 
-  setView: (view) => set({ view }),
+  // Changer de vue redéplie l'en-tête : il ne se replie que dans la Recherche, défilée.
+  setView: (view) => set({ view, chromeCollapsed: false }),
   openDetail: (detail) => set({ detail }),
   closeDetail: () => set({ detail: null }),
   openAuth: () => set({ authOpen: true }),
   closeAuth: () => set({ authOpen: false }),
   setLibraryTab: (libraryTab) => set({ libraryTab }),
-  openLibrary: (libraryTab) => set({ view: 'library', libraryTab }),
+  openLibrary: (libraryTab) => set({ view: 'library', libraryTab, chromeCollapsed: false }),
   focusSearch: () => set((state) => ({ view: 'search', searchFocusTick: state.searchFocusTick + 1 })),
   openReader: (reader) => set({ reader, detail: null, filesOpen: false, novelsOpen: false, musicOpen: false }),
   closeReader: () => set({ reader: null }),
@@ -110,7 +120,7 @@ export const useUiStore = create<UiState>((set) => ({
   closeFiles: () => set({ filesOpen: false }),
   openNovels: () => set({ novelsOpen: true, detail: null }),
   closeNovels: () => set({ novelsOpen: false }),
-  openActivity: (activity) => set({ view: 'activities', activity }),
+  openActivity: (activity) => set({ view: 'activities', activity, chromeCollapsed: false }),
   openBooster: () => set({ boosterOpen: true, detail: null }),
   closeBooster: () => set({ boosterOpen: false }),
   openSettings: () => set({ settingsOpen: true, profileEditorOpen: false }),
@@ -122,6 +132,9 @@ export const useUiStore = create<UiState>((set) => ({
   // Les feuilles de l'app (paramètres, musique, fiche) se ferment : le profil passe devant.
   openPublicProfile: (publicProfileId) => set({ publicProfileId, settingsOpen: false, musicOpen: false, detail: null }),
   closePublicProfile: () => set({ publicProfileId: null }),
+  openNotifications: () => set({ notificationsOpen: true, settingsOpen: false, musicOpen: false }),
+  closeNotifications: () => set({ notificationsOpen: false }),
+  setChromeCollapsed: (chromeCollapsed) => set((state) => (state.chromeCollapsed === chromeCollapsed ? state : { chromeCollapsed })),
 
   notify: (message, tone = 'neutral') => {
     toastId += 1
