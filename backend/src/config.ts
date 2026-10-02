@@ -101,6 +101,11 @@ const EnvSchema = z.object({
    * de tirage et les animations. Les cartes tirées sont bien enregistrées.
    */
   BOOSTER_UNLIMITED_MODE: z.enum(['true', 'false']).default('false'),
+  /**
+   * Administrateurs (cf. src/modules/admin/) : e-mails des comptes, séparés par
+   * des virgules. Seul ce fichier fait un administrateur : aucune route ne le peut.
+   */
+  ADMIN_EMAILS: z.string().optional(),
 
   /*
    * Romans importés (EPUB, cf. src/modules/books/). Les fichiers vivent sur le
@@ -234,6 +239,8 @@ export const config = {
   cards: {
     unlimited: env.BOOSTER_UNLIMITED_MODE === 'true',
   },
+  /** E-mails des administrateurs, en minuscules (comme ceux des comptes). */
+  admins: new Set(csv(env.ADMIN_EMAILS).map((email) => email.toLowerCase())),
   books: {
     dir: path.isAbsolute(env.BOOKS_DIR) ? env.BOOKS_DIR : path.resolve(BACKEND_ROOT, env.BOOKS_DIR),
     maxUploadBytes: env.BOOKS_MAX_UPLOAD_MB * 1024 * 1024,

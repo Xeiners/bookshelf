@@ -26,7 +26,8 @@ export function useNotificationPolling() {
     setArrivalHandler((fresh) => {
       if (document.visibilityState !== 'visible' || useUiStore.getState().reader) return
       vibrate([10, 40, 10])
-      if (useSettingsStore.getState().notificationSound) playChime(fresh.some((item) => item.type === 'trade_accepted'))
+      // Échange conclu ou cadeau : un carillon plus clair qu'une simple alerte.
+      if (useSettingsStore.getState().notificationSound) playChime(fresh.some((item) => item.type !== 'trade_match'))
     })
   }, [])
 
@@ -61,7 +62,7 @@ export function useNotificationPolling() {
 /**
  * Ouvre ce dont parle une notification (et la marque lue) : « Mes échanges »
  * pour un échange conclu, l'offre elle-même au marché — filtres remis à zéro
- * pour qu'elle y figure.
+ * pour qu'elle y figure —, l'autel des boosters ou l'album pour un cadeau.
  */
 export function openNotification(item: AppNotification) {
   const notifications = useNotificationStore.getState()
@@ -71,10 +72,15 @@ export function openNotification(item: AppNotification) {
   const ui = useUiStore.getState()
   ui.closeNotifications()
   ui.closeDetail()
+  const target = targetOf(item)
+  // Cadeaux : l'autel des boosters (le hub), ou l'album.
+  if (target.kind === 'boosters' || target.kind === 'collection') {
+    ui.openActivity(target.kind === 'boosters' ? 'hub' : 'collection')
+    return
+  }
   ui.openActivity('market')
 
   const trades = useTradeStore.getState()
-  const target = targetOf(item)
   if (target.kind === 'my-trades') {
     trades.openSheet('mine')
     return

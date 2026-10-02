@@ -21,6 +21,16 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
   switch (error.code) {
     case 'invalid_credentials':
       return t.errors.invalidCredentials
+    case 'account_suspended': {
+      const reason = error.details.reason
+      return t.errors.accountSuspended(typeof reason === 'string' && reason.trim() ? reason : null)
+    }
+    case 'admin_protected':
+      return t.errors.adminProtected
+    case 'already_suspended':
+      return t.errors.alreadySuspended
+    case 'not_suspended':
+      return t.errors.notSuspended
     case 'email_taken':
       return t.errors.emailTaken
     case 'rate_limited':

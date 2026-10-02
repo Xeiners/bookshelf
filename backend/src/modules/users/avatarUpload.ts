@@ -82,3 +82,9 @@ export async function storedAvatar(userId: string): Promise<{ file: string; cont
   }
   throw notFound('Photo de profil introuvable.')
 }
+
+/** Efface la photo du compte, quel que soit son format (modération). Sans photo : rien à faire. */
+export async function removeAvatar(userId: string): Promise<void> {
+  const stem = safeUserId(userId)
+  await Promise.all((Object.keys(FORMATS) as AvatarExtension[]).map((ext) => rm(path.join(avatarDirectory(), `${stem}.${ext}`), { force: true })))
+}

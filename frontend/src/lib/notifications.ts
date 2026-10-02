@@ -6,6 +6,7 @@
 import type { Dictionary } from '../i18n/fr'
 import type { AppNotification } from '../services/notificationsApi'
 import type { TradeCard } from '../services/tradesApi'
+import { RARITY_STYLE } from './boosters'
 import { partyName } from './trades'
 
 /** Liste gardée en mémoire, au plus (l'API en renvoie 50). */
@@ -38,11 +39,21 @@ export function splitByRead(items: readonly AppNotification[]): { fresh: AppNoti
   return { fresh: items.filter((item) => !item.read), earlier: items.filter((item) => item.read) }
 }
 
-/** Où mène une notification : « Mes échanges » (échange fait), ou l'offre au marché. */
-export type NotificationTarget = { kind: 'my-trades' } | { kind: 'offer'; offerId: string } | { kind: 'market' }
+/**
+ * Où mène une notification : « Mes échanges » (échange fait), l'offre au marché,
+ * l'autel des boosters (boosters offerts) ou l'album (carte offerte).
+ */
+export type NotificationTarget =
+  | { kind: 'my-trades' }
+  | { kind: 'offer'; offerId: string }
+  | { kind: 'market' }
+  | { kind: 'boosters' }
+  | { kind: 'collection' }
 
 export function targetOf(item: AppNotification): NotificationTarget {
   if (item.type === 'trade_accepted') return { kind: 'my-trades' }
+  if (item.type === 'booster_gift') return { kind: 'boosters' }
+  if (item.type === 'card_gift') return { kind: 'collection' }
   // Offre partie entre-temps : le marché reste la meilleure destination.
   return item.active ? { kind: 'offer', offerId: item.data.offerId } : { kind: 'market' }
 }
@@ -53,7 +64,7 @@ export const unreadTrades = (items: readonly AppNotification[]) =>
 
 /** Offres signalées par une notification non lue : marquées « Pour toi » au marché. */
 export const flaggedOffers = (items: readonly AppNotification[]): Set<string> =>
-  new Set(items.filter((item) => !item.read && item.type === 'trade_match').map((item) => item.data.offerId))
+  new Set(items.flatMap((item) => (!item.read && item.type === 'trade_match' ? [item.data.offerId] : [])))
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['day', 86_400],
@@ -77,30 +88,53 @@ export function relativeTime(iso: string, now: number, locale: string, justNow: 
   return justNow
 }
 
+/**
+ * Ce que montre la vignette : deux cartes (un échange : reçue devant, cédée
+ * derrière), une carte seule (cadeau), ou un paquet de boosters (cadeau).
+ */
+export type NotificationVisual =
+  | { kind: 'trade'; card: TradeCard; behind: TradeCard }
+  | { kind: 'card'; card: TradeCard; count: number }
+  | { kind: 'booster'; count: number }
+
 export interface NotificationCopy {
   title: string
   body: string
-  /** Carte mise en avant (celle que l'on reçoit, ou que l'on pourrait recevoir). */
-  card: TradeCard
-  /** Carte cédée, glissée derrière la première. */
-  behind: TradeCard
+  visual: NotificationVisual
 }
+
+/** Or de la marque (`--color-gold`) : GSAP et les dégradés veulent une couleur littérale. */
+const GOLD = '#ffc46b'
+
+/** Couleur d'accent d'une notification : la rareté de la carte, l'or pour un booster. */
+export const accentOf = (visual: NotificationVisual): string => (visual.kind === 'booster' ? GOLD : RARITY_STYLE[visual.card.rarity].color)
 
 /** Phrase d'une notification, rédigée dans la langue de l'app (le serveur n'envoie que des données). */
 export function notificationCopy(item: AppNotification, t: Dictionary): NotificationCopy {
-  const name = partyName(item.data.by, t.trades.anonymous)
-  if (item.type === 'trade_accepted') {
-    return {
-      title: t.notifications.tradeAccepted.title(name),
-      body: t.notifications.tradeAccepted.body(item.data.received.name, item.data.given.name),
-      card: item.data.received,
-      behind: item.data.given,
-    }
-  }
-  return {
-    title: t.notifications.tradeMatch.title(item.data.offered.name),
-    body: t.notifications.tradeMatch.body(name, item.data.requested.name),
-    card: item.data.offered,
-    behind: item.data.requested,
+  switch (item.type) {
+    case 'booster_gift':
+      return {
+        title: t.notifications.boosterGift.title(item.data.count),
+        body: t.notifications.boosterGift.body(item.data.message),
+        visual: { kind: 'booster', count: item.data.count },
+      }
+    case 'card_gift':
+      return {
+        title: t.notifications.cardGift.title(item.data.card.name),
+        body: t.notifications.cardGift.body(item.data.count, item.data.message),
+        visual: { kind: 'card', card: item.data.card, count: item.data.count },
+      }
+    case 'trade_accepted':
+      return {
+        title: t.notifications.tradeAccepted.title(partyName(item.data.by, t.trades.anonymous)),
+        body: t.notifications.tradeAccepted.body(item.data.received.name, item.data.given.name),
+        visual: { kind: 'trade', card: item.data.received, behind: item.data.given },
+      }
+    case 'trade_match':
+      return {
+        title: t.notifications.tradeMatch.title(item.data.offered.name),
+        body: t.notifications.tradeMatch.body(partyName(item.data.by, t.trades.anonymous), item.data.requested.name),
+        visual: { kind: 'trade', card: item.data.offered, behind: item.data.requested },
+      }
   }
 }

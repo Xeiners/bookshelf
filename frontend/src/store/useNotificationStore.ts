@@ -63,11 +63,13 @@ function absorb(get: () => NotificationState, set: (partial: Partial<Notificatio
     arrivals: state.arrivals + fresh.length,
   })
   if (fresh.length === 0) return
-  // Une de MES offres a été acceptée : l'album a changé, mes offres aussi.
-  if (fresh.some((item) => item.type === 'trade_accepted')) {
+  // Une de MES offres a été acceptée, ou une carte offerte : l'album a changé (et mes offres).
+  if (fresh.some((item) => item.type === 'trade_accepted' || item.type === 'card_gift')) {
     useBoosterStore.getState().collectionChanged()
     if (useTradeStore.getState().mine) void useTradeStore.getState().loadMine()
   }
+  // Boosters offerts : le stock affiché (hub, navigation) se met à jour tout de suite.
+  if (fresh.some((item) => item.type === 'booster_gift')) void useBoosterStore.getState().refresh()
   onArrival(fresh)
 }
 

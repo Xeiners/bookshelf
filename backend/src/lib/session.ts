@@ -19,8 +19,12 @@ const cookieOptions: CookieOptions = {
   path: '/',
 }
 
-export async function issueSession(res: Response, userId: string): Promise<void> {
-  const token = await new SignJWT({})
+/**
+ * `version` : la version des sessions du compte (`User.sessionVersion`). L'incrémenter
+ * (suspension) invalide d'un coup tous les jetons déjà émis — cf. `sessionGuard.ts`.
+ */
+export async function issueSession(res: Response, userId: string, version = 0): Promise<void> {
+  const token = await new SignJWT({ sv: version })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(userId)
     .setIssuer(ISSUER)
@@ -35,12 +39,17 @@ export function clearSession(res: Response): void {
   res.clearCookie(SESSION_COOKIE, cookieOptions)
 }
 
-/** Renvoie l'id utilisateur du jeton, ou `null` s'il est absent, expiré ou falsifié. */
-export async function readSession(token: string | undefined): Promise<string | null> {
+/**
+ * Contenu du jeton, ou `null` s'il est absent, expiré ou falsifié. Ne dit rien du
+ * compte (supprimé, suspendu, sessions révoquées) : c'est `authenticate` qui tranche.
+ */
+export async function readSessionClaims(token: string | undefined): Promise<{ userId: string; version: number } | null> {
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, secret, { issuer: ISSUER, algorithms: ['HS256'] })
-    return payload.sub ?? null
+    if (!payload.sub) return null
+    // Jetons d'avant la version des sessions : version 0, celle de tous les comptes jamais suspendus.
+    return { userId: payload.sub, version: typeof payload.sv === 'number' ? payload.sv : 0 }
   } catch {
     return null
   }

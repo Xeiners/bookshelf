@@ -3,9 +3,8 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { openNotification } from '../../hooks/useNotifications'
 import { useT } from '../../i18n'
-import { RARITY_STYLE } from '../../lib/boosters'
 import { Draggable, EASE, gsap, useGSAP } from '../../lib/gsap'
-import { notificationCopy } from '../../lib/notifications'
+import { accentOf, notificationCopy } from '../../lib/notifications'
 import type { AppNotification } from '../../services/notificationsApi'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -34,7 +33,7 @@ function Banner({ item }: { item: AppNotification }) {
   const t = useT()
   const dismissBanner = useNotificationStore((state) => state.dismissBanner)
   const copy = notificationCopy(item, t)
-  const color = RARITY_STYLE[copy.card.rarity].color
+  const color = accentOf(copy.visual)
   const rootRef = useRef<HTMLDivElement>(null)
   /** Enveloppe : entrée et sortie. Carte : le geste. Séparées, aucune n'interrompt l'autre. */
   const shellRef = useRef<HTMLDivElement>(null)

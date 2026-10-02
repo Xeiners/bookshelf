@@ -22,7 +22,19 @@ export interface TradeMatchNotification extends NotificationBase {
   data: { offerId: string; offered: TradeCard; requested: TradeCard; by: TradeParty }
 }
 
-export type AppNotification = TradeAcceptedNotification | TradeMatchNotification
+/** L'équipe a offert des boosters (administration). */
+export interface BoosterGiftNotification extends NotificationBase {
+  type: 'booster_gift'
+  data: { count: number; message: string | null }
+}
+
+/** L'équipe a offert une carte (administration). */
+export interface CardGiftNotification extends NotificationBase {
+  type: 'card_gift'
+  data: { card: TradeCard; count: number; message: string | null }
+}
+
+export type AppNotification = TradeAcceptedNotification | TradeMatchNotification | BoosterGiftNotification | CardGiftNotification
 
 export interface NotificationList {
   notifications: AppNotification[]

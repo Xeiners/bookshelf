@@ -101,6 +101,7 @@ export const fr = {
   },
 
   activities: {
+    giftedCount: (count: number) => `${count} offert${plural(count, '', 's')}`,
     back: 'Activités',
     boosterCount: (available: number, max: number) => `${available}/${max} boosters`,
     boosterCountAria: (available: number, max: number) => `${available} booster${available > 1 ? 's' : ''} sur ${max} disponible${available > 1 ? 's' : ''}`,
@@ -286,6 +287,15 @@ export const fr = {
   },
 
   notifications: {
+    boosterGift: {
+      title: (count: number) => `L’équipe t’offre ${count} booster${plural(count, '', 's')} !`,
+      body: (message: string | null) => message ?? 'Ils t’attendent dans les Activités.',
+    },
+    cardGift: {
+      title: (card: string) => `L’équipe t’offre ${card}`,
+      body: (count: number, message: string | null) =>
+        message ?? (count > 1 ? `${count} exemplaires rejoignent ton album.` : 'Elle rejoint ton album.'),
+    },
     open: 'Notifications',
     openUnread: (count: number) => `Notifications, ${count} non lue${plural(count, '', 's')}`,
     title: 'Notifications',
@@ -321,6 +331,112 @@ export const fr = {
       oracleBody: 'Les cartes de l’Oracle n’attendent que toi.',
     },
     banner: { dismiss: 'Fermer la notification', label: 'Nouvelle notification' },
+  },
+
+  admin: {
+    title: 'Administration',
+    close: 'Fermer l’administration',
+    tabs: { label: 'Rubriques de l’administration', users: 'Comptes', audit: 'Journal' },
+    overview: {
+      users: 'Comptes',
+      newThisWeek: 'Nouveaux · 7 j',
+      activeThisWeek: 'Actifs · 7 j',
+      suspended: 'Suspendus',
+      openOffers: 'Offres ouvertes',
+      tradesThisWeek: 'Échanges · 7 j',
+      boostersOpened: 'Boosters ouverts',
+    },
+    search: 'Pseudo, e-mail ou identifiant',
+    filters: { label: 'Filtrer les comptes', all: 'Tous', active: 'Actifs', suspended: 'Suspendus' },
+    empty: 'Aucun compte ne correspond.',
+    loadMore: 'Afficher plus',
+    error: 'Impossible de charger l’administration.',
+    retry: 'Réessayer',
+    badges: { admin: 'Admin', suspended: 'Suspendu', unverified: 'E-mail non vérifié' },
+    anonymous: 'Sans pseudo',
+    seen: (when: string) => `Vu ${when}`,
+    neverSeen: 'Jamais vu depuis la mise à jour',
+    joined: (date: string) => `Inscrit le ${date}`,
+    rowMeta: (cards: number, library: number) =>
+      `${cards} carte${plural(cards, '', 's')} · ${library} titre${plural(library, '', 's')}`,
+    back: 'Retour aux comptes',
+    pick: 'Choisis un compte pour voir sa fiche.',
+    open: (name: string) => `Ouvrir la fiche de ${name}`,
+    detail: {
+      stats: 'En chiffres',
+      boosters: 'Boosters prêts',
+      gifted: (count: number) => `dont ${count} offert${plural(count, '', 's')}`,
+      cards: 'Cartes',
+      library: 'Bibliothèque',
+      libraryLine: (wishlist: number, reading: number, read: number) => `${wishlist} envie · ${reading} en cours · ${read} lus`,
+      novels: 'Romans',
+      opened: 'Boosters ouverts',
+      trades: 'Échanges conclus',
+      offers: 'Offres ouvertes',
+      profile: 'Profil',
+      visibility: { public: 'Profil public', private: 'Profil privé' },
+      bio: 'Présentation',
+      noBio: 'Aucune présentation.',
+      photo: 'Photo de profil',
+      history: 'Actions sur ce compte',
+    },
+    giftBoosters: {
+      title: 'Offrir des boosters',
+      hint: 'Hors plafond : ils s’ajoutent au stock et ne se perdent jamais.',
+      count: 'Nombre de boosters',
+      less: 'Un de moins',
+      more: 'Un de plus',
+      message: 'Petit mot (facultatif)',
+      placeholder: 'Merci pour ton aide !',
+      submit: (count: number) => `Offrir ${count} booster${plural(count, '', 's')}`,
+      done: (count: number, name: string) => `${count} booster${plural(count, '', 's')} offert${plural(count, '', 's')} à ${name}`,
+    },
+    giftCard: {
+      title: 'Offrir une carte',
+      search: 'Nom, œuvre ou numéro de carte',
+      none: 'Aucune carte trouvée.',
+      count: 'Exemplaires',
+      submit: (card: string) => `Offrir ${card}`,
+      pickFirst: 'Choisis d’abord une carte.',
+      done: (card: string, name: string) => `${card} offerte à ${name}`,
+    },
+    moderation: {
+      title: 'Modérer le profil',
+      displayName: 'Effacer le pseudo',
+      bio: 'Effacer la présentation',
+      avatar: 'Retirer l’avatar (photo comprise)',
+      makePrivate: 'Passer le profil en privé',
+      cancelOffers: 'Annuler ses offres au Marché',
+      submit: 'Appliquer',
+      confirm: 'Confirmer la modération',
+      done: 'Profil modéré',
+    },
+    suspension: {
+      title: 'Suspension',
+      hint: 'Ses sessions sont coupées, la connexion est refusée et ses offres au Marché sont retirées.',
+      reason: 'Motif (montré au titulaire à la connexion)',
+      placeholder: 'Spam, triche, contenu inapproprié…',
+      suspend: 'Suspendre le compte',
+      confirm: 'Confirmer la suspension',
+      since: (date: string) => `Suspendu depuis le ${date}`,
+      noReason: 'Sans motif',
+      unsuspend: 'Réactiver le compte',
+      done: 'Compte suspendu',
+      restored: 'Compte réactivé',
+      protectedAdmin: 'Compte administrateur : il ne peut pas être suspendu.',
+    },
+    audit: {
+      empty: 'Aucune action pour l’instant.',
+      by: (email: string) => `par ${email}`,
+      deleted: 'Compte supprimé',
+      giftBoosters: (count: number) => `a offert ${count} booster${plural(count, '', 's')}`,
+      giftCard: (card: string, count: number) => `a offert ${card}${count > 1 ? ` ×${count}` : ''}`,
+      suspend: (reason: string | null) => (reason ? `a suspendu le compte (${reason})` : 'a suspendu le compte'),
+      unsuspend: 'a réactivé le compte',
+      moderate: (fields: string) => `a modéré : ${fields}`,
+      fields: { displayName: 'pseudo', bio: 'présentation', avatar: 'avatar', makePrivate: 'profil privé', cancelOffers: 'offres' },
+      message: (text: string) => `« ${text} »`,
+    },
   },
 
   banner: {
@@ -686,6 +802,11 @@ export const fr = {
   },
 
   settings: {
+    admin: {
+      title: 'Administration',
+      open: 'Ouvrir l’administration',
+      hint: 'Comptes, cadeaux, modération et journal.',
+    },
     open: 'Paramètres',
     title: 'Paramètres',
     subtitle: 'Compte, lecture, stockage',
@@ -766,6 +887,7 @@ export const fr = {
   },
 
   account: {
+    suspended: 'Ton compte a été suspendu : tu as été déconnecté.',
     guestTitle: 'Mode invité',
     cta: 'Créer un compte / Se connecter',
     offline: 'Hors-ligne · synchronisation en attente',
@@ -1163,6 +1285,11 @@ export const fr = {
   },
 
   errors: {
+    accountSuspended: (reason: string | null) =>
+      reason ? `Ce compte est suspendu : ${reason}` : 'Ce compte est suspendu. Contacte l’équipe Bookshelf.',
+    adminProtected: 'Un administrateur ne peut pas être suspendu.',
+    alreadySuspended: 'Ce compte est déjà suspendu.',
+    notSuspended: 'Ce compte n’est pas suspendu.',
     network: 'Serveur injoignable. Vérifie ta connexion.',
     unexpected: 'Une erreur inattendue est survenue.',
     invalidCredentials: 'E-mail ou mot de passe incorrect.',

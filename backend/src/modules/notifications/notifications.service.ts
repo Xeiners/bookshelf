@@ -4,13 +4,13 @@ import type { CardDto } from '../cards/cards.service.js'
 
 /*
  * Notifications d'un compte : un échange conclu avec lui, une offre du marché
- * qui l'intéresse. Le serveur ne rédige rien : il garde le type et les données
+ * qui l'intéresse, un cadeau de l'équipe (boosters, carte). Le serveur ne rédige rien : il garde le type et les données
  * (instantanés des cartes, autre collectionneur), le front écrit la phrase dans
  * sa langue. Le front les relève en sondant `GET /api/notifications?since=` :
  * aucune connexion permanente à tenir derrière Caddy et Nginx.
  */
 
-export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match'] as const
+export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
 export interface NotificationParty {
@@ -38,9 +38,25 @@ export interface TradeMatchData {
   by: NotificationParty
 }
 
+/** Boosters offerts par l'équipe (administration). */
+export interface BoosterGiftData {
+  count: number
+  /** Mot de l'équipe, facultatif. */
+  message: string | null
+}
+
+/** Carte offerte par l'équipe (administration). */
+export interface CardGiftData {
+  card: CardDto
+  count: number
+  message: string | null
+}
+
 interface DataOf {
   trade_accepted: TradeAcceptedData
   trade_match: TradeMatchData
+  booster_gift: BoosterGiftData
+  card_gift: CardGiftData
 }
 
 export type NotificationDto = {

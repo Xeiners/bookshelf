@@ -10,6 +10,8 @@ export interface BoosterView {
   /** Stock connu (réponse du serveur reçue au moins une fois). */
   ready: boolean
   available: number
+  /** Dont boosters offerts par l'équipe (hors plafond, jamais perdus). */
+  gifted: number
   max: number
   /** Secondes avant le prochain booster, décomptées localement ; `null` : stock plein. */
   remaining: number | null
@@ -68,6 +70,7 @@ export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
       signedIn,
       ready: true,
       available: left,
+      gifted: 0,
       max: GUEST_BOOSTERS,
       remaining: null,
       progress: left > 0 ? 1 : 0,
@@ -81,6 +84,7 @@ export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
     signedIn,
     ready: status !== null,
     available: status?.available ?? 0,
+    gifted: status?.gifted ?? 0,
     max: status?.max ?? 2,
     remaining,
     progress: refillProgress(remaining, status?.intervalSeconds ?? 0),

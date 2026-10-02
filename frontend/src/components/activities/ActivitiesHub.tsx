@@ -56,8 +56,15 @@ export function ActivitiesHub() {
           aria-label={t.activities.boosterCountAria(boosters.available, boosters.max)}
         >
           <Zap size={13} className="fill-gold text-gold" />
-          {!boosters.ready ? '…' : boosters.unlimited ? t.activities.unlimited : t.activities.boosterCount(boosters.available, boosters.max)}
+          {/* Le stock qui se régénère sur son plafond ; les boosters offerts à côté, hors plafond. */}
+          {!boosters.ready ? '…' : boosters.unlimited ? t.activities.unlimited : t.activities.boosterCount(boosters.available - boosters.gifted, boosters.max)}
         </span>
+        {boosters.gifted > 0 && !boosters.unlimited && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold tabular-nums">
+            <Gift size={13} aria-hidden />
+            {t.activities.giftedCount(boosters.gifted)}
+          </span>
+        )}
         {boosters.unlimited && (
           <span
             title={t.activities.sandboxHint}

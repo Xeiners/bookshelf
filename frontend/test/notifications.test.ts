@@ -17,7 +17,7 @@ import {
 import type { AppNotification } from '../src/services/notificationsApi'
 import type { TradeCard } from '../src/services/tradesApi'
 
-const card = (id: string, name: string): TradeCard => ({
+const card_ = (id: string, name: string): TradeCard => ({
   id,
   number: 1,
   series: 1,
@@ -39,7 +39,7 @@ const accepted = (id: string, createdAt: string, read = false): AppNotification 
   read,
   active: true,
   createdAt,
-  data: { offerId: `offer-${id}`, received: card('b', 'Berserk'), given: card('a', 'Akira'), by: { id: 'u2', displayName: 'Mika' } },
+  data: { offerId: `offer-${id}`, received: card_('b', 'Berserk'), given: card_('a', 'Akira'), by: { id: 'u2', displayName: 'Mika' } },
 })
 
 const match = (id: string, createdAt: string, options: { read?: boolean; active?: boolean } = {}): AppNotification => ({
@@ -48,7 +48,7 @@ const match = (id: string, createdAt: string, options: { read?: boolean; active?
   read: options.read ?? false,
   active: options.active ?? true,
   createdAt,
-  data: { offerId: `offer-${id}`, offered: card('c', 'Claymore'), requested: card('d', 'Dorohedoro'), by: { id: 'u3', displayName: null } },
+  data: { offerId: `offer-${id}`, offered: card_('c', 'Claymore'), requested: card_('d', 'Dorohedoro'), by: { id: 'u3', displayName: null } },
 })
 
 describe('notifications — liste', () => {
@@ -102,12 +102,23 @@ describe('notifications — destination et texte', () => {
     const done = notificationCopy(accepted('1', '2026-10-01T10:00:00.000Z'), fr)
     assert.equal(done.title, 'Mika a accepté ton échange')
     assert.match(done.body, /Berserk/)
-    assert.equal(done.card.id, 'b')
-    assert.equal(done.behind.id, 'a')
+    assert.deepEqual(done.visual.kind === 'trade' && [done.visual.card.id, done.visual.behind.id], ['b', 'a'])
     const offer = notificationCopy(match('2', '2026-10-01T10:00:00.000Z'), en)
     assert.equal(offer.title, 'Claymore is at the Market')
     assert.match(offer.body, new RegExp(en.trades.anonymous))
     assert.match(offer.body, /Dorohedoro/)
+  })
+
+  it('cadeaux de l’équipe : texte, vignette, destination ; ils ne comptent pas comme nouveautés du Marché', () => {
+    const boosters: AppNotification = { id: 'g1', type: 'booster_gift', read: false, active: true, createdAt: '2026-10-01T10:00:00.000Z', data: { count: 3, message: null } }
+    const card: AppNotification = { id: 'g2', type: 'card_gift', read: false, active: true, createdAt: '2026-10-01T10:00:00.000Z', data: { card: card_('e', 'Eden'), count: 1, message: 'Bravo !' } }
+    assert.equal(notificationCopy(boosters, fr).title, 'L’équipe t’offre 3 boosters !')
+    assert.deepEqual(notificationCopy(boosters, fr).visual, { kind: 'booster', count: 3 })
+    assert.equal(notificationCopy(card, fr).body, 'Bravo !')
+    assert.equal(notificationCopy(card, en).title, 'The team gave you Eden')
+    assert.deepEqual(targetOf(boosters), { kind: 'boosters' })
+    assert.deepEqual(targetOf(card), { kind: 'collection' })
+    assert.equal(unreadTrades([boosters, card]), 0)
   })
 
   it('date relative : à l’instant, minutes, heures, hier, puis la date', () => {

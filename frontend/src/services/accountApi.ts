@@ -12,6 +12,8 @@ export interface AuthUser {
   /** Série de tirages de l'Oracle, portée par le compte. */
   oracle: OracleStreak
   createdAt: number
+  /** Compte de `ADMIN_EMAILS` : l'entrée « Administration » s'affiche (l'API revérifie chaque requête). */
+  isAdmin?: boolean
 }
 
 /** Bibliothèque telle que l'API l'échange (entrées en tableau). */

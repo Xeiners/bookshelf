@@ -49,6 +49,9 @@ const PublicProfileView = lazy(() =>
 /** Laisse passer le démarrage (bibliothèque, découverte) avant de précharger le profil. */
 const PROFILE_PRELOAD_DELAY_MS = 1500
 
+// Administration (comptes de `ADMIN_EMAILS`) : jamais téléchargée par les autres.
+const AdminView = lazy(() => import('./components/admin/AdminView').then((module) => ({ default: module.AdminView })))
+
 const NovelsSheet = lazy(() => import('./components/novels/NovelsSheet').then((module) => ({ default: module.NovelsSheet })))
 
 const SPLASH_KEY = 'bookshelf:splash-seen'
@@ -76,6 +79,8 @@ export default function App() {
   const musicOpen = useUiStore((state) => state.musicOpen)
   const publicProfileId = useUiStore((state) => state.publicProfileId)
   const notificationsOpen = useUiStore((state) => state.notificationsOpen)
+  const adminOpen = useUiStore((state) => state.adminOpen)
+  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
   useEffect(() => {
@@ -236,6 +241,11 @@ export default function App() {
       <NotificationBanner />
       {/* « Quel livre est-ce ? » : un EPUB importé à rattacher à sa fiche. */}
       <EpubMatchModal />
+      {adminOpen && isAdmin && (
+        <Suspense fallback={<div className="fixed inset-0 z-[76] bg-void" />}>
+          <AdminView />
+        </Suspense>
+      )}
       {publicProfileId && (
         <Suspense fallback={<div className="fixed inset-0 z-[75] bg-void" />}>
           <PublicProfileView key={publicProfileId} userId={publicProfileId} />

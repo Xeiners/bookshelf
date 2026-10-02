@@ -46,6 +46,8 @@ interface UiState {
   notificationsOpen: boolean
   /** Recherche défilée vers le bas : l'en-tête se replie, seules la barre et les filtres restent. */
   chromeCollapsed: boolean
+  /** Administration plein écran (comptes de `ADMIN_EMAILS`). */
+  adminOpen: boolean
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -79,6 +81,8 @@ interface UiState {
   closePublicProfile: () => void
   openNotifications: () => void
   setChromeCollapsed: (collapsed: boolean) => void
+  openAdmin: () => void
+  closeAdmin: () => void
   closeNotifications: () => void
   notify: (message: string, tone?: ToastTone) => void
   dismissToast: () => void
@@ -104,6 +108,7 @@ export const useUiStore = create<UiState>((set) => ({
   publicProfileId: null,
   notificationsOpen: false,
   chromeCollapsed: false,
+  adminOpen: false,
 
   // Changer de vue redéplie l'en-tête : il ne se replie que dans la Recherche, défilée.
   setView: (view) => set({ view, chromeCollapsed: false }),
@@ -134,6 +139,9 @@ export const useUiStore = create<UiState>((set) => ({
   closePublicProfile: () => set({ publicProfileId: null }),
   openNotifications: () => set({ notificationsOpen: true, settingsOpen: false, musicOpen: false }),
   closeNotifications: () => set({ notificationsOpen: false }),
+  // L'administration passe devant les feuilles (paramètres, musique, fiche).
+  openAdmin: () => set({ adminOpen: true, settingsOpen: false, musicOpen: false, notificationsOpen: false, detail: null }),
+  closeAdmin: () => set({ adminOpen: false }),
   setChromeCollapsed: (chromeCollapsed) => set((state) => (state.chromeCollapsed === chromeCollapsed ? state : { chromeCollapsed })),
 
   notify: (message, tone = 'neutral') => {

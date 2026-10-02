@@ -75,6 +75,7 @@ services:
       TACHIYOMI_SOURCES: ${TACHIYOMI_SOURCES:-}
       # Recette : boosters illimités. Jamais en production.
       BOOSTER_UNLIMITED_MODE: ${BOOSTER_UNLIMITED_MODE:-false}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       # Romans EPUB des comptes : fichiers dans le volume `books_data` (cf. plus bas).
       BOOKS_MAX_UPLOAD_MB: ${BOOKS_MAX_UPLOAD_MB:-50}
       BOOKS_QUOTA_MB: ${BOOKS_QUOTA_MB:-2048}

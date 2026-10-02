@@ -16,7 +16,10 @@ export type Rarity = (typeof RARITIES)[number]
 export const GUEST_BOOSTERS = 2
 
 export interface BoosterStatus {
+  /** Prêts à ouvrir : le stock qui se régénère, plus les boosters offerts. */
   available: number
+  /** Dont boosters offerts par l'équipe (hors plafond, jamais perdus). */
+  gifted?: number
   max: number
   /** Secondes avant le prochain booster à l'instant de la réponse ; `null` : stock plein. */
   secondsUntilNext: number | null

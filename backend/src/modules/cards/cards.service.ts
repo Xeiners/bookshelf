@@ -196,7 +196,10 @@ export async function ensureCardSet(): Promise<{ id: string; rarity: string }[]>
 /* ---- Stock de boosters ----------------------------------------------------------- */
 
 export interface BoosterStatus {
+  /** Prêts à ouvrir : le stock qui se régénère, plus les boosters offerts. */
   available: number
+  /** Dont boosters offerts par un administrateur (hors plafond, jamais perdus). */
+  gifted: number
   max: number
   /** Secondes avant le prochain booster ; `null` quand le stock est plein. */
   secondsUntilNext: number | null
@@ -211,10 +214,12 @@ export interface BoosterStatus {
 const toState = (row: { availableBoosters: number; nextBoosterAt: Date | null; lastClaimedAt: Date | null } | null): BoosterState =>
   row ? { available: row.availableBoosters, nextBoosterAt: row.nextBoosterAt, lastClaimedAt: row.lastClaimedAt } : initialState()
 
-function statusOf(state: BoosterState, now: Date, unlimited = false): BoosterStatus {
+function statusOf(state: BoosterState, now: Date, unlimited = false, gifted = 0): BoosterStatus {
   const current = unlimited ? { ...initialState() } : regenerate(state, now)
+  const bonus = unlimited ? 0 : Math.max(0, gifted)
   return {
-    available: current.available,
+    available: current.available + bonus,
+    gifted: bonus,
     max: MAX_BOOSTERS,
     secondsUntilNext: secondsUntilNext(current, now),
     nextBoosterAt: current.nextBoosterAt?.toISOString() ?? null,
@@ -226,7 +231,7 @@ function statusOf(state: BoosterState, now: Date, unlimited = false): BoosterSta
 
 export async function boosterStatus(userId: string, now = new Date(), unlimited = config.cards.unlimited): Promise<BoosterStatus> {
   const row = await prisma.userBooster.findUnique({ where: { userId } })
-  return statusOf(toState(row), now, unlimited)
+  return statusOf(toState(row), now, unlimited, row?.giftedBoosters ?? 0)
 }
 
 /* ---- Ouverture ----------------------------------------------------------------------- */
@@ -267,13 +272,26 @@ const isUniqueViolation = (error: unknown) =>
 interface SpentBooster {
   state: BoosterState
   boostersSinceLastMythic: number
+  /** Boosters offerts restants après cette ouverture. */
+  gifted: number
 }
 
 async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: Date): Promise<SpentBooster> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const row = await tx.userBooster.findUnique({ where: { userId } })
+    const gifted = row?.giftedBoosters ?? 0
     const next = consume(toState(row), now)
     if (!next) {
+      // Stock normal vide : un booster offert, s'il en reste. Le stock normal passe d'abord,
+      // pour que son minuteur reparte au plus tôt ; les cadeaux, eux, ne se perdent jamais.
+      if (row && gifted > 0) {
+        const { count } = await tx.userBooster.updateMany({
+          where: { userId, giftedBoosters: gifted, boostersSinceLastMythic: row.boostersSinceLastMythic },
+          data: { giftedBoosters: { decrement: 1 } },
+        })
+        if (count === 1) return { state: regenerate(toState(row), now), boostersSinceLastMythic: row.boostersSinceLastMythic, gifted: gifted - 1 }
+        continue
+      }
       const status = statusOf(toState(row), now)
       throw new HttpError(409, 'no_booster', 'Aucun booster disponible pour le moment.', {
         secondsUntilNext: status.secondsUntilNext,
@@ -283,7 +301,7 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
     if (!row) {
       try {
         await tx.userBooster.create({ data: { userId, ...data } })
-        return { state: next, boostersSinceLastMythic: 0 }
+        return { state: next, boostersSinceLastMythic: 0, gifted: 0 }
       } catch (error) {
         if (isUniqueViolation(error)) continue
         throw error
@@ -298,7 +316,7 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
       },
       data,
     })
-    if (count === 1) return { state: next, boostersSinceLastMythic: row.boostersSinceLastMythic }
+    if (count === 1) return { state: next, boostersSinceLastMythic: row.boostersSinceLastMythic, gifted }
   }
   throw conflict('Ouverture déjà en cours, réessaie.', 'booster_busy')
 }
@@ -318,7 +336,7 @@ export async function openBooster(
   // Dépense et cartes ensemble : un booster n'est jamais dépensé sans ses cartes.
   return prisma.$transaction(async (tx) => {
     const spent = unlimited
-      ? { state: initialState(), boostersSinceLastMythic: 0 }
+      ? { state: initialState(), boostersSinceLastMythic: 0, gifted: 0 }
       : await spendBooster(tx, userId, now)
     const drawn = drawPack(set, random, {
       forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
@@ -348,7 +366,7 @@ export async function openBooster(
         },
       })
     }
-    return { cards, status: statusOf(spent.state, now, unlimited) }
+    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted) }
   })
 }
 

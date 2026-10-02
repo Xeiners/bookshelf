@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { unauthorized } from '../lib/errors.js'
-import { SESSION_COOKIE, readSession } from '../lib/session.js'
+import { SESSION_COOKIE } from '../lib/session.js'
+import { authenticate } from '../lib/sessionGuard.js'
 
 declare global {
   namespace Express {
@@ -13,7 +14,8 @@ declare global {
 
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const cookies = req.cookies as Record<string, string | undefined>
-  const userId = await readSession(cookies[SESSION_COOKIE])
+  // Compte suspendu : `authenticate` lève 401 `account_suspended`, le front sait pourquoi.
+  const userId = await authenticate(cookies[SESSION_COOKIE])
   if (!userId) throw unauthorized()
   req.userId = userId
   next()
@@ -28,7 +30,7 @@ export function currentUserId(req: Request): string {
 /** Session facultative : renseigne `req.userId` si le cookie est valide, sans jamais refuser. */
 export async function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   const cookies = req.cookies as Record<string, string | undefined>
-  const userId = await readSession(cookies[SESSION_COOKIE]).catch(() => null)
+  const userId = await authenticate(cookies[SESSION_COOKIE]).catch(() => null)
   if (userId) req.userId = userId
   next()
 }

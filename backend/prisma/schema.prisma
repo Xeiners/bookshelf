@@ -53,6 +53,14 @@ model User {
   /// Adresse confirmée par le code envoyé à l'inscription. `null` : comptes
   /// créés avant la vérification par e-mail.
   emailVerifiedAt DateTime?
+  /// Suspendu par un administrateur (cf. `src/modules/admin/`) : connexion refusée, sessions coupées.
+  suspendedAt     DateTime?
+  /// Motif de la suspension, montré au titulaire à la connexion.
+  suspendedReason String?
+  /// Version des sessions : l'incrémenter invalide tous les jetons déjà émis (suspension).
+  sessionVersion  Int       @default(0)
+  /// Dernière requête authentifiée (à quelques minutes près) : pour l'administration.
+  lastSeenAt      DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -163,6 +171,8 @@ model UserBooster {
   userId            String    @id
   /// Boosters prêts à ouvrir, 2 au plus.
   availableBoosters Int       @default(2)
+  /// Boosters offerts par un administrateur : hors plafond, jamais perdus, ouverts après le stock normal.
+  giftedBoosters    Int       @default(0)
   /// Boosters consécutifs sans Mythique ; le 30e force le dernier slot.
   boostersSinceLastMythic Int  @default(0)
   /// Dernière ouverture.
@@ -365,4 +375,23 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
+}
+
+/// Journal de l'administration (cf. `src/modules/admin/`) : qui a fait quoi, à qui. Sans clé étrangère :
+/// le journal survit à la suppression des comptes qu'il cite.
+model AdminAction {
+  id           String   @id @default(cuid())
+  adminId      String
+  /// E-mail de l'administrateur au moment de l'action (lisible même si le compte disparaît).
+  adminEmail   String
+  /// Compte visé, s'il y en a un.
+  targetUserId String?
+  /// 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate'
+  action       String
+  /// JSON propre à l'action (nombre, carte, motif, champs modérés…).
+  details      String   @default("{}")
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetUserId, createdAt])
 }

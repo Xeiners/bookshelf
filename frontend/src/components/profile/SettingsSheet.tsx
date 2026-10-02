@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import {
   BookOpen,
+  ChevronRight,
   CloudCheck,
   CloudOff,
   CloudUpload,
@@ -13,6 +14,7 @@ import {
   Minus,
   Plus,
   Power,
+  ShieldCheck,
   Trash2,
   UserRound,
 } from 'lucide-react'
@@ -566,11 +568,39 @@ function SessionSection({ onDone }: { onDone: () => void }) {
  * (e-mail, mot de passe, passage invité → compte), préférences de lecture,
  * stockage et synchronisation, session.
  */
+/** Comptes de `ADMIN_EMAILS` seulement : l'entrée vers l'administration. */
+function AdminSection() {
+  const t = useT()
+  const openAdmin = useUiStore((state) => state.openAdmin)
+  return (
+    <Section icon={ShieldCheck} title={t.settings.admin.title}>
+      <button
+        type="button"
+        onClick={() => {
+          vibrate(6)
+          openAdmin()
+        }}
+        className="flex w-full items-center gap-3 rounded-2xl border border-gold/30 bg-gold/[0.07] p-3 text-left"
+      >
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-black/40 text-gold">
+          <ShieldCheck size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-cream">{t.settings.admin.open}</span>
+          <span className="block text-xs text-mist">{t.settings.admin.hint}</span>
+        </span>
+        <ChevronRight size={16} className="shrink-0 text-cream/40" aria-hidden />
+      </button>
+    </Section>
+  )
+}
+
 export function SettingsSheet() {
   const t = useT()
   const close = useUiStore((state) => state.closeSettings)
   const openAuth = useUiStore((state) => state.openAuth)
   const userId = useAuthStore((state) => state.user?.id ?? null)
+  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
   const signedIn = userId !== null
 
   return (
@@ -587,6 +617,7 @@ export function SettingsSheet() {
           <ReadingSection />
           {userId && <PublicProfileSection userId={userId} />}
           <StorageSection />
+          {isAdmin && <AdminSection />}
           {signedIn && <SessionSection onDone={dismiss} />}
         </div>
       )}

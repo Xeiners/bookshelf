@@ -40,13 +40,12 @@ export function MyTradesSheet({ onClose }: { onClose: () => void }) {
       new Set(
         useNotificationStore
           .getState()
-          .items.filter((item) => !item.read && item.type === 'trade_accepted')
-          .map((item) => item.data.offerId),
+          .items.flatMap((item) => (!item.read && item.type === 'trade_accepted' ? [item.data.offerId] : [])),
       ),
   )
   useEffect(() => {
     const store = useNotificationStore.getState()
-    store.markRead(store.items.filter((item) => item.type === 'trade_accepted' && fresh.has(item.data.offerId)).map((item) => item.id))
+    store.markRead(store.items.flatMap((item) => (item.type === 'trade_accepted' && fresh.has(item.data.offerId) ? [item.id] : [])))
   }, [fresh])
 
   const listRef = useRef<HTMLDivElement>(null)

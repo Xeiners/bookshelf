@@ -111,8 +111,11 @@ export const useAuthStore = create<AuthState>()(
           // plus récent que la réponse, on le garde (l'outbox l'enverra).
           if (outbox.size() === 0) useLibraryStore.getState().replaceAll(library)
         } catch (error) {
-          if (error instanceof ApiError && error.status === 401) endSession('expired')
-          else set({ offline: true })
+          if (error instanceof ApiError && error.status === 401) {
+            endSession('expired')
+            // Suspendu par l'équipe : on le dit, plutôt qu'une « session expirée » trompeuse.
+            if (error.code === 'account_suspended') useUiStore.getState().notify(getT().account.suspended, 'nope')
+          } else set({ offline: true })
         }
       },
 

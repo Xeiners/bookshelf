@@ -5,7 +5,9 @@ import { HttpError, conflict, unauthorized } from '../../lib/errors.js'
 import { DEFAULT_LANGUAGE, LanguageSchema, type Language } from '../../lib/language.js'
 import { emailUnavailable, mailEnabled, sendMail } from '../../lib/mailer.js'
 import { DUMMY_HASH, hashPassword, verifyPassword } from '../../lib/password.js'
-import { SESSION_COOKIE, clearSession, issueSession, readSession } from '../../lib/session.js'
+import { SESSION_COOKIE, clearSession, issueSession } from '../../lib/session.js'
+import { accountSuspended, authenticate } from '../../lib/sessionGuard.js'
+import { isAdminEmail } from '../admin/admin.access.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
 import { claimGuestPacks } from '../cards/cards.service.js'
@@ -100,6 +102,8 @@ const publicUser = (user: UserRow) => ({
   // Série de tirages de l'Oracle : suit l'utilisateur d'un appareil à l'autre.
   oracle: { lastDay: user.oracleLastDay, streak: user.oracleStreak, best: user.oracleBest },
   createdAt: user.createdAt.getTime(),
+  // Affiche l'entrée « Administration » ; l'API revérifie à chaque requête admin.
+  isAdmin: isAdminEmail(user.email),
 })
 
 /**
@@ -288,21 +292,35 @@ authRouter.post('/login', authLimiter, async (req, res) => {
   // on ne révèle pas quels e-mails ont un compte.
   const valid = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH)
   if (!user || !valid) throw invalidCredentials()
+  // Après le mot de passe : la suspension n'est révélée qu'au titulaire du compte.
+  if (user.suspendedAt) throw new HttpError(403, 'account_suspended', 'Ce compte est suspendu.', { reason: user.suspendedReason })
 
   const library = initialData ? await mergeLibrary(user.id, initialData) : await getLibrary(user.id)
-  await issueSession(res, user.id)
+  await issueSession(res, user.id, user.sessionVersion)
   res.json({ user: publicUser(user), library })
 })
 
 authRouter.get('/me', async (req, res) => {
   const cookies = req.cookies as Record<string, string | undefined>
-  const userId = await readSession(cookies[SESSION_COOKIE])
+  const token = cookies[SESSION_COOKIE]
+  let userId: string | null
+  try {
+    userId = await authenticate(token)
+  } catch (error) {
+    // Compte suspendu : la session de cet appareil est close.
+    clearSession(res)
+    throw error
+  }
   const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null
 
   if (!user) {
-    // Jeton valide mais compte supprimé : on nettoie le cookie orphelin.
-    if (userId) clearSession(res)
+    // Jeton présent mais compte supprimé ou sessions révoquées : on nettoie le cookie orphelin.
+    if (token) clearSession(res)
     throw unauthorized()
+  }
+  if (user.suspendedAt) {
+    clearSession(res)
+    throw accountSuspended(user.suspendedReason)
   }
   res.json({ user: publicUser(user) })
 })
@@ -330,7 +348,7 @@ authRouter.patch('/me', requireAuth, async (req, res) => {
 authRouter.post('/password', authLimiter, requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = PasswordSchema.parse(req.body)
   const userId = currentUserId(req)
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } })
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true, sessionVersion: true } })
   if (!user) {
     clearSession(res)
     throw unauthorized()
@@ -339,7 +357,7 @@ authRouter.post('/password', authLimiter, requireAuth, async (req, res) => {
     throw new HttpError(400, 'wrong_password', 'Mot de passe actuel incorrect.')
   }
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword) } })
-  await issueSession(res, userId)
+  await issueSession(res, userId, user.sessionVersion)
   res.status(204).end()
 })
 
