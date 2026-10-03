@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Check, DoorOpen, Eye, Flag, Timer } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
-import { classicRevealSeconds, formatClock, formatSolveTime, msUntil } from '../../lib/dle'
+import { classicRevealSeconds, formatClock, formatSolveTime, mergeSweep, msUntil } from '../../lib/dle'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playClockTick, playCountdown, playDleMiss, playReveal, playTimeUp } from '../../lib/sfx'
-import { dleApi, type GuessResult, type RoomGuess, type RoomPlayer, type RoomView } from '../../services/dleApi'
+import { dleApi, type GuessResult, type RoomGuess, type RoomPlayer, type RoomView, type SweepState } from '../../services/dleApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
@@ -16,6 +16,7 @@ import { useNow } from '../../hooks/useNow'
 import { CATEGORY_STYLE, accentOf, modeLabel, playerName, verdictDot } from './dleStyle'
 import { PlayerAvatar } from './PlayerToken'
 import { PixelFrame } from './PixelFrame'
+import { SweepFrame } from './SweepFrame'
 import { ZoomFrame } from './ZoomFrame'
 
 /** Sous ce seuil, le chrono passe au rouge et bat. */
@@ -41,6 +42,8 @@ export function RoomPlay({ room }: { room: RoomView }) {
   const now = useNow(true, 200)
   const [armed, setArmed] = useState(false)
   const [burst, setBurst] = useState<Burst | null>(null)
+  /** Chiffon : la vitre telle que les derniers coups de chiffon l'ont laissée, pour cette manche. */
+  const [sweepLocal, setSweepLocal] = useState<{ round: number; state: SweepState } | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
 
   const me = room.players.find((player) => player.id === room.you) ?? null
@@ -110,6 +113,7 @@ export function RoomPlay({ room }: { room: RoomView }) {
         })
       } else {
         vibrate(8)
+        if (room.mode === 'sweep') notify(t.dle.sweep.penalty, 'nope')
         if (room.mode !== 'classic') playDleMiss()
       }
     } catch (error) {
@@ -179,8 +183,8 @@ export function RoomPlay({ room }: { room: RoomView }) {
       </div>
 
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-16">
-        <div className="mx-auto grid w-full max-w-5xl gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
-          <aside className="lg:order-2">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <aside className="min-w-0 lg:order-2">
             <Opponents room={room} />
           </aside>
 
@@ -192,6 +196,20 @@ export function RoomPlay({ room }: { room: RoomView }) {
                 revealed={solved}
                 glow={CATEGORY_STYLE[room.category].accent}
                 portrait={room.category !== 'manga'}
+              />
+            )}
+            {room.mode === 'sweep' && room.mine.sweep && (
+              <SweepFrame
+                key={room.round}
+                category={room.category}
+                sweep={mergeSweep(room.mine.sweep, sweepLocal?.round === room.round ? sweepLocal.state : null) ?? room.mine.sweep}
+                reveal={(tiles) => dleApi.roomReveal(room.code, tiles)}
+                onSweep={(state) =>
+                  setSweepLocal((current) => ({ round: room.round, state: mergeSweep(current?.round === room.round ? current.state : null, state) ?? state }))
+                }
+                fullImage={solved || room.mine.done ? dleApi.roomImage(room.code, room.round) : null}
+                disabled={!canGuess}
+                glow={CATEGORY_STYLE[room.category].accent}
               />
             )}
             {room.mode === 'zoom' && (
@@ -345,6 +363,15 @@ function OpponentRow({ player, you, max, mode, coop }: { player: RoomPlayer; you
           {status.icon}
           {status.text}
         </span>
+        {mode === 'sweep' && player.dirt !== null && (
+          // Chiffon : la part de SA vitre nettoyée, en direct (jamais son image).
+          <span className="flex items-center gap-1.5" aria-label={t.dle.sweep.cleaned(player.dirt)}>
+            <span aria-hidden className="h-1 w-16 overflow-hidden rounded-full bg-white/10">
+              <span className="block h-full origin-left rounded-full bg-[#5ef2c2] transition-transform duration-300" style={{ transform: `scaleX(${player.dirt / 100})` }} />
+            </span>
+            <span className="text-[10px] text-mist tabular-nums">{t.dle.sweep.opponent(player.dirt)}</span>
+          </span>
+        )}
         {recent.length > 0 && (
           <span aria-hidden className={mode === 'classic' ? 'flex flex-col gap-[3px]' : 'flex flex-wrap gap-[3px]'}>
             {mode === 'classic'

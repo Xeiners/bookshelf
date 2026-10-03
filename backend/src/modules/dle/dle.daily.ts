@@ -5,7 +5,8 @@ import { hashString, seededRandom, shuffle } from '../../lib/seeded.js'
 import { applyDraw } from '../oracle/streak.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { gameOf, guessResult, poolFor, type DleEntity, type EntitySummary, type GuessResult } from './dle.games.js'
-import { DLE_CATEGORIES, DLE_MODES, dailyReward, nextParisMidnight, parisDay, zoomFocus, type DleCategory, type DleMode } from './dle.logic.js'
+import { DLE_CATEGORIES, DLE_MODES, dailyReward, nextParisMidnight, parisDay, sweepDirt, sweepReward, zoomFocus, type DleCategory, type DleMode } from './dle.logic.js'
+import { cleanTiles, pickTiles, sweepTiles } from './dle.sweep.js'
 
 /*
  * Énigme du jour : une par catégorie et par mode, la même pour tout le monde,
@@ -71,9 +72,23 @@ export interface DailyView {
   reward: number
   /** Format zoom : point de l'image sur lequel on zoome (%). */
   focus: { x: number; y: number } | null
+  /** Chiffon : tuiles déjà nettoyées, et la part nettoyée (%, erreurs comprises). */
+  sweep: { revealed: number[]; dirt: number } | null
   /** La réponse, une fois trouvée. */
   answer: EntitySummary | null
 }
+
+const parseTiles = (json: string): number[] => {
+  try {
+    const value: unknown = JSON.parse(json)
+    return Array.isArray(value) ? cleanTiles(value.filter((index): index is number => typeof index === 'number')) : []
+  } catch {
+    return []
+  }
+}
+
+/** Erreurs d'un joueur : ses essais, moins la bonne réponse s'il l'a trouvée. */
+const missesOf = (guesses: number, solved: boolean) => Math.max(0, guesses - (solved ? 1 : 0))
 
 const parseGuesses = (json: string): string[] => {
   try {
@@ -86,6 +101,7 @@ const parseGuesses = (json: string): string[] => {
 
 interface DailyRow {
   guesses: string
+  revealed: string
   solvedAt: Date | null
   reward: number
 }
@@ -107,6 +123,7 @@ async function viewOf(day: string, category: DleCategory, mode: DleMode, row: Da
     solved,
     reward: row?.reward ?? 0,
     focus: mode === 'zoom' ? zoomFocus(seededRandom(`${seedOf(day, category, mode)}:focus`)) : null,
+    sweep: mode === 'sweep' ? sweepStateOf(row, guesses.length, solved) : null,
     answer: solved ? game.summary(answer) : null,
   }
 }
@@ -165,7 +182,7 @@ export async function guessDaily(userId: string, category: DleCategory, mode: Dl
       if (correct) {
         const state = applyDraw({ lastDay: stats?.dailyLastDay ?? null, streak, best: stats?.dailyBest ?? 0 }, day)
         streak = state.streak
-        earned = dailyReward(next.length, streak)
+        earned = mode === 'sweep' ? sweepReward(sweepDirt(parseTiles(row.revealed).length, next.length - 1), streak) : dailyReward(next.length, streak)
         await tx.dleDaily.update({ where: key, data: { solvedAt: now, reward: earned } })
         await tx.dleStats.upsert({
           where: { userId },
@@ -184,6 +201,65 @@ export async function guessDaily(userId: string, category: DleCategory, mode: Dl
     return { view: await viewOf(day, category, mode, fresh, now), ...outcome }
   }
   throw conflict('Essai déjà en cours, réessaie.', 'guess_busy')
+}
+
+/* ---- Chiffon ------------------------------------------------------------------------ */
+
+function sweepStateOf(row: DailyRow | null, guesses: number, solved: boolean): { revealed: number[]; dirt: number } {
+  const revealed = parseTiles(row?.revealed ?? '[]')
+  return { revealed, dirt: sweepDirt(revealed.length, missesOf(guesses, solved)) }
+}
+
+/** Tuiles de l'énigme du jour au Chiffon (découpées une fois, puis en cache). */
+const dailyTiles = async (day: string, category: DleCategory) => {
+  const entity = await puzzleEntity(day, category, 'sweep')
+  return sweepTiles(`daily:${day}:${category}:${entity.id}`, () => gameOf(category).image(entity, puzzleSeed(day, category, 'sweep')), category !== 'manga')
+}
+
+export interface SweepReveal {
+  /** Les tuiles demandées (déjà nettoyées comprises), prêtes à dessiner. */
+  tiles: Record<number, string>
+  sweep: { revealed: number[]; dirt: number }
+}
+
+/** Au plus, par coup de chiffon envoyé : un geste couvre rarement plus d'une poignée de tuiles. */
+export const SWEEP_BATCH = 120
+
+/**
+ * Coup de chiffon sur l'énigme du jour : les tuiles frottées sont comptées (une fois
+ * chacune) et renvoyées. Redemander une tuile déjà nettoyée ne coûte rien (reprise de
+ * la partie). Une fois l'énigme résolue, plus rien ne compte.
+ */
+export async function revealDaily(userId: string, category: DleCategory, wanted: readonly number[], now = new Date()): Promise<SweepReveal> {
+  const day = parisDay(now)
+  const tiles = await dailyTiles(day, category)
+  const asked = cleanTiles(wanted).slice(0, SWEEP_BATCH)
+  const key = { userId_day_category_mode: { userId, day, category, mode: 'sweep' } }
+  await prisma.dleDaily.upsert({ where: key, create: { userId, day, category, mode: 'sweep' }, update: {} }).catch(() => undefined)
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const row = await prisma.dleDaily.findUnique({ where: key })
+    if (!row) continue
+    const guesses = parseGuesses(row.guesses).length
+    const solved = row.solvedAt !== null
+    const known = parseTiles(row.revealed)
+    const fresh = solved ? [] : asked.filter((index) => !known.includes(index))
+    if (fresh.length > 0) {
+      const next = cleanTiles([...known, ...fresh])
+      // Verrou optimiste : deux gestes simultanés ne s'écrasent jamais.
+      const { count } = await prisma.dleDaily.updateMany({ where: { ...key.userId_day_category_mode, revealed: row.revealed }, data: { revealed: JSON.stringify(next) } })
+      if (count === 0) continue
+      return { tiles: pickTiles(tiles, asked), sweep: { revealed: next, dirt: sweepDirt(next.length, missesOf(guesses, solved)) } }
+    }
+    // Rien de neuf (ou énigme résolue : tout est permis) : les tuiles, sans rien compter.
+    return { tiles: pickTiles(tiles, solved ? asked : asked.filter((index) => known.includes(index))), sweep: sweepStateOf(row, guesses, solved) }
+  }
+  throw conflict('Coup de chiffon déjà en cours, réessaie.', 'sweep_busy')
+}
+
+/** Le Chiffon ne montre l'image entière qu'une fois l'énigme résolue. */
+export async function dailySolved(userId: string, day: string, category: DleCategory, mode: DleMode): Promise<boolean> {
+  const row = await prisma.dleDaily.findUnique({ where: { userId_day_category_mode: { userId, day, category, mode } }, select: { solvedAt: true } })
+  return row?.solvedAt != null
 }
 
 export interface DleOverview {

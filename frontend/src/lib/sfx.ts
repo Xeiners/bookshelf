@@ -508,3 +508,25 @@ export function playTimeUp(): void {
     oscillator.stop(at + 0.8)
   }
 }
+
+/* ---- Chiffon ------------------------------------------------------------------------ */
+
+/**
+ * Le chiffon frotte : un souffle de tissu, filtré autour du médium, dont la force et la
+ * hauteur suivent la vitesse du geste (0 → 1). Appelé à petits intervalles pendant qu'on frotte.
+ */
+export function playRub(speed: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const force = Math.max(0.15, Math.min(1, speed))
+  noiseBurst(e, { at, duration: 0.09, from: 900 + force * 900, to: 1600 + force * 1600, q: 0.9, gain: 0.025 + force * 0.05, grain: 38, send: 0.04, pan: (Math.random() - 0.5) * 0.4 })
+}
+
+/** Une zone se dégage : un petit éclat de verre, aigu et bref. */
+export function playGlint(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 2093 + Math.random() * 600, at, 0.12, 0.018, 'sine', (Math.random() - 0.5) * 0.6, 0.35)
+}

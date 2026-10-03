@@ -1,12 +1,12 @@
 import { Router, type Response } from 'express'
 import { z } from 'zod'
 import { config } from '../../config.js'
-import { notFound } from '../../lib/errors.js'
+import { HttpError, notFound } from '../../lib/errors.js'
 import { currentUserId, optionalAuth, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
 import type { CachedImage } from '../manga/manga.routes.js'
 import { BOOSTER_PRICE } from '../stardust/stardust.service.js'
-import { dailyView, dleOverview, emptyOverview, guessDaily, puzzleEntity, puzzleSeed } from './dle.daily.js'
+import { SWEEP_BATCH, dailySolved, dailyView, dleOverview, emptyOverview, guessDaily, puzzleEntity, puzzleSeed, revealDaily } from './dle.daily.js'
 import { characterOf, gameOf } from './dle.games.js'
 import { currentPlayer, issueGuest, readGuest, requirePlayer } from './dle.guests.js'
 import { DLE_CATEGORIES, DLE_MODES, ROOM_CODE, isImageMode, normalizeRoomCode, parisDay } from './dle.logic.js'
@@ -18,6 +18,7 @@ import {
   joinRoom,
   leaveRoom,
   quickMatch,
+  revealRoom,
   DURATION_OPTIONS,
   GUESS_OPTIONS,
   ROOM_KINDS,
@@ -101,6 +102,8 @@ dleRouter.get('/daily/:category/:mode/image', requireAuth, async (req, res) => {
   const category = Category.parse(req.params.category)
   const mode = Mode.refine(isImageMode, 'Ce format n’a pas d’image.').parse(req.params.mode)
   const day = parisDay(new Date())
+  // Chiffon : l'image entière seulement une fois trouvée (avant, c'est tuile par tuile).
+  if (mode === 'sweep' && !(await dailySolved(currentUserId(req), day, category, mode))) throw new HttpError(403, 'sweep_locked', 'Nettoie l’écran pour voir l’image.')
   const entity = await puzzleEntity(day, category, mode)
   sendImage(res, await gameOf(category).image(entity, puzzleSeed(day, category, mode)), 'private, max-age=3600')
 })
@@ -108,6 +111,16 @@ dleRouter.get('/daily/:category/:mode/image', requireAuth, async (req, res) => {
 dleRouter.get('/daily/:category/:mode', requireAuth, async (req, res) => {
   res.set('Cache-Control', 'no-store')
   res.json(await dailyView(currentUserId(req), Category.parse(req.params.category), Mode.parse(req.params.mode)))
+})
+
+/** Chiffon : nombreux petits envois pendant qu'on frotte. */
+const sweepLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 5000 : 900 })
+const SweepBody = z.object({ tiles: z.array(z.number().int().min(0).max(10_000)).max(SWEEP_BATCH) })
+
+/** Coup de chiffon sur l'énigme du jour : les tuiles frottées, comptées et renvoyées. */
+dleRouter.post('/daily/:category/sweep/reveal', requireAuth, sweepLimiter, async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  res.json(await revealDaily(currentUserId(req), Category.parse(req.params.category), SweepBody.parse(req.body).tiles))
 })
 
 dleRouter.post('/daily/:category/:mode/guess', requireAuth, guessLimiter, async (req, res) => {
@@ -207,6 +220,12 @@ dleRouter.post('/rooms/:code/rematch', roomLimiter, async (req, res) => {
 dleRouter.post('/rooms/:code/guess', guessLimiter, async (req, res) => {
   const { cardId } = GuessBody.parse(req.body)
   res.json(await guessRoom(currentPlayer(req).id, Code.parse(req.params.code), cardId))
+})
+
+/** Coup de chiffon dans un salon (manche au format Chiffon). */
+dleRouter.post('/rooms/:code/reveal', sweepLimiter, async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  res.json(await revealRoom(currentPlayer(req).id, Code.parse(req.params.code), SweepBody.parse(req.body).tiles))
 })
 
 dleRouter.post('/rooms/:code/forfeit', roomLimiter, async (req, res) => {

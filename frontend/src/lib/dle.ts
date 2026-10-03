@@ -171,3 +171,46 @@ export function classicRevealSeconds(category: DleCategory, guessCount: number, 
   const columns = 1 + CATEGORY_ATTRIBUTES[category].length
   return (guessCount === 1 ? HEAD_REVEAL : 0) + (columns - 1) * TILE_STAGGER + TILE_FLIP
 }
+
+/* ---- Chiffon : mêmes règles que le serveur (cf. `backend/src/modules/dle/dle.logic.ts`) ---- */
+
+export const SWEEP_COLS = 24
+export const SWEEP_ROWS = 32
+export const SWEEP_TILES = SWEEP_COLS * SWEEP_ROWS
+/** Taille d'une tuile dans l'image de référence (480 × 640). */
+export const SWEEP_TILE_PX = 20
+export const SWEEP_WIDTH = SWEEP_COLS * SWEEP_TILE_PX
+export const SWEEP_HEIGHT = SWEEP_ROWS * SWEEP_TILE_PX
+const SWEEP_BONUS_UNTIL = 60
+
+/** Prime de l'énigme du jour pour cette part nettoyée (aperçu : le serveur fait foi). */
+export function sweepReward(dirt: number, streak: number): number {
+  const clean = Math.max(0, Math.round(50 * (1 - Math.min(dirt, SWEEP_BONUS_UNTIL) / SWEEP_BONUS_UNTIL)))
+  const loyalty = Math.min(Math.max(0, streak - 1), 5) * 5
+  return 25 + clean + loyalty
+}
+
+/** Tuiles touchées par un coup de chiffon de rayon `radius` (pixels de l'image de référence) en (x, y). */
+export function tilesUnder(x: number, y: number, radius: number): number[] {
+  const tiles: number[] = []
+  const fromCol = Math.max(0, Math.floor((x - radius) / SWEEP_TILE_PX))
+  const toCol = Math.min(SWEEP_COLS - 1, Math.floor((x + radius) / SWEEP_TILE_PX))
+  const fromRow = Math.max(0, Math.floor((y - radius) / SWEEP_TILE_PX))
+  const toRow = Math.min(SWEEP_ROWS - 1, Math.floor((y + radius) / SWEEP_TILE_PX))
+  for (let row = fromRow; row <= toRow; row += 1) {
+    for (let col = fromCol; col <= toCol; col += 1) {
+      // Le point de la tuile le plus proche du centre : la tuile n'est touchée que si le chiffon l'atteint.
+      const nearX = Math.max(col * SWEEP_TILE_PX, Math.min(x, (col + 1) * SWEEP_TILE_PX))
+      const nearY = Math.max(row * SWEEP_TILE_PX, Math.min(y, (row + 1) * SWEEP_TILE_PX))
+      if ((nearX - x) ** 2 + (nearY - y) ** 2 <= radius * radius) tiles.push(row * SWEEP_COLS + col)
+    }
+  }
+  return tiles
+}
+
+/** Fusionne deux états de la vitre (réponse d'un coup de chiffon, vue du serveur) : jamais une tuile ni un pourcentage perdus. */
+export function mergeSweep<S extends { revealed: number[]; dirt: number }>(a: S | null, b: S | null): S | null {
+  if (!a) return b
+  if (!b) return a
+  return { ...a, revealed: [...new Set([...a.revealed, ...b.revealed])].sort((x, y) => x - y), dirt: Math.max(a.dirt, b.dirt) }
+}

@@ -11,6 +11,7 @@ import {
   rankContenders,
   roomCode,
   roomReward,
+  sweepDirt,
   trailOf,
   zoomFocus,
   DLE_MODES,
@@ -20,6 +21,7 @@ import {
   type Verdict,
 } from './dle.logic.js'
 import { gameOf, guessResult, poolFor, type DleEntity, type EntitySummary, type GuessResult } from './dle.games.js'
+import { cleanTiles, pickTiles, sweepTiles } from './dle.sweep.js'
 import { guestRewardedToday, isGuestId, noteGuestReward, signReceipt, type Participant } from './dle.guests.js'
 
 /*
@@ -110,6 +112,8 @@ interface Player {
   guest: boolean
   /** Invité : le reçu de Poussières de la dernière manche, à garder sur l'appareil. */
   receipt: string | null
+  /** Chiffon : tuiles qu'il a nettoyées pendant la manche. */
+  revealed: Set<number>
 }
 
 export interface Standing {
@@ -123,6 +127,8 @@ export interface Standing {
   reward: number
   left: boolean
   guest: boolean
+  /** Chiffon : part nettoyée (%) ; `null` dans les autres formats. */
+  dirt: number | null
 }
 
 /** Classement général d'une partie en plusieurs manches. */
@@ -159,6 +165,8 @@ interface Room {
   shared: SharedGuess[]
   /** COOP : l'équipe a trouvé (ms depuis le départ). */
   teamSolvedMs: number | null
+  /** COOP au Chiffon : la vitre commune. */
+  sharedRevealed: Set<number>
   visibility: RoomVisibility
   hostId: string
   phase: RoomPhase
@@ -259,6 +267,7 @@ const newPlayer = (id: string, profile: PlayerProfile, now: number): Player => (
   gaveUp: false,
   left: false,
   inRound: false,
+  revealed: new Set(),
 })
 
 /** Plus d'essais (jamais, s'ils sont illimités). */
@@ -345,8 +354,9 @@ async function begin(room: Room): Promise<void> {
   room.finishing = false
   room.shared = []
   room.teamSolvedMs = null
+  room.sharedRevealed = new Set()
   for (const player of room.players.values()) {
-    Object.assign(player, { guesses: [], solvedMs: null, gaveUp: false, left: false, inRound: true, receipt: null })
+    Object.assign(player, { guesses: [], solvedMs: null, gaveUp: false, left: false, inRound: true, receipt: null, revealed: new Set<number>() })
   }
   room.startedWith = room.players.size
 
@@ -395,6 +405,7 @@ async function finish(room: Room): Promise<void> {
           solvedMs: player.solvedMs,
           attempts: player.guesses.length,
           best: Math.max(0, ...player.guesses.map((guess) => closeness(guess.trail))),
+          ...(room.mode === 'sweep' ? { dirt: dirtOf(room, player) } : {}),
         })),
       )
   const rewarded = room.startedWith >= 2
@@ -440,6 +451,7 @@ async function finish(room: Room): Promise<void> {
       reward,
       left: player?.left ?? true,
       guest: isGuestId(entry.id),
+      dirt: room.mode === 'sweep' && player ? dirtOf(room, player) : null,
     })
   }
 
@@ -506,6 +518,8 @@ export interface RoomPlayerView {
   present: boolean
   /** Joue sans compte (pseudo d'invité). */
   guest: boolean
+  /** Chiffon : part de SA vitre nettoyée (%), visible des adversaires ; `null` dans les autres formats. */
+  dirt: number | null
 }
 
 /** Un essai vu par un joueur ; en COOP, avec son auteur. */
@@ -538,7 +552,13 @@ export interface RoomView {
   rewarded: boolean
   players: RoomPlayerView[]
   /** Mes essais (VERSUS) ou la grille commune (COOP), en entier : œuvres et verdicts. */
-  mine: { guesses: RoomGuess[]; done: boolean; focus: { x: number; y: number } | null }
+  mine: {
+    guesses: RoomGuess[]
+    done: boolean
+    focus: { x: number; y: number } | null
+    /** Chiffon : mes tuiles nettoyées (celles de l'équipe en COOP) et la part nettoyée. */
+    sweep: { revealed: number[]; dirt: number } | null
+  }
   /** Fin de manche : classement, réponse, et pour un invité son reçu de Poussières. */
   results: { standings: Standing[]; answer: EntitySummary; receipt: string | null; overall: OverallStanding[] | null } | null
 }
@@ -549,7 +569,7 @@ async function viewFor(room: Room, userId: string): Promise<RoomView> {
   const now = Date.now()
   const me = room.players.get(userId)
   const answer = room.answer
-  let mine: RoomView['mine'] = { guesses: [], done: false, focus: null }
+  let mine: RoomView['mine'] = { guesses: [], done: false, focus: null, sweep: null }
   const game = gameOf(room.category)
   if (me && answer && room.phase !== 'lobby') {
     const { byId } = await game.pool()
@@ -561,6 +581,7 @@ async function viewFor(room: Room, userId: string): Promise<RoomView> {
       }),
       done: isDone(room, me),
       focus: room.focus,
+      sweep: room.mode === 'sweep' ? { revealed: cleanTiles(revealedOf(room, me)), dirt: dirtOf(room, me) } : null,
     }
   }
   return {
@@ -600,6 +621,7 @@ async function viewFor(room: Room, userId: string): Promise<RoomView> {
       spectating: (room.phase === 'countdown' || room.phase === 'playing') && !player.inRound,
       present: present(player, now),
       guest: player.guest,
+      dirt: room.mode === 'sweep' && room.phase !== 'lobby' && player.inRound ? dirtOf(room, player) : null,
     })),
     mine,
     results:
@@ -658,6 +680,7 @@ function openRoom(hostId: string, category: DleCategory, modes: DleMode[], visib
     roundSeconds: DEFAULT_ROUND_SECONDS,
     shared: [],
     teamSolvedMs: null,
+    sharedRevealed: new Set(),
     visibility,
     hostId,
     phase: 'lobby',
@@ -827,6 +850,48 @@ export async function guessRoom(userId: string, code: string, cardId: string): P
   return viewFor(room, userId)
 }
 
+/* ---- Chiffon ------------------------------------------------------------------------ */
+
+/** La vitre d'un joueur : la sienne (VERSUS), celle de l'équipe (COOP). */
+const revealedOf = (room: Room, player: Player): Set<number> => (room.kind === 'coop' ? room.sharedRevealed : player.revealed)
+
+/** Part nettoyée (%) : tuiles révélées et erreurs (de l'équipe, en COOP). */
+function dirtOf(room: Room, player: Player): number {
+  const played = room.kind === 'coop' ? room.shared : player.guesses
+  return sweepDirt(revealedOf(room, player).size, played.filter((guess) => !guess.correct).length)
+}
+
+/** Au plus, par coup de chiffon envoyé. */
+const SWEEP_BATCH = 120
+/** Les adversaires voient la progression des autres, sans réveiller tout le salon à chaque geste. */
+const SWEEP_BUMP_MS = 400
+
+/**
+ * Coup de chiffon dans un salon : les tuiles frottées comptent (une fois chacune) tant que
+ * le joueur cherche encore ; une fois sa manche finie, il peut tout dévoiler sans rien compter.
+ */
+export async function revealRoom(userId: string, code: string, wanted: readonly number[]): Promise<{ tiles: Record<number, string>; sweep: { revealed: number[]; dirt: number } }> {
+  const room = roomOf(code)
+  advance(room, Date.now())
+  const player = memberOf(room, userId)
+  const answer = room.answer
+  if (room.mode !== 'sweep' || !answer || room.phase === 'lobby') throw conflict('Pas de Chiffon dans cette manche.', 'not_sweep')
+  if (room.phase === 'countdown') throw conflict('La partie n’a pas encore commencé.', 'not_started')
+  const round = room.round
+  const tiles = await sweepTiles(`room:${room.code}:${round}:${answer.id}`, () => gameOf(room.category).image(answer, `${room.code}:${round}`), room.category !== 'manga')
+  // La manche a pu changer pendant la découpe.
+  if (room.round !== round) throw conflict('La manche est terminée.', 'round_over')
+  const asked = cleanTiles(wanted).slice(0, SWEEP_BATCH)
+  const glass = revealedOf(room, player)
+  const counting = room.phase === 'playing' && player.inRound && !isDone(room, player)
+  if (!counting) return { tiles: pickTiles(tiles, room.phase === 'results' || isDone(room, player) ? asked : asked.filter((index) => glass.has(index))), sweep: { revealed: cleanTiles(glass), dirt: dirtOf(room, player) } }
+  const before = glass.size
+  for (const index of asked) glass.add(index)
+  player.lastSeen = Date.now()
+  if (glass.size !== before && !room.timers.has('sweep')) schedule(room, 'sweep', Date.now() + SWEEP_BUMP_MS, () => bump(room))
+  return { tiles: pickTiles(tiles, asked), sweep: { revealed: cleanTiles(glass), dirt: dirtOf(room, player) } }
+}
+
 /** Abandonner la manche : on reste dans le salon, au classement, sans avoir trouvé. */
 export async function forfeitRoom(userId: string, code: string): Promise<RoomView> {
   const room = roomOf(code)
@@ -878,8 +943,10 @@ export async function waitRoom(userId: string, code: string, since: number | nul
 /** Ce qu'on cherche dans un salon à image (zoom, pixels), pour en servir l'image sans la nommer. */
 export function roomZoomTarget(userId: string, code: string): { category: DleCategory; entity: DleEntity; seed: string } {
   const room = roomOf(code)
-  memberOf(room, userId)
+  const player = memberOf(room, userId)
   if (!isImageMode(room.mode) || !room.answer || room.phase === 'lobby') throw notFound('Pas d’image à montrer.')
+  // Chiffon : l'image entière seulement pour qui a fini sa manche (sinon, tuile par tuile).
+  if (room.mode === 'sweep' && room.phase !== 'results' && !isDone(room, player)) throw new HttpError(403, 'sweep_locked', 'Nettoie l’écran pour voir l’image.')
   // Image d'énigme propre à la manche : la même pour tous les joueurs du salon.
   return { category: room.category, entity: room.answer, seed: `${room.code}:${room.round}` }
 }

@@ -3,10 +3,10 @@ import { Loader2 } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { vibrate } from '../../lib/haptics'
-import { classicRevealSeconds } from '../../lib/dle'
+import { classicRevealSeconds, mergeSweep, sweepReward } from '../../lib/dle'
 import { gsap } from '../../lib/gsap'
 import { playChime, playDleMiss, playReveal } from '../../lib/sfx'
-import { dleApi, type DleMode } from '../../services/dleApi'
+import { dleApi, type DleMode, type SweepState } from '../../services/dleApi'
 import { dailyKey, useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
@@ -17,6 +17,7 @@ import { GuessInput } from './GuessInput'
 import { StardustBadge } from './StardustBadge'
 import { VictoryPanel } from './VictoryPanel'
 import { PixelFrame } from './PixelFrame'
+import { SweepFrame } from './SweepFrame'
 import { ZoomFrame } from './ZoomFrame'
 
 /**
@@ -38,6 +39,8 @@ export function DailyGame({ mode }: { mode: DleMode }) {
   const [attempt, setAttempt] = useState(0)
   const [victory, setVictory] = useState<{ streak: number } | null>(null)
   const [burst, setBurst] = useState<Burst | null>(null)
+  /** Chiffon : la vitre telle que les derniers coups de chiffon l'ont laissée (en avance sur la vue). */
+  const [sweepLocal, setSweepLocal] = useState<{ day: string; state: SweepState } | null>(null)
 
   useEffect(() => {
     loadDaily(category, mode).catch(() => setFailed(true))
@@ -62,6 +65,7 @@ export function DailyGame({ mode }: { mode: DleMode }) {
         })
       } else if (last) {
         vibrate(8)
+        if (mode === 'sweep') notify(t.dle.sweep.penalty, 'nope')
         if (mode !== 'classic') playDleMiss()
         // Tout en vert sauf l'œuvre : on brûle, le son le dit.
         else if (last.feedback && Object.values(last.feedback).every((entry) => entry.verdict !== 'wrong')) gsap.delayedCall(after, () => playChime())
@@ -110,6 +114,18 @@ export function DailyGame({ mode }: { mode: DleMode }) {
                 revealed={view.solved}
                 glow={CATEGORY_STYLE[category].accent}
                 portrait={category !== 'manga'}
+              />
+            )}
+            {mode === 'sweep' && view.sweep && (
+              <SweepFrame
+                key={view.day}
+                category={category}
+                sweep={mergeSweep(view.sweep, sweepLocal?.day === view.day ? sweepLocal.state : null) ?? view.sweep}
+                reveal={(tiles) => dleApi.dailyReveal(category, tiles)}
+                onSweep={(state) => setSweepLocal((current) => ({ day: view.day, state: mergeSweep(current?.day === view.day ? current.state : null, state) ?? state }))}
+                fullImage={view.solved ? dleApi.dailyImage(category, 'sweep', view.day) : null}
+                glow={CATEGORY_STYLE[category].accent}
+                prize={view.solved ? null : sweepReward(Math.max(view.sweep.dirt, sweepLocal?.day === view.day ? sweepLocal.state.dirt : 0), 1)}
               />
             )}
             {mode === 'zoom' && (

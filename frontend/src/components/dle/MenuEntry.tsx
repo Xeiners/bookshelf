@@ -15,6 +15,7 @@ const ACCENT = {
   classic: { gradient: 'linear-gradient(135deg, #b46cff, #7c5cff)', edge: 'rgba(180,108,255,0.55)' },
   zoom: { gradient: 'linear-gradient(135deg, #6fe3ff, #3a86ff)', edge: 'rgba(76,201,240,0.55)' },
   pixel: { gradient: 'linear-gradient(135deg, #ff8ad8, #b46cff 50%, #4cc9f0)', edge: 'rgba(180,108,255,0.55)' },
+  sweep: { gradient: 'linear-gradient(135deg, #b9f6ff, #5ef2c2 50%, #ffd36b)', edge: 'rgba(94,242,194,0.55)' },
   multi: { gradient: 'linear-gradient(135deg, #ff8ad8, #ff5e7e)', edge: 'rgba(255,94,196,0.55)' },
   booster: { gradient: 'linear-gradient(135deg, #fff0b0, #e0a82e)', edge: 'rgba(255,196,107,0.55)' },
   room: { gradient: 'linear-gradient(135deg, #7af0c0, #1fae6a)', edge: 'rgba(63,224,160,0.6)' },

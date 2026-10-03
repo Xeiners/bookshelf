@@ -97,8 +97,13 @@ export function RoomResults({ room }: { room: RoomView }) {
   const podium = podiumOrder(results.standings)
   const rest = results.standings.slice(3)
   const nameOf = (standing: Standing) => standing.name?.trim() || t.dle.room.anonymous
+  // Chiffon : la part nettoyée départage ceux qui ont trouvé, elle s'affiche avec le temps.
   const detail = (standing: Standing) =>
-    standing.solved ? formatSolveTime(standing.solvedMs ?? 0, language) : standing.left ? t.dle.room.left : t.dle.room.notFound
+    standing.solved
+      ? `${formatSolveTime(standing.solvedMs ?? 0, language)}${standing.dirt !== null ? ` · ${t.dle.sweep.cleaned(standing.dirt)}` : ''}`
+      : standing.left
+        ? t.dle.room.left
+        : t.dle.room.notFound
 
   return (
     <div ref={rootRef} className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-16">

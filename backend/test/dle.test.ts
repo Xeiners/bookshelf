@@ -12,6 +12,10 @@ import { extraMocks, installMangadexMock, mockedHosts, prepareEnvironment, start
 prepareEnvironment('dle')
 installMangadexMock()
 
+// Une vraie image (le Chiffon la découpe), suivie de son chemin : on voit laquelle est servie.
+const { default: sharp } = await import('sharp')
+const PORTRAIT_PNG = await sharp({ create: { width: 60, height: 80, channels: 3, background: { r: 200, g: 40, b: 90 } } }).png().toBuffer()
+
 // Jikan simulé : quelques personnages de Naruto (romanisations de MyAnimeList) et leurs portraits.
 const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki"]
 mockedHosts.add('api.jikan.moe')
@@ -34,7 +38,7 @@ extraMocks.push((url) => {
     return new Response(JSON.stringify({ data }), { status: 200, headers: { 'Content-Type': 'application/json' } })
   }
   // Chaque image a ses octets (son chemin) : on voit laquelle est servie.
-  if (url.hostname === 'cdn.myanimelist.net') return new Response(new Uint8Array([0xff, 0xd8, 0xff, ...new TextEncoder().encode(url.pathname)]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
+  if (url.hostname === 'cdn.myanimelist.net') return new Response(new Uint8Array(Buffer.concat([PORTRAIT_PNG, Buffer.from(url.pathname)])), { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
   return undefined
 })
 const { client, close } = await startServer()
@@ -802,5 +806,90 @@ describe('dle — Jujutsu Kaisen', () => {
     assert.ok(['yuji', 'gojo', 'maki'].includes(puzzle!.cardId), puzzle!.cardId)
     assert.equal((await chloe.send('GET', '/dle/characters/jjk/gojo/image')).status, 200)
     assert.ok('jjk' in (await chloe.request('GET', '/dle')).body.daily)
+  })
+})
+
+
+describe('dle — Chiffon (nettoyeur d’écran)', () => {
+  it('logique : part nettoyée, pénalité des erreurs, prime, classement', () => {
+    assert.equal(logic.SWEEP_TILES, 768)
+    assert.equal(logic.sweepDirt(0, 0), 0)
+    assert.equal(logic.sweepDirt(384, 0), 50)
+    assert.equal(logic.sweepDirt(0, 1), 5)
+    assert.equal(logic.sweepDirt(800, 20), 100)
+    assert.equal(logic.sweepReward(0, 1), 75, 'écran presque sale : prime pleine')
+    assert.equal(logic.sweepReward(logic.SWEEP_BONUS_UNTIL, 1), 25, 'trop nettoyé : la base seule')
+    assert.ok(logic.sweepReward(10, 1) > logic.sweepReward(30, 1))
+    const ranked = logic.rankContenders([
+      { id: 'vite-mais-sale', solved: true, solvedMs: 1000, attempts: 1, best: 0, dirt: 40 },
+      { id: 'lent-mais-propre', solved: true, solvedMs: 9000, attempts: 1, best: 0, dirt: 8 },
+    ])
+    assert.deepEqual(ranked.map((entry) => entry.id), ['lent-mais-propre', 'vite-mais-sale'])
+  })
+
+  it('énigme du jour : tuile par tuile, chaque tuile compte une fois, l’image entière seulement une fois trouvée', async () => {
+    const dora = await account('dora-dle@example.com', 'Dora')
+    const view = await dora.request('GET', '/dle/daily/naruto/sweep')
+    assert.equal(view.status, 200, JSON.stringify(view.body))
+    assert.deepEqual(view.body.sweep, { revealed: [], dirt: 0 })
+    assert.equal((await dora.send('GET', '/dle/daily/naruto/sweep/image')).status, 403, 'pas d’image entière avant la fin')
+
+    const first = await dora.request('POST', '/dle/daily/naruto/sweep/reveal', { tiles: [0, 1, 2, 2, 999] })
+    assert.equal(first.status, 200, JSON.stringify(first.body))
+    assert.deepEqual(Object.keys(first.body.tiles).map(Number), [0, 1, 2])
+    assert.match(first.body.tiles[0], /^data:image\/jpeg;base64,/)
+    assert.deepEqual(first.body.sweep, { revealed: [0, 1, 2], dirt: logic.sweepDirt(3, 0) })
+    // Redemander une tuile déjà nettoyée (reprise de la partie) ne coûte rien.
+    const again = await dora.request('POST', '/dle/daily/naruto/sweep/reveal', { tiles: [1, 2] })
+    assert.deepEqual(again.body.sweep.revealed, [0, 1, 2])
+    assert.equal(Object.keys(again.body.tiles).length, 2)
+
+    const puzzle = await prisma.dlePuzzle.findUnique({ where: { day_category_mode: { day: logic.parisDay(new Date()), category: 'naruto', mode: 'sweep' } } })
+    const answer = puzzle!.cardId
+    const wrong = ['naruto', 'sasuke', 'neji', 'kankuro'].find((id) => id !== answer) as string
+    const miss = await dora.request('POST', '/dle/daily/naruto/sweep/guess', { cardId: wrong })
+    assert.equal(miss.body.view.sweep.dirt, logic.sweepDirt(3, 1), 'une erreur salit l’écran')
+    const win = await dora.request('POST', '/dle/daily/naruto/sweep/guess', { cardId: answer })
+    assert.equal(win.body.view.solved, true)
+    assert.equal(win.body.earned, logic.sweepReward(logic.sweepDirt(3, 1), 1))
+    assert.equal(win.body.view.sweep.dirt, logic.sweepDirt(3, 1), 'la bonne réponse ne compte pas comme une erreur')
+    assert.equal((await dora.send('GET', '/dle/daily/naruto/sweep/image')).status, 200)
+    // Trouvée : tout se dévoile librement, sans rien compter.
+    const after = await dora.request('POST', '/dle/daily/naruto/sweep/reveal', { tiles: [100, 101] })
+    assert.equal(Object.keys(after.body.tiles).length, 2)
+    assert.deepEqual(after.body.sweep.revealed, [0, 1, 2])
+  })
+
+  it('salon VERSUS : chacun sa vitre, la part nettoyée des autres en direct, le plus propre gagne', async () => {
+    const eli = await account('eli-dle@example.com', 'Eli')
+    const fanny = await account('fanny-dle@example.com', 'Fanny')
+    const created = await eli.request('POST', '/dle/rooms', { category: 'naruto', modes: ['sweep'] })
+    assert.deepEqual(created.body.modes, ['sweep'])
+    const code = created.body.code
+    await fanny.request('POST', `/dle/rooms/${code}/join`)
+    await eli.request('POST', `/dle/rooms/${code}/start`)
+    assert.equal((await eli.request('POST', `/dle/rooms/${code}/reveal`, { tiles: [0] })).body.error.code, 'not_started')
+    await wait(rooms.COUNTDOWN_MS + 100)
+    assert.equal((await eli.send('GET', `/dle/rooms/${code}/image`)).status, 403)
+
+    const rubbed = await eli.request('POST', `/dle/rooms/${code}/reveal`, { tiles: Array.from({ length: 30 }, (_, index) => index) })
+    assert.equal(Object.keys(rubbed.body.tiles).length, 30)
+    await fanny.request('POST', `/dle/rooms/${code}/reveal`, { tiles: [5, 6] })
+    const seen = await fanny.request('GET', `/dle/rooms/${code}`)
+    assert.equal(seen.body.mine.sweep.dirt, logic.sweepDirt(2, 0))
+    assert.equal(seen.body.players.find((entry: { id: string }) => entry.id === eli.userId).dirt, logic.sweepDirt(30, 0))
+
+    const answer = rooms.roomAnswerForTests(code) as string
+    // Eli trouve la première, mais en ayant tout nettoyé ; Fanny ensuite, l'écran presque sale.
+    await eli.request('POST', `/dle/rooms/${code}/guess`, { cardId: answer })
+    assert.equal((await eli.send('GET', `/dle/rooms/${code}/image`)).status, 200, 'manche finie pour Eli : image entière')
+    const end = await fanny.request('POST', `/dle/rooms/${code}/guess`, { cardId: answer })
+    assert.equal(end.body.phase, 'results')
+    const [winner, second] = end.body.results.standings
+    assert.equal(winner.id, fanny.userId)
+    assert.equal(winner.dirt, logic.sweepDirt(2, 0))
+    assert.equal(second.id, eli.userId)
+    await eli.request('POST', `/dle/rooms/${code}/leave`)
+    await fanny.request('POST', `/dle/rooms/${code}/leave`)
   })
 })

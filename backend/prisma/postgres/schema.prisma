@@ -464,6 +464,8 @@ model DleDaily {
   mode      String
   /// JSON `string[]` : ids des cartes proposées, dans l'ordre.
   guesses   String    @default("[]")
+  /// Chiffon : JSON `number[]`, les tuiles déjà nettoyées (chacune compte).
+  revealed  String    @default("[]")
   solvedAt  DateTime?
   /// Poussières gagnées (0 tant que l'énigme n'est pas résolue).
   reward    Int       @default(0)

@@ -4,7 +4,7 @@ import type { TitleId } from './profileApi'
 
 /* BookshelfDLE et Poussières d'Étoile (cf. `backend/src/modules/dle/`, `backend/src/modules/stardust/`). */
 
-export const DLE_MODES = ['classic', 'zoom', 'pixel'] as const
+export const DLE_MODES = ['classic', 'zoom', 'pixel', 'sweep'] as const
 export type DleMode = (typeof DLE_MODES)[number]
 
 /** Catégories : mangas et manhwas célèbres, univers de Naruto, One Piece, JoJo et Jujutsu Kaisen. */
@@ -91,6 +91,8 @@ export interface DailyView {
   solved: boolean
   reward: number
   focus: { x: number; y: number } | null
+  /** Chiffon : la vitre du jour. */
+  sweep: SweepState | null
   answer: WorkSummary | null
 }
 
@@ -166,6 +168,8 @@ export interface RoomPlayer {
   present: boolean
   /** Joue sans compte (pseudo d'invité). */
   guest: boolean
+  /** Chiffon : part de sa vitre nettoyée (%) ; `null` dans les autres formats. */
+  dirt: number | null
 }
 
 export interface Standing {
@@ -178,6 +182,20 @@ export interface Standing {
   reward: number
   left: boolean
   guest: boolean
+  /** Chiffon : part nettoyée (%) ; `null` dans les autres formats. */
+  dirt: number | null
+}
+
+/** Chiffon : les tuiles déjà nettoyées, et la part nettoyée (%, erreurs comprises). */
+export interface SweepState {
+  revealed: number[]
+  dirt: number
+}
+
+/** Un coup de chiffon : les tuiles demandées (images `data:`), et la vitre à jour. */
+export interface SweepReveal {
+  tiles: Record<number, string>
+  sweep: SweepState
 }
 
 /** Classement général d'une partie en plusieurs manches. */
@@ -216,7 +234,7 @@ export interface RoomView {
   rewarded: boolean
   players: RoomPlayer[]
   /** Mes essais (VERSUS) ou la grille commune (COOP). */
-  mine: { guesses: RoomGuess[]; done: boolean; focus: { x: number; y: number } | null }
+  mine: { guesses: RoomGuess[]; done: boolean; focus: { x: number; y: number } | null; sweep: SweepState | null }
   /** Fin de manche ; `receipt` : le reçu de Poussières d'un invité. */
   /** `overall` : classement général, à la fin d'une partie en plusieurs manches. */
   results: { standings: Standing[]; answer: WorkSummary; receipt: string | null; overall: OverallStanding[] | null } | null
@@ -241,6 +259,11 @@ export const dleApi = {
     api<DailyGuessResult>(`/dle/daily/${category}/${mode}/guess`, { method: 'POST', body: { cardId } }),
   /** Image de l'énigme du jour d'un format à image (zoom, pixels) : une adresse qui ne la nomme pas. */
   dailyImage: (category: DleCategory, mode: DleMode, day: string) => `${API_BASE}/dle/daily/${category}/${mode}/image?day=${encodeURIComponent(day)}`,
+
+  /** Chiffon : frotter des tuiles de l'énigme du jour (chacune compte une fois). */
+  dailyReveal: (category: DleCategory, tiles: number[]) => api<SweepReveal>(`/dle/daily/${category}/sweep/reveal`, { method: 'POST', body: { tiles } }),
+  /** Chiffon dans un salon. */
+  roomReveal: (code: string, tiles: number[]) => api<SweepReveal>(`${room(code)}/reveal`, { method: 'POST', body: { tiles } }),
 
   /** Jouer sans compte : un pseudo, gardé par le serveur dans un cookie signé. */
   guest: (name: string) => api<{ guest: DleGuest }>('/dle/guest', { method: 'POST', body: { name } }).then((response) => response.guest),

@@ -8,10 +8,12 @@ import { RARITIES, type Rarity } from '../cards/boosters.logic.js'
  *    de l'œuvre cherchée (vert : identique, jaune : proche, rouge : faux, et
  *    une flèche quand la réponse est plus haute ou plus basse) ;
  *  - `zoom` : un détail de la couverture, qui se dézoome à chaque erreur ;
- *  - `pixel` : l'image en gros pixels, qui s'affinent à chaque erreur (nette à la quinzième).
+ *  - `pixel` : l'image en gros pixels, qui s'affinent à chaque erreur (nette à la quinzième) ;
+ *  - `sweep` (Chiffon) : l'image cachée sous la buée, qu'on frotte tuile par tuile ; le
+ *    moins on nettoie (et le moins on se trompe), le plus on gagne.
  */
 
-export const DLE_MODES = ['classic', 'zoom', 'pixel'] as const
+export const DLE_MODES = ['classic', 'zoom', 'pixel', 'sweep'] as const
 export type DleMode = (typeof DLE_MODES)[number]
 export const isDleMode = (value: string): value is DleMode => (DLE_MODES as readonly string[]).includes(value)
 
@@ -180,6 +182,38 @@ export function zoomFocus(random: () => number): { x: number; y: number } {
   return { x: coordinate(), y: coordinate() }
 }
 
+/* ---- Mode Chiffon ------------------------------------------------------------------- */
+
+/**
+ * Grille du Chiffon : l'image (480 × 640) découpée en tuiles de 20 px, servies une à une.
+ * Assez fines pour que la part comptée suive la surface vraiment frottée.
+ */
+export const SWEEP_COLS = 24
+export const SWEEP_ROWS = 32
+export const SWEEP_TILES = SWEEP_COLS * SWEEP_ROWS
+export const SWEEP_TILE_PX = 20
+/** Une mauvaise réponse salit autant que nettoyer 5 % de l'écran : pas de liste essayée à l'aveugle. */
+export const SWEEP_MISS_PENALTY = 38
+/** Au-delà de ce nettoyage (%), plus de bonus : seule la base reste. */
+export const SWEEP_BONUS_UNTIL = 60
+
+export const isSweepTile = (value: number) => Number.isInteger(value) && value >= 0 && value < SWEEP_TILES
+
+/** Part de l'image « nettoyée » (%) : tuiles révélées, plus la pénalité des erreurs. Plafonnée à 100. */
+export const sweepDirt = (revealed: number, misses: number): number =>
+  Math.min(100, Math.round(((revealed + Math.max(0, misses) * SWEEP_MISS_PENALTY) / SWEEP_TILES) * 100))
+
+/**
+ * Énigme du jour au Chiffon : 25 de base, jusqu'à 50 de plus pour un écran presque sale
+ * (le bonus fond à mesure qu'on nettoie, nul à `SWEEP_BONUS_UNTIL` %), et la même
+ * prime de série que les autres formats.
+ */
+export function sweepReward(dirt: number, streak: number): number {
+  const clean = Math.max(0, Math.round(50 * (1 - Math.min(dirt, SWEEP_BONUS_UNTIL) / SWEEP_BONUS_UNTIL)))
+  const loyalty = Math.min(Math.max(0, streak - 1), 5) * 5
+  return 25 + clean + loyalty
+}
+
 /* ---- Poussières d'Étoile ---------------------------------------------------------- */
 
 /**
@@ -225,6 +259,8 @@ export interface Contender {
   attempts: number
   /** Meilleur essai (cf. `closeness`), pour départager ceux qui n'ont pas trouvé. */
   best: number
+  /** Chiffon : part nettoyée (%) ; entre deux joueurs qui ont trouvé, le moins nettoyé passe devant. */
+  dirt?: number
 }
 
 /**
@@ -235,11 +271,12 @@ export interface Contender {
 export function rankContenders(contenders: readonly Contender[]): (Contender & { rank: number })[] {
   const sorted = [...contenders].sort((a, b) => {
     if (a.solved !== b.solved) return a.solved ? -1 : 1
-    if (a.solved && b.solved) return (a.solvedMs ?? 0) - (b.solvedMs ?? 0) || a.attempts - b.attempts
+    if (a.solved && b.solved) return (a.dirt ?? 0) - (b.dirt ?? 0) || (a.solvedMs ?? 0) - (b.solvedMs ?? 0) || a.attempts - b.attempts
     return b.best - a.best || a.attempts - b.attempts
   })
   const tied = (a: Contender, b: Contender) =>
-    a.solved === b.solved && (a.solved ? a.solvedMs === b.solvedMs && a.attempts === b.attempts : a.best === b.best && a.attempts === b.attempts)
+    a.solved === b.solved &&
+    (a.solved ? (a.dirt ?? 0) === (b.dirt ?? 0) && a.solvedMs === b.solvedMs && a.attempts === b.attempts : a.best === b.best && a.attempts === b.attempts)
   const ranked: (Contender & { rank: number })[] = []
   for (const [index, contender] of sorted.entries()) {
     const previous = ranked[index - 1]
