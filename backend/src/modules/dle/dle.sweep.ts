@@ -1,4 +1,3 @@
-import sharp from 'sharp'
 import { TtlCache } from '../../lib/cache.js'
 import type { CachedImage } from '../manga/manga.routes.js'
 import { SWEEP_COLS, SWEEP_ROWS, SWEEP_TILE_PX, isSweepTile } from './dle.logic.js'
@@ -16,13 +15,19 @@ export const SWEEP_HEIGHT = SWEEP_ROWS * SWEEP_TILE_PX
 /** Fond des images détourées : le même violet nuit que les cadres du jeu. */
 const BACKGROUND = { r: 22, g: 20, b: 31 }
 
+/**
+ * sharp (binaire natif) chargé à la demande : s'il manque sur la machine, seul le
+ * format Chiffon échoue — l'API, elle, démarre quand même.
+ */
+const loadSharp = async () => (await import('sharp')).default
+
 /** Énigme → ses tuiles (adresses `data:` prêtes à dessiner), dans l'ordre de la grille. */
 const prepared = new TtlCache<string[]>({ maxEntries: 40, ttlMs: 6 * 60 * 60 * 1000 })
 
 /** Découpe une image en tuiles (une fois par énigme, puis en cache). */
 export function sweepTiles(key: string, load: () => Promise<CachedImage>, portrait: boolean): Promise<string[]> {
   return prepared.getOrLoad(key, async () => {
-    const source = await load()
+    const [source, sharp] = await Promise.all([load(), loadSharp()])
     const { data, info } = await sharp(source.body)
       .rotate()
       .resize(SWEEP_WIDTH, SWEEP_HEIGHT, { fit: 'cover', position: portrait ? 'north' : 'centre' })

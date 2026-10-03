@@ -63,6 +63,10 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
       /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=deps --chown=node:node /app/backend/node_modules ./backend/node_modules
+# sharp (format Chiffon du DLE) : son binaire natif (`@img/sharp-linuxmusl-*`, avec
+# libvips) est une dépendance OPTIONNELLE, écartée par `--omit=optional` ci-dessus.
+# On reprend celui installé à la compilation, pour l'architecture de la machine.
+COPY --from=builder --chown=node:node /app/node_modules/@img ./node_modules/@img
 COPY --chown=node:node backend/package.json backend/prisma.config.ts ./backend/
 COPY --chown=node:node backend/prisma ./backend/prisma
 COPY --from=builder --chown=node:node /app/backend/dist ./backend/dist
