@@ -23,10 +23,18 @@ extraMocks.push((url) => {
   // Wikis Fandom : aucune fiche (les portraits des tests viennent du Jikan simulé).
   if (url.hostname.endsWith('.fandom.com')) return new Response(JSON.stringify({ query: { pages: {} } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
   if (url.hostname === 'api.jikan.moe') {
-    const data = JIKAN_NAMES.map((name, index) => ({ character: { name, images: { jpg: { image_url: `https://cdn.myanimelist.net/images/characters/1/${index}.jpg` } } } }))
+    // Galerie d'un personnage : son portrait (jamais repris pour l'énigme) et deux autres images.
+    const pictures = /\/characters\/(\d+)\/pictures/.exec(url.pathname)
+    if (pictures) {
+      const index = Number(pictures[1]) - 1000
+      const data = [`1/${index}.jpg`, `2/${index}a.jpg`, `2/${index}b.jpg`].map((path) => ({ jpg: { image_url: `https://cdn.myanimelist.net/images/characters/${path}` } }))
+      return new Response(JSON.stringify({ data }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    const data = JIKAN_NAMES.map((name, index) => ({ character: { mal_id: 1000 + index, name, images: { jpg: { image_url: `https://cdn.myanimelist.net/images/characters/1/${index}.jpg` } } } }))
     return new Response(JSON.stringify({ data }), { status: 200, headers: { 'Content-Type': 'application/json' } })
   }
-  if (url.hostname === 'cdn.myanimelist.net') return new Response(new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
+  // Chaque image a ses octets (son chemin) : on voit laquelle est servie.
+  if (url.hostname === 'cdn.myanimelist.net') return new Response(new Uint8Array([0xff, 0xd8, 0xff, ...new TextEncoder().encode(url.pathname)]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
   return undefined
 })
 const { client, close } = await startServer()
@@ -487,6 +495,26 @@ describe('dle — Naruto', () => {
     assert.equal((await bastien.send('GET', '/dle/characters/naruto/neji/image')).status, 200)
     assert.equal((await bastien.send('GET', '/dle/characters/naruto/madara/image')).status, 404, 'pas de portrait : 404')
     assert.equal((await bastien.send('GET', '/dle/characters/manga/card-0/image')).status, 404, 'pas une catégorie de personnages')
+  })
+
+  it('l’image de l’énigme n’est jamais la vignette de la saisie : une autre image du personnage', async () => {
+    const { narutoPortraits } = await import('../src/modules/dle/dle.games.js')
+    const puzzle = await prisma.dlePuzzle.findUnique({ where: { day_category_mode: { day: logic.parisDay(new Date()), category: 'naruto', mode: 'zoom' } } })
+    const id = puzzle!.cardId
+    const thumbnail = Buffer.from(await (await bastien.send('GET', `/dle/characters/naruto/${id}/image`)).arrayBuffer()).toString('latin1')
+    assert.match(thumbnail, /characters\/1\//, 'la vignette : le portrait principal')
+    // Les galeries se chargent en tâche de fond, après les portraits.
+    let served = ''
+    for (let attempt = 0; attempt < 40 && !/characters\/2\//.test(served); attempt += 1) {
+      await new Promise((done) => setTimeout(done, 150))
+      served = Buffer.from(await (await bastien.send('GET', '/dle/daily/naruto/zoom/image')).arrayBuffer()).toString('latin1')
+    }
+    assert.match(served, /characters\/2\/\d+[ab]\.jpg/, 'une image de la galerie')
+    assert.notEqual(served, thumbnail)
+    // Même graine, même image : tous les joueurs voient la même énigme.
+    const again = Buffer.from(await (await chloe.send('GET', '/dle/daily/naruto/zoom/image')).arrayBuffer()).toString('latin1')
+    assert.equal(again, served)
+    assert.ok((await narutoPortraits.charactersWithPuzzleImage()).has(id))
   })
 
   it('partie rapide : jamais deux catégories dans le même salon', async () => {

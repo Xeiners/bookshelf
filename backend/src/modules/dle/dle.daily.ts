@@ -25,10 +25,16 @@ const seedOf = (day: string, category: DleCategory, mode: DleMode) =>
 const imagesUnavailable = () => new HttpError(503, 'dle_images_unavailable', 'Les images de cette énigme sont indisponibles, réessaie plus tard.')
 
 /** Ce qu'il faut deviner aujourd'hui dans cette catégorie et ce mode, tiré au premier appel du jour. */
+/** Graine de l'image d'une énigme du jour : la même image pour tous les joueurs. */
+export const puzzleSeed = (day: string, category: DleCategory, mode: DleMode) => `${day}:${category}:${mode}`
+
 export async function puzzleEntity(day: string, category: DleCategory, mode: DleMode): Promise<DleEntity> {
-  const pool = await poolFor(gameOf(category), mode)
+  const game = gameOf(category)
+  // Tirage parmi ce qui a une image d'énigme distincte ; une énigme déjà tirée reste jouable
+  // tant que le personnage a un portrait (sa galerie a pu changer depuis).
+  const pool = await poolFor(game, mode)
   if (pool.length === 0) throw imagesUnavailable()
-  const playable = new Map(pool.map((entity) => [entity.id, entity]))
+  const playable = new Map((await poolFor(game, mode, 'any')).map((entity) => [entity.id, entity]))
   const where = { day_category_mode: { day, category, mode } }
   const stored = await prisma.dlePuzzle.findUnique({ where })
   const known = stored ? playable.get(stored.cardId) : undefined

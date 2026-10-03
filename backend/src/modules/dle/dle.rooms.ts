@@ -876,11 +876,12 @@ export async function waitRoom(userId: string, code: string, since: number | nul
 }
 
 /** Ce qu'on cherche dans un salon à image (zoom, pixels), pour en servir l'image sans la nommer. */
-export function roomZoomTarget(userId: string, code: string): { category: DleCategory; entity: DleEntity } {
+export function roomZoomTarget(userId: string, code: string): { category: DleCategory; entity: DleEntity; seed: string } {
   const room = roomOf(code)
   memberOf(room, userId)
   if (!isImageMode(room.mode) || !room.answer || room.phase === 'lobby') throw notFound('Pas d’image à montrer.')
-  return { category: room.category, entity: room.answer }
+  // Image d'énigme propre à la manche : la même pour tous les joueurs du salon.
+  return { category: room.category, entity: room.answer, seed: `${room.code}:${room.round}` }
 }
 
 /** Le salon où se trouve ce compte, s'il y en a un (reprise après un rechargement). */

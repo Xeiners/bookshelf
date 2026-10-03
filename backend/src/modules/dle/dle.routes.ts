@@ -6,7 +6,7 @@ import { currentUserId, optionalAuth, requireAuth } from '../../middleware/auth.
 import { rateLimit } from '../../middleware/rateLimit.js'
 import type { CachedImage } from '../manga/manga.routes.js'
 import { BOOSTER_PRICE } from '../stardust/stardust.service.js'
-import { dailyView, dleOverview, emptyOverview, guessDaily, puzzleEntity } from './dle.daily.js'
+import { dailyView, dleOverview, emptyOverview, guessDaily, puzzleEntity, puzzleSeed } from './dle.daily.js'
 import { characterOf, gameOf } from './dle.games.js'
 import { currentPlayer, issueGuest, readGuest, requirePlayer } from './dle.guests.js'
 import { DLE_CATEGORIES, DLE_MODES, ROOM_CODE, isImageMode, normalizeRoomCode, parisDay } from './dle.logic.js'
@@ -100,8 +100,9 @@ dleRouter.get('/characters/:category/:id/image', async (req, res) => {
 dleRouter.get('/daily/:category/:mode/image', requireAuth, async (req, res) => {
   const category = Category.parse(req.params.category)
   const mode = Mode.refine(isImageMode, 'Ce format n’a pas d’image.').parse(req.params.mode)
-  const entity = await puzzleEntity(parisDay(new Date()), category, mode)
-  sendImage(res, await gameOf(category).image(entity), 'private, max-age=3600')
+  const day = parisDay(new Date())
+  const entity = await puzzleEntity(day, category, mode)
+  sendImage(res, await gameOf(category).image(entity, puzzleSeed(day, category, mode)), 'private, max-age=3600')
 })
 
 dleRouter.get('/daily/:category/:mode', requireAuth, async (req, res) => {
@@ -155,8 +156,8 @@ dleRouter.get('/rooms/:code', async (req, res) => {
 })
 
 dleRouter.get('/rooms/:code/image', async (req, res) => {
-  const { category, entity } = roomZoomTarget(currentPlayer(req).id, Code.parse(req.params.code))
-  sendImage(res, await gameOf(category).image(entity), 'private, max-age=600')
+  const { category, entity, seed } = roomZoomTarget(currentPlayer(req).id, Code.parse(req.params.code))
+  sendImage(res, await gameOf(category).image(entity, seed), 'private, max-age=600')
 })
 
 dleRouter.post('/rooms/:code/join', roomLimiter, async (req, res) => {

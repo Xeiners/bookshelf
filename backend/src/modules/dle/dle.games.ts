@@ -1,8 +1,10 @@
 import { notFound } from '../../lib/errors.js'
 import { normalizeText } from '../../services/catalog.service.js'
 import type { Rarity } from '../cards/boosters.logic.js'
+import { TtlCache } from '../../lib/cache.js'
+import { mangadexGet, type MdCollection } from '../manga/mangadex.client.js'
 import { loadCover, type CachedImage } from '../manga/manga.routes.js'
-import { portraitSource, type PortraitCharacter, type PortraitSource } from './dle.jikan.js'
+import { portraitSource, seedIndex, type PortraitCharacter, type PortraitSource } from './dle.jikan.js'
 import { ATTRIBUTES, compareWorks, isImageMode, valuesOf, type AttributeFeedback, type DleCategory, type DleMode, type DleWork } from './dle.logic.js'
 import { dleWorks } from './dle.works.js'
 import { NARUTO_ATTRIBUTES, NARUTO_CHARACTERS, characterValues, compareCharacters } from './naruto.characters.js'
@@ -46,13 +48,21 @@ export interface DleGame {
   /** Colonnes du mode classique, dans l'ordre. */
   attributes: readonly string[]
   pool: () => Promise<DlePool>
-  /** Jouables au format zoom : celles dont on a l'image. */
-  zoomPool: () => Promise<DleEntity[]>
+  /**
+   * Jouables dans les formats à image. `pick` : celles qu'on peut TIRER (une image
+   * d'énigme différente de leur vignette) ; `any` : celles qu'on peut encore servir
+   * (une énigme déjà tirée reste jouable même si sa galerie a changé depuis).
+   */
+  zoomPool: (scope?: 'pick' | 'any') => Promise<DleEntity[]>
   compare: (guess: DleEntity, answer: DleEntity) => Record<string, AttributeFeedback>
   values: (entity: DleEntity) => Record<string, unknown>
   summary: (entity: DleEntity) => EntitySummary
-  /** Image du format zoom (couverture, portrait), servie sans jamais révéler son adresse. */
-  image: (entity: DleEntity) => Promise<CachedImage>
+  /**
+   * Image d'énigme des formats à image, servie sans jamais révéler son adresse : une
+   * AUTRE image que la vignette de la saisie (autre tome, autre portrait), choisie par
+   * `seed` — la même pour tous les joueurs d'une énigme.
+   */
+  image: (entity: DleEntity, seed: string) => Promise<CachedImage>
 }
 
 /* ---- Mangas et manhwas ---------------------------------------------------------- */
@@ -68,12 +78,37 @@ const mangaGame: DleGame = {
     const work = entity as DleWork
     return { id: work.id, name: work.name, imageUrl: work.imageUrl, rarity: work.rarity, number: work.number }
   },
-  image: async (entity) => {
+  image: async (entity, seed) => {
     // `/api/covers/<mangaId>/<fichier>?size=512` → les octets, sans renvoyer l'adresse.
     const match = /^\/api\/covers\/([^/]+)\/([^/?]+)/.exec(entity.imageUrl)
     if (!match) throw notFound('Couverture indisponible.')
-    return loadCover(match[1] as string, match[2] as string, 512)
+    const [, mangaId, fileName] = match as unknown as [string, string, string]
+    // Une autre couverture de l'œuvre (un autre tome) : la vignette de la saisie ne trahit rien.
+    const others = (await otherCovers(mangaId).catch(() => [])).filter((file) => file !== fileName)
+    if (others.length > 0) {
+      const chosen = others[seedIndex(seed, others.length)] as string
+      try {
+        return await loadCover(mangaId, chosen, 512)
+      } catch {
+        // Couverture introuvable : celle de la carte, plutôt qu'une énigme sans image.
+      }
+    }
+    return loadCover(mangaId, fileName, 512)
   },
+}
+
+interface MdCover {
+  attributes?: { fileName?: string }
+}
+
+const coversCache = new TtlCache<string[]>({ maxEntries: 400, ttlMs: 24 * 60 * 60 * 1000 })
+
+/** Les couvertures d'une œuvre sur MangaDex (un fichier par tome), lues une fois par jour. */
+function otherCovers(mangaId: string): Promise<string[]> {
+  return coversCache.getOrLoad(mangaId, async () => {
+    const payload = await mangadexGet<MdCollection<MdCover>>('/cover', { 'manga[]': [mangaId], 'limit': 40, 'order[volume]': 'asc' })
+    return payload.data.map((cover) => cover.attributes?.fileName).filter((file): file is string => typeof file === 'string')
+  })
 }
 
 /* ---- Univers de personnages (Naruto, One Piece) ------------------------------------- */
@@ -92,7 +127,9 @@ interface CharacterUniverse<C extends PortraitCharacter> {
 }
 
 /** Une catégorie de personnages : fiches rédigées à la main, portraits MyAnimeList. */
-function characterGame<C extends PortraitCharacter>(universe: CharacterUniverse<C>): DleGame & { character: (id: string) => (C & DleEntity) | undefined } {
+function characterGame<C extends PortraitCharacter>(
+  universe: CharacterUniverse<C>,
+): DleGame & { character: (id: string) => (C & DleEntity) | undefined; thumbnail: (entity: DleEntity) => Promise<CachedImage> } {
   type Entity = C & DleEntity
   const list: Entity[] = universe.characters.map((character) => ({ ...character, imageUrl: characterImageUrl(universe.category, character.id) }))
   const pool: DlePool = {
@@ -104,14 +141,15 @@ function characterGame<C extends PortraitCharacter>(universe: CharacterUniverse<
     category: universe.category,
     attributes: universe.attributes,
     pool: async () => pool,
-    zoomPool: async () => {
-      const withPortrait = await universe.portraits.charactersWithPortrait()
-      return list.filter((entity) => withPortrait.has(entity.id))
+    zoomPool: async (scope = 'pick') => {
+      const playable = scope === 'pick' ? await universe.portraits.charactersWithPuzzleImage() : await universe.portraits.charactersWithPortrait()
+      return list.filter((entity) => playable.has(entity.id))
     },
     compare: (guess, answer) => universe.compare(guess as Entity, answer as Entity),
     values: (entity) => universe.values(entity as Entity),
     summary: (entity) => ({ id: entity.id, name: entity.name, imageUrl: entity.imageUrl, rarity: null, number: null }),
-    image: (entity) => universe.portraits.portraitImage(entity as Entity),
+    image: (entity, seed) => universe.portraits.puzzleImage(entity as Entity, seed),
+    thumbnail: (entity: DleEntity) => universe.portraits.portraitImage(entity as Entity),
     character: (id) => pool.byId.get(id) as Entity | undefined,
   }
 }
@@ -167,15 +205,20 @@ export function characterOf(category: DleCategory, id: string): { character: Por
   const game = category === 'manga' ? null : CHARACTER_GAMES[category]
   const character = game?.character(id)
   if (!game || !character) return undefined
-  return { character, image: () => game.image(character) }
+  // La vignette (saisie, plateau) : le portrait principal, jamais une image d'énigme.
+  return { character, image: () => game.thumbnail(character) }
 }
 
 const GAMES: Record<DleCategory, DleGame> = { manga: mangaGame, ...CHARACTER_GAMES }
 
 export const gameOf = (category: DleCategory): DleGame => GAMES[category]
 
-/** Pool d'un format : tout pour le classique ; ce qui a une image pour le zoom et les pixels. */
-export const poolFor = async (game: DleGame, mode: DleMode): Promise<DleEntity[]> => (isImageMode(mode) ? game.zoomPool() : (await game.pool()).list)
+/**
+ * Pool d'un format : tout pour le classique ; pour les formats à image, ce qu'on peut tirer
+ * (`pick`) ou ce qu'on peut encore servir (`any`, une énigme déjà tirée).
+ */
+export const poolFor = async (game: DleGame, mode: DleMode, scope: 'pick' | 'any' = 'pick'): Promise<DleEntity[]> =>
+  isImageMode(mode) ? game.zoomPool(scope) : (await game.pool()).list
 
 /* ---- Essais ------------------------------------------------------------------------- */
 
