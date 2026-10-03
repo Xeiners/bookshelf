@@ -15,6 +15,8 @@ export const TITLE_IDS = [
   'highRoller',
   'bookworm',
   'sage',
+  'riddler',
+  'dleMaster',
 ] as const
 export type TitleId = (typeof TITLE_IDS)[number]
 

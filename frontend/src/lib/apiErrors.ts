@@ -73,6 +73,32 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.offerUnavailable
     case 'card_not_available':
       return t.errors.cardNotAvailable
+    case 'not_enough_stardust':
+      return t.errors.notEnoughStardust(Math.max(1, numberDetail(error, 'price', 0) - numberDetail(error, 'balance', 0)))
+    case 'room_not_found':
+      return t.errors.roomNotFound
+    case 'room_full':
+      return t.errors.roomFull
+    case 'room_started':
+      return t.errors.roomStarted
+    case 'not_host':
+      return t.errors.notHost
+    case 'not_in_room':
+      return t.errors.notInRoom
+    case 'not_started':
+      return t.errors.notStarted
+    case 'round_over':
+    case 'already_done':
+    case 'spectating':
+      return t.errors.roundOver
+    case 'already_guessed':
+      return t.errors.alreadyGuessed
+    case 'already_solved':
+      return t.errors.alreadySolved
+    case 'unknown_work':
+      return t.errors.unknownWork
+    case 'guest_required':
+      return t.errors.guestRequired
     case 'validation_error':
     case 'invalid_json':
       return t.errors.invalidInput

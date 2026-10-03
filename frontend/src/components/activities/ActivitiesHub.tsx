@@ -1,25 +1,24 @@
-import { useRef, type CSSProperties, type ReactNode } from 'react'
-import { BookText, ChevronRight, FlaskConical, Gift, Handshake, MoonStar, WifiOff, Zap } from 'lucide-react'
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { Check, ChevronRight, FlaskConical, Gift, Handshake, MoonStar, Sparkle, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
 import { useCollection } from '../../hooks/useCollection'
-import { useNovels } from '../../hooks/useNovels'
 import { useUnreadTrades } from '../../hooks/useNotifications'
 import { useOracleStatus } from '../../hooks/useOracleStatus'
 import { useT } from '../../i18n'
 import { completion, rarityRank } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { novelAsBook } from '../../lib/novels'
 import { formatCountdown } from '../../lib/oracle'
-import { displayPercent } from '../../store/useNovelStore'
+import { useAuthStore } from '../../store/useAuthStore'
+import { useDleStore } from '../../store/useDleStore'
 import { useTradeStore } from '../../store/useTradeStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
 import { CARD_FRAMES } from '../cards/cardFrames'
-import { EpubDropZone } from '../novels/EpubDropZone'
-import { BookCover } from '../ui/BookCover'
+import { STARDUST_GRADIENT } from '../dle/dleStyle'
+import { StardustBadge } from '../dle/StardustBadge'
 import { EnergyRing } from './EnergyRing'
 
 /** Texte néon : lueur de la couleur donnée. */
@@ -40,6 +39,15 @@ export function ActivitiesHub() {
   const boosters = useBoosters({ tick: false })
   // Ouverture de booster en plein écran : le hub, recouvert, cesse de s'animer.
   const covered = useUiStore((state) => state.boosterOpen)
+  const openActivity = useUiStore((state) => state.openActivity)
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const stardust = useDleStore((state) => state.overview?.stardust ?? null)
+  const loadDle = useDleStore((state) => state.loadOverview)
+
+  // Solde de Poussières et énigmes du jour : de quoi allumer l'artefact du BookshelfDLE.
+  useEffect(() => {
+    if (signedIn) void loadDle()
+  }, [signedIn, loadDle])
 
   useGSAP(
     () => {
@@ -65,6 +73,11 @@ export function ActivitiesHub() {
             {t.activities.giftedCount(boosters.gifted)}
           </span>
         )}
+        {signedIn && stardust !== null && (
+          <button type="button" onClick={() => openActivity('dle')} className="rounded-full transition-transform active:scale-95">
+            <StardustBadge balance={stardust} />
+          </button>
+        )}
         {boosters.unlimited && (
           <span
             title={t.activities.sandboxHint}
@@ -87,8 +100,8 @@ export function ActivitiesHub() {
         <OracleArtefact />
         <CollectionArtefact />
       </div>
+      <DleArtefact />
       <MarketArtefact />
-      <NovelsArtefact />
     </div>
   )
 }
@@ -448,64 +461,91 @@ function MarketArtefact() {
   )
 }
 
-/* ---- Romans ---------------------------------------------------------------------------------- */
+/* ---- BookshelfDLE ---------------------------------------------------------------------------- */
+
 
 /**
- * Romans du compte : les derniers lus en éventail, l'import d'un EPUB
- * (glisser-déposer sur ordinateur) et l'accès à la liste. Pas un bouton
- * unique comme les autres artefacts : il contient deux actions distinctes.
+ * Le BookshelfDLE : deviner l'œuvre du jour, défier les autres. L'artefact
+ * s'allume (grille qui se retourne, pastille) tant qu'une énigme du jour attend.
  */
-function NovelsArtefact() {
+function DleArtefact() {
   const t = useT()
-  const { signedIn, books, importFiles } = useNovels()
-  const openNovels = useUiStore((state) => state.openNovels)
-  const recent = (books ?? []).slice(0, 3)
-  const current = (books ?? []).find((entry) => {
-    const percent = displayPercent(entry)
-    return percent > 0 && percent < 100
-  })
+  const ref = useRef<HTMLButtonElement>(null)
+  const openActivity = useUiStore((state) => state.openActivity)
+  const covered = useUiStore((state) => state.boosterOpen)
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const overview = useDleStore((state) => state.overview)
+  const toPlay = overview ? Object.values(overview.daily).flatMap((modes) => Object.values(modes)).filter((daily) => !daily.solved).length : 0
+  const lit = signedIn && toPlay > 0
+
+  // L'emblème flotte, son « ? » respire, ses étoiles scintillent (plus vite quand une énigme attend).
+  useGSAP(
+    () => {
+      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      gsap.to('[data-dle-emblem]', { y: -4, rotation: -3, duration: 2.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      gsap.to('[data-dle-mark]', { scale: 1.08, duration: 1.6, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      gsap.fromTo(
+        '[data-dle-spark]',
+        { scale: 0.2, autoAlpha: 0 },
+        { scale: 1, autoAlpha: 1, rotation: 90, duration: 0.6, ease: 'power2.out', yoyo: true, repeat: -1, repeatDelay: lit ? 0.4 : 1.6, stagger: 0.5 },
+      )
+    },
+    { scope: ref, dependencies: [covered, lit], revertOnUpdate: true },
+  )
 
   return (
-    <section data-artefact aria-label={t.novels.artefact.title} className={ARTEFACT_CLASS} style={ARTEFACT_SURFACE}>
-      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-        <span aria-hidden className="relative block h-28 w-[5.4rem] shrink-0 self-center">
-          {recent.length > 0 ? (
-            recent.map((entry, index) => (
-              <span
-                key={entry.id}
-                className="absolute top-2 left-3 block h-[5.4rem] w-[3.9rem] origin-bottom overflow-hidden rounded-md bg-carbon shadow-[0_10px_20px_-8px_rgba(0,0,0,0.9)]"
-                style={{ transform: `rotate(${(index - (recent.length - 1) / 2) * 12}deg)`, zIndex: index === 1 ? 2 : 1 }}
-              >
-                <BookCover book={novelAsBook(entry.book)} className="h-full w-full" />
-              </span>
-            ))
-          ) : (
-            <span className="absolute inset-2 grid place-items-center rounded-xl border border-[#ffe39a]/40 bg-black/30">
-              <BookText size={30} className="text-[#fff4c8]" />
+    <button
+      ref={ref}
+      type="button"
+      data-artefact
+      onClick={() => openActivity('dle')}
+      className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
+      style={lit ? { ...ARTEFACT_SURFACE, boxShadow: '0 0 0 1px rgba(255,94,196,0.4), 0 18px 46px -22px rgba(255,94,196,0.6)' } : ARTEFACT_SURFACE}
+    >
+      <span aria-hidden className="absolute -top-16 -right-12 -z-10 size-56 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(255,94,196,0.22), transparent)' }} />
+      <span className="flex items-center gap-5 p-5">
+        <DleEmblem />
+        <span className="block min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-2xl" style={{ backgroundImage: STARDUST_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+              {t.dle.title}
+            </span>
+            <span className="rounded-full bg-[#ff5ec4]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#ff9ad8] uppercase">{t.dle.eyebrow}</span>
+          </span>
+          {signedIn && overview && (
+            <span className={`mt-2 inline-flex items-center gap-1.5 text-xs ${lit ? 'text-[#ff9ad8]' : 'text-like'}`}>
+              {lit ? <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-[#ff5ec4]" /> : <Check size={13} aria-hidden />}
+              {lit ? t.dle.hub.toPlay(toPlay) : t.dle.hub.allSolved}
             </span>
           )}
         </span>
-        <span className="block min-w-0 flex-1">
-          <span className="block text-[10px] tracking-[0.32em] text-[#fff4c8]/60 uppercase">{t.novels.artefact.eyebrow}</span>
-          <span className="mt-1 block font-display text-2xl text-cream">{t.novels.artefact.title}</span>
-          <span className="mt-1 block text-sm text-cream/60">{signedIn ? t.novels.artefact.body : t.novels.guest.body}</span>
-          {current && <span className="mt-2 block truncate text-xs text-gold">{t.novels.artefact.reading(current.book.title)}</span>}
-          <span className="mt-3 flex flex-wrap items-center gap-2">
-            <EpubDropZone variant="pill" onFiles={(files) => importFiles(files, { openSheet: true })} />
-            <button
-              type="button"
-              onClick={() => {
-                vibrate(6)
-                openNovels()
-              }}
-              className="inline-flex h-10 items-center gap-1 rounded-full px-3 text-xs text-[#fff4c8]/85 hover:text-[#fff4c8]"
-            >
-              {signedIn && books && books.length > 0 ? `${t.novels.artefact.open} · ${t.novels.count(books.length)}` : t.novels.artefact.open}
-              <ChevronRight size={14} aria-hidden />
-            </button>
-          </span>
-        </span>
-      </div>
-    </section>
+        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
+      </span>
+    </button>
+  )
+}
+
+/**
+ * Emblème du BookshelfDLE : un médaillon cerclé du dégradé des Poussières d'Étoile,
+ * un grand « ? » lumineux au centre, et des étoiles qui scintillent autour.
+ */
+function DleEmblem() {
+  return (
+    <span aria-hidden data-dle-emblem className="relative grid size-16 shrink-0 place-items-center will-change-transform">
+      {/* Anneau du dégradé, puis le cœur d'encre où le « ? » brille. */}
+      <span className="absolute inset-0 rounded-[1.35rem]" style={{ background: STARDUST_GRADIENT, boxShadow: '0 0 26px -6px rgba(255,94,196,0.75)' }} />
+      <span className="absolute inset-[2.5px] rounded-[1.2rem]" style={{ background: 'radial-gradient(circle at 50% 38%, rgba(255,94,196,0.45), rgba(124,92,255,0.25) 45%, #0b0918 75%)' }} />
+      <span
+        data-dle-mark
+        className="relative font-display text-[2.6rem] leading-none will-change-transform"
+        style={{ backgroundImage: 'linear-gradient(180deg, #fff8dc, #ffc46b 55%, #ff5ec4)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}
+      >
+        ?
+      </span>
+      {/* Étoiles autour du médaillon. */}
+      <Sparkle data-dle-spark size={13} className="absolute -top-1.5 -right-1.5 fill-[#fff4c8] text-[#fff4c8]" />
+      <Sparkle data-dle-spark size={9} className="absolute -bottom-1 -left-1 fill-[#ff9ad8] text-[#ff9ad8]" />
+      <Sparkle data-dle-spark size={7} className="absolute top-1 -left-2 fill-[#b46cff] text-[#b46cff]" />
+    </span>
   )
 }

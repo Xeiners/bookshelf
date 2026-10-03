@@ -61,7 +61,7 @@ export function parseFeatured(raw: string): string[] {
 }
 
 export async function profileStats(userId: string): Promise<ProfileStats> {
-  const [setByRarity, owned, statuses, chapters, novels, novelsStarted, novelsFinished, user] = await Promise.all([
+  const [setByRarity, owned, statuses, chapters, novels, novelsStarted, novelsFinished, user, dle] = await Promise.all([
     prisma.card.groupBy({ by: ['rarity'], _count: { _all: true } }),
     prisma.userCard.findMany({ where: { userId }, select: { count: true, card: { select: { rarity: true } } } }),
     prisma.libraryEntry.groupBy({ by: ['status'], where: { userId }, _count: { _all: true } }),
@@ -71,6 +71,7 @@ export async function profileStats(userId: string): Promise<ProfileStats> {
     prisma.userBook.count({ where: { userId, workId: null, progressPercent: { gt: 0 } } }),
     prisma.userBook.count({ where: { userId, workId: null, progressPercent: { gte: NOVEL_FINISHED_PERCENT } } }),
     prisma.user.findUnique({ where: { id: userId }, select: { boostersOpened: true } }),
+    prisma.dleStats.findUnique({ where: { userId }, select: { dailySolved: true, roomsWon: true } }),
   ])
 
   const byRarity = Object.fromEntries(RARITIES.map((rarity) => [rarity, { total: 0, owned: 0 }])) as Record<
@@ -104,6 +105,7 @@ export async function profileStats(userId: string): Promise<ProfileStats> {
       completion: consulted > 0 ? Math.round((Math.min(finished, consulted) / consulted) * 1000) / 1000 : 0,
     },
     gacha: { boostersOpened: user?.boostersOpened ?? 0 },
+    dle: { dailySolved: dle?.dailySolved ?? 0, roomsWon: dle?.roomsWon ?? 0 },
   }
 }
 

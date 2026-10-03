@@ -1,12 +1,17 @@
 import { createApp } from './app.js'
 import { config } from './config.js'
 import { prisma } from './db.js'
+import { jjkPortraits, jojoPortraits, narutoPortraits, onePiecePortraits } from './modules/dle/dle.games.js'
 import { startCatalogSync } from './services/catalog.service.js'
 
 const app = createApp()
 
 // Catalogue MangaDex : indexé en tâche de fond, le serveur répond déjà.
 if (config.catalogSync) startCatalogSync()
+// Portraits du BookshelfDLE (Jikan, lent) : préparés en tâche de fond, aucun joueur ne les attend.
+if (config.env !== 'test') {
+  for (const source of [narutoPortraits, onePiecePortraits, jojoPortraits, jjkPortraits]) void source.charactersWithPortrait().catch(() => undefined)
+}
 // Mode recette oublié en production : il doit se voir dans les journaux.
 if (config.cards.unlimited) console.warn('[cartes] BOOSTER_UNLIMITED_MODE actif : boosters illimités (recette). À couper en production.')
 

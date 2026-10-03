@@ -31,6 +31,8 @@ import { EpubMatchModal } from './components/novels/EpubMatchModal'
 import { usePendingNovelProgress } from './hooks/useNovels'
 import { usePlaylistSync } from './hooks/useAmbientMusic'
 import { profileIdFromSearch, withoutProfileParam } from './lib/profileLink'
+import { roomCodeFromSearch, withoutRoomParam } from './lib/dle'
+import { useDleStore } from './store/useDleStore'
 import { useNotificationPolling } from './hooks/useNotifications'
 import { NotificationBanner } from './components/notifications/NotificationBanner'
 import { NotificationCenter } from './components/notifications/NotificationCenter'
@@ -93,6 +95,15 @@ export default function App() {
     if (!userId) return
     useUiStore.getState().openPublicProfile(userId)
     window.history.replaceState(window.history.state, '', withoutProfileParam(window.location.href))
+  }, [])
+
+  // Invitation à un salon du BookshelfDLE (`?dle=<code>`) : rejoint dès que le compte est là.
+  useEffect(() => {
+    const code = roomCodeFromSearch(window.location.search)
+    if (!code) return
+    useDleStore.getState().setPendingCode(code)
+    useUiStore.getState().openActivity('dle')
+    window.history.replaceState(window.history.state, '', withoutRoomParam(window.location.href))
   }, [])
 
   // Bibliothèque enregistrée retraduite dans la langue choisie.

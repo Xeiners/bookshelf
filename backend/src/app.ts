@@ -19,6 +19,8 @@ import { publicProfileRouter } from './modules/users/publicProfile.routes.js'
 import { tradesRouter } from './modules/trades/trades.routes.js'
 import { notificationsRouter } from './modules/notifications/notifications.routes.js'
 import { adminRouter } from './modules/admin/admin.routes.js'
+import { dleRouter } from './modules/dle/dle.routes.js'
+import { stardustRouter } from './modules/stardust/stardust.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -55,6 +57,8 @@ export function createApp() {
   app.use('/api/trades', tradesRouter)
   app.use('/api/notifications', notificationsRouter)
   app.use('/api/admin', adminRouter)
+  app.use('/api/dle', dleRouter)
+  app.use('/api/stardust', stardustRouter)
   app.use('/api/profile', profileRouter)
   app.use('/api/users', publicProfileRouter)
   app.use('/api/music', musicRouter)

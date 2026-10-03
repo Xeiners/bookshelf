@@ -33,6 +33,11 @@ export interface ProfileStats {
   gacha: {
     boostersOpened: number
   }
+  /** BookshelfDLE : énigmes du jour résolues, parties à plusieurs gagnées. */
+  dle: {
+    dailySolved: number
+    roomsWon: number
+  }
 }
 
 interface TitleRule {
@@ -50,6 +55,8 @@ export const TITLES = [
   { id: 'highRoller', unlocked: ({ gacha }) => gacha.boostersOpened >= 100 },
   { id: 'bookworm', unlocked: ({ reading }) => reading.read + reading.novelsFinished >= 10 },
   { id: 'sage', unlocked: ({ reading }) => reading.read + reading.novelsFinished >= 50 },
+  { id: 'riddler', unlocked: ({ dle }) => dle.dailySolved >= 10 },
+  { id: 'dleMaster', unlocked: ({ dle }) => dle.roomsWon >= 10 },
 ] as const satisfies readonly TitleRule[]
 
 export type TitleId = (typeof TITLES)[number]['id']

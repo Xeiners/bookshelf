@@ -86,7 +86,7 @@ mangaRouter.get('/:id', async (req, res) => {
  * et le Service Worker du front peut ainsi les mettre en cache (même origine).
  */
 
-interface CachedImage {
+export interface CachedImage {
   body: Buffer
   contentType: string
 }
@@ -98,14 +98,13 @@ const CoverQuery = z.object({
   size: z.enum(['256', '512']).default('512'),
 })
 
-export const coverRouter = Router()
-
-coverRouter.get('/:mangaId/:fileName', async (req, res) => {
-  const { mangaId, fileName } = req.params
+/**
+ * Octets d'une couverture relayée (`/api/covers/<mangaId>/<fichier>?size=`), en cache.
+ * Sert aussi le BookshelfDLE, qui la montre sans révéler son adresse. 404 si MangaDex échoue.
+ */
+export async function loadCover(mangaId: string, fileName: string, size: 256 | 512): Promise<CachedImage> {
   if (!UUID.test(mangaId) || !COVER_FILE.test(fileName)) throw badRequest('Couverture invalide.')
-  const size = Number(CoverQuery.parse(req.query).size) as 256 | 512
-
-  const image = await coverCache.getOrLoad(`${mangaId}/${fileName}/${size}`, async () => {
+  return coverCache.getOrLoad(`${mangaId}/${fileName}/${size}`, async () => {
     // La raison exacte part dans les journaux : côté navigateur, tout échec
     // amont se ressemble (404), impossible sinon de distinguer un blocage
     // MangaDex d'un souci réseau ou DNS du serveur.
@@ -123,6 +122,14 @@ coverRouter.get('/:mangaId/:fileName', async (req, res) => {
       contentType: upstream.headers.get('content-type') ?? 'image/jpeg',
     }
   })
+}
+
+export const coverRouter = Router()
+
+coverRouter.get('/:mangaId/:fileName', async (req, res) => {
+  const { mangaId, fileName } = req.params
+  const size = Number(CoverQuery.parse(req.query).size) as 256 | 512
+  const image = await loadCover(mangaId, fileName, size)
 
   // Un nom de fichier de couverture MangaDex est immuable.
   res.set('Cache-Control', 'public, max-age=604800, immutable')

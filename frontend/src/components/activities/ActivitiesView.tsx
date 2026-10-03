@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { ChevronLeft } from 'lucide-react'
+import { lazy, Suspense, useRef } from 'react'
+import { ChevronLeft, Loader2 } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -10,9 +10,13 @@ import { TradingHubView } from '../trading/TradingHubView'
 import { ActivitiesHub } from './ActivitiesHub'
 import { SanctumBackdrop } from './SanctumBackdrop'
 
+// BookshelfDLE : chargé à la première partie.
+const DleView = lazy(() => import('../dle/DleView').then((module) => ({ default: module.DleView })))
+
 /**
  * Onglet « Activités » : le hub, ou un de ses modules (l'Oracle, la
- * collection, le marché d'échange) avec un retour vers le hub. Chaque écran arrive en glissant.
+ * collection, le marché d'échange, le BookshelfDLE) avec un retour vers le hub
+ * (le BookshelfDLE a le sien : ses écrans ont chacun leur retour). Chaque écran arrive en glissant.
  */
 export function ActivitiesView() {
   const t = useT()
@@ -33,6 +37,16 @@ export function ActivitiesView() {
       <SanctumBackdrop />
       {activity === 'hub' ? (
         <ActivitiesHub />
+      ) : activity === 'dle' ? (
+        <Suspense
+          fallback={
+            <div className="grid flex-1 place-items-center">
+              <Loader2 size={26} className="animate-spin text-glow" aria-hidden />
+            </div>
+          }
+        >
+          <DleView />
+        </Suspense>
       ) : (
         <>
           <div className="shrink-0 px-5 pb-2">
