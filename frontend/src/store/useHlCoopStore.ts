@@ -4,6 +4,7 @@ import { clockOffset } from '../lib/dle'
 import { ApiError } from '../services/api'
 import { higherLowerApi, type CoopView, type HlChoice, type HlMetric } from '../services/higherLowerApi'
 import { useDleStore } from './useDleStore'
+import { useGuestStardustStore } from './useGuestStardustStore'
 import { useUiStore } from './useUiStore'
 
 /*
@@ -49,6 +50,8 @@ export const useHlCoopStore = create<HlCoopState>((set, get) => ({
     set({ room: view, offset: clockOffset(view.serverTime, receivedAt) })
     // Fin de partie : le solde de Poussières suit.
     if (finished && view.result?.balance != null) useDleStore.getState().setStardust(view.result.balance)
+    // Invité : ses Poussières en reçus, gardés sur l'appareil (l'inscription les ajoute au compte).
+    if (finished) for (const receipt of view.result?.receipts ?? []) useGuestStardustStore.getState().add(receipt)
   },
 
   create: async (metric) => get().applyRoom(await higherLowerApi.createCoop(metric)),

@@ -2,7 +2,7 @@ import { randomInt } from 'node:crypto'
 import { HttpError, conflict } from '../../lib/errors.js'
 import { roomCode } from '../dle/dle.logic.js'
 import { profileOf, type PlayerProfile } from '../dle/dle.rooms.js'
-import type { Participant } from '../dle/dle.guests.js'
+import { isGuestId, type Participant } from '../dle/dle.guests.js'
 import { HL_ENTRIES, type HlEntry, type HlMetric } from './hl.data.js'
 import { HL_LIVES, isCorrect, pickChallenger, pickOpening, recentWindow } from './hl.logic.js'
 import { cardOf, creditCoop, type HlCard } from './hl.service.js'
@@ -60,6 +60,8 @@ interface CoopReward {
   reward: number
   balance: number
   capped: boolean
+  /** Invité : ses Poussières en reçus signés. */
+  receipts: string[]
 }
 
 interface CoopRoom {
@@ -256,7 +258,14 @@ export interface CoopView {
   current: HlCard | null
   next: HlCard | null
   last: CoopTurnView | null
-  result: { streak: number; endedBy: 'lives' | 'exhausted' | null; reward: number | null; balance: number | null; capped: boolean } | null
+  result: {
+    streak: number
+    endedBy: 'lives' | 'exhausted' | null
+    reward: number | null
+    balance: number | null
+    capped: boolean
+    receipts: string[]
+  } | null
 }
 
 const iso = (time: number | null) => (time === null ? null : new Date(time).toISOString())
@@ -298,7 +307,15 @@ function viewFor(room: CoopRoom, userId: string): CoopView {
     last: room.phase === 'lobby' ? null : room.last,
     result:
       room.phase === 'results'
-        ? { streak: room.finalStreak ?? room.streak, endedBy: room.endedBy, reward: mine?.reward ?? null, balance: mine?.balance ?? null, capped: mine?.capped ?? false }
+        ? {
+            streak: room.finalStreak ?? room.streak,
+            endedBy: room.endedBy,
+            reward: mine?.reward ?? null,
+            // Invité : pas de solde sur le serveur (ses Poussières sont des reçus).
+            balance: isGuestId(userId) ? null : (mine?.balance ?? null),
+            capped: mine?.capped ?? false,
+            receipts: mine?.receipts ?? [],
+          }
         : null,
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, ChevronRight, Crown, Flame, Loader2, LogIn, Play, Plus, Trophy, Users, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, Crown, Flame, Loader2, LogIn, Pencil, Play, Plus, Trophy, UserPlus, Users, X } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { parseRoomCode } from '../../lib/dle'
@@ -9,6 +9,8 @@ import { vibrate } from '../../lib/haptics'
 import { playHlSelect, playHlStart } from '../../lib/sfx'
 import { HL_METRICS, type HlCard, type HlMetric, type HlOverview, type HlStanding } from '../../services/higherLowerApi'
 import { hlSound, useHigherLowerStore } from '../../store/useHigherLowerStore'
+import { useAuthStore } from '../../store/useAuthStore'
+import { useDleStore } from '../../store/useDleStore'
 import { useHlCoopStore } from '../../store/useHlCoopStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CardAvatar } from '../profile/CardAvatar'
@@ -156,9 +158,91 @@ export function HlHome() {
         </div>
 
         {overview && <CoopEntry metric={metric} />}
+        <GuestBanner />
       </div>
 
       {board && overview && <LeaderboardSheet overview={overview} onClose={() => setBoard(false)} />}
+    </div>
+  )
+}
+
+/* ---- Invité ---------------------------------------------------------------------------- */
+
+/** Sans compte : le pseudo (modifiable) et l'invitation à créer un compte pour tout garder. */
+function GuestBanner() {
+  const t = useT()
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const guest = useDleStore((state) => state.overview?.guest ?? null)
+  const ensureGuest = useDleStore((state) => state.ensureGuest)
+  const openAuth = useUiStore((state) => state.openAuth)
+  const notify = useUiStore((state) => state.notify)
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
+  if (signedIn || !guest) return null
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await ensureGuest(name.trim())
+      setEditing(false)
+    } catch (error) {
+      notify(apiErrorMessage(error, t), 'nope')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div data-hl-in className="flex w-full flex-col gap-2.5 rounded-[1.5rem] border border-[#ffc46b]/25 bg-[#ffc46b]/[0.06] p-3 text-left">
+      {editing ? (
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+        >
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            aria-label={t.dle.guest.name}
+            placeholder={t.dle.guest.placeholder}
+            maxLength={20}
+            autoFocus
+            className="h-10 min-w-0 flex-1 rounded-xl border border-white/12 bg-black/40 px-3 text-sm text-cream placeholder:text-cream/30 focus:border-white/30 focus:outline-none"
+          />
+          <button type="submit" disabled={saving} className="h-10 shrink-0 rounded-xl bg-cream px-4 text-xs font-bold text-void disabled:opacity-60">
+            {saving ? <Loader2 size={14} className="animate-spin" aria-hidden /> : t.hl.guestSave}
+          </button>
+        </form>
+      ) : (
+        <p className="flex items-center gap-2 text-sm text-cream">
+          <span className="min-w-0 truncate font-semibold">{guest.name}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setName(guest.name)
+              setEditing(true)
+            }}
+            aria-label={t.hl.guestRename}
+            title={t.hl.guestRename}
+            className="grid size-7 shrink-0 place-items-center rounded-full text-cream/55 transition-colors hover:bg-white/5 hover:text-cream"
+          >
+            <Pencil size={13} aria-hidden />
+          </button>
+        </p>
+      )}
+      <p className="text-xs leading-relaxed text-cream/60">{t.hl.guest}</p>
+      <button
+        type="button"
+        onClick={openAuth}
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl text-xs font-bold text-[#2a1a02]"
+        style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' }}
+      >
+        <UserPlus size={14} aria-hidden />
+        {t.hl.guestCta}
+      </button>
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { higherLowerApi, type HlCard, type HlChoice, type HlGuessResult, type HlMetric, type HlOverview, type HlResult, type HlRun } from '../services/higherLowerApi'
+import { useAuthStore } from './useAuthStore'
 import { useDleStore } from './useDleStore'
+import { pendingGuestStardust, useGuestStardustStore } from './useGuestStardustStore'
 
 /*
  * Higher or Lower : accueil (records, classements), partie en cours, bilan.
@@ -105,7 +107,7 @@ export const useHigherLowerStore = create<HigherLowerState>((set, get) => ({
     }),
 
   finish: (result, duel) => {
-    useDleStore.getState().setStardust(result.balance)
+    keepStardust(result)
     set((state) => ({
       run: null,
       result,
@@ -133,7 +135,7 @@ export const useHigherLowerStore = create<HigherLowerState>((set, get) => ({
     const result = await higherLowerApi.end(run.id).catch(() => null)
     if (result && run.streak > 0) get().finish(result)
     else {
-      if (result) useDleStore.getState().setStardust(result.balance)
+      if (result) keepStardust(result)
       get().openHome()
     }
   },
@@ -145,6 +147,20 @@ export const useHigherLowerStore = create<HigherLowerState>((set, get) => ({
 
   reset: () => set({ screen: 'home', overview: null, overviewStatus: 'idle', run: null, result: null, lastDuel: null, starting: null }),
 }))
+
+/** Poussières d'une fin de partie : le solde du compte, ou les reçus d'un invité (gardés sur l'appareil). */
+function keepStardust(result: HlResult): void {
+  if (result.receipts.length > 0) for (const receipt of result.receipts) useGuestStardustStore.getState().add(receipt)
+  else if (useAuthStore.getState().user) useDleStore.getState().setStardust(result.balance)
+}
+
+/** Solde affiché : celui du compte, ou les Poussières d'invité en attente sur cet appareil. */
+export function useStardustBalance(): number {
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const balance = useDleStore((state) => state.overview?.stardust ?? 0)
+  const receipts = useGuestStardustStore((state) => state.receipts)
+  return signedIn ? balance : pendingGuestStardust(receipts)
+}
 
 /** Joue un bruitage du jeu, sauf s'ils sont coupés. */
 export function hlSound(play: () => void): void {

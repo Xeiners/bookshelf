@@ -1,25 +1,28 @@
 import { useEffect, useRef } from 'react'
-import { UserPlus } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDleStore } from '../../store/useDleStore'
-import { useHigherLowerStore } from '../../store/useHigherLowerStore'
+import { useHigherLowerStore, useStardustBalance } from '../../store/useHigherLowerStore'
 import { useHlCoopStore } from '../../store/useHlCoopStore'
 import { useUiStore } from '../../store/useUiStore'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
-import { HlGame } from './HlGame'
 import { HlCoop } from './HlCoop'
+import { HlGame } from './HlGame'
 import { HlGameOver } from './HlGameOver'
 import { HlHome } from './HlHome'
 import { SoundToggle } from './SoundToggle'
-import { HL_GRADIENT } from './hlStyle'
 
 /**
- * Higher or Lower : accueil, duel, bilan. Chaque écran a sa barre (retour toujours
- * en haut à gauche, comme le BookshelfDLE) et arrive en glissant.
+ * Higher or Lower : accueil, duel, bilan (et le COOP). Chaque écran a sa barre (retour
+ * toujours en haut à gauche, comme le BookshelfDLE) et arrive en glissant.
+ *
+ * Sans compte, on joue en invité, comme au BookshelfDLE : un pseudo (`Guest_1234` au
+ * départ) gardé dans un cookie, des records sur cet appareil seulement, et des
+ * Poussières en reçus que l'inscription ajoute au compte.
  */
 export function HigherLowerView() {
   const t = useT()
@@ -27,27 +30,42 @@ export function HigherLowerView() {
   const screen = useHigherLowerStore((state) => state.screen)
   const loadOverview = useHigherLowerStore((state) => state.loadOverview)
   const openActivity = useUiStore((state) => state.openActivity)
-  const stardust = useDleStore((state) => state.overview?.stardust ?? null)
-  const loadDle = useDleStore((state) => state.loadOverview)
-  const signedIn = useAuthStore((state) => state.user !== null)
-  const openAuth = useUiStore((state) => state.openAuth)
   const notify = useUiStore((state) => state.notify)
+  const stardust = useStardustBalance()
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const dleOverview = useDleStore((state) => state.overview)
+  const loadDle = useDleStore((state) => state.loadOverview)
+  const ensureGuest = useDleStore((state) => state.ensureGuest)
+  const guest = dleOverview?.guest ?? null
+  const ready = signedIn || guest !== null
   const coop = useHlCoopStore((state) => state.room)
   const pendingCode = useHlCoopStore((state) => state.pendingCode)
   const currentCoop = useHigherLowerStore((state) => state.overview?.currentCoop ?? null)
 
+  // Accueil du BookshelfDLE : le solde de Poussières d'un compte, ou l'identité d'un invité.
   useEffect(() => {
-    if (!signedIn) return
-    void loadOverview()
-    // Solde de Poussières : lu une fois à l'ouverture, il suit ensuite les parties.
     if (useDleStore.getState().overview === null) void loadDle()
-  }, [signedIn, loadOverview, loadDle])
+  }, [signedIn, loadDle])
 
-  // COOP : une invitation reçue (`?hl=<code>`) est rejointe dès que le compte est là ;
+  // Sans compte ni pseudo : un pseudo d'invité est attribué d'office (modifiable sur l'accueil).
+  const asking = useRef(false)
+  useEffect(() => {
+    if (signedIn || guest || !dleOverview || asking.current) return
+    asking.current = true
+    ensureGuest('')
+      .catch((error: unknown) => notify(apiErrorMessage(error, t), 'nope'))
+      .finally(() => (asking.current = false))
+  }, [signedIn, guest, dleOverview, ensureGuest, notify, t])
+
+  useEffect(() => {
+    if (ready) void loadOverview()
+  }, [ready, signedIn, loadOverview])
+
+  // COOP : une invitation reçue (`?hl=<code>`) est rejointe dès que le joueur est là ;
   // un salon en cours (rechargement de la page) est repris.
   const joining = useRef<string | null>(null)
   useEffect(() => {
-    if (!signedIn || coop) return
+    if (!ready || coop) return
     const code = pendingCode ?? currentCoop
     if (!code || joining.current === code) return
     joining.current = code
@@ -59,9 +77,9 @@ export function HigherLowerView() {
         if (pendingCode) notify(apiErrorMessage(error, t), 'nope')
       })
       .finally(() => (joining.current = null))
-  }, [signedIn, coop, pendingCode, currentCoop, notify, t])
+  }, [ready, coop, pendingCode, currentCoop, notify, t])
 
-  const shown = coop && signedIn ? `coop:${coop.code}` : screen
+  const shown = coop && ready ? `coop:${coop.code}` : screen
   useGSAP(
     () => {
       gsap.fromTo(rootRef.current, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: EASE.glide })
@@ -71,7 +89,7 @@ export function HigherLowerView() {
 
   return (
     <div ref={rootRef} key={shown} className="flex min-h-0 flex-1 flex-col">
-      {coop && signedIn ? (
+      {coop && ready ? (
         <HlCoop room={coop} />
       ) : screen === 'play' ? (
         <HlGame />
@@ -80,29 +98,14 @@ export function HigherLowerView() {
       ) : (
         <>
           <DleBar label={t.activities.back} onBack={() => openActivity('hub')}>
-            {signedIn && <SoundToggle />}
-            {stardust !== null && <StardustBadge balance={stardust} />}
+            {ready && <SoundToggle />}
+            <StardustBadge balance={stardust} />
           </DleBar>
-          {signedIn ? (
+          {ready ? (
             <HlHome />
           ) : (
-            // Sans compte : records, classements et Poussières vivent sur le serveur.
-            <div className="grid flex-1 place-items-center px-6 pb-16 text-center">
-              <div className="flex max-w-xs flex-col items-center gap-4">
-                <p className="font-display text-3xl" style={{ backgroundImage: HL_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
-                  {t.hl.title}
-                </p>
-                <p className="text-sm text-cream/65">{t.hl.guest}</p>
-                <button
-                  type="button"
-                  onClick={openAuth}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl px-6 text-sm font-bold text-[#04241a] transition-transform active:scale-95"
-                  style={{ background: HL_GRADIENT }}
-                >
-                  <UserPlus size={17} aria-hidden />
-                  {t.hl.guestCta}
-                </button>
-              </div>
+            <div className="grid flex-1 place-items-center pb-16">
+              <Loader2 size={26} className="animate-spin text-glow" aria-hidden />
             </div>
           )}
         </>

@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { prisma } from '../../db.js'
 import { HttpError, notFound } from '../../lib/errors.js'
 import { characterImageUrl } from '../dle/dle.games.js'
+import { isGuestId, signReceipt } from '../dle/dle.guests.js'
 import { parisDay } from '../dle/dle.logic.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { publicAvatarUrl } from '../users/publicProfile.service.js'
@@ -52,6 +53,8 @@ export interface HlResult {
   dayRecord: boolean
   /** Le plafond du jour a rogné (ou annulé) la récompense. */
   capped: boolean
+  /** Invité : les Poussières gagnées, en reçus signés gardés sur l'appareil (vide pour un compte). */
+  receipts: string[]
 }
 
 export interface HlGuessResult {
@@ -162,8 +165,72 @@ export async function endRun(userId: string, runId: string, now = new Date()): P
   return finishRun(runOf(userId, runId), now)
 }
 
+/* ---- Invités ----------------------------------------------------------------------- */
+
+/**
+ * Un invité (pseudo du BookshelfDLE, cf. `dle.guests.ts`) joue comme un compte, mais
+ * rien n'est écrit en base : ses records vivent en mémoire (perdus au redémarrage) et
+ * il n'entre pas au classement. Ses Poussières lui reviennent en reçus signés, que
+ * l'inscription (ou la connexion) échange contre de vraies Poussières.
+ */
+interface GuestStats {
+  best: number
+  day: string
+  dayBest: number
+  dayEarned: number
+  games: number
+  touchedAt: number
+}
+
+const GUEST_STATS_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const guestStats = new Map<string, GuestStats>()
+
+function guestStatsOf(id: string, now: Date): GuestStats {
+  for (const [key, stats] of guestStats) if (now.getTime() - stats.touchedAt > GUEST_STATS_TTL_MS) guestStats.delete(key)
+  const day = parisDay(now)
+  const stats = guestStats.get(id) ?? { best: 0, day, dayBest: 0, dayEarned: 0, games: 0, touchedAt: now.getTime() }
+  if (stats.day !== day) Object.assign(stats, { day, dayBest: 0, dayEarned: 0 })
+  stats.touchedAt = now.getTime()
+  guestStats.set(id, stats)
+  return stats
+}
+
+/** Un reçu ne dépasse pas 100 Poussières (cf. `readReceipt`) : au-delà, plusieurs reçus. */
+export function receiptsFor(amount: number, now = Date.now()): string[] {
+  const receipts: string[] = []
+  for (let left = amount; left > 0; left -= 100) receipts.push(signReceipt(Math.min(100, left), now))
+  return receipts
+}
+
+/** Fin de partie d'un invité : mêmes paliers et même plafond du jour qu'un compte. */
+function finishGuest(run: Run, now: Date): HlResult {
+  const { streak, metric } = run
+  const stats = guestStatsOf(run.userId, now)
+  const reward = cappedReward(streak, stats.dayEarned)
+  const record = streak > stats.best
+  const dayRecord = streak > stats.dayBest
+  stats.games += 1
+  stats.dayEarned += reward
+  if (record) stats.best = streak
+  if (dayRecord) stats.dayBest = streak
+  return {
+    streak,
+    metric,
+    reward,
+    balance: 0,
+    best: stats.best,
+    todayBest: stats.dayBest,
+    earnedToday: stats.dayEarned,
+    record: record && streak > 0,
+    dayRecord: dayRecord && streak > 0,
+    capped: reward < cappedReward(streak, 0),
+    receipts: receiptsFor(reward, now.getTime()),
+  }
+}
+
 async function finishRun(run: Run, now: Date): Promise<HlResult> {
   if (runs.get(run.userId) === run) runs.delete(run.userId)
+  if (isGuestId(run.userId)) return finishGuest(run, now)
   const { userId, streak, metric } = run
   const day = parisDay(now)
   // Ligne créée HORS transaction : sous PostgreSQL, un échec de création (deux fins
@@ -202,6 +269,7 @@ async function finishRun(run: Run, now: Date): Promise<HlResult> {
       record: record && streak > 0,
       dayRecord: dayRecord && streak > 0,
       capped: reward < cappedReward(streak, 0),
+      receipts: [],
     }
   })
 }
@@ -211,7 +279,19 @@ async function finishRun(run: Run, now: Date): Promise<HlResult> {
  * ses Poussières (même paliers, même plafond du jour que le solo), sans toucher aux
  * records ni aux classements, qui restent ceux du solo.
  */
-export async function creditCoop(userId: string, streak: number, metric: HlMetric, now = new Date()): Promise<{ reward: number; balance: number; capped: boolean }> {
+export async function creditCoop(
+  userId: string,
+  streak: number,
+  metric: HlMetric,
+  now = new Date(),
+): Promise<{ reward: number; balance: number; capped: boolean; receipts: string[] }> {
+  if (isGuestId(userId)) {
+    const stats = guestStatsOf(userId, now)
+    const reward = cappedReward(streak, stats.dayEarned)
+    stats.games += 1
+    stats.dayEarned += reward
+    return { reward, balance: 0, capped: reward < cappedReward(streak, 0), receipts: receiptsFor(reward, now.getTime()) }
+  }
   const day = parisDay(now)
   await prisma.higherLowerStats.upsert({ where: { userId }, create: { userId }, update: {} }).catch(() => undefined)
   return prisma.$transaction(async (tx) => {
@@ -227,7 +307,7 @@ export async function creditCoop(userId: string, streak: number, metric: HlMetri
       reward > 0
         ? await creditStardust(tx, userId, reward, 'higher_lower', { streak, metric, coop: true })
         : ((await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } }))?.stardust ?? 0)
-    return { reward, balance, capped: reward < cappedReward(streak, 0) }
+    return { reward, balance, capped: reward < cappedReward(streak, 0), receipts: [] }
   })
 }
 
@@ -318,6 +398,7 @@ export async function hlOverview(userId: string, now = new Date()): Promise<HlOv
       select: { userId: true, best: true, bestMetric: true, user },
     }),
   ])
+  const guest = isGuestId(userId) ? guestStatsOf(userId, now) : null
   const sameDay = stats?.day === day
   const todayBest = sameDay ? stats.dayBest : 0
   const best = stats?.best ?? 0
@@ -332,13 +413,16 @@ export async function hlOverview(userId: string, now = new Date()): Promise<HlOv
     samples: showcase,
     tiers: HL_TIERS,
     dailyCap: HL_DAILY_CAP,
-    me: {
-      best,
-      bestMetric: metricOrNull(stats?.bestMetric ?? null),
-      todayBest,
-      earnedToday: sameDay ? stats.dayEarned : 0,
-      games: stats?.games ?? 0,
-    },
+    // Invité : ses records en mémoire (il n'est jamais classé).
+    me: guest
+      ? { best: guest.best, bestMetric: null, todayBest: guest.dayBest, earnedToday: guest.dayEarned, games: guest.games }
+      : {
+          best,
+          bestMetric: metricOrNull(stats?.bestMetric ?? null),
+          todayBest,
+          earnedToday: sameDay ? stats.dayEarned : 0,
+          games: stats?.games ?? 0,
+        },
     leaderboard: {
       today: standings(
         today.map((row) => ({ userId: row.userId, streak: row.dayBest, metric: row.dayMetric, user: row.user })),

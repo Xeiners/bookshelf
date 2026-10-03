@@ -342,6 +342,40 @@ describe('Higher or Lower — API', () => {
   })
 })
 
+describe('Higher or Lower — invités (sans compte)', () => {
+  it('un pseudo suffit : partie, record en mémoire, Poussières en reçus signés, aucune écriture en base', async () => {
+    const guest = client()
+    assert.equal((await guest.request('POST', '/dle/guest', { name: 'Zorro' })).status, 200)
+    const overview = await guest.request('GET', '/higher-lower')
+    assert.equal(overview.status, 200)
+    assert.deepEqual(overview.body.me, { best: 0, bestMetric: null, todayBest: 0, earnedToday: 0, games: 0 })
+
+    const statsBefore = await prisma.higherLowerStats.count()
+    const { answer } = await play(guest as Account, 'chapters', 5)
+    assert.equal(answer.result.streak, 5)
+    assert.equal(answer.result.reward, 15)
+    assert.equal(answer.result.record, true)
+    assert.equal(answer.result.receipts.length, 1)
+    const { readReceipt } = await import('../src/modules/dle/dle.guests.js')
+    assert.equal(readReceipt(answer.result.receipts[0])?.a, 15)
+    assert.equal(await prisma.higherLowerStats.count(), statsBefore, 'rien en base')
+
+    const after = await guest.request('GET', '/higher-lower')
+    assert.equal(after.body.me.best, 5)
+    assert.equal(after.body.me.earnedToday, 15)
+    // Jamais au classement.
+    assert.ok(!JSON.stringify(after.body.leaderboard).includes('Zorro'))
+  })
+
+  it('au-delà de 100 Poussières, la récompense se découpe en plusieurs reçus', async () => {
+    const { receiptsFor } = await import('../src/modules/higherlower/hl.service.js')
+    const { readReceipt } = await import('../src/modules/dle/dle.guests.js')
+    const receipts = receiptsFor(150)
+    assert.deepEqual(receipts.map((receipt) => readReceipt(receipt)?.a), [100, 50])
+    assert.deepEqual(receiptsFor(0), [])
+  })
+})
+
 /* ---- COOP ---------------------------------------------------------------------------- */
 
 describe('Higher or Lower — COOP', async () => {
@@ -496,5 +530,38 @@ describe('Higher or Lower — COOP', async () => {
     assert.equal(after.players.find((entry: { id: string }) => entry.id === eli.userId).left, true)
     assert.equal((await dora.request('POST', `/higher-lower/coop/${code}/leave`)).status, 204)
     assert.equal((await dora.request('GET', `/higher-lower/coop/${code}`)).status, 404)
+  })
+})
+
+describe('Higher or Lower — COOP avec un invité', async () => {
+  const coop = await import('../src/modules/higherlower/hl.coop.js')
+  after(() => coop.resetCoop())
+
+  it('un invité rejoint par le code, joue son tour et repart avec ses reçus', async () => {
+    const host = await account('gaston-hl@example.com', 'Gaston')
+    const guest = client()
+    await guest.request('POST', '/dle/guest', { name: 'Invitée' })
+    const code = (await host.request('POST', '/higher-lower/coop', { metric: 'sales' })).body.code
+    const joined = await guest.request('POST', `/higher-lower/coop/${code}/join`)
+    assert.equal(joined.status, 200)
+    assert.ok(joined.body.players.some((entry: { name: string }) => entry.name === 'Invitée'))
+
+    let view = (await host.request('POST', `/higher-lower/coop/${code}/start`)).body
+    const right = (current: { value: number }, ok: boolean) => ((coop.coopNextValueForTests(code)! > current.value) === ok ? 'higher' : 'lower')
+    for (let index = 0; index < 3; index += 1) {
+      const who = view.active === host.userId ? host : guest
+      view = (await who.request('POST', `/higher-lower/coop/${code}/guess`, { choice: right(view.current, true), turn: view.turn })).body
+    }
+    while (view.phase === 'playing') {
+      const who = view.active === host.userId ? host : guest
+      view = (await who.request('POST', `/higher-lower/coop/${code}/guess`, { choice: right(view.current, false), turn: view.turn })).body
+    }
+    const mine = (await guest.request('GET', `/higher-lower/coop/${code}`)).body.result
+    assert.equal(mine.reward, 5)
+    assert.equal(mine.balance, null)
+    assert.equal(mine.receipts.length, 1)
+    const hosted = (await host.request('GET', `/higher-lower/coop/${code}`)).body.result
+    assert.equal(hosted.reward, 5)
+    assert.deepEqual(hosted.receipts, [])
   })
 })

@@ -37,6 +37,8 @@ export interface HlResult {
   record: boolean
   dayRecord: boolean
   capped: boolean
+  /** Invité : ses Poussières en reçus signés, gardés sur l'appareil (vide pour un compte). */
+  receipts: string[]
 }
 
 export interface HlGuessResult {
@@ -126,7 +128,7 @@ export interface CoopView {
   current: HlCard | null
   next: HlCard | null
   last: CoopTurn | null
-  result: { streak: number; endedBy: 'lives' | 'exhausted' | null; reward: number | null; balance: number | null; capped: boolean } | null
+  result: { streak: number; endedBy: 'lives' | 'exhausted' | null; reward: number | null; balance: number | null; capped: boolean; receipts: string[] } | null
 }
 
 const coop = (code: string) => `/higher-lower/coop/${encodeURIComponent(code)}`

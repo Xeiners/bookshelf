@@ -6,8 +6,7 @@ import { formatHlValue, tierProgress } from '../../lib/higherLower'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playHlOver, playHlStart, playHlTier, playReveal } from '../../lib/sfx'
-import { useDleStore } from '../../store/useDleStore'
-import { hlSound, useHigherLowerStore } from '../../store/useHigherLowerStore'
+import { hlSound, useHigherLowerStore, useStardustBalance } from '../../store/useHigherLowerStore'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { SoundToggle } from './SoundToggle'
@@ -29,7 +28,7 @@ export function HlGameOver() {
   const start = useHigherLowerStore((state) => state.start)
   const starting = useHigherLowerStore((state) => state.starting)
   const openHome = useHigherLowerStore((state) => state.openHome)
-  const balance = useDleStore((state) => state.overview?.stardust ?? result?.balance ?? 0)
+  const balance = useStardustBalance()
   const [failed, setFailed] = useState(false)
   const scoreRef = useCountUp(result?.streak ?? 0, { duration: 1, delay: 0.35 })
   const celebrate = Boolean(result && (result.record || result.dayRecord))

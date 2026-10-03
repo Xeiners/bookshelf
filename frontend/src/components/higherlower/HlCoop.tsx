@@ -10,9 +10,8 @@ import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playClockTick, playHlOver, playHlPress, playHlRight, playHlSelect, playHlStart, playHlTier, playHlWrong, playJoin, playLeave } from '../../lib/sfx'
 import { HL_METRICS, type CoopPlayer, type CoopTurn, type CoopView, type HlCard as HlCardData, type HlChoice, type HlMetric } from '../../services/higherLowerApi'
-import { hlSound, useHigherLowerStore } from '../../store/useHigherLowerStore'
+import { hlSound, useHigherLowerStore, useStardustBalance } from '../../store/useHigherLowerStore'
 import { useHlCoopStore } from '../../store/useHlCoopStore'
-import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
@@ -537,7 +536,7 @@ function CoopResults({ room }: { room: CoopView }) {
   const setMetric = useHlCoopStore((state) => state.setMetric)
   const notify = useUiStore((state) => state.notify)
   const tiers = useHigherLowerStore((state) => state.overview?.tiers ?? [])
-  const balance = useDleStore((state) => state.overview?.stardust ?? room.result?.balance ?? null)
+  const balance = useStardustBalance()
   const [starting, setStarting] = useState(false)
   const result = room.result
   const streak = result?.streak ?? room.streak
@@ -578,7 +577,7 @@ function CoopResults({ room }: { room: CoopView }) {
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <DleBar label={t.hl.coop.leave} onBack={() => void leave()}>
         <SoundToggle />
-        {balance !== null && <StardustBadge balance={balance} />}
+        <StardustBadge balance={balance} />
       </DleBar>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-10">
         <div className="mx-auto flex w-full max-w-md flex-col items-center gap-5 pt-2 text-center">
