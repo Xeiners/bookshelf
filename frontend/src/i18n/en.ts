@@ -1287,7 +1287,7 @@ export const en: Dictionary = {
 
   hl: {
     title: 'Higher or Lower',
-    hubBody: 'Bounties, sales, chapters, scores: keep the streak alive.',
+    hubBody: 'Two cards, one question: higher or lower?',
     hubRecord: (streak: number) => `Best: ${streak}`,
     guest: 'Create an account to play: your streaks, leaderboard rank and Stardust are kept there.',
     guestCta: 'Create an account',

@@ -93,6 +93,28 @@ describe('Higher or Lower — générateur de duels', () => {
     assert.ok(logic.pickChallenger(POOL, POOL[0]!, 0, everything, random))
   })
 
+  it('préfère les cartes pas vues aux parties précédentes', () => {
+    const random = seeded(7)
+    const stale = new Set(POOL.slice(0, 40).map((entry) => entry.id))
+    for (let draw = 0; draw < 100; draw += 1) {
+      const opening = logic.pickOpening(POOL, random, stale)
+      assert.ok(opening && !stale.has(opening.id))
+      const challenger = logic.pickChallenger(POOL, POOL[0]!, 0, new Set(), random, stale)
+      assert.ok(challenger && !stale.has(challenger.id))
+    }
+    // Simple préférence : tout vu, le tirage continue.
+    const everything = new Set(POOL.map((entry) => entry.id))
+    assert.ok(logic.pickOpening(POOL, random, everything))
+    assert.ok(logic.pickChallenger(POOL, POOL[0]!, 0, new Set(), random, everything))
+  })
+
+  it('historique d’une partie à l’autre : la plus récente en dernier, sans doublon, tronqué', () => {
+    assert.deepEqual(logic.remember(['a', 'b', 'c'], ['b', 'd'], 10), ['a', 'c', 'b', 'd'])
+    assert.deepEqual(logic.remember(['a', 'b', 'c'], ['d', 'e'], 3), ['c', 'd', 'e'])
+    assert.equal(logic.historyWindow(80), 60)
+    assert.equal(logic.recentWindow(80), 40)
+  })
+
   it('assouplit l’écart voulu quand aucune carte ne convient', () => {
     const tiny = [
       { id: 'a', value: 1 },
@@ -296,6 +318,20 @@ describe('Higher or Lower — API', () => {
     const again = await play(alice, 'bounty', 3)
     assert.equal(again.answer.result.reward, 0)
     assert.equal(again.answer.result.capped, true)
+  })
+
+  it('d’une partie à l’autre, les cartes déjà vues ne reviennent pas tout de suite', async () => {
+    const player = await account('carla-hl@example.com', 'Carla')
+    const pool = HL_ENTRIES.bounty.length
+    const seen: string[] = []
+    // Six parties abandonnées d'emblée : deux cartes chacune.
+    for (let game = 0; game < 6; game += 1) {
+      const { body } = await player.request('POST', '/higher-lower/runs', { metric: 'bounty' })
+      seen.push(body.current.id, body.next.id)
+      assert.equal((await player.request('POST', `/higher-lower/runs/${body.id}/end`)).status, 200)
+    }
+    assert.ok(seen.length < logic.historyWindow(pool))
+    assert.equal(new Set(seen).size, seen.length, `cartes revues : ${seen.join(', ')}`)
   })
 
   it('le profil montre les records', async () => {

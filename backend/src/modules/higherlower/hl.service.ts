@@ -7,7 +7,7 @@ import { creditStardust } from '../stardust/stardust.service.js'
 import { publicAvatarUrl } from '../users/publicProfile.service.js'
 import { workCover } from './hl.covers.js'
 import { HL_ENTRIES, HL_METRICS, isHlMetric, type HlEntry, type HlMetric } from './hl.data.js'
-import { HL_DAILY_CAP, HL_LIVES, HL_TIERS, cappedReward, isCorrect, pickChallenger, pickOpening, recentWindow } from './hl.logic.js'
+import { HL_DAILY_CAP, HL_LIVES, HL_TIERS, cappedReward, historyWindow, isCorrect, pickChallenger, pickOpening, recentWindow, remember } from './hl.logic.js'
 
 /*
  * Higher or Lower (cf. `hl.logic.ts`) : le SERVEUR tire les cartes et garde la valeur
@@ -15,6 +15,8 @@ import { HL_DAILY_CAP, HL_LIVES, HL_TIERS, cappedReward, isCorrect, pickChalleng
  * Une partie en cours par compte, en mémoire (comme les salons du BookshelfDLE) : un
  * redémarrage la perd, sans rien coûter. La fin d'une partie (erreur ou abandon)
  * inscrit les records et crédite les Poussières, en une transaction.
+ * Les cartes vues sont aussi retenues d'une partie à l'autre (en mémoire, par joueur
+ * et par métrique) : la partie suivante tire d'abord parmi celles qu'on n'a pas vues.
  */
 
 export interface HlCard {
@@ -82,8 +84,21 @@ interface Run {
 const RUN_TTL_MS = 30 * 60 * 1000
 const runs = new Map<string, Run>()
 
+/** Historique des cartes vues, d'une partie à l'autre ; oublié après une semaine sans jouer. */
+const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const histories = new Map<string, { ids: string[]; touchedAt: number }>()
+const historyKey = (userId: string, metric: HlMetric) => `${userId}:${metric}`
+
 function sweep(now: number): void {
   for (const [userId, run] of runs) if (now - run.touchedAt > RUN_TTL_MS) runs.delete(userId)
+  for (const [key, history] of histories) if (now - history.touchedAt > HISTORY_TTL_MS) histories.delete(key)
+}
+
+const seenBefore = (userId: string, metric: HlMetric): ReadonlySet<string> => new Set(histories.get(historyKey(userId, metric))?.ids)
+
+function markSeen(run: Run, ids: readonly string[], now: number): void {
+  const key = historyKey(run.userId, run.metric)
+  histories.set(key, { ids: remember(histories.get(key)?.ids ?? [], ids, historyWindow(run.pool.length)), touchedAt: now })
 }
 
 function cardOf(entry: HlEntry, revealed: boolean): HlCard {
@@ -106,12 +121,15 @@ const runOf = (userId: string, runId: string): Run => {
 export async function startRun(userId: string, metric: HlMetric, random: () => number = Math.random, now = new Date()): Promise<HlRunView> {
   const previous = runs.get(userId)
   if (previous) await finishRun(previous, now)
+  sweep(now.getTime())
   const pool = HL_ENTRIES[metric]
-  const current = pickOpening(pool, random)
-  const next = current ? pickChallenger(pool, current, 0, new Set(), random) : null
+  const stale = seenBefore(userId, metric)
+  const current = pickOpening(pool, random, stale)
+  const next = current ? pickChallenger(pool, current, 0, new Set(), random, stale) : null
   if (!current || !next) throw new HttpError(503, 'hl_unavailable', 'Pas assez de cartes dans cette catégorie.')
   const run: Run = { id: randomBytes(9).toString('hex'), userId, metric, pool, current, next, streak: 0, lives: HL_LIVES, recent: [current.id], touchedAt: now.getTime() }
   runs.set(userId, run)
+  markSeen(run, [current.id, next.id], now.getTime())
   return viewOf(run)
 }
 
@@ -130,11 +148,12 @@ export async function guessRun(userId: string, runId: string, choice: 'higher' |
   if (correct) run.streak += 1
   else run.lives -= 1
   run.recent = [...run.recent, guessed.id].slice(-recentWindow(run.pool.length))
-  const challenger = pickChallenger(run.pool, guessed, run.streak, new Set(run.recent), random)
+  const challenger = pickChallenger(run.pool, guessed, run.streak, new Set(run.recent), random, seenBefore(userId, run.metric))
   if (!challenger) return { correct, value: guessed.value, streak: run.streak, lives: run.lives, next: null, result: await finishRun(run, now) }
   run.current = guessed
   run.next = challenger
   run.touchedAt = now.getTime()
+  markSeen(run, [challenger.id], now.getTime())
   return { correct, value: guessed.value, streak: run.streak, lives: run.lives, next: cardOf(challenger, false), result: null }
 }
 
@@ -316,5 +335,8 @@ export async function hlRecords(userId: string, now = new Date()): Promise<{ bes
   return { best: stats?.best ?? 0, todayBest: stats && stats.day === parisDay(now) ? stats.dayBest : 0 }
 }
 
-/** Tests : repartir sans partie en cours. */
-export const forgetRuns = () => runs.clear()
+/** Tests : repartir sans partie en cours ni historique. */
+export const forgetRuns = () => {
+  runs.clear()
+  histories.clear()
+}

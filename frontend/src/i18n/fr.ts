@@ -1302,7 +1302,7 @@ export const fr = {
 
   hl: {
     title: 'Higher or Lower',
-    hubBody: 'Primes, ventes, chapitres, notes : enchaîne les bonnes réponses.',
+    hubBody: 'Deux cartes, une question : plus haut ou plus bas ?',
     hubRecord: (streak: number) => `Record : ${streak}`,
     guest: 'Crée un compte pour jouer : tes séries, ton rang au classement et tes Poussières y sont gardés.',
     guestCta: 'Créer un compte',

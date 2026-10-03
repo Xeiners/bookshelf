@@ -59,9 +59,11 @@ const pick = <T>(list: readonly T[], random: () => number): T => list[Math.min(l
 
 /**
  * Le challenger de `current` : une autre carte, de valeur DIFFÉRENTE (jamais
- * d'égalité à trancher), pas vue récemment, à l'écart de rang voulu. Faute de
- * candidat, la contrainte s'assouplit : écart minimal, puis maximal, puis les cartes
- * récentes reviennent. `null` seulement si toutes les cartes ont la même valeur.
+ * d'égalité à trancher), pas vue récemment, à l'écart de rang voulu. `recent` (cette
+ * partie) écarte strictement ; `stale` (les parties précédentes du joueur) n'est
+ * qu'une préférence : à chaque palier, les cartes jamais vues passent d'abord. Faute
+ * de candidat, la contrainte s'assouplit : écart minimal, puis maximal, puis les
+ * cartes récentes reviennent. `null` seulement si toutes les cartes ont la même valeur.
  */
 export function pickChallenger<T extends HlValued>(
   pool: readonly T[],
@@ -69,11 +71,13 @@ export function pickChallenger<T extends HlValued>(
   streak: number,
   recent: ReadonlySet<string>,
   random: () => number,
+  stale: ReadonlySet<string> = new Set(),
 ): T | null {
   const rank = rankOf(pool)
   const from = rank(current.value)
   const valid = pool.filter((entry) => entry.id !== current.id && entry.value !== current.value)
   const fresh = valid.filter((entry) => !recent.has(entry.id))
+  const unseen = fresh.filter((entry) => !stale.has(entry.id))
   const band = gapBand(streak)
   const within = (list: readonly T[], min: number, max: number) =>
     list.filter((entry) => {
@@ -81,9 +85,13 @@ export function pickChallenger<T extends HlValued>(
       return gap >= min && gap <= max
     })
   for (const candidates of [
+    within(unseen, band.min, band.max),
     within(fresh, band.min, band.max),
+    within(unseen, 0, band.max),
     within(fresh, 0, band.max),
+    within(unseen, band.min, 1),
     within(fresh, band.min, 1),
+    unseen,
     fresh,
     within(valid, band.min, band.max),
     valid,
@@ -93,15 +101,30 @@ export function pickChallenger<T extends HlValued>(
   return null
 }
 
-/** Première carte d'une partie : n'importe laquelle qui a au moins un challenger. */
-export function pickOpening<T extends HlValued>(pool: readonly T[], random: () => number): T | null {
+/** Première carte d'une partie : n'importe laquelle qui a au moins un challenger, de préférence pas vue aux parties précédentes. */
+export function pickOpening<T extends HlValued>(pool: readonly T[], random: () => number, stale: ReadonlySet<string> = new Set()): T | null {
   const values = new Set(pool.map((entry) => entry.value))
-  return values.size < 2 ? null : pick(pool, random)
+  if (values.size < 2) return null
+  const unseen = pool.filter((entry) => !stale.has(entry.id))
+  return pick(unseen.length > 0 ? unseen : pool, random)
 }
 
 /** La réponse est-elle juste ? (`next` ne vaut jamais `current`, cf. `pickChallenger`.) */
 export const isCorrect = (choice: 'higher' | 'lower', current: number, next: number): boolean =>
   choice === 'higher' ? next > current : next < current
 
-/** Cartes écartées du tirage : les dernières vues, au plus la moitié de la métrique. */
-export const recentWindow = (poolSize: number): number => Math.max(2, Math.min(14, Math.floor(poolSize / 2)))
+/** Cartes écartées du tirage dans une partie : les dernières vues, la moitié de la métrique. */
+export const recentWindow = (poolSize: number): number => Math.max(2, Math.floor(poolSize / 2))
+
+/**
+ * Cartes mémorisées d'une partie à l'autre (par joueur et par métrique) : les trois
+ * quarts de la métrique. Il reste toujours un quart de cartes « neuves », et une carte
+ * ne revient qu'après que la plupart des autres sont passées.
+ */
+export const historyWindow = (poolSize: number): number => Math.max(1, Math.floor((poolSize * 3) / 4))
+
+/** Ajoute les cartes vues à l'historique (la plus récente en dernier, sans doublon), tronqué à `size`. */
+export function remember(history: readonly string[], seen: readonly string[], size: number): string[] {
+  const fresh = new Set(seen)
+  return [...history.filter((id) => !fresh.has(id)), ...fresh].slice(-size)
+}
