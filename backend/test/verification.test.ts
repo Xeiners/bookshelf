@@ -36,10 +36,11 @@ describe('inscription — code de vérification par e-mail', () => {
     assert.equal(mail.to, email)
     const code = await lastCodeFor(email)
     assert.match(code, /^\d{6}$/)
-    assert.equal(mail.subject, `${code.slice(0, 3)} ${code.slice(3)} — ton code Bookshelf`)
+    // D'un seul bloc, sans espace : copiable d'un geste (et reconnu comme code par Gmail / iOS).
+    assert.equal(mail.subject, `${code} — ton code Bookshelf`)
     assert.match(mail.text, /Bonjour Nami,/)
-    // Les six chiffres, chacun dans sa case.
-    for (const digit of code) assert.ok(mail.html.includes(`>${digit}</td>`))
+    assert.ok(mail.text.includes(`    ${code}\n`))
+    assert.match(mail.html, new RegExp(`user-select:all;">${code}</td>`))
   })
 
   it('le code n’est jamais stocké en clair', async () => {
@@ -169,5 +170,68 @@ describe('inscription — code de vérification par e-mail', () => {
     const malformed = await client().request('POST', '/auth/register/verify', { email: newEmail(), code: '12a456' })
     assert.equal(malformed.status, 400)
     assert.equal(malformed.body.error.code, 'validation_error')
+  })
+})
+
+describe('mot de passe oublié — code par e-mail', () => {
+  it('un code part si le compte existe ; la réponse est la même s’il n’existe pas', async () => {
+    const email = newEmail()
+    assert.equal((await client().signUp({ email, password, displayName: 'Robin' })).status, 201)
+    const sent = outbox.length
+    const known = await client().request('POST', '/auth/password/forgot', { email })
+    assert.equal(known.status, 202)
+    assert.equal(outbox.length, sent + 1)
+    const mail = outbox.at(-1)!
+    const code = await lastCodeFor(email)
+    assert.equal(mail.subject, `${code} — réinitialise ton mot de passe Bookshelf`)
+    assert.match(mail.text, /Bonjour Robin,/)
+
+    const ghost = await client().request('POST', '/auth/password/forgot', { email: newEmail() })
+    assert.equal(ghost.status, 202)
+    assert.deepEqual(Object.keys(ghost.body).sort(), Object.keys(known.body).sort())
+    assert.equal(outbox.length, sent + 1, 'aucun e-mail pour une adresse inconnue')
+  })
+
+  it('le bon code change le mot de passe, coupe les autres sessions et connecte cet appareil', async () => {
+    const email = newEmail()
+    const other = client()
+    assert.equal((await other.signUp({ email, password })).status, 201)
+    assert.equal((await other.request('GET', '/auth/me')).status, 200)
+
+    const device = client()
+    await device.request('POST', '/auth/password/forgot', { email })
+    const code = await lastCodeFor(email)
+    const wrong = await device.request('POST', '/auth/password/reset', { email, code: wrongCode(code), newPassword: 'nouveau-mot-de-passe' })
+    assert.equal(wrong.status, 400)
+    assert.equal(wrong.body.error.code, 'code_invalid')
+    assert.equal(wrong.body.error.remainingAttempts, 4)
+
+    const reset = await device.request('POST', '/auth/password/reset', { email, code, newPassword: 'nouveau-mot-de-passe' })
+    assert.equal(reset.status, 200, JSON.stringify(reset.body))
+    assert.equal(reset.body.user.email, email)
+    assert.equal((await device.request('GET', '/auth/me')).status, 200, 'connecté')
+    assert.equal((await other.request('GET', '/auth/me')).status, 401, 'ancienne session coupée')
+
+    assert.equal((await client().request('POST', '/auth/login', { email, password })).status, 401, 'ancien mot de passe refusé')
+    assert.equal((await client().request('POST', '/auth/login', { email, password: 'nouveau-mot-de-passe' })).status, 200)
+    // Le code ne sert qu'une fois.
+    const again = await client().request('POST', '/auth/password/reset', { email, code, newPassword: 'encore-un-autre' })
+    assert.equal(again.body.error.code, 'reset_not_found')
+  })
+
+  it('garde-fous : 60 s entre deux envois, code expiré, mot de passe trop court', async () => {
+    const email = newEmail()
+    await client().signUp({ email, password })
+    await client().request('POST', '/auth/password/forgot', { email })
+    const tooSoon = await client().request('POST', '/auth/password/forgot', { email })
+    assert.equal(tooSoon.status, 429)
+    assert.equal(tooSoon.body.error.code, 'resend_too_soon')
+
+    const code = await lastCodeFor(email)
+    const short = await client().request('POST', '/auth/password/reset', { email, code, newPassword: 'court' })
+    assert.equal(short.body.error.code, 'validation_error')
+    await prisma.passwordReset.update({ where: { email }, data: { expiresAt: new Date(Date.now() - 1000) } })
+    const late = await client().request('POST', '/auth/password/reset', { email, code, newPassword: 'nouveau-mot-de-passe' })
+    assert.equal(late.body.error.code, 'code_expired')
   })
 })

@@ -27,7 +27,7 @@ export interface Credentials {
   password: string
 }
 
-interface SessionResponse {
+export interface SessionResponse {
   user: AuthUser
   library: LibraryPayload
   /** Inscription : cartes des boosters d'essai ajoutées au compte. */
@@ -61,6 +61,14 @@ export const authApi = {
 
   login: (input: Credentials & { initialData: LibraryPayload }) =>
     api<SessionResponse>('/auth/login', { method: 'POST', body: input }),
+
+  /** Mot de passe oublié, étape 1 : un code part si un compte existe (réponse identique sinon). */
+  forgotPassword: (email: string, preferredLanguage: Language) =>
+    api<PendingRegistration>('/auth/password/forgot', { method: 'POST', body: { email, preferredLanguage } }),
+
+  /** Étape 2 : le bon code remplace le mot de passe et ouvre la session. */
+  resetPassword: (input: { email: string; code: string; newPassword: string; initialData: LibraryPayload }) =>
+    api<SessionResponse>('/auth/password/reset', { method: 'POST', body: input }),
 
   logout: () => api<void>('/auth/logout', { method: 'POST' }),
 

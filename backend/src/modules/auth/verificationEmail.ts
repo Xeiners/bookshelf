@@ -2,23 +2,28 @@ import type { Language } from '../../lib/language.js'
 import type { MailMessage } from '../../lib/mailer.js'
 
 /*
- * E-mail du code de vérification. Mise en page en tableaux et styles en ligne :
- * c'est ce que Gmail, Outlook et Apple Mail rendent tous de la même façon. Les
- * couleurs reprennent celles de l'app (fond nuit, violet, crème).
+ * E-mail du code (inscription, ou mot de passe oublié). Mise en page en tableaux
+ * et styles en ligne : c'est ce que Gmail, Outlook et Apple Mail rendent tous de la
+ * même façon. Les couleurs reprennent celles de l'app (fond nuit, violet, crème).
+ *
+ * Le code s'écrit d'UN SEUL bloc de texte, sans espace (`068967`) : un appui long le
+ * sélectionne en entier, et Gmail / iOS le reconnaissent pour proposer « Copier le
+ * code ». Des cases séparées (une cellule par chiffre) rendaient la copie impossible.
  */
 
-const COPY: Record<
-  Language,
-  {
-    subject: (code: string) => string
-    preheader: string
-    greeting: (name: string | null) => string
-    intro: string
-    expiry: (minutes: number) => string
-    ignore: string
-    signature: string
-  }
-> = {
+export type CodePurpose = 'register' | 'reset'
+
+interface Copy {
+  subject: (code: string) => string
+  preheader: string
+  greeting: (name: string | null) => string
+  intro: string
+  expiry: (minutes: number) => string
+  ignore: string
+  signature: string
+}
+
+const REGISTER: Record<Language, Copy> = {
   fr: {
     subject: (code) => `${code} — ton code Bookshelf`,
     preheader: 'Ton code pour créer ton compte Bookshelf.',
@@ -39,14 +44,36 @@ const COPY: Record<
   },
 }
 
+const RESET: Record<Language, Copy> = {
+  fr: {
+    subject: (code) => `${code} — réinitialise ton mot de passe Bookshelf`,
+    preheader: 'Ton code pour choisir un nouveau mot de passe.',
+    greeting: (name) => (name ? `Bonjour ${name},` : 'Bonjour,'),
+    intro: 'Voici ton code pour choisir un nouveau mot de passe Bookshelf :',
+    expiry: (minutes) => `Il est valable ${minutes} minutes.`,
+    ignore: 'Tu n’as rien demandé ? Ignore simplement cet e-mail : ton mot de passe reste le même.',
+    signature: 'Bookshelf — ta bibliothèque vivante',
+  },
+  en: {
+    subject: (code) => `${code} — reset your Bookshelf password`,
+    preheader: 'Your code to choose a new password.',
+    greeting: (name) => (name ? `Hi ${name},` : 'Hi,'),
+    intro: 'Here is your code to choose a new Bookshelf password:',
+    expiry: (minutes) => `It is valid for ${minutes} minutes.`,
+    ignore: 'Didn’t ask for anything? Just ignore this email: your password stays the same.',
+    signature: 'Bookshelf — your living library',
+  },
+}
+
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
 
-/** Une case du code : chiffre en grand, sur fond sombre, liseré violet. */
-const digitCell = (digit: string) =>
-  `<td style="width:46px;height:58px;background:#16141f;border:1px solid #3a3160;border-radius:12px;text-align:center;vertical-align:middle;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:30px;font-weight:700;color:#f7f5f0;">${digit}</td>`
-
-const gapCell = (width: number) => `<td style="width:${width}px;"></td>`
+/**
+ * Le code : un seul bloc, chiffres espacés par l'interlettrage (et non par des espaces,
+ * qui finiraient dans le presse-papiers). `user-select: all` : un toucher le prend en entier.
+ */
+const codeBlock = (code: string) =>
+  `<td style="padding:16px 22px 16px 30px;background:#16141f;border:1px solid #3a3160;border-radius:16px;text-align:center;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#f7f5f0;-webkit-user-select:all;user-select:all;">${code}</td>`
 
 export function buildVerificationEmail(input: {
   to: string
@@ -54,22 +81,15 @@ export function buildVerificationEmail(input: {
   language: Language
   displayName: string | null
   minutes: number
+  purpose?: CodePurpose
 }): MailMessage {
-  const copy = COPY[input.language]
-  const digits = input.code.split('')
-  const grouped = `${input.code.slice(0, 3)} ${input.code.slice(3)}`
+  const copy = (input.purpose === 'reset' ? RESET : REGISTER)[input.language]
   const name = input.displayName ? escapeHtml(input.displayName) : null
-
-  // 3 + 3 : les cases d'un groupe se touchent presque, un vrai vide sépare les deux groupes.
-  const codeRow = [
-    ...digits.slice(0, 3).flatMap((digit, index) => [digitCell(digit), index < 2 ? gapCell(8) : '']),
-    `<td style="width:28px;text-align:center;color:#7c5cff;font-size:22px;font-weight:700;">·</td>`,
-    ...digits.slice(3).flatMap((digit, index) => [digitCell(digit), index < 2 ? gapCell(8) : '']),
-  ].join('')
+  const codeRow = codeBlock(input.code)
 
   const html = `<!doctype html>
 <html lang="${input.language}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>${escapeHtml(copy.subject(grouped))}</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>${escapeHtml(copy.subject(input.code))}</title></head>
 <body style="margin:0;padding:0;background:#06060a;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(copy.preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#06060a;padding:32px 12px;">
@@ -107,7 +127,7 @@ export function buildVerificationEmail(input: {
     '',
     copy.intro,
     '',
-    `    ${grouped}`,
+    `    ${input.code}`,
     '',
     copy.expiry(input.minutes),
     '',
@@ -116,5 +136,5 @@ export function buildVerificationEmail(input: {
     copy.signature,
   ].join('\n')
 
-  return { to: input.to, subject: copy.subject(grouped), text, html }
+  return { to: input.to, subject: copy.subject(input.code), text, html }
 }

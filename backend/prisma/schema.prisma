@@ -316,6 +316,24 @@ model PendingRegistration {
   @@index([expiresAt])
 }
 
+/// Mot de passe oublié : un code à 6 chiffres par e-mail (cf. `src/modules/auth/`).
+/// Même garde-fous que l'inscription ; la ligne disparaît dès le mot de passe changé.
+model PasswordReset {
+  /// Toujours en minuscules (normalisé par l'API).
+  email      String   @id
+  /// HMAC-SHA256 du code (jamais le code en clair).
+  codeHash   String
+  expiresAt  DateTime
+  /// Codes faux saisis pour le code courant.
+  attempts   Int      @default(0)
+  /// Codes envoyés dans la fenêtre courante (plafonnés).
+  sends      Int      @default(1)
+  lastSentAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 /// Playlist de musique d'ambiance d'un compte, synchronisée entre ses appareils
 /// (cf. `src/modules/music/playlists.ts`). L'identifiant vient de l'appareil qui
 /// l'a créée : unique par compte seulement. Fusion morceau par morceau impossible

@@ -927,6 +927,18 @@ export const en: Dictionary = {
       spam: 'Nothing yet? Check your spam folder.',
     },
     loggedIn: 'Library synced',
+    forgot: {
+      link: 'Forgot your password?',
+      title: 'Forgot password',
+      intro: 'Enter your account email: we’ll send you a 6-digit code to choose a new password.',
+      send: 'Get a code',
+      codeHint: 'Choose your new password, then type or paste the code sent to',
+      newPassword: 'New password',
+      submit: 'Change password',
+      success: 'Password changed',
+      done: 'Password changed: you’re signed in',
+      back: 'Back to sign in',
+    },
   },
 
   publicProfile: {
@@ -1587,6 +1599,7 @@ export const en: Dictionary = {
     roomNotFound: 'This room doesn’t exist or has closed.',
     roomFull: 'This room is full.',
     needPlayers: 'You need at least two players to start.',
+    resetNotFound: 'No request in progress for this email: ask for a new code.',
     notYourTurn: 'It’s not your turn.',
     roomStarted: 'The game has already started.',
     notHost: 'Only the host can do that.',

@@ -11,6 +11,7 @@ import {
   type AuthUser,
   type Credentials,
   type PendingRegistration,
+  type SessionResponse,
 } from '../services/accountApi'
 import { useAmbientStore } from './useAmbientStore'
 import { useBoosterStore } from './useBoosterStore'
@@ -43,6 +44,12 @@ interface AuthState {
   confirmRegistration: (email: string, code: string) => Promise<void>
   resendCode: (email: string) => Promise<PendingRegistration>
   login: (input: Credentials) => Promise<void>
+  /** Mot de passe oublié : envoie le code (étape 1). */
+  forgotPassword: (email: string) => Promise<PendingRegistration>
+  /** Le bon code et un nouveau mot de passe ouvrent la session (étape 2). */
+  resetPassword: (input: { email: string; code: string; newPassword: string }) => Promise<void>
+  /** Session ouverte (connexion, nouveau mot de passe) : bibliothèque du compte et magasins remis à zéro. */
+  adoptSession: (session: SessionResponse) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -168,12 +175,23 @@ export const useAuthStore = create<AuthState>()(
         void claimGuestStardust()
       },
 
+      forgotPassword: (email) => authApi.forgotPassword(email.trim(), useSettingsStore.getState().language),
+
+      resetPassword: async ({ email, code, newPassword }) => {
+        const session = await authApi.resetPassword({ email: email.trim(), code, newPassword, initialData: librarySnapshot() })
+        await get().adoptSession(session)
+      },
+
       login: async ({ email, password }) => {
-        const { user, library } = await authApi.login({
+        const session = await authApi.login({
           email,
           password,
           initialData: librarySnapshot(),
         })
+        await get().adoptSession(session)
+      },
+
+      adoptSession: async ({ user, library }) => {
         outbox.clear()
         adoptAccountLanguage(user)
         useLibraryStore.getState().replaceAll(library)

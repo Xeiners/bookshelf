@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { LoaderCircle, MailCheck, RotateCcw, X } from 'lucide-react'
+import { ChevronLeft, KeyRound, LoaderCircle, MailCheck, RotateCcw, X } from 'lucide-react'
 import { getT, useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
@@ -14,8 +14,8 @@ import { CodeInput, type CodeStatus } from './CodeInput'
 
 /** Libellé du mode : `t.auth.register` / `t.auth.login`. */
 type Mode = 'register' | 'login'
-/** Inscription : formulaire, puis saisie du code reçu par e-mail. */
-type Step = 'form' | 'verify'
+/** Inscription : formulaire, puis saisie du code reçu par e-mail ; `forgot` : mot de passe oublié. */
+type Step = 'form' | 'verify' | 'forgot'
 
 const MIN_PASSWORD = 8
 const CODE_LENGTH = 6
@@ -340,6 +340,20 @@ export function AuthSheet() {
                   minLength={mode === 'register' ? 8 : undefined}
                   required
                 />
+                {mode === 'login' && (
+                  <div className="-mt-1 flex justify-end" data-auth-item>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null)
+                        setStep('forgot')
+                      }}
+                      className="text-xs font-medium text-glow underline-offset-4 hover:underline"
+                    >
+                      {t.auth.forgot.link}
+                    </button>
+                  </div>
+                )}
 
                 {error && (
                   <p role="alert" className="rounded-2xl bg-nope/10 px-4 py-3 text-xs text-nope">
@@ -360,6 +374,19 @@ export function AuthSheet() {
                 </div>
               </form>
             </>
+          ) : step === 'forgot' ? (
+            <ForgotPassword
+              initialEmail={email}
+              onBack={(typed) => {
+                setEmail(typed)
+                setStep('form')
+              }}
+              onClose={() => dismissRef.current()}
+              onDone={() => {
+                notify(getT().auth.forgot.done, 'like')
+                dismissRef.current()
+              }}
+            />
           ) : (
             <div ref={stepRef} className="pt-4">
               <div className="flex justify-end">
@@ -463,6 +490,230 @@ export function AuthSheet() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Mot de passe oublié, en deux temps dans la même feuille : l'e-mail (un code part si
+ * un compte existe), puis le code et le nouveau mot de passe. Le bon code change le mot
+ * de passe, coupe les autres sessions et connecte cet appareil.
+ */
+function ForgotPassword({
+  initialEmail,
+  onBack,
+  onClose,
+  onDone,
+}: {
+  initialEmail: string
+  onBack: (email: string) => void
+  onClose: () => void
+  onDone: () => void
+}) {
+  const t = useT()
+  const forgotPassword = useAuthStore((state) => state.forgotPassword)
+  const resetPassword = useAuthStore((state) => state.resetPassword)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [email, setEmail] = useState(initialEmail)
+  const [request, setRequest] = useState<PendingRegistration | null>(null)
+  const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
+  const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  useGSAP(
+    () => {
+      gsap.from('[data-forgot-item]', { y: 18, opacity: 0, duration: 0.45, stagger: 0.05, ease: EASE.swift })
+    },
+    { dependencies: [request === null], scope: rootRef },
+  )
+
+  useEffect(() => {
+    if (!request) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [request])
+
+  const send = async (event?: FormEvent) => {
+    event?.preventDefault()
+    if (busy) return
+    if (!EMAIL_SHAPE.test(email.trim())) {
+      setError(t.errors.invalidEmail)
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await forgotPassword(email)
+      vibrate(10)
+      if (request) setNotice(t.auth.verify.resent)
+      setRequest(next)
+      setCode('')
+      setCodeStatus('idle')
+      setNow(Date.now())
+    } catch (caught) {
+      setError(apiErrorMessage(caught, t))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reset = async (value = code) => {
+    if (!request || codeStatus === 'busy' || codeStatus === 'success') return
+    if (value.length < CODE_LENGTH) return
+    if (password.length < MIN_PASSWORD) {
+      setError(t.errors.passwordTooShort)
+      return
+    }
+    setCodeStatus('busy')
+    setError(null)
+    setNotice(null)
+    try {
+      await resetPassword({ email: request.email, code: value, newPassword: password })
+      setCodeStatus('success')
+      vibrate([10, 40, 10, 40, 18])
+      window.setTimeout(onDone, 900)
+    } catch (caught) {
+      vibrate([30, 40, 30])
+      setCodeStatus('error')
+      setError(apiErrorMessage(caught, t))
+      if (caught instanceof ApiError && caught.code === 'reset_not_found') {
+        setRequest(null)
+        return
+      }
+      window.setTimeout(() => {
+        if (caught instanceof ApiError && CODE_RESET.has(caught.code)) setCode('')
+        setCodeStatus('idle')
+      }, 650)
+    }
+  }
+
+  const resendIn = request ? Math.max(0, Math.ceil((request.resendAt - now) / 1000)) : 0
+
+  return (
+    <div ref={rootRef} className="pt-4">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => onBack(email)}
+          className="inline-flex items-center gap-1 rounded-full py-1.5 pr-3 text-xs text-mist transition-colors hover:text-cream"
+        >
+          <ChevronLeft size={16} aria-hidden />
+          {t.auth.forgot.back}
+        </button>
+        <button type="button" onClick={onClose} aria-label={t.common.close} className="glass grid size-9 shrink-0 place-items-center rounded-full text-cream/60">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-col items-center text-center" data-forgot-item>
+        <span className="grid size-14 place-items-center rounded-3xl bg-linear-to-br from-glow to-[#ff7eb6] text-cream shadow-[0_12px_40px_-10px_var(--color-glow)]">
+          <KeyRound size={26} strokeWidth={2} />
+        </span>
+        <h2 className="mt-4 font-display text-[1.9rem] leading-none text-cream">{t.auth.forgot.title}</h2>
+        <p className="mt-3 max-w-xs text-xs leading-relaxed text-mist">{request ? t.auth.forgot.codeHint : t.auth.forgot.intro}</p>
+        {request && <p className="mt-1 max-w-[16rem] truncate text-sm font-semibold text-cream">{request.email}</p>}
+      </div>
+
+      {!request ? (
+        <form onSubmit={(event) => void send(event)} noValidate className="mt-6 space-y-3.5">
+          <div data-forgot-item>
+            <Field label={t.auth.email} type="email" value={email} onChange={setEmail} autoComplete="email" placeholder={t.auth.emailPlaceholder} required />
+          </div>
+          {error && (
+            <p role="alert" className="rounded-2xl bg-nope/10 px-4 py-3 text-xs text-nope">
+              {error}
+            </p>
+          )}
+          <div data-forgot-item>
+            <Pressable
+              type="submit"
+              disabled={busy}
+              press={0.96}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-cream py-3.5 text-sm font-medium text-void disabled:opacity-60"
+            >
+              {busy && <LoaderCircle size={16} className="animate-spin" />}
+              {t.auth.forgot.send}
+            </Pressable>
+          </div>
+        </form>
+      ) : (
+        <form
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault()
+            void reset()
+          }}
+          className="mt-6 space-y-4"
+        >
+          <div data-forgot-item>
+            <Field
+              label={t.auth.forgot.newPassword}
+              type="password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="new-password"
+              placeholder={t.auth.passwordPlaceholder}
+              minLength={MIN_PASSWORD}
+              required
+            />
+          </div>
+          <div data-forgot-item>
+            <CodeInput
+              value={code}
+              onChange={(next) => {
+                setCode(next)
+                if (codeStatus === 'error') setCodeStatus('idle')
+              }}
+              onComplete={(value) => void reset(value)}
+              status={codeStatus}
+              label={t.auth.verify.inputLabel}
+              length={CODE_LENGTH}
+              autoFocus={false}
+            />
+          </div>
+          <div className="flex min-h-8 items-center justify-center text-center">
+            {error ? (
+              <p role="alert" className="text-xs font-medium text-nope">
+                {error}
+              </p>
+            ) : codeStatus === 'success' ? (
+              <p role="status" className="text-xs font-semibold text-like">
+                {t.auth.forgot.success}
+              </p>
+            ) : notice ? (
+              <p role="status" className="text-xs text-like">
+                {notice}
+              </p>
+            ) : (
+              <p className="text-xs text-mist">{t.auth.verify.spam}</p>
+            )}
+          </div>
+          <div data-forgot-item>
+            <Pressable
+              type="submit"
+              disabled={code.length < CODE_LENGTH || password.length === 0 || codeStatus === 'busy' || codeStatus === 'success'}
+              press={0.96}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-cream py-3.5 text-sm font-medium text-void disabled:opacity-50"
+            >
+              {codeStatus === 'busy' && <LoaderCircle size={16} className="animate-spin" />}
+              {t.auth.forgot.submit}
+            </Pressable>
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={resendIn > 0 || busy || codeStatus === 'success'}
+              className="mt-3 flex w-full items-center justify-center gap-2 py-2 text-xs font-medium text-cream/75 transition-colors hover:text-cream disabled:text-mist/70"
+            >
+              <RotateCcw size={13} className={busy ? 'animate-spin' : undefined} />
+              <span className="tabular-nums">{resendIn > 0 ? t.auth.verify.resendIn(resendIn) : t.auth.verify.resend}</span>
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   )
 }

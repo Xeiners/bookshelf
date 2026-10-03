@@ -294,7 +294,8 @@ describe('boosters ouverts', () => {
     await openBooster(account.userId, { unlimited: true })
     const { body } = await account.request('GET', '/profile/me')
     assert.equal(body.stats.gacha.boostersOpened, 2)
-    assert.equal(body.stats.collection.copies, 10)
+    const { CARDS_PER_PACK } = await import('../src/modules/cards/boosters.logic.js')
+    assert.equal(body.stats.collection.copies, 2 * CARDS_PER_PACK)
   })
 })
 

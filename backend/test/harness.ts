@@ -121,9 +121,9 @@ export interface TestClient {
 export async function lastCodeFor(email: string): Promise<string> {
   const { outbox } = await import('../src/lib/mailer.js')
   const mail = [...outbox].reverse().find((message) => message.to === email.trim().toLowerCase())
-  const match = mail?.text.match(/\b(\d{3}) (\d{3})\b/)
+  const match = mail?.text.match(/\b(\d{6})\b/)
   if (!match) throw new Error(`Aucun code envoyé à ${email}`)
-  return match[1]! + match[2]!
+  return match[1]!
 }
 
 export async function startServer() {

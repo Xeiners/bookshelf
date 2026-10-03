@@ -942,6 +942,18 @@ export const fr = {
       resent: 'Nouveau code envoyé',
       spam: 'Rien reçu ? Jette un œil aux courriers indésirables.',
     },
+    forgot: {
+      link: 'Mot de passe oublié ?',
+      title: 'Mot de passe oublié',
+      intro: 'Donne l’e-mail de ton compte : on t’y envoie un code à 6 chiffres pour choisir un nouveau mot de passe.',
+      send: 'Recevoir un code',
+      codeHint: 'Choisis ton nouveau mot de passe, puis tape ou colle le code envoyé à',
+      newPassword: 'Nouveau mot de passe',
+      submit: 'Changer le mot de passe',
+      success: 'Mot de passe changé',
+      done: 'Mot de passe changé : te voilà connecté',
+      back: 'Retour à la connexion',
+    },
   },
 
   publicProfile: {
@@ -1602,6 +1614,7 @@ export const fr = {
     roomNotFound: 'Ce salon n’existe pas ou est fermé.',
     roomFull: 'Ce salon est complet.',
     needPlayers: 'Il faut au moins deux joueurs pour lancer.',
+    resetNotFound: 'Aucune demande en cours pour cet e-mail : redemande un code.',
     notYourTurn: 'Ce n’est pas ton tour.',
     roomStarted: 'La partie a déjà commencé.',
     notHost: 'Seul l’hôte peut faire ça.',

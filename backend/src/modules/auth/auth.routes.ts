@@ -6,10 +6,11 @@ import { DEFAULT_LANGUAGE, LanguageSchema, type Language } from '../../lib/langu
 import { emailUnavailable, mailEnabled, sendMail } from '../../lib/mailer.js'
 import { DUMMY_HASH, hashPassword, verifyPassword } from '../../lib/password.js'
 import { SESSION_COOKIE, clearSession, issueSession } from '../../lib/session.js'
-import { accountSuspended, authenticate } from '../../lib/sessionGuard.js'
+import { accountSuspended, authenticate, forgetStanding } from '../../lib/sessionGuard.js'
 import { isAdminEmail } from '../admin/admin.access.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
+import { config } from '../../config.js'
 import { claimGuestPacks } from '../cards/cards.service.js'
 import { GUEST_BOOSTERS } from '../cards/guestPacks.js'
 import { LibrarySnapshotSchema } from '../library/library.schemas.js'
@@ -25,7 +26,7 @@ import {
   generateCode,
   hashCode,
 } from './verification.js'
-import { buildVerificationEmail } from './verificationEmail.js'
+import { buildVerificationEmail, type CodePurpose } from './verificationEmail.js'
 
 const Email = z
   .string()
@@ -117,10 +118,12 @@ const isUniqueViolation = (error: unknown) =>
 
 export const authRouter = Router()
 
+// Les tests d'intégration partagent une seule IP : les plafonds y sont relevés.
+const TEST = config.env === 'test'
 /** 20 tentatives / 15 min / IP sur les routes sensibles. */
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: TEST ? 2000 : 20 })
 /** Saisie du code : plus souple (fautes de frappe), toujours bornée par IP. */
-const verifyLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 })
+const verifyLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: TEST ? 2000 : 30 })
 
 const emailTaken = () => conflict('Un compte existe déjà avec cet e-mail.', 'email_taken')
 const registrationNotFound = () =>
@@ -142,7 +145,7 @@ function tooSoon(lastSentAt: Date, now: number): HttpError | null {
   return new HttpError(429, 'resend_too_soon', 'Nouveau code possible dans ' + retryAfter + ' s.', { retryAfter })
 }
 
-async function sendCode(input: { email: string; code: string; language: Language; displayName: string | null }) {
+async function sendCode(input: { email: string; code: string; language: Language; displayName: string | null; purpose?: CodePurpose }) {
   await sendMail(
     buildVerificationEmail({
       to: input.email,
@@ -150,6 +153,7 @@ async function sendCode(input: { email: string; code: string; language: Language
       language: input.language,
       displayName: input.displayName,
       minutes: CODE_TTL_MS / 60_000,
+      purpose: input.purpose,
     }),
   )
 }
@@ -359,6 +363,105 @@ authRouter.post('/password', authLimiter, requireAuth, async (req, res) => {
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword) } })
   await issueSession(res, userId, user.sessionVersion)
   res.status(204).end()
+})
+
+/* ---- Mot de passe oublié ------------------------------------------------------------ */
+
+const ForgotSchema = z.object({ email: Email, preferredLanguage: LanguageSchema.optional() })
+
+const ResetSchema = z.object({
+  email: Email,
+  code: z.string().trim().regex(CODE_PATTERN, 'Code invalide.'),
+  newPassword: z
+    .string()
+    .min(8, 'Le mot de passe doit contenir au moins 8 caractères.')
+    .max(200, 'Mot de passe trop long.'),
+  initialData: LibrarySnapshotSchema.optional(),
+})
+
+const resetNotFound = () => new HttpError(400, 'reset_not_found', 'Aucune demande en cours pour cet e-mail : redemande un code.')
+
+/**
+ * Étape 1 : un code part par e-mail SI un compte existe. La réponse est la même dans
+ * tous les cas (202, mêmes échéances) : elle ne dit jamais quels e-mails ont un compte.
+ * Mêmes garde-fous que l'inscription : 60 s entre deux envois, 5 envois par heure.
+ */
+authRouter.post('/password/forgot', authLimiter, async (req, res) => {
+  const { email, preferredLanguage } = ForgotSchema.parse(req.body)
+  if (!mailEnabled) throw emailUnavailable()
+  const now = Date.now()
+  const sentAt = new Date(now)
+  const expiresAt = new Date(now + CODE_TTL_MS)
+  const user = await prisma.user.findUnique({ where: { email }, select: { displayName: true, preferredLanguage: true } })
+  if (!user) {
+    res.status(202).json({ email, ...pendingTimes(sentAt, expiresAt) })
+    return
+  }
+
+  await prisma.passwordReset.deleteMany({ where: { createdAt: { lt: new Date(now - 24 * 60 * 60 * 1000) } } })
+  const previous = await prisma.passwordReset.findUnique({ where: { email } })
+  const sameWindow = previous !== null && now - previous.createdAt.getTime() < SEND_WINDOW_MS
+  if (previous && sameWindow) {
+    const wait = tooSoon(previous.lastSentAt, now)
+    if (wait) throw wait
+    if (previous.sends >= MAX_SENDS) throw tooManyCodes()
+  }
+
+  const code = generateCode()
+  const data = { codeHash: hashCode(email, code), expiresAt, attempts: 0, lastSentAt: sentAt }
+  await prisma.passwordReset.upsert({
+    where: { email },
+    create: { email, ...data, sends: 1, createdAt: sentAt },
+    update: sameWindow ? { ...data, sends: { increment: 1 } } : { ...data, sends: 1, createdAt: sentAt },
+  })
+  await sendCode({
+    email,
+    code,
+    // La langue du compte d'abord : c'est celle que son titulaire a choisie.
+    language: LanguageSchema.catch(preferredLanguage ?? DEFAULT_LANGUAGE).parse(user.preferredLanguage),
+    displayName: user.displayName,
+    purpose: 'reset',
+  })
+  res.status(202).json({ email, ...pendingTimes(sentAt, expiresAt) })
+})
+
+/**
+ * Étape 2 : le bon code remplace le mot de passe, coupe toutes les autres sessions du
+ * compte (`sessionVersion`) et ouvre celle de cet appareil. Un code faux consomme un
+ * essai ; au 5ᵉ, il faut en redemander un.
+ */
+authRouter.post('/password/reset', verifyLimiter, async (req, res) => {
+  const { email, code, newPassword, initialData } = ResetSchema.parse(req.body)
+  const pending = await prisma.passwordReset.findUnique({ where: { email } })
+  if (!pending) throw resetNotFound()
+  if (pending.expiresAt.getTime() <= Date.now()) throw new HttpError(400, 'code_expired', 'Code expiré : demande-en un nouveau.')
+  if (pending.attempts >= MAX_ATTEMPTS) throw codeLocked()
+  if (!codeMatches(email, code, pending.codeHash)) {
+    const { attempts } = await prisma.passwordReset.update({ where: { email }, data: { attempts: { increment: 1 } }, select: { attempts: true } })
+    const remainingAttempts = Math.max(0, MAX_ATTEMPTS - attempts)
+    if (remainingAttempts === 0) throw codeLocked()
+    throw new HttpError(400, 'code_invalid', 'Code incorrect.', { remainingAttempts })
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true, suspendedAt: true, suspendedReason: true } })
+  if (!existing) {
+    await prisma.passwordReset.deleteMany({ where: { email } })
+    throw resetNotFound()
+  }
+  if (existing.suspendedAt) throw new HttpError(403, 'account_suspended', 'Ce compte est suspendu.', { reason: existing.suspendedReason })
+
+  const [user] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: existing.id },
+      // L'adresse est prouvée : le code y est arrivé.
+      data: { passwordHash: await hashPassword(newPassword), sessionVersion: { increment: 1 }, emailVerifiedAt: new Date() },
+    }),
+    prisma.passwordReset.delete({ where: { email } }),
+  ])
+  forgetStanding(user.id)
+  const library = initialData ? await mergeLibrary(user.id, initialData) : await getLibrary(user.id)
+  await issueSession(res, user.id, user.sessionVersion)
+  res.json({ user: publicUser(user), library })
 })
 
 authRouter.post('/logout', (_req, res) => {
