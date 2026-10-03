@@ -74,7 +74,7 @@ export type RoomVisibility = 'private' | 'public'
 export type RoomKind = 'versus' | 'coop'
 export const ROOM_KINDS = ['versus', 'coop'] as const
 
-interface PlayerProfile {
+export interface PlayerProfile {
   name: string | null
   avatarUrl: string | null
   avatar: { imageUrl: string; rarity: Rarity } | null
@@ -227,7 +227,7 @@ function destroy(room: Room): void {
 const isTitleId = (value: string | null): value is TitleId => value !== null && (TITLE_IDS as readonly string[]).includes(value)
 
 /** Pseudo, avatar et titre : de quoi reconnaître un adversaire (jamais son e-mail). Un invité : son pseudo. */
-async function profileOf(participant: Participant): Promise<PlayerProfile> {
+export async function profileOf(participant: Participant): Promise<PlayerProfile> {
   if (participant.guest) return { name: participant.guest.name, avatarUrl: null, avatar: null, title: null }
   const userId = participant.id
   const user = await prisma.user.findUnique({

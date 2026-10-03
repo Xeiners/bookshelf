@@ -85,6 +85,12 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.notHost
     case 'not_in_room':
       return t.errors.notInRoom
+    case 'need_players':
+      return t.errors.needPlayers
+    case 'not_your_turn':
+    case 'turn_over':
+    case 'not_playing':
+      return t.errors.notYourTurn
     case 'not_started':
       return t.errors.notStarted
     case 'round_over':

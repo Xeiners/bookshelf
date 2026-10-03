@@ -1,4 +1,5 @@
 import { api } from './api'
+import type { Rarity } from '../lib/boosters'
 
 /* Higher or Lower (cf. `backend/src/modules/higherlower/`). */
 
@@ -72,11 +73,76 @@ export interface HlOverview {
   dailyCap: number
   me: { best: number; bestMetric: HlMetric | null; todayBest: number; earnedToday: number; games: number }
   leaderboard: { today: HlStanding[]; allTime: HlStanding[]; myToday: number | null; myAllTime: number | null }
+  /** Salon COOP où je suis encore (reprise après un rechargement). */
+  currentCoop: string | null
 }
+
+/* ---- COOP : une partie commune, chacun son tour, chances partagées ---------------------- */
+
+export type CoopPhase = 'lobby' | 'playing' | 'results'
+
+export interface CoopPlayer {
+  id: string
+  name: string | null
+  avatarUrl: string | null
+  avatar: { imageUrl: string; rarity: Rarity } | null
+  title: string | null
+  correct: number
+  misses: number
+  /** Parti en pleine partie (gardé pour le bilan). */
+  left: boolean
+}
+
+/** Le dernier tour joué : de quoi rejouer la révélation chez tout le monde. */
+export interface CoopTurn {
+  turn: number
+  by: string
+  /** `null` : temps écoulé sans réponse. */
+  choice: HlChoice | null
+  correct: boolean
+  current: HlCard
+  guessed: HlCard
+}
+
+export interface CoopView {
+  code: string
+  metric: HlMetric
+  phase: CoopPhase
+  hostId: string
+  you: string
+  version: number
+  serverTime: string
+  minPlayers: number
+  maxPlayers: number
+  players: CoopPlayer[]
+  order: string[]
+  active: string | null
+  turn: number
+  turnStartsAt: string | null
+  turnEndsAt: string | null
+  streak: number
+  lives: number
+  maxLives: number
+  current: HlCard | null
+  next: HlCard | null
+  last: CoopTurn | null
+  result: { streak: number; endedBy: 'lives' | 'exhausted' | null; reward: number | null; balance: number | null; capped: boolean } | null
+}
+
+const coop = (code: string) => `/higher-lower/coop/${encodeURIComponent(code)}`
 
 export const higherLowerApi = {
   overview: (signal?: AbortSignal) => api<HlOverview>('/higher-lower', { signal }),
   start: (metric: HlMetric) => api<HlRun>('/higher-lower/runs', { method: 'POST', body: { metric } }),
   guess: (runId: string, choice: HlChoice) => api<HlGuessResult>(`/higher-lower/runs/${runId}/guess`, { method: 'POST', body: { choice } }),
   end: (runId: string) => api<HlResult>(`/higher-lower/runs/${runId}/end`, { method: 'POST' }),
+
+  createCoop: (metric: HlMetric) => api<CoopView>('/higher-lower/coop', { method: 'POST', body: { metric } }),
+  joinCoop: (code: string) => api<CoopView>(`${coop(code)}/join`, { method: 'POST' }),
+  leaveCoop: (code: string) => api<void>(`${coop(code)}/leave`, { method: 'POST' }),
+  coopMetric: (code: string, metric: HlMetric) => api<CoopView>(`${coop(code)}/metric`, { method: 'POST', body: { metric } }),
+  startCoop: (code: string) => api<CoopView>(`${coop(code)}/start`, { method: 'POST' }),
+  guessCoop: (code: string, choice: HlChoice, turn: number) => api<CoopView>(`${coop(code)}/guess`, { method: 'POST', body: { choice, turn } }),
+  /** Attente longue : ne répond qu'au changement qui suit la version `since`. */
+  watchCoop: (code: string, since: number | null, signal?: AbortSignal) => api<CoopView>(`${coop(code)}${since === null ? '' : `?v=${since}`}`, { signal }),
 }

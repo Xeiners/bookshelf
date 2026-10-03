@@ -126,7 +126,7 @@ describe('dle — Pixels', () => {
 
 describe('mode classique — rythme du retournement', () => {
   it('la victoire attend la dernière tuile (et l’en-tête au premier essai)', async () => {
-    const { classicRevealSeconds, HEAD_REVEAL, TILE_FLIP, TILE_STAGGER } = await import('../src/lib/dle.ts')
+    const { classicRevealSeconds, HEAD_REVEAL, TILE_FLIP, TILE_STAGGER } = await import('../src/lib/dle')
     // Mangas : l'œuvre et huit colonnes.
     const later = classicRevealSeconds('manga', 3, false)
     assert.ok(Math.abs(later - (8 * TILE_STAGGER + TILE_FLIP)) < 1e-9)

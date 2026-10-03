@@ -1,14 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { UserPlus } from 'lucide-react'
 import { useT } from '../../i18n'
+import { apiErrorMessage } from '../../lib/apiErrors'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDleStore } from '../../store/useDleStore'
 import { useHigherLowerStore } from '../../store/useHigherLowerStore'
+import { useHlCoopStore } from '../../store/useHlCoopStore'
 import { useUiStore } from '../../store/useUiStore'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { HlGame } from './HlGame'
+import { HlCoop } from './HlCoop'
 import { HlGameOver } from './HlGameOver'
 import { HlHome } from './HlHome'
 import { SoundToggle } from './SoundToggle'
@@ -28,6 +31,10 @@ export function HigherLowerView() {
   const loadDle = useDleStore((state) => state.loadOverview)
   const signedIn = useAuthStore((state) => state.user !== null)
   const openAuth = useUiStore((state) => state.openAuth)
+  const notify = useUiStore((state) => state.notify)
+  const coop = useHlCoopStore((state) => state.room)
+  const pendingCode = useHlCoopStore((state) => state.pendingCode)
+  const currentCoop = useHigherLowerStore((state) => state.overview?.currentCoop ?? null)
 
   useEffect(() => {
     if (!signedIn) return
@@ -36,16 +43,37 @@ export function HigherLowerView() {
     if (useDleStore.getState().overview === null) void loadDle()
   }, [signedIn, loadOverview, loadDle])
 
+  // COOP : une invitation reçue (`?hl=<code>`) est rejointe dès que le compte est là ;
+  // un salon en cours (rechargement de la page) est repris.
+  const joining = useRef<string | null>(null)
+  useEffect(() => {
+    if (!signedIn || coop) return
+    const code = pendingCode ?? currentCoop
+    if (!code || joining.current === code) return
+    joining.current = code
+    const store = useHlCoopStore.getState()
+    const enter = pendingCode ? store.join(code) : store.resume(code)
+    enter
+      .catch((error: unknown) => {
+        store.setPendingCode(null)
+        if (pendingCode) notify(apiErrorMessage(error, t), 'nope')
+      })
+      .finally(() => (joining.current = null))
+  }, [signedIn, coop, pendingCode, currentCoop, notify, t])
+
+  const shown = coop && signedIn ? `coop:${coop.code}` : screen
   useGSAP(
     () => {
       gsap.fromTo(rootRef.current, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: EASE.glide })
     },
-    { dependencies: [screen] },
+    { dependencies: [shown] },
   )
 
   return (
-    <div ref={rootRef} key={screen} className="flex min-h-0 flex-1 flex-col">
-      {screen === 'play' ? (
+    <div ref={rootRef} key={shown} className="flex min-h-0 flex-1 flex-col">
+      {coop && signedIn ? (
+        <HlCoop room={coop} />
+      ) : screen === 'play' ? (
         <HlGame />
       ) : screen === 'over' ? (
         <HlGameOver />

@@ -251,7 +251,9 @@ describe('Higher or Lower — API', () => {
     assert.equal(body.next.value, null)
     assert.notEqual(body.current.id, body.next.id)
     assert.match(body.current.image, /^\/api\/dle\/characters\/onepiece\//)
-    assert.ok(!JSON.stringify(body).includes(String(valueOf('bounty', body.next.id))))
+    // Nulle part une valeur JSON égale à celle de la carte B (la référence mise à part).
+    const hidden = valueOf('bounty', body.next.id)
+    assert.ok(!new RegExp(`:${hidden}[,}]`).test(JSON.stringify({ ...body, current: { ...body.current, value: null } })))
     assert.equal((await alice.request('POST', '/higher-lower/runs', { metric: 'nope' })).status, 400)
   })
 
@@ -337,5 +339,162 @@ describe('Higher or Lower — API', () => {
   it('le profil montre les records', async () => {
     const { body } = await alice.request('GET', '/profile/me')
     assert.deepEqual(body.stats.higherLower, { best: 6, todayBest: 6 })
+  })
+})
+
+/* ---- COOP ---------------------------------------------------------------------------- */
+
+describe('Higher or Lower — COOP', async () => {
+  const coop = await import('../src/modules/higherlower/hl.coop.js')
+  after(() => coop.resetCoop())
+
+  let dora: Account
+  let eli: Account
+  let fanny: Account
+  let code: string
+
+  before(async () => {
+    dora = await account('dora-hl@example.com', 'Dora')
+    eli = await account('eli-hl@example.com', 'Eli')
+    fanny = await account('fanny-hl@example.com', 'Fanny')
+  })
+
+  /** La bonne (ou la mauvaise) réponse au tour en cours ; le test lit la valeur cachée. */
+  const answer = (view: { current: { value: number } }, right: boolean) => {
+    const higher = coop.coopNextValueForTests(code)! > view.current.value
+    return right === higher ? 'higher' : 'lower'
+  }
+
+  it('salon : créer, rejoindre, l’hôte seul lance, à deux au moins', async () => {
+    const created = await dora.request('POST', '/higher-lower/coop', { metric: 'sales' })
+    assert.equal(created.status, 201, JSON.stringify(created.body))
+    code = created.body.code
+    assert.equal(created.body.phase, 'lobby')
+    assert.equal(created.body.hostId, dora.userId)
+    assert.equal(created.body.current, null)
+
+    const alone = await dora.request('POST', `/higher-lower/coop/${code}/start`)
+    assert.equal(alone.status, 409)
+    assert.equal(alone.body.error.code, 'need_players')
+
+    const joined = await eli.request('POST', `/higher-lower/coop/${code}/join`)
+    assert.equal(joined.status, 200)
+    assert.deepEqual(joined.body.players.map((entry: { name: string }) => entry.name), ['Dora', 'Eli'])
+    assert.equal((await eli.request('POST', `/higher-lower/coop/${code}/start`)).status, 403)
+    assert.equal((await fanny.request('GET', `/higher-lower/coop/${code}`)).status, 403)
+
+    // L'hôte change de terrain avant de lancer.
+    const metric = await dora.request('POST', `/higher-lower/coop/${code}/metric`, { metric: 'bounty' })
+    assert.equal(metric.body.metric, 'bounty')
+    const overview = await eli.request('GET', '/higher-lower')
+    assert.equal(overview.body.currentCoop, code)
+  })
+
+  it('chacun son tour, chances communes, la valeur à deviner reste cachée', async () => {
+    const started = await dora.request('POST', `/higher-lower/coop/${code}/start`)
+    assert.equal(started.status, 200, JSON.stringify(started.body))
+    let view = started.body
+    assert.equal(view.phase, 'playing')
+    assert.deepEqual(view.order, [dora.userId, eli.userId])
+    assert.equal(view.active, dora.userId)
+    assert.equal(view.lives, logic.HL_LIVES)
+    assert.equal(view.next.value, null)
+    assert.ok(!new RegExp(`:${coop.coopNextValueForTests(code)}[,}]`).test(JSON.stringify({ ...view, current: { ...view.current, value: null } })))
+
+    // Pas son tour.
+    const early = await eli.request('POST', `/higher-lower/coop/${code}/guess`, { choice: 'higher', turn: 0 })
+    assert.equal(early.status, 409)
+    assert.equal(early.body.error.code, 'not_your_turn')
+
+    // Dora répond juste : la main passe à Eli.
+    let reply = await dora.request('POST', `/higher-lower/coop/${code}/guess`, { choice: answer(view, true), turn: 0 })
+    assert.equal(reply.status, 200, JSON.stringify(reply.body))
+    view = reply.body
+    assert.equal(view.streak, 1)
+    assert.equal(view.active, eli.userId)
+    assert.equal(view.last.by, dora.userId)
+    assert.equal(view.last.correct, true)
+    assert.equal(typeof view.last.guessed.value, 'number')
+    // Un double envoi du même tour ne compte pas deux fois.
+    const twice = await dora.request('POST', `/higher-lower/coop/${code}/guess`, { choice: 'higher', turn: 0 })
+    assert.equal(twice.status, 409)
+
+    // L'attente longue renvoie tout de suite une version plus récente que celle connue.
+    const watched = await dora.request('GET', `/higher-lower/coop/${code}?v=1`)
+    assert.equal(watched.body.version, view.version)
+
+    // Eli se trompe : une chance de moins pour toute l'équipe, la série reste.
+    reply = await eli.request('POST', `/higher-lower/coop/${code}/guess`, { choice: answer(view, false), turn: view.turn })
+    view = reply.body
+    assert.equal(view.streak, 1)
+    assert.equal(view.lives, logic.HL_LIVES - 1)
+    assert.equal(view.active, dora.userId)
+
+    // Erreurs jusqu'à la dernière chance : fin de partie, Poussières pour chacun.
+    while (view.phase === 'playing') {
+      const who = view.active === dora.userId ? dora : eli
+      view = (await who.request('POST', `/higher-lower/coop/${code}/guess`, { choice: answer(view, false), turn: view.turn })).body
+    }
+    assert.equal(view.phase, 'results')
+    assert.equal(view.result.streak, 1)
+    assert.equal(view.result.endedBy, 'lives')
+    assert.equal(view.result.reward, 0)
+    const stats = view.players.map((entry: { name: string; correct: number; misses: number }) => [entry.name, entry.correct, entry.misses])
+    assert.deepEqual(stats, [
+      ['Dora', 1, 1],
+      ['Eli', 0, 2],
+    ])
+  })
+
+  it('une bonne série rapporte à chacun, sans toucher aux records du solo', async () => {
+    let view = (await dora.request('POST', `/higher-lower/coop/${code}/start`)).body
+    assert.equal(view.phase, 'playing')
+    for (let index = 0; index < 3; index += 1) {
+      const who = view.active === dora.userId ? dora : eli
+      view = (await who.request('POST', `/higher-lower/coop/${code}/guess`, { choice: answer(view, true), turn: view.turn })).body
+    }
+    while (view.phase === 'playing') {
+      const who = view.active === dora.userId ? dora : eli
+      view = (await who.request('POST', `/higher-lower/coop/${code}/guess`, { choice: answer(view, false), turn: view.turn })).body
+    }
+    assert.equal(view.result.streak, 3)
+    assert.equal(view.result.reward, 5)
+    const eliView = (await eli.request('GET', `/higher-lower/coop/${code}`)).body
+    assert.equal(eliView.result.reward, 5)
+    const stats = await prisma.higherLowerStats.findUnique({ where: { userId: eli.userId } })
+    assert.equal(stats?.best, 0)
+    assert.equal(stats?.dayEarned, 5)
+  })
+
+  it('temps écoulé : le tour compte comme une erreur et la main passe', async () => {
+    const turnMs = coop.COOP_TIMING.turnMs
+    const introMs = coop.COOP_TIMING.introMs
+    coop.COOP_TIMING.turnMs = 60
+    coop.COOP_TIMING.introMs = 0
+    try {
+      const view = (await dora.request('POST', `/higher-lower/coop/${code}/start`)).body
+      assert.equal(view.active, dora.userId)
+      await new Promise((done) => setTimeout(done, 150))
+      const after = (await eli.request('GET', `/higher-lower/coop/${code}`)).body
+      assert.equal(after.last.by, dora.userId)
+      assert.equal(after.last.choice, null)
+      assert.equal(after.last.correct, false)
+      assert.equal(after.lives, logic.HL_LIVES - 1)
+      assert.equal(after.active, eli.userId)
+    } finally {
+      coop.COOP_TIMING.turnMs = turnMs
+      coop.COOP_TIMING.introMs = introMs
+    }
+  })
+
+  it('quitter en pleine partie : la main passe ; le dernier ferme le salon', async () => {
+    const view = (await eli.request('GET', `/higher-lower/coop/${code}`)).body
+    assert.equal(view.phase, 'playing')
+    assert.equal((await eli.request('POST', `/higher-lower/coop/${code}/leave`)).status, 204)
+    const after = (await dora.request('GET', `/higher-lower/coop/${code}`)).body
+    assert.equal(after.active, dora.userId)
+    assert.equal(after.players.find((entry: { id: string }) => entry.id === eli.userId).left, true)
+    assert.equal((await dora.request('POST', `/higher-lower/coop/${code}/leave`)).status, 204)
+    assert.equal((await dora.request('GET', `/higher-lower/coop/${code}`)).status, 404)
   })
 })

@@ -32,6 +32,8 @@ import { usePendingNovelProgress } from './hooks/useNovels'
 import { usePlaylistSync } from './hooks/useAmbientMusic'
 import { profileIdFromSearch, withoutProfileParam } from './lib/profileLink'
 import { roomCodeFromSearch, withoutRoomParam } from './lib/dle'
+import { coopCodeFromSearch, withoutCoopParam } from './lib/higherLower'
+import { useHlCoopStore } from './store/useHlCoopStore'
 import { useDleStore } from './store/useDleStore'
 import { useNotificationPolling } from './hooks/useNotifications'
 import { NotificationBanner } from './components/notifications/NotificationBanner'
@@ -104,6 +106,15 @@ export default function App() {
     useDleStore.getState().setPendingCode(code)
     useUiStore.getState().openActivity('dle')
     window.history.replaceState(window.history.state, '', withoutRoomParam(window.location.href))
+  }, [])
+
+  // Invitation à un salon COOP du Higher or Lower (`?hl=<code>`).
+  useEffect(() => {
+    const code = coopCodeFromSearch(window.location.search)
+    if (!code) return
+    useHlCoopStore.getState().setPendingCode(code)
+    useUiStore.getState().openActivity('higherlower')
+    window.history.replaceState(window.history.state, '', withoutCoopParam(window.location.href))
   }, [])
 
   // Bibliothèque enregistrée retraduite dans la langue choisie.

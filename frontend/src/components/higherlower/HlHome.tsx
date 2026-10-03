@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, ChevronRight, Crown, Flame, Loader2, Play, Trophy, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, Crown, Flame, Loader2, LogIn, Play, Plus, Trophy, Users, X } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
+import { apiErrorMessage } from '../../lib/apiErrors'
+import { parseRoomCode } from '../../lib/dle'
 import { formatHlValue } from '../../lib/higherLower'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playHlSelect, playHlStart } from '../../lib/sfx'
 import { HL_METRICS, type HlCard, type HlMetric, type HlOverview, type HlStanding } from '../../services/higherLowerApi'
 import { hlSound, useHigherLowerStore } from '../../store/useHigherLowerStore'
+import { useHlCoopStore } from '../../store/useHlCoopStore'
+import { useUiStore } from '../../store/useUiStore'
 import { CardAvatar } from '../profile/CardAvatar'
 import { MetricIcon } from './MetricIcon'
 import { CARD_INK, HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE, gradientText } from './hlStyle'
@@ -150,9 +154,102 @@ export function HlHome() {
             </button>
           )}
         </div>
+
+        {overview && <CoopEntry metric={metric} />}
       </div>
 
       {board && overview && <LeaderboardSheet overview={overview} onClose={() => setBoard(false)} />}
+    </div>
+  )
+}
+
+/* ---- COOP ------------------------------------------------------------------------------ */
+
+/** Jouer à plusieurs : créer un salon (sur le terrain choisi) ou en rejoindre un avec son code. */
+function CoopEntry({ metric }: { metric: HlMetric }) {
+  const t = useT()
+  const create = useHlCoopStore((state) => state.create)
+  const join = useHlCoopStore((state) => state.join)
+  const notify = useUiStore((state) => state.notify)
+  const [open, setOpen] = useState(false)
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState<'create' | 'join' | null>(null)
+
+  const run = async (kind: 'create' | 'join', task: () => Promise<void>) => {
+    vibrate(10)
+    hlSound(playHlSelect)
+    setBusy(kind)
+    try {
+      await task()
+    } catch (error) {
+      notify(apiErrorMessage(error, t), 'nope')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const submit = () => {
+    const parsed = parseRoomCode(code)
+    if (!parsed) {
+      notify(t.hl.coop.badCode, 'nope')
+      return
+    }
+    void run('join', () => join(parsed))
+  }
+
+  return (
+    <div data-hl-in className="w-full rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex w-full items-center gap-3 text-left">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full text-[#04241a]" style={{ background: HL_GRADIENT }}>
+          <Users size={18} aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-cream">{t.hl.coop.entry}</span>
+          <span className="block text-xs text-cream/55">{t.hl.coop.entryHint}</span>
+        </span>
+        <ChevronRight size={16} className={`shrink-0 text-cream/50 transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
+      </button>
+      {open && (
+        <div className="mt-3 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={() => void run('create', () => create(metric))}
+            disabled={busy !== null}
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold text-[#140c1f] transition-transform active:scale-[0.97] disabled:opacity-70"
+            style={{ background: METRIC_STYLE[metric].gradient }}
+          >
+            {busy === 'create' ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Plus size={16} aria-hidden />}
+            {t.hl.coop.create}
+          </button>
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              submit()
+            }}
+          >
+            <input
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              aria-label={t.hl.coop.codeLabel}
+              placeholder={t.hl.coop.codePlaceholder}
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={9}
+              className="h-12 min-w-0 flex-1 rounded-2xl border border-white/12 bg-black/40 px-4 text-center font-mono text-base tracking-[0.2em] text-cream uppercase placeholder:text-cream/25 focus:border-white/30 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={busy !== null || code.trim().length === 0}
+              className="inline-flex h-12 shrink-0 items-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 px-4 text-sm font-semibold text-cream transition-transform active:scale-95 disabled:opacity-50"
+            >
+              {busy === 'join' ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogIn size={15} aria-hidden />}
+              {t.hl.coop.join}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

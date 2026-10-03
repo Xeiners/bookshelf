@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
 import { countDuration, formatHlValue, initialsOf } from '../../lib/higherLower'
@@ -61,6 +61,8 @@ interface HlCardProps {
   verdict?: 'right' | 'wrong' | null
   onChoose?: (choice: HlChoice) => void
   disabled?: boolean
+  /** COOP, quand ce n'est pas mon tour : affiché à la place des deux réponses. */
+  waiting?: ReactNode
 }
 
 /**
@@ -68,7 +70,7 @@ interface HlCardProps {
  * sur le dégradé de la métrique), voile sombre en bas, nom, puis la valeur — ou les
  * deux grosses réponses tant qu'elle est à deviner.
  */
-export function HlCard({ card, metric, role, revealed = null, onRevealed, verdict = null, onChoose, disabled = false }: HlCardProps) {
+export function HlCard({ card, metric, role, revealed = null, onRevealed, verdict = null, onChoose, disabled = false, waiting }: HlCardProps) {
   const t = useT()
   const locale = useLanguage()
   const [broken, setBroken] = useState(false)
@@ -127,6 +129,8 @@ export function HlCard({ card, metric, role, revealed = null, onRevealed, verdic
               </span>
               <span className="text-sm text-cream/55 md:text-base">{words.unit}</span>
             </p>
+          ) : waiting ? (
+            <div className="mx-auto mt-3 flex min-h-13 w-full max-w-sm items-center justify-center md:mt-4 md:min-h-14">{waiting}</div>
           ) : (
             <div className="mx-auto mt-3 grid w-full max-w-sm grid-cols-2 gap-2.5 md:mt-4 md:grid-cols-1 md:gap-3">
               <ChoiceButton direction="higher" label={t.hl.higher} disabled={disabled} onClick={() => onChoose?.('higher')} />

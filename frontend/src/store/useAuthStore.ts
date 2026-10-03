@@ -23,6 +23,7 @@ import { librarySnapshot, useLibraryStore } from './useLibraryStore'
 import { useOracleStore } from './useOracleStore'
 import { useDleStore } from './useDleStore'
 import { useHigherLowerStore } from './useHigherLowerStore'
+import { useHlCoopStore } from './useHlCoopStore'
 import { claimGuestStardust } from './useGuestStardustStore'
 import { useProfileStore } from './useProfileStore'
 import { useSettingsStore } from './useSettingsStore'
@@ -80,6 +81,7 @@ function endSession(reason: 'expired' | 'logout') {
   useProfileStore.getState().reset()
   useDleStore.getState().reset()
   useHigherLowerStore.getState().reset()
+  useHlCoopStore.getState().reset()
   useAuthStore.setState({ user: null, offline: false })
 }
 
@@ -160,6 +162,7 @@ export const useAuthStore = create<AuthState>()(
         useProfileStore.getState().reset()
         useDleStore.getState().reset()
         useHigherLowerStore.getState().reset()
+        useHlCoopStore.getState().reset()
         useUiStore.getState().notify(getT().activities.guest.welcome(guestCards), 'like')
         // Poussières gagnées en invité au BookshelfDLE : elles rejoignent le compte.
         void claimGuestStardust()
@@ -185,6 +188,7 @@ export const useAuthStore = create<AuthState>()(
         useProfileStore.getState().reset()
         useDleStore.getState().reset()
         useHigherLowerStore.getState().reset()
+        useHlCoopStore.getState().reset()
         void claimGuestStardust()
       },
 

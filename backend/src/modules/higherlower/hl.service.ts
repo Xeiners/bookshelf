@@ -101,7 +101,7 @@ function markSeen(run: Run, ids: readonly string[], now: number): void {
   histories.set(key, { ids: remember(histories.get(key)?.ids ?? [], ids, historyWindow(run.pool.length)), touchedAt: now })
 }
 
-function cardOf(entry: HlEntry, revealed: boolean): HlCard {
+export function cardOf(entry: HlEntry, revealed: boolean): HlCard {
   const image = entry.character ? characterImageUrl('onepiece', entry.character) : workCover(entry.id)
   return { id: entry.id, name: entry.name, image, value: revealed ? entry.value : null }
 }
@@ -203,6 +203,31 @@ async function finishRun(run: Run, now: Date): Promise<HlResult> {
       dayRecord: dayRecord && streak > 0,
       capped: reward < cappedReward(streak, 0),
     }
+  })
+}
+
+/**
+ * Fin d'une partie COOP (cf. `hl.coop.ts`) pour un joueur : la série de l'équipe rapporte
+ * ses Poussières (même paliers, même plafond du jour que le solo), sans toucher aux
+ * records ni aux classements, qui restent ceux du solo.
+ */
+export async function creditCoop(userId: string, streak: number, metric: HlMetric, now = new Date()): Promise<{ reward: number; balance: number; capped: boolean }> {
+  const day = parisDay(now)
+  await prisma.higherLowerStats.upsert({ where: { userId }, create: { userId }, update: {} }).catch(() => undefined)
+  return prisma.$transaction(async (tx) => {
+    const stats = await tx.higherLowerStats.findUniqueOrThrow({ where: { userId } })
+    const sameDay = stats.day === day
+    const earnedBefore = sameDay ? stats.dayEarned : 0
+    const reward = cappedReward(streak, earnedBefore)
+    await tx.higherLowerStats.update({
+      where: { userId },
+      data: { games: { increment: 1 }, day, dayEarned: earnedBefore + reward, ...(sameDay ? {} : { dayBest: 0, dayMetric: null }) },
+    })
+    const balance =
+      reward > 0
+        ? await creditStardust(tx, userId, reward, 'higher_lower', { streak, metric, coop: true })
+        : ((await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } }))?.stardust ?? 0)
+    return { reward, balance, capped: reward < cappedReward(streak, 0) }
   })
 }
 

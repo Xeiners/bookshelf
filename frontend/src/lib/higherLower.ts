@@ -1,3 +1,4 @@
+import { parseRoomCode } from './dle'
 import type { HlMetric, HlTier } from '../services/higherLowerApi'
 
 /* Higher or Lower : affichage des valeurs et progression des paliers (pur, testé). */
@@ -39,4 +40,21 @@ export function initialsOf(name: string): string {
     .filter((word) => word.length > 2 || /\d/.test(word))
   const picked = (words.length > 0 ? words : [name]).slice(0, 2)
   return picked.map((word) => word.charAt(0).toUpperCase()).join('')
+}
+
+/* ---- COOP : lien d'invitation `?hl=<code>` (lu au démarrage, puis retiré de l'adresse) ---- */
+
+const COOP_PARAM = 'hl'
+
+export const coopLink = (code: string, origin: string, pathname = '/') => `${origin}${pathname}?${COOP_PARAM}=${code}`
+
+export function coopCodeFromSearch(search: string): string | null {
+  const value = new URLSearchParams(search).get(COOP_PARAM)
+  return value ? parseRoomCode(value) : null
+}
+
+export function withoutCoopParam(href: string): string {
+  const url = new URL(href)
+  url.searchParams.delete(COOP_PARAM)
+  return `${url.pathname}${url.search}${url.hash}`
 }
