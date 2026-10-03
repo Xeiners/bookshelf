@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Check, DoorOpen, Eye, Flag, Timer } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
-import { formatClock, formatSolveTime, msUntil } from '../../lib/dle'
+import { classicRevealSeconds, formatClock, formatSolveTime, msUntil } from '../../lib/dle'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { playChime, playReveal, playRiser } from '../../lib/sfx'
+import { playChime, playClockTick, playCountdown, playDleMiss, playReveal, playTimeUp } from '../../lib/sfx'
 import { dleApi, type GuessResult, type RoomGuess, type RoomPlayer, type RoomView } from '../../services/dleApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -20,6 +20,9 @@ import { ZoomFrame } from './ZoomFrame'
 
 /** Sous ce seuil, le chrono passe au rouge et bat. */
 const HURRY_MS = 30_000
+/** Dans les dernières secondes, le chrono fait tic-tac (plus aigu sous `URGENT_S`). */
+const TICK_S = 10
+const URGENT_S = 3
 const CONFIRM_MS = 3000
 
 /**
@@ -76,6 +79,17 @@ export function RoomPlay({ room }: { room: RoomView }) {
     }
   }, [room.players, room.you, notify, t])
 
+  // Fin de manche : tic-tac des dernières secondes, puis la sirène du temps écoulé.
+  const second = playing ? Math.ceil(left / 1000) : null
+  const lastSecond = useRef<number | null>(null)
+  useEffect(() => {
+    const previous = lastSecond.current
+    lastSecond.current = second
+    if (second === null || previous === null || second >= previous || room.mine.done) return
+    if (second === 0) playTimeUp()
+    else if (second <= TICK_S) playClockTick(second <= URGENT_S)
+  }, [second, room.mine.done])
+
   useEffect(() => {
     if (!armed) return
     const timer = window.setTimeout(() => setArmed(false), CONFIRM_MS)
@@ -87,11 +101,16 @@ export function RoomPlay({ room }: { room: RoomView }) {
       const view = await guessRoom(cardId)
       const last = view.mine.guesses.at(-1)
       if (last?.correct) {
-        vibrate([20, 40, 60])
-        playReveal(last.work.rarity ?? 'LEGENDARY')
-        setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.4, colors: [accentOf(last.work), '#3fe0a0', '#ffc46b', '#fff4c8'], count: 110, kind: 'sparks', spread: Math.PI * 2 })
+        // Mode classique : la victoire attend que la dernière tuile soit posée.
+        const after = room.mode === 'classic' ? classicRevealSeconds(room.category, view.mine.guesses.length) : 0
+        gsap.delayedCall(after, () => {
+          vibrate([20, 40, 60])
+          playReveal(last.work.rarity ?? 'LEGENDARY')
+          setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.4, colors: [accentOf(last.work), '#3fe0a0', '#ffc46b', '#fff4c8'], count: 110, kind: 'sparks', spread: Math.PI * 2 })
+        })
       } else {
         vibrate(8)
+        if (room.mode !== 'classic') playDleMiss()
       }
     } catch (error) {
       notify(apiErrorMessage(error, t), 'nope')
@@ -244,19 +263,13 @@ function CountdownOverlay({ msLeft }: { msLeft: number }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const label = msLeft > 0 ? String(Math.ceil(msLeft / 1000)) : t.dle.room.go
 
-  // Un seul son de montée, au premier affichage, calé sur le temps qui reste.
-  const riser = useRef(msLeft)
-  useEffect(() => {
-    playRiser(Math.max(0.5, riser.current / 1000 - 0.2))
-  }, [])
-
+  // Chaque chiffre bipe au moment où il s'affiche ; le « GO » éclate.
   useGSAP(
     () => {
       gsap.fromTo('[data-count]', { scale: 2.4, autoAlpha: 0, rotation: -8 }, { scale: 1, autoAlpha: 1, rotation: 0, duration: 0.5, ease: EASE.snap })
-      if (label === t.dle.room.go) {
-        vibrate(30)
-        playChime(true)
-      } else vibrate(8)
+      const go = label === t.dle.room.go
+      playCountdown(go)
+      vibrate(go ? 30 : 8)
     },
     { scope: rootRef, dependencies: [label] },
   )

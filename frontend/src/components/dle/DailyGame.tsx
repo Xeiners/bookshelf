@@ -3,7 +3,9 @@ import { Loader2 } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { vibrate } from '../../lib/haptics'
-import { playChime, playReveal } from '../../lib/sfx'
+import { classicRevealSeconds } from '../../lib/dle'
+import { gsap } from '../../lib/gsap'
+import { playChime, playDleMiss, playReveal } from '../../lib/sfx'
 import { dleApi, type DleMode } from '../../services/dleApi'
 import { dailyKey, useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -47,16 +49,22 @@ export function DailyGame({ mode }: { mode: DleMode }) {
     try {
       const result = await guessDaily(category, mode, cardId)
       const last = result.view.guesses.at(-1)
-      if (result.view.solved && result.view.answer) {
-        vibrate([20, 40, 60])
-        playReveal(result.view.answer.rarity ?? 'LEGENDARY')
+      // Mode classique : la victoire (ou l'indice « on brûle ») attend que la dernière tuile soit posée.
+      const after = mode === 'classic' ? classicRevealSeconds(category, result.view.guesses.length) : 0
+      const { answer } = result.view
+      if (result.view.solved && answer) {
         setVictory({ streak: result.streak })
-        const colors = [accentOf(result.view.answer), '#3fe0a0', '#ffc46b', '#ff5ec4', '#fff4c8']
-        setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.35, colors, count: 140, kind: 'confetti', spread: Math.PI * 2 })
+        gsap.delayedCall(after, () => {
+          vibrate([20, 40, 60])
+          playReveal(answer.rarity ?? 'LEGENDARY')
+          const colors = [accentOf(answer), '#3fe0a0', '#ffc46b', '#ff5ec4', '#fff4c8']
+          setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.35, colors, count: 140, kind: 'confetti', spread: Math.PI * 2 })
+        })
       } else if (last) {
         vibrate(8)
+        if (mode !== 'classic') playDleMiss()
         // Tout en vert sauf l'œuvre : on brûle, le son le dit.
-        if (last.feedback && Object.values(last.feedback).every((entry) => entry.verdict !== 'wrong')) playChime()
+        else if (last.feedback && Object.values(last.feedback).every((entry) => entry.verdict !== 'wrong')) gsap.delayedCall(after, () => playChime())
       }
     } catch (error) {
       notify(apiErrorMessage(error, t), 'nope')

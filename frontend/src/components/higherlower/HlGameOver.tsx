@@ -149,7 +149,7 @@ export function HlGameOver() {
               type="button"
               onClick={again}
               disabled={starting !== null}
-              className="relative inline-flex h-13 flex-1 items-center justify-center gap-2 overflow-hidden rounded-2xl text-sm font-bold tracking-[0.06em] text-[#04241a] uppercase transition-transform active:scale-95 disabled:opacity-70"
+              className="relative inline-flex h-13 w-full shrink-0 items-center justify-center gap-2 overflow-hidden rounded-2xl sm:w-auto sm:flex-1 text-sm font-bold tracking-[0.06em] text-[#04241a] uppercase transition-transform active:scale-95 disabled:opacity-70"
               style={{ background: HL_GRADIENT, boxShadow: '0 12px 30px -12px rgba(76,201,240,0.6), inset 0 1px 0 rgba(255,255,255,0.6)' }}
             >
               <span aria-hidden className="absolute inset-y-0 left-0 w-1/2 -skew-x-12" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent)', animation: 'shimmer 3s ease-in-out infinite' }} />
@@ -161,7 +161,7 @@ export function HlGameOver() {
             <button
               type="button"
               onClick={openHome}
-              className="inline-flex h-13 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 text-sm font-semibold text-cream transition-transform active:scale-95"
+              className="inline-flex h-13 w-full shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 text-sm font-semibold text-cream transition-transform active:scale-95 sm:w-auto sm:flex-1"
             >
               <LayoutGrid size={16} aria-hidden />
               {t.hl.over.change}

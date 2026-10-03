@@ -57,6 +57,8 @@ const work = (overrides: Partial<import('../src/modules/dle/dle.logic.js').DleWo
   series: 1,
   country: 'JP',
   genres: ['Action', 'Fantasy'],
+  themes: ['Samurai', 'Martial Arts'],
+  demographic: 'shounen',
   status: 'ongoing',
   year: 2015,
   popularity: 60_000,
@@ -89,8 +91,8 @@ before(async () => {
       mangadexId: UUID(index),
       country: ['JP', 'KR', 'CN'][index % 3] as string,
       genres: JSON.stringify(index % 2 === 0 ? ['Action', 'Fantasy'] : ['Romance']),
-      tags: '[]',
-      mangadex: '{}',
+      tags: JSON.stringify(index % 2 === 0 ? [{ name: 'Samurai', rank: 100 }, { name: 'Long Strip', rank: 100 }] : []),
+      mangadex: JSON.stringify({ attributes: { publicationDemographic: index % 2 === 0 ? 'shounen' : null } }),
       status: index % 2 === 0 ? 'ongoing' : 'completed',
       year: 2000 + index,
       popularity: 20_000 + index * 15_000,
@@ -111,17 +113,22 @@ describe('dle — logique', () => {
     for (const attribute of logic.ATTRIBUTES) assert.equal(same[attribute].verdict, 'exact', attribute)
 
     const feedback = logic.compareWorks(
-      work({ country: 'KR', genres: ['Action', 'Romance'], status: 'completed', year: 2017, rarity: 'COMMON', popularity: 150_000 }),
+      work({ country: 'KR', demographic: 'seinen', genres: ['Action', 'Romance'], themes: ['Samurai'], status: 'completed', year: 2017, rarity: 'COMMON', popularity: 150_000 }),
       answer,
     )
     assert.equal(feedback.origin.verdict, 'wrong')
+    assert.equal(feedback.demographic.verdict, 'wrong')
     assert.equal(feedback.genres.verdict, 'partial')
+    assert.equal(feedback.themes.verdict, 'partial')
     assert.equal(feedback.status.verdict, 'wrong')
     assert.deepEqual(feedback.year, { verdict: 'partial', direction: 'lower' })
     assert.deepEqual(feedback.rarity, { verdict: 'wrong', direction: 'higher' })
     assert.deepEqual(feedback.popularity, { verdict: 'wrong', direction: 'lower' })
 
     assert.equal(logic.compareWorks(work({ genres: ['Drama'] }), answer).genres.verdict, 'wrong')
+    assert.equal(logic.compareWorks(work({ themes: [] }), answer).themes.verdict, 'wrong')
+    assert.equal(logic.compareWorks(work({ themes: [] }), work({ themes: [] })).themes.verdict, 'exact')
+    assert.equal(logic.compareWorks(work({ demographic: null }), work({ demographic: null })).demographic.verdict, 'exact')
     assert.equal(logic.compareWorks(work({ year: 2005 }), answer).year.verdict, 'wrong')
     assert.equal(logic.compareWorks(work({ rarity: 'LEGENDARY' }), answer).rarity.verdict, 'partial')
     assert.equal(logic.compareWorks(work({ year: null }), work({ year: null })).year.verdict, 'exact')
@@ -230,6 +237,10 @@ describe('dle — énigme du jour', () => {
     assert.equal(miss.body.view.guesses[0].correct, false)
     assert.ok(miss.body.view.guesses[0].feedback.origin.verdict)
     assert.ok(miss.body.view.guesses[0].values.genres)
+    // Public et thèmes viennent de la fiche MangaDex ; un tag hors liste blanche (« Long Strip ») n'apparaît jamais.
+    const { values } = miss.body.view.guesses[0]
+    assert.ok(values.demographic === 'shounen' || values.demographic === null)
+    assert.ok(Array.isArray(values.themes) && !values.themes.includes('Long Strip'))
     assert.equal(miss.body.view.answer, null)
 
     assert.equal((await alice.request('POST', '/dle/daily/manga/classic/guess', { cardId: wrong })).body.error.code, 'already_guessed')

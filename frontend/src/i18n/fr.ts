@@ -1483,9 +1483,11 @@ export const fr = {
       zoomHint: 'Quelle œuvre se cache derrière ce détail ?',
       loadError: 'Impossible de charger l’énigme.',
     },
-    attributes: { work: 'Œuvre', origin: 'Origine', genres: 'Genres', status: 'Statut', year: 'Année', rarity: 'Rareté', popularity: 'Popularité' },
+    attributes: { work: 'Œuvre', origin: 'Origine', demographic: 'Public', genres: 'Genres', themes: 'Thèmes', status: 'Statut', year: 'Année', rarity: 'Rareté', popularity: 'Popularité' },
+    demographics: { shounen: 'Shōnen', shoujo: 'Shōjo', seinen: 'Seinen', josei: 'Josei' } as Record<string, string>,
     origins: { JP: 'Manga', KR: 'Manhwa', CN: 'Manhua' } as Record<string, string>,
     unknown: '?',
+    none: '—',
     verdict: { exact: 'identique', partial: 'proche', wrong: 'différent', higher: 'la réponse est plus haute', lower: 'la réponse est plus basse' },
     legend: { exact: 'Identique', partial: 'Proche', wrong: 'Différent' },
     genres: {
@@ -1494,6 +1496,15 @@ export const fr = {
       Medical: 'Médical', Mystery: 'Mystère', Philosophical: 'Philosophique', Psychological: 'Psychologique', Romance: 'Romance',
       'Sci-Fi': 'Science-fiction', 'Slice of Life': 'Tranche de vie', Sports: 'Sport', Superhero: 'Super-héros', Thriller: 'Thriller',
       Tragedy: 'Tragédie', Wuxia: 'Wuxia', "Boys' Love": 'Boys’ love', "Girls' Love": 'Girls’ love',
+    } as Record<string, string>,
+    themes: {
+      Aliens: 'Extraterrestres', Animals: 'Animaux', Cooking: 'Cuisine', Delinquents: 'Délinquants', Demons: 'Démons',
+      Ghosts: 'Fantômes', Harem: 'Harem', Magic: 'Magie', 'Martial Arts': 'Arts martiaux', Military: 'Militaire',
+      Monsters: 'Monstres', Music: 'Musique', 'Office Workers': 'Vie de bureau', Police: 'Police',
+      'Post-Apocalyptic': 'Post-apocalyptique', Reincarnation: 'Réincarnation', 'Reverse Harem': 'Harem inversé',
+      Samurai: 'Samouraïs', 'School Life': 'Vie scolaire', Supernatural: 'Surnaturel', Survival: 'Survie',
+      'Time Travel': 'Voyage temporel', Vampires: 'Vampires', 'Video Games': 'Jeux vidéo', Villainess: 'Villainess',
+      'Virtual Reality': 'Réalité virtuelle', Zombies: 'Zombies',
     } as Record<string, string>,
     room: {
       stage: (stage: number, total: number) => `Manche ${stage}/${total}`,

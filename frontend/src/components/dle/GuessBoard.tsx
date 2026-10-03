@@ -1,13 +1,16 @@
 import { useRef, type ReactNode } from 'react'
 import { ArrowBigDown, ArrowBigUp, X } from 'lucide-react'
 import { useLanguage, useT } from '../../i18n'
-import { POPULARITY_LABELS } from '../../lib/dle'
+import { HEAD_REVEAL, POPULARITY_LABELS, TILE_FLIP, TILE_LAND, TILE_STAGGER, reducedMotion } from '../../lib/dle'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
-import { playFlip } from '../../lib/sfx'
+import { playDleTile } from '../../lib/sfx'
 import { CATEGORY_ATTRIBUTES, type Attribute, type AttributeFeedback, type AttributeValues, type DleCategory, type GuessResult, type Verdict } from '../../services/dleApi'
 import { VERDICT_STYLE, verdictDot } from './dleStyle'
 
-const TILE = 'size-[4.25rem] sm:size-[4.75rem]'
+// Largeur fixe, hauteur au moins carrée : une valeur longue s'étale sur plusieurs lignes
+// et toute la ligne grandit avec elle (les tuiles d'une ligne s'étirent ensemble).
+const TILE = 'w-[4.25rem] min-h-[4.25rem] sm:w-[4.75rem] sm:min-h-[4.75rem]'
+
 
 /**
  * Plateau du mode classique : une ligne par essai (le plus récent en haut), une
@@ -31,7 +34,7 @@ export function ClassicBoard({ guesses, category, renderAuthor }: BoardProps) {
   // Révélation de l'en-tête : à l'arrivée du plateau (premier essai, ou retour sur l'énigme).
   useGSAP(
     () => {
-      if (!shown || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      if (!shown || reducedMotion()) return
       gsap.fromTo(
         '[data-head]',
         { rotationX: 90, y: -10, autoAlpha: 0, transformPerspective: 400 },
@@ -41,25 +44,28 @@ export function ClassicBoard({ guesses, category, renderAuthor }: BoardProps) {
     { scope: rootRef, dependencies: [shown] },
   )
 
-  // Nouvel essai : chaque tuile se retourne, son étiquette s'allume du même verdict.
+  // Nouvel essai : chaque tuile se retourne, son étiquette s'allume du même verdict, et
+  // son verdict sonne à l'instant où elle se pose (pas au départ de son retournement).
   useGSAP(
     () => {
       const fresh = guesses.length - seen.current
       seen.current = guesses.length
-      if (fresh <= 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      if (fresh <= 0 || reducedMotion()) return
       const tiles = gsap.utils.toArray<HTMLElement>('[data-row="0"] [data-tile]', rootRef.current)
       const heads = gsap.utils.toArray<HTMLElement>('[data-head]', rootRef.current)
       // L'en-tête vient d'apparaître : les tuiles attendent la fin de sa révélation.
-      const offset = guesses.length === 1 ? 0.45 : 0
+      const offset = guesses.length === 1 ? HEAD_REVEAL : 0
       const timeline = gsap.timeline({ delay: offset })
       tiles.forEach((tile, index) => {
-        const at = index * 0.16
+        const at = index * TILE_STAGGER
+        const verdict = (tile.dataset.verdict as Verdict | undefined) ?? 'wrong'
         timeline.fromTo(
           tile,
           { rotationX: -100, scale: 0.85, autoAlpha: 0, transformPerspective: 500 },
-          { rotationX: 0, scale: 1, autoAlpha: 1, duration: 0.45, ease: 'back.out(1.6)', onStart: index % 2 === 1 ? playFlip : undefined },
+          { rotationX: 0, scale: 1, autoAlpha: 1, duration: TILE_FLIP, ease: 'back.out(1.6)' },
           at,
         )
+        timeline.call(() => playDleTile(verdict, index), undefined, at + TILE_LAND)
         const head = heads[index]
         const color = tile.dataset.verdict ? VERDICT_STYLE[tile.dataset.verdict as Verdict].solid : '#f7f5f0'
         if (head) {
@@ -106,10 +112,10 @@ export function ClassicBoard({ guesses, category, renderAuthor }: BoardProps) {
               data-tile
               data-verdict={guess.correct ? 'exact' : 'wrong'}
               title={guess.work.name}
-              className={`${TILE} relative shrink-0 overflow-hidden rounded-xl border-[3px] bg-ink`}
+              className={`${TILE} relative shrink-0 self-stretch overflow-hidden rounded-xl border-[3px] bg-ink`}
               style={{ borderColor: guess.correct ? VERDICT_STYLE.exact.solid : 'rgba(255,255,255,0.16)' }}
             >
-              <img src={guess.work.imageUrl} alt="" loading="lazy" decoding="async" className={`h-full w-full object-cover ${category !== 'manga' ? 'object-top' : ''}`} />
+              <img src={guess.work.imageUrl} alt="" loading="lazy" decoding="async" className={`absolute inset-0 h-full w-full object-cover ${category !== 'manga' ? 'object-top' : ''}`} />
               <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/90 to-transparent px-1 pt-3 pb-0.5 text-[9px] leading-tight font-semibold text-white">{guess.work.name}</span>
             </div>
             {guess.feedback && guess.values &&
@@ -145,7 +151,7 @@ function AttributeTile({ label, feedback, children }: { label: string; feedback:
     <div
       data-tile
       data-verdict={feedback.verdict}
-      className={`${TILE} flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-center will-change-transform`}
+      className={`${TILE} flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-center will-change-transform`}
       style={{
         background: style.glass,
         color: style.color,
@@ -162,26 +168,21 @@ function AttributeTile({ label, feedback, children }: { label: string; feedback:
   )
 }
 
+/** Une valeur longue revient à la ligne (césure, sinon coupure) plutôt que d'être tronquée. */
+const WRAP = 'block max-w-full hyphens-auto [overflow-wrap:anywhere]' // i18n-ignore
+
 function AttributeValue({ attribute, values }: { attribute: Attribute; values: AttributeValues }) {
   const t = useT()
-  const text = 'text-xs leading-tight font-bold sm:text-[13px]'
+  const text = `text-xs leading-tight font-bold sm:text-[13px] ${WRAP}`
   switch (attribute) {
     case 'origin':
       return <span className={text}>{t.dle.origins[values.origin] ?? values.origin}</span>
-    case 'genres': {
-      const shown = values.genres.slice(0, 3)
-      return (
-        <span className="flex flex-col text-[10px] leading-[1.15] font-bold sm:text-[11px]">
-          {shown.length === 0 && t.dle.unknown}
-          {shown.map((genre) => (
-            <span key={genre} className="max-w-[3.9rem] truncate">
-              {t.dle.genres[genre] ?? genre}
-            </span>
-          ))}
-          {values.genres.length > 3 && <span className="opacity-70">+{values.genres.length - 3}</span>}
-        </span>
-      )
-    }
+    case 'demographic':
+      return <span className={text}>{values.demographic ? (t.dle.demographics[values.demographic] ?? values.demographic) : t.dle.unknown}</span>
+    case 'genres':
+      return <ValueList values={values.genres} label={(genre) => t.dle.genres[genre] ?? genre} empty={t.dle.unknown} />
+    case 'themes':
+      return <ValueList values={values.themes ?? []} label={(theme) => t.dle.themes[theme] ?? theme} empty={t.dle.none} />
     case 'status':
       return <span className={text}>{values.status && values.status in t.publication ? t.publication[values.status as keyof typeof t.publication] : t.dle.unknown}</span>
     case 'year':
@@ -200,7 +201,7 @@ function ValueList({ values, label, empty }: { values: string[]; label: (value: 
   return (
     <span className="flex flex-col text-[10px] leading-[1.15] font-bold sm:text-[11px]">
       {shown.map((value) => (
-        <span key={value} className="max-w-[3.9rem] truncate">
+        <span key={value} className={WRAP}>
           {label(value)}
         </span>
       ))}
@@ -213,7 +214,7 @@ function ValueList({ values, label, empty }: { values: string[]; label: (value: 
 function CharacterValue({ category, attribute, value }: { category: DleCategory; attribute: string; value: unknown }) {
   const t = useT()
   const language = useLanguage()
-  const text = 'text-xs leading-tight font-bold sm:text-[13px]'
+  const text = `text-xs leading-tight font-bold sm:text-[13px] ${WRAP}`
   const naruto = t.dle.naruto
   const onepiece = t.dle.onepiece
   const jojo = t.dle.jojo
@@ -236,7 +237,7 @@ function CharacterValue({ category, attribute, value }: { category: DleCategory;
   const names = dictionaries[attribute] ?? {}
   if (Array.isArray(value)) return <ValueList values={value.filter((entry): entry is string => typeof entry === 'string')} label={(entry) => names[entry] ?? entry} empty={empty} />
   const single = typeof value === 'string' ? value : ''
-  return <span className={`${text} line-clamp-3`}>{names[single] ?? (single || empty)}</span>
+  return <span className={text}>{names[single] ?? (single || empty)}</span>
 }
 
 /** Légende des couleurs, sous le plateau : trois pastilles, trois mots. */

@@ -418,3 +418,93 @@ export function playHlOver(): void {
   ;[440, 523.25, 659.25].forEach((frequency, index) => bell(e, frequency, at + index * 0.09, 1.6, 0.05, index * 0.3 - 0.3))
   bell(e, 329.63, at + 0.35, 2, 0.05)
 }
+
+/* ---- BookshelfDLE ------------------------------------------------------------------- */
+
+/**
+ * Une tuile du mode classique se pose : un claquement de carte, et une note qui dit le
+ * verdict (claire si identique, médiane si proche, sourde si faux). La note monte d'une
+ * tuile à l'autre : la ligne se lit comme un petit arpège.
+ */
+export function playDleTile(verdict: 'exact' | 'partial' | 'wrong', index: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const step = Math.pow(2, Math.min(index, 8) / 24)
+  const pan = Math.max(-0.5, Math.min(0.5, (index - 3.5) * 0.12))
+  noiseBurst(e, { at, duration: 0.05, from: 2200, to: 900, q: 1.4, gain: 0.1, send: 0.04, type: 'lowpass', pan })
+  if (verdict === 'exact') {
+    blip(e, 1046.5 * step, at, 0.16, 0.055, 'triangle', pan, 0.2)
+    blip(e, 1568 * step, at + 0.03, 0.12, 0.025, 'sine', pan, 0.25)
+  } else if (verdict === 'partial') blip(e, 698.46 * step, at, 0.14, 0.05, 'triangle', pan, 0.15)
+  else blip(e, 220 * step, at, 0.1, 0.06, 'sine', pan, 0.05)
+}
+
+/** Essai raté en zoom ou en pixels : deux notes sourdes qui descendent. */
+export function playDleMiss(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 330, at, 0.09, 0.06, 'triangle', 0, 0.05)
+  blip(e, 247, at + 0.09, 0.14, 0.06, 'triangle', 0, 0.05)
+}
+
+/** Décompte d'une manche : un bip par seconde (3, 2, 1), puis le « GO » éclatant. */
+export function playCountdown(go: boolean): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  if (!go) {
+    blip(e, 659.25, at, 0.14, 0.07, 'square', 0, 0.1)
+    return
+  }
+  boom(e, at, 160, 50, 0.6, 0.35)
+  ;[523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => blip(e, frequency, at + index * 0.03, 0.5, 0.05, 'triangle', index * 0.25 - 0.4, 0.3))
+  blip(e, 1318.5, at, 0.3, 0.06, 'square', 0, 0.15)
+  sparkle(e, at + 0.15, 8, 2093, 0.025)
+}
+
+/** Un joueur entre dans le salon : petit « pop » qui monte. */
+export function playJoin(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 880, at, 0.07, 0.05, 'sine', 0, 0.15)
+  blip(e, 1318.5, at + 0.06, 0.12, 0.05, 'sine', 0, 0.2)
+}
+
+/** Un joueur quitte le salon : le même « pop », qui descend. */
+export function playLeave(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 880, at, 0.07, 0.04, 'sine', 0, 0.1)
+  blip(e, 587.33, at + 0.06, 0.12, 0.04, 'sine', 0, 0.1)
+}
+
+/** Dernières secondes du chrono : un tic sec, plus aigu à la toute fin. */
+export function playClockTick(urgent: boolean): void {
+  const e = start()
+  if (!e) return
+  blip(e, urgent ? 1760 : 1320, e.ctx.currentTime, 0.04, urgent ? 0.05 : 0.035, 'square', 0, 0)
+}
+
+/** Temps écoulé : une sirène grave qui retombe. */
+export function playTimeUp(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  for (const detune of [-10, 10]) {
+    const oscillator = e.ctx.createOscillator()
+    oscillator.type = 'sawtooth'
+    oscillator.detune.value = detune
+    oscillator.frequency.setValueAtTime(392, at)
+    oscillator.frequency.exponentialRampToValueAtTime(130, at + 0.7)
+    const amp = e.ctx.createGain()
+    envelope(amp.gain, at, 0.035, 0.01, at + 0.75)
+    oscillator.connect(amp)
+    route(e, amp, 0.15)
+    oscillator.start(at)
+    oscillator.stop(at + 0.8)
+  }
+}

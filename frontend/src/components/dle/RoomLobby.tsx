@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Play, Share2, UserPlus } from 'lucide-react'
 import { useHoloTilt } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
@@ -6,6 +6,7 @@ import { apiErrorMessage } from '../../lib/apiErrors'
 import { displayRoomCode } from '../../lib/dle'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
+import { playJoin, playLeave } from '../../lib/sfx'
 import { DLE_MODES, DURATION_OPTIONS, GUESS_OPTIONS, type DleMode, type RoomPlayer, type RoomSettings, type RoomView } from '../../services/dleApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -43,6 +44,19 @@ export function RoomLobby({ room, onShare }: { room: RoomView; onShare: () => vo
     },
     { scope: rootRef, dependencies: [roster] },
   )
+
+  // Quelqu'un entre ou sort du salon : un « pop » qui monte ou qui descend (pas pour soi-même).
+  const present = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    const ids = new Set(roster ? roster.split('|') : [])
+    const before = present.current
+    present.current = ids
+    if (!before) return
+    const joined = [...ids].some((id) => !before.has(id) && id !== room.you)
+    const left = [...before].some((id) => !ids.has(id) && id !== room.you)
+    if (joined) playJoin()
+    else if (left) playLeave()
+  }, [roster, room.you])
 
   const start = async () => {
     vibrate(14)

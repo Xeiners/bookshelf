@@ -1,4 +1,4 @@
-import type { DleWorkOption, RoomView, Standing, Verdict } from '../services/dleApi'
+import { CATEGORY_ATTRIBUTES, type DleCategory, type DleWorkOption, type RoomView, type Standing, type Verdict } from '../services/dleApi'
 
 /*
  * BookshelfDLE côté client (logique pure, testée) : recherche d'une œuvre à
@@ -149,4 +149,25 @@ export const PIXEL_STEPS = [8, 10, 12, 15, 18, 22, 27, 33, 40, 48, 58, 72, 90, 1
 
 export function pixelColumns(errors: number): number | null {
   return errors >= PIXEL_STEPS.length ? null : (PIXEL_STEPS[Math.max(0, errors)] ?? null)
+}
+
+/* ---- Mode classique : rythme du retournement des tuiles --------------------------- */
+
+/** Une tuile part toutes les `TILE_STAGGER` s et se retourne en `TILE_FLIP` s ; au premier essai, l'en-tête prend `HEAD_REVEAL` s. */
+export const TILE_STAGGER = 0.16
+export const TILE_FLIP = 0.45
+export const HEAD_REVEAL = 0.45
+/** Moment où la tuile, presque à plat, « se pose » : c'est là que sonne son verdict. */
+export const TILE_LAND = 0.2
+
+export const reducedMotion = (): boolean => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * Durée du retournement du dernier essai (s) : la victoire, ses sons et ses confettis
+ * attendent que sa dernière tuile soit posée.
+ */
+export function classicRevealSeconds(category: DleCategory, guessCount: number, reduced = reducedMotion()): number {
+  if (reduced) return 0
+  const columns = 1 + CATEGORY_ATTRIBUTES[category].length
+  return (guessCount === 1 ? HEAD_REVEAL : 0) + (columns - 1) * TILE_STAGGER + TILE_FLIP
 }

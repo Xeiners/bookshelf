@@ -4,7 +4,7 @@ import { RARITIES, type Rarity } from '../cards/boosters.logic.js'
  * BookshelfDLE (logique pure, testée) : deviner une œuvre du set de cartes (catégorie
  * `manga`), ou un personnage d'un univers (`naruto`, cf. `naruto.characters.ts`),
  * façon Loldle. Deux modes :
- *  - `classic` : chaque essai compare six attributs de l'œuvre proposée à ceux
+ *  - `classic` : chaque essai compare huit attributs de l'œuvre proposée à ceux
  *    de l'œuvre cherchée (vert : identique, jaune : proche, rouge : faux, et
  *    une flèche quand la réponse est plus haute ou plus basse) ;
  *  - `zoom` : un détail de la couverture, qui se dézoome à chaque erreur ;
@@ -36,6 +36,10 @@ export interface DleWork {
   country: string
   /** Genres MangaDex (noms anglais). */
   genres: string[]
+  /** Thèmes MangaDex (noms anglais) : samouraïs, vie scolaire, magie… */
+  themes: string[]
+  /** Public visé : shounen, shoujo, seinen, josei ; `null` : non renseigné. */
+  demographic: string | null
   /** ongoing | completed | hiatus | cancelled ; `null` : inconnu. */
   status: string | null
   year: number | null
@@ -74,7 +78,7 @@ export type Verdict = 'exact' | 'partial' | 'wrong'
 /** Où se trouve la réponse par rapport à l'essai. */
 export type Direction = 'higher' | 'lower'
 
-export const ATTRIBUTES = ['origin', 'genres', 'status', 'year', 'rarity', 'popularity'] as const
+export const ATTRIBUTES = ['origin', 'demographic', 'genres', 'themes', 'status', 'year', 'rarity', 'popularity'] as const
 export type Attribute = (typeof ATTRIBUTES)[number]
 
 export interface AttributeFeedback {
@@ -87,7 +91,9 @@ export type ClassicFeedback = Record<Attribute, AttributeFeedback>
 /** Valeurs de l'œuvre proposée, affichées dans ses tuiles (le front les traduit). */
 export interface AttributeValues {
   origin: string
+  demographic: string | null
   genres: string[]
+  themes: string[]
   status: string | null
   year: number | null
   rarity: Rarity
@@ -117,7 +123,9 @@ export function compareOrdered(guess: number | null, answer: number | null, tole
 
 export const valuesOf = (work: DleWork): AttributeValues => ({
   origin: work.country,
+  demographic: work.demographic,
   genres: [...work.genres].sort(),
+  themes: [...work.themes].sort(),
   status: work.status,
   year: work.year,
   rarity: work.rarity,
@@ -136,7 +144,9 @@ export function compareSets(guess: readonly string[], answer: readonly string[])
 export function compareWorks(guess: DleWork, answer: DleWork): ClassicFeedback {
   return {
     origin: { verdict: guess.country === answer.country ? 'exact' : 'wrong' },
+    demographic: { verdict: guess.demographic === answer.demographic ? 'exact' : 'wrong' },
     genres: compareSets(guess.genres, answer.genres),
+    themes: compareSets(guess.themes, answer.themes),
     status: { verdict: guess.status === answer.status ? 'exact' : 'wrong' },
     year: compareOrdered(guess.year, answer.year, YEAR_TOLERANCE),
     rarity: compareOrdered(rarityRank(guess.rarity), rarityRank(answer.rarity), 1),

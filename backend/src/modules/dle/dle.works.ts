@@ -3,6 +3,7 @@ import { HttpError } from '../../lib/errors.js'
 import { TtlCache } from '../../lib/cache.js'
 import { isRarity } from '../cards/boosters.logic.js'
 import { normalizeText } from '../../services/catalog.service.js'
+import { TAG_FR } from '../manga/tags.js'
 import { FAMOUS_WORKS, MIN_FAMOUS } from './dle.famous.js'
 import type { DleWork } from './dle.logic.js'
 
@@ -47,13 +48,36 @@ const SEARCH_TEXT_LIMIT = 200
 
 const cache = new TtlCache<DleWorks>({ maxEntries: 1, ttlMs: 10 * 60 * 1000 })
 
-const parseGenres = (json: string): string[] => {
+const parseJson = (json: string): unknown => {
   try {
-    const value: unknown = JSON.parse(json)
-    return Array.isArray(value) ? value.filter((genre): genre is string => typeof genre === 'string') : []
+    return JSON.parse(json)
   } catch {
-    return []
+    return null
   }
+}
+
+const parseGenres = (json: string): string[] => {
+  const value = parseJson(json)
+  return Array.isArray(value) ? value.filter((genre): genre is string => typeof genre === 'string') : []
+}
+
+/** Thèmes MangaDex (`{ name, rank }[]`) de la liste blanche traduite : jamais de tag sensible ni de format. */
+export const parseThemes = (json: string): string[] => {
+  const value = parseJson(json)
+  if (!Array.isArray(value)) return []
+  const names = value.map((tag: unknown) => (tag && typeof tag === 'object' && 'name' in tag && typeof tag.name === 'string' ? tag.name : null))
+  return [...new Set(names.filter((name): name is string => name !== null && TAG_FR[name] !== undefined))]
+}
+
+const DEMOGRAPHICS = new Set(['shounen', 'shoujo', 'seinen', 'josei'])
+
+/** Public visé (`publicationDemographic` de la fiche MangaDex brute) ; `null` : non renseigné. */
+export function parseDemographic(json: string): string | null {
+  const manga = parseJson(json)
+  if (!manga || typeof manga !== 'object' || !('attributes' in manga)) return null
+  const { attributes } = manga
+  const value = attributes && typeof attributes === 'object' && 'publicationDemographic' in attributes ? attributes.publicationDemographic : null
+  return typeof value === 'string' && DEMOGRAPHICS.has(value) ? value : null
 }
 
 async function load(): Promise<DleWorks> {
@@ -63,7 +87,7 @@ async function load(): Promise<DleWorks> {
   })
   const works = await prisma.catalogWork.findMany({
     where: { mangadexId: { in: cards.map((card) => card.mangaId) } },
-    select: { mangadexId: true, country: true, genres: true, status: true, year: true, popularity: true, searchText: true },
+    select: { mangadexId: true, country: true, genres: true, tags: true, mangadex: true, status: true, year: true, popularity: true, searchText: true },
   })
   const catalog = new Map(works.map((work) => [work.mangadexId, work]))
   const all: DleWork[] = []
@@ -81,6 +105,8 @@ async function load(): Promise<DleWorks> {
       series: card.series,
       country: work.country,
       genres: parseGenres(work.genres),
+      themes: parseThemes(work.tags),
+      demographic: parseDemographic(work.mangadex),
       status: work.status,
       year: work.year,
       popularity: work.popularity,

@@ -123,3 +123,16 @@ describe('dle — Pixels', () => {
     assert.equal(pixelColumns(-3), 8)
   })
 })
+
+describe('mode classique — rythme du retournement', () => {
+  it('la victoire attend la dernière tuile (et l’en-tête au premier essai)', async () => {
+    const { classicRevealSeconds, HEAD_REVEAL, TILE_FLIP, TILE_STAGGER } = await import('../src/lib/dle.ts')
+    // Mangas : l'œuvre et huit colonnes.
+    const later = classicRevealSeconds('manga', 3, false)
+    assert.ok(Math.abs(later - (8 * TILE_STAGGER + TILE_FLIP)) < 1e-9)
+    assert.ok(Math.abs(classicRevealSeconds('manga', 1, false) - (later + HEAD_REVEAL)) < 1e-9)
+    // Personnages : six colonnes, donc plus court.
+    assert.ok(classicRevealSeconds('naruto', 3, false) < later)
+    assert.equal(classicRevealSeconds('manga', 3, true), 0)
+  })
+})

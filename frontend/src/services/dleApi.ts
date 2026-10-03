@@ -13,7 +13,7 @@ export type DleCategory = (typeof DLE_CATEGORIES)[number]
 export type Verdict = 'exact' | 'partial' | 'wrong'
 export type Direction = 'higher' | 'lower'
 
-export const ATTRIBUTES = ['origin', 'genres', 'status', 'year', 'rarity', 'popularity'] as const
+export const ATTRIBUTES = ['origin', 'demographic', 'genres', 'themes', 'status', 'year', 'rarity', 'popularity'] as const
 export type Attribute = (typeof ATTRIBUTES)[number]
 
 /** Colonnes du mode classique pour les personnages de Naruto. */
@@ -46,7 +46,11 @@ export interface AttributeFeedback {
 export interface AttributeValues {
   /** JP, KR, CN. */
   origin: string
+  /** Public visé : shounen, shoujo, seinen, josei ; `null` : non renseigné. */
+  demographic: string | null
   genres: string[]
+  /** Thèmes MangaDex (noms anglais). */
+  themes: string[]
   status: string | null
   year: number | null
   rarity: Rarity
