@@ -1,25 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FlaskConical, Gift, X, Zap } from 'lucide-react'
+import { Dices, FlaskConical, Gift, X, Zap } from 'lucide-react'
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
 import { RARITIES, RARITY_STYLE, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { playTear } from '../../lib/sfx'
+import { playChime, playHlTick, playTear } from '../../lib/sfx'
 import { ApiError, isNetworkError } from '../../services/api'
-import type { PulledCard } from '../../services/cardsApi'
+import { CARD_SERIES, type CardSeries, type PulledCard, type SeriesChoice } from '../../services/cardsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useBoosterStore } from '../../store/useBoosterStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CARD_RATIO } from '../cards/CollectibleCard'
 import { CardZoom } from '../cards/CardZoom'
 import { BoosterOpeningAnimation } from './BoosterOpeningAnimation'
+import { BoosterPackArt } from './BoosterPackArt'
 import { CardReveal } from './CardReveal'
 import { ParticleBurst, type Burst } from './ParticleBurst'
 
-/** `summoning` : le serveur tire le booster pendant que le paquet s'avance. */
-type Stage = 'summoning' | 'intro' | 'tearing' | 'reveal' | 'done' | 'error'
+/**
+ * `choose` : Série 1, Série 2 ou la roulette ; `roulette` : elle tourne pendant que le
+ * serveur tire ; `summoning` : le serveur tire le booster pendant que le paquet s'avance.
+ */
+type Stage = 'choose' | 'roulette' | 'summoning' | 'intro' | 'tearing' | 'reveal' | 'done' | 'error'
 
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight })
 
@@ -50,10 +54,15 @@ export function BoosterPackModal() {
   const openBooster = useBoosterStore((state) => state.open)
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
+  const preset = useUiStore((state) => state.boosterSeries)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const [stage, setStage] = useState<Stage>('summoning')
+  /** Série demandée (achat d'une série, choix, roulette) ; `null` : à choisir. */
+  const [choice, setChoice] = useState<SeriesChoice | null>(preset)
+  /** Série du booster tiré (celle que la roulette a désignée). */
+  const [series, setSeries] = useState<CardSeries | null>(preset === 'random' ? null : preset)
+  const [stage, setStage] = useState<Stage>(preset === null ? 'choose' : preset === 'random' ? 'roulette' : 'summoning')
   const [round, setRound] = useState(0)
   const [cards, setCards] = useState<PulledCard[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -100,24 +109,34 @@ export function BoosterPackModal() {
    */
   const requested = useRef(-1)
 
-  // Tirage côté serveur à chaque nouveau booster (`round`), pendant que le paquet s'avance.
+  // Tirage côté serveur à chaque nouveau booster (`round`), une fois la série choisie,
+  // pendant que le paquet s'avance (ou que la roulette tourne).
   useEffect(() => {
-    if (requested.current === round) return
+    if (choice === null || requested.current === round) return
     requested.current = round
     const current = round
     // Invité : booster d'essai, tiré aussi par le serveur (reçu signé gardé sur l'appareil).
-    openBooster(useAuthStore.getState().user ? 'account' : 'guest')
+    openBooster(useAuthStore.getState().user ? 'account' : 'guest', choice)
       .then((pulled) => {
         if (requested.current !== current) return
-        setCards(pulled)
-        setStage('intro')
+        setCards(pulled.cards)
+        setSeries(pulled.series)
+        // La roulette s'arrête d'elle-même sur la série tirée, puis passe la main.
+        if (choice !== 'random') setStage('intro')
       })
       .catch((reason: unknown) => {
         if (requested.current !== current) return
         setError(messageFor(reason))
         setStage('error')
       })
-  }, [round, openBooster, messageFor])
+  }, [round, choice, openBooster, messageFor])
+
+  const pick = (next: SeriesChoice) => {
+    vibrate(10)
+    setChoice(next)
+    setSeries(next === 'random' ? null : next)
+    setStage(next === 'random' ? 'roulette' : 'summoning')
+  }
 
   const { contextSafe } = useGSAP(
     () => {
@@ -167,11 +186,14 @@ export function BoosterPackModal() {
       spread: count < 20 ? Math.PI * 0.55 : Math.PI * 0.9,
     })
 
+  // Booster suivant : on rechoisit sa série (ou la roulette).
   const again = () => {
     setCards([])
     setError(null)
     setBurst(null)
-    setStage('summoning')
+    setChoice(null)
+    setSeries(null)
+    setStage('choose')
     setRound((value) => value + 1)
   }
 
@@ -246,10 +268,17 @@ export function BoosterPackModal() {
         data-shake
         className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-y-auto' : 'overflow-visible'}`}
       >
+        {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round(viewport.width * 0.38))} onPick={pick} />}
+
+        {stage === 'roulette' && (
+          <Roulette width={Math.min(150, Math.round(viewport.width * 0.38))} result={series} onLanded={() => setStage('intro')} />
+        )}
+
         {(stage === 'summoning' || stage === 'intro' || stage === 'tearing') && (
           <>
             <BoosterOpeningAnimation
               key={round}
+              series={series}
               width={packWidthFor(viewport.width)}
               halo={haloFor(cards)}
               ready={stage !== 'summoning'}
@@ -312,6 +341,140 @@ export function BoosterPackModal() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Choix du booster : les deux séries, chacune dans son paquet, et la roulette. */
+function SeriesPicker({ width, onPick }: { width: number; onPick: (choice: SeriesChoice) => void }) {
+  const t = useT()
+  const ref = useRef<HTMLDivElement>(null)
+  useGSAP(
+    () => {
+      gsap.fromTo('[data-pick]', { y: 40, autoAlpha: 0, rotation: (index) => (index === 0 ? -8 : 8) }, { y: 0, autoAlpha: 1, rotation: 0, duration: 0.7, stagger: 0.1, ease: EASE.glide })
+      gsap.fromTo('[data-pick-roulette]', { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, delay: 0.35, ease: EASE.glide })
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        gsap.to('[data-pick-float]', { y: -8, duration: 1.6, ease: 'sine.inOut', repeat: -1, yoyo: true, stagger: 0.4 })
+      }
+    },
+    { scope: ref },
+  )
+  return (
+    <div ref={ref} className="flex flex-col items-center gap-7 text-center">
+      <div>
+        <h2 className="font-display text-3xl text-cream">{t.boosters.choose.title}</h2>
+        <p className="mt-1.5 text-xs text-cream/60">{t.boosters.choose.hint}</p>
+      </div>
+      <div className="flex items-end gap-5">
+        {CARD_SERIES.map((series) => (
+          <button
+            key={series}
+            type="button"
+            data-pick
+            onClick={() => onPick(series)}
+            aria-label={t.boosters.choose.pick(series)}
+            className="flex flex-col items-center gap-3 transition-transform active:scale-95"
+          >
+            <span data-pick-float className="block will-change-transform">
+              <BoosterPackArt width={width} series={series} lit />
+            </span>
+            <span className="text-sm font-semibold tracking-[0.12em] text-cream uppercase">{t.boosters.seriesName(series)}</span>
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        data-pick-roulette
+        onClick={() => onPick('random')}
+        className="inline-flex items-center gap-2.5 rounded-full px-6 py-3 text-sm font-bold text-[#2a1a02] shadow-[0_0_28px_rgba(255,196,107,0.45)] transition-transform active:scale-95"
+        style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' }}
+      >
+        <Dices size={18} aria-hidden />
+        <span className="flex flex-col items-start leading-tight">
+          <span>{t.boosters.choose.roulette}</span>
+          <span className="text-[10px] font-semibold opacity-75">{t.boosters.choose.rouletteHint}</span>
+        </span>
+      </button>
+    </div>
+  )
+}
+
+/** Tour minimal de la roulette, même si le serveur répond aussitôt : le suspense compte. */
+const ROULETTE_MIN_MS = 2400
+
+/**
+ * La roulette : la lumière saute d'un paquet à l'autre, de plus en plus lentement, et
+ * s'arrête sur la série que le serveur a tirée (`result`), une fois le tour minimal fait.
+ */
+function Roulette({ width, result, onLanded }: { width: number; result: CardSeries | null; onLanded: () => void }) {
+  const t = useT()
+  const ref = useRef<HTMLDivElement>(null)
+  const [lit, setLit] = useState(0)
+  const [landed, setLanded] = useState<CardSeries | null>(null)
+  const resultRef = useRef(result)
+  const landedRef = useRef(onLanded)
+  useEffect(() => {
+    resultRef.current = result
+    landedRef.current = onLanded
+  })
+
+  // La lumière alterne : chaque pas un peu plus long que le précédent (décélération).
+  useEffect(() => {
+    const started = performance.now()
+    let delay = 70
+    let index = 0
+    let timer = 0
+    const step = () => {
+      const elapsed = performance.now() - started
+      const target = resultRef.current
+      const next = (index + 1) % CARD_SERIES.length
+      // Assez tourné, résultat connu, et la lumière tombe sur la bonne série : on s'arrête.
+      if (elapsed >= ROULETTE_MIN_MS && target !== null && CARD_SERIES[next] === target && delay > 220) {
+        index = next
+        setLit(next)
+        setLanded(target)
+        vibrate([20, 40, 30])
+        playChime(true)
+        timer = window.setTimeout(() => landedRef.current(), 900)
+        return
+      }
+      index = next
+      setLit(next)
+      playHlTick(Math.min(1, elapsed / ROULETTE_MIN_MS))
+      vibrate(4)
+      delay = Math.min(420, delay * 1.13)
+      timer = window.setTimeout(step, delay)
+    }
+    timer = window.setTimeout(step, delay)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  useGSAP(
+    () => {
+      gsap.fromTo(`[data-roulette="${lit}"]`, { scale: 1.12 }, { scale: 1.06, duration: 0.25, ease: EASE.snap })
+      if (landed !== null) gsap.fromTo(`[data-roulette="${lit}"]`, { scale: 1.25, rotation: -4 }, { scale: 1.12, rotation: 0, duration: 0.6, ease: EASE.spring })
+    },
+    { scope: ref, dependencies: [lit, landed] },
+  )
+
+  return (
+    <div ref={ref} className="flex flex-col items-center gap-7 text-center" aria-live="polite">
+      <div className="flex items-end gap-5">
+        {CARD_SERIES.map((series, index) => {
+          const on = index === lit
+          return (
+            <span
+              key={series}
+              data-roulette={index}
+              className="block transition-[opacity,filter] duration-150 will-change-transform"
+              style={{ opacity: landed !== null && !on ? 0.25 : on ? 1 : 0.45 }}
+            >
+              <BoosterPackArt width={width} series={series} lit={on} halo={on ? 'LEGENDARY' : null} />
+            </span>
+          )
+        })}
+      </div>
+      <p className="font-display text-2xl text-cream">{landed !== null ? t.boosters.choose.landed(landed) : t.boosters.choose.spinning}</p>
     </div>
   )
 }

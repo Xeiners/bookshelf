@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { SeriesChoice } from '../services/cardsApi'
 import type { Book, LibraryTab } from '../types/book'
 import type { ReaderSession } from '../types/reader'
 
@@ -68,7 +69,10 @@ interface UiState {
   closeNovels: () => void
   /** Va sur un écran des Activités (le hub, l'Oracle, la collection). */
   openActivity: (activity: ActivityScreen) => void
-  openBooster: () => void
+  /** Ouvre la fenêtre des boosters ; `series` : déjà choisie (achat d'une série), sinon le choix s'affiche. */
+  openBooster: (series?: SeriesChoice) => void
+  /** Série demandée à l'ouverture de la fenêtre ; `null` : à choisir. */
+  boosterSeries: SeriesChoice | null
   closeBooster: () => void
   openSettings: () => void
   closeSettings: () => void
@@ -102,6 +106,7 @@ export const useUiStore = create<UiState>((set) => ({
   novelsOpen: false,
   activity: 'hub',
   boosterOpen: false,
+  boosterSeries: null,
   settingsOpen: false,
   profileEditorOpen: false,
   musicOpen: false,
@@ -126,7 +131,7 @@ export const useUiStore = create<UiState>((set) => ({
   openNovels: () => set({ novelsOpen: true, detail: null }),
   closeNovels: () => set({ novelsOpen: false }),
   openActivity: (activity) => set({ view: 'activities', activity, chromeCollapsed: false }),
-  openBooster: () => set({ boosterOpen: true, detail: null }),
+  openBooster: (series) => set({ boosterOpen: true, boosterSeries: series ?? null, detail: null }),
   closeBooster: () => set({ boosterOpen: false }),
   openSettings: () => set({ settingsOpen: true, profileEditorOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),

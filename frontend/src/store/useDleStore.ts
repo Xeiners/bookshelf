@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { getT } from '../i18n'
 import { clockOffset, isNewer } from '../lib/dle'
 import { ApiError } from '../services/api'
+import type { CardSeries } from '../services/cardsApi'
 import {
   DLE_MODES,
   dleApi,
@@ -87,7 +88,8 @@ interface DleState {
   watch: () => () => void
 
   /** Achète un booster avec des Poussières, puis l'ouvre aussitôt. */
-  buyBooster: () => Promise<void>
+  /** Achète un booster de la série choisie, et l'ouvre. */
+  buyBooster: (series: CardSeries) => Promise<void>
   /** Nouveau solde de Poussières gagné ailleurs (Higher or Lower) : le badge suit. */
   setStardust: (balance: number) => void
   reset: () => void
@@ -262,11 +264,11 @@ export const useDleStore = create<DleState>((set, get) => ({
     return () => controller.abort()
   },
 
-  buyBooster: async () => {
+  buyBooster: async (series) => {
     const { balance, status } = await stardustApi.buyBooster()
     set((state) => ({ overview: state.overview ? { ...state.overview, stardust: balance } : state.overview }))
     useBoosterStore.setState({ status, syncedAt: performance.now(), offline: false })
-    useUiStore.getState().openBooster()
+    useUiStore.getState().openBooster(series)
   },
 
   setStardust: (balance) => set((state) => ({ overview: state.overview ? { ...state.overview, stardust: balance } : state.overview })),

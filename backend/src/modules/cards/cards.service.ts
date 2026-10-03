@@ -6,10 +6,13 @@ import { getPool, loadDocuments, type CatalogItem } from '../../services/catalog
 import { normalizeManga } from '../manga/normalize.js'
 import {
   BOOSTER_INTERVAL_MS,
+  CARD_SERIES,
   MAX_BOOSTERS,
+  RARITIES,
   SET_LAYOUT,
   SET_SIZE,
   assignRarities,
+  chooseSeries,
   consume,
   drawPack,
   hasReachedHardPity,
@@ -23,6 +26,7 @@ import {
   secondsUntilNext,
   type BoosterState,
   type Rarity,
+  type SeriesChoice,
 } from './boosters.logic.js'
 import { GUEST_BOOSTERS, readGuestPacks, signGuestPack, type GuestPack } from './guestPacks.js'
 import { SERIES_2, seedSeries2 } from './series2.seed.js'
@@ -157,7 +161,7 @@ const RETRY_GROWTH_MS = 10 * 60 * 1000
  * Set prêt, créé ou agrandi au premier besoin, puis renvoyé. Un agrandissement
  * qui échoue n'empêche jamais d'ouvrir un booster avec le set actuel.
  */
-export async function ensureCardSet(): Promise<{ id: string; rarity: string }[]> {
+export async function ensureCardSet(): Promise<{ id: string; rarity: string; series: number }[]> {
   const count = await prisma.card.count({ where: { series: 1 } })
   // La pause ne vaut que pour un agrandissement : un premier set est toujours retenté.
   const recentlyStalled = count > 0 && stalled !== null && stalled.count === count && Date.now() - stalled.at < RETRY_GROWTH_MS
@@ -190,7 +194,42 @@ export async function ensureCardSet(): Promise<{ id: string; rarity: string }[]>
       }
     }
   }
-  return prisma.card.findMany({ select: { id: true, rarity: true } })
+  return prisma.card.findMany({ select: { id: true, rarity: true, series: true } })
+}
+
+/** Les cartes d'une série (choisie, ou tirée à la roulette) ; 503 si aucune carte n'est prête. */
+function seriesCards<C extends { series: number }>(set: readonly C[], choice: SeriesChoice, random: () => number): { series: number; cards: C[] } {
+  const series = chooseSeries([...new Set(set.map((card) => card.series))], choice, random)
+  if (series === null) throw notReady()
+  return { series, cards: set.filter((card) => card.series === series) }
+}
+
+/* ---- Vitrine des séries -------------------------------------------------------------- */
+
+export interface SeriesShowcase {
+  series: number
+  /** Cartes de la série. */
+  size: number
+  /** Couvertures pour l'illustration du paquet : les cartes les plus rares d'abord. */
+  covers: string[]
+}
+
+const SHOWCASE_COVERS = 12
+let showcase: { at: number; value: SeriesShowcase[] } | null = null
+
+/** Les séries prêtes et de quoi illustrer leurs boosters (mis en cache 10 min). */
+export async function seriesShowcase(now = Date.now()): Promise<SeriesShowcase[]> {
+  if (showcase && now - showcase.at < 10 * 60 * 1000) return showcase.value
+  const cards = await prisma.card.findMany({ select: { series: true, rarity: true, imageUrl: true, number: true }, orderBy: { number: 'asc' } })
+  const rank = (rarity: string) => (isRarity(rarity) ? RARITIES.indexOf(rarity) : -1)
+  const value = CARD_SERIES.flatMap((series) => {
+    const own = cards.filter((card) => card.series === series)
+    if (own.length === 0) return []
+    const covers = [...own].sort((a, b) => rank(b.rarity) - rank(a.rarity) || a.number - b.number).slice(0, SHOWCASE_COVERS).map((card) => card.imageUrl)
+    return [{ series, size: own.length, covers }]
+  })
+  showcase = { at: now, value }
+  return value
 }
 
 /* ---- Stock de boosters ----------------------------------------------------------- */
@@ -323,8 +362,8 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
 
 export async function openBooster(
   userId: string,
-  options: { now?: Date; random?: () => number; unlimited?: boolean } = {},
-): Promise<{ cards: PulledCard[]; status: BoosterStatus }> {
+  options: { now?: Date; random?: () => number; unlimited?: boolean; series?: SeriesChoice } = {},
+): Promise<{ cards: PulledCard[]; status: BoosterStatus; series: number }> {
   const now = options.now ?? new Date()
   const random = options.random ?? Math.random
   // Recette : aucun booster n'est dépensé, le stock enregistré reste intact.
@@ -333,12 +372,13 @@ export async function openBooster(
   const set = await ensureCardSet()
   // Jamais un booster dépensé sans cartes à tirer.
   if (set.length === 0) throw notReady()
+  const { series, cards: pool } = seriesCards(set, options.series ?? 'random', random)
   // Dépense et cartes ensemble : un booster n'est jamais dépensé sans ses cartes.
   return prisma.$transaction(async (tx) => {
     const spent = unlimited
       ? { state: initialState(), boostersSinceLastMythic: 0, gifted: 0 }
       : await spendBooster(tx, userId, now)
-    const drawn = drawPack(set, random, {
+    const drawn = drawPack(pool, random, {
       forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
     })
     const cards: PulledCard[] = []
@@ -366,7 +406,7 @@ export async function openBooster(
         },
       })
     }
-    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted) }
+    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted), series }
   })
 }
 
@@ -465,8 +505,8 @@ function guestOwnership(packs: readonly GuestPack[]): Map<string, Owned> {
  */
 export async function openGuestBooster(
   receipts: readonly string[],
-  options: { now?: Date; random?: () => number } = {},
-): Promise<{ cards: PulledCard[]; receipt: string; remaining: number }> {
+  options: { now?: Date; random?: () => number; series?: SeriesChoice } = {},
+): Promise<{ cards: PulledCard[]; receipt: string; remaining: number; series: number }> {
   const packs = readGuestPacks(receipts)
   if (packs.length >= GUEST_BOOSTERS) {
     throw new HttpError(409, 'guest_limit', 'Crée un compte pour ouvrir d’autres boosters.')
@@ -474,7 +514,9 @@ export async function openGuestBooster(
   const set = await ensureCardSet()
   if (set.length === 0) throw notReady()
   const now = options.now ?? new Date()
-  const drawn = drawPack(set, options.random ?? Math.random).map((card) => card.id)
+  const random = options.random ?? Math.random
+  const { series, cards: pool } = seriesCards(set, options.series ?? 'random', random)
+  const drawn = drawPack(pool, random).map((card) => card.id)
   const rows = new Map((await prisma.card.findMany({ where: { id: { in: drawn } } })).map((card) => [card.id, card]))
   const owned = guestOwnership(packs)
   const cards = drawn.flatMap((id): PulledCard[] => {
@@ -484,7 +526,7 @@ export async function openGuestBooster(
     owned.set(id, { count: before + 1, isFavorite: false, obtainedAt: now })
     return [{ card: toCardDto(card), isNew: before === 0, count: before + 1 }]
   })
-  return { cards, receipt: signGuestPack(drawn, now), remaining: GUEST_BOOSTERS - packs.length - 1 }
+  return { cards, receipt: signGuestPack(drawn, now), remaining: GUEST_BOOSTERS - packs.length - 1, series }
 }
 
 /** Album d'un invité, reconstitué depuis ses reçus. */

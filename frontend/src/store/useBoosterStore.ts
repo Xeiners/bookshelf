@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { addToTally, emptyTally, type BoosterStatus, type DropTally } from '../lib/boosters'
 import { isNetworkError } from '../services/api'
-import { cardsApi, type PulledCard } from '../services/cardsApi'
+import { cardsApi, type CardSeries, type PulledCard, type SeriesChoice, type SeriesShowcase } from '../services/cardsApi'
 import { useGuestCardsStore } from './useGuestCardsStore'
 
 /**
@@ -27,7 +27,10 @@ interface BoosterState {
    * gardé sur l'appareil). Lève l'erreur de l'API (409 : plus de stock,
    * 503 : collection en préparation).
    */
-  open: (as: 'account' | 'guest') => Promise<PulledCard[]>
+  open: (as: 'account' | 'guest', series: SeriesChoice) => Promise<{ cards: PulledCard[]; series: CardSeries }>
+  /** Couvertures de chaque série (illustration des paquets) ; `null` tant qu'elles ne sont pas chargées. */
+  showcase: SeriesShowcase[] | null
+  loadShowcase: () => Promise<void>
   /** L'album a changé ailleurs (échange au marché) : il se recharge, sans disparaître entre-temps. */
   collectionChanged: () => void
   /** Compte déconnecté : plus de stock à afficher. */
@@ -35,6 +38,7 @@ interface BoosterState {
 }
 
 let inflight: Promise<void> | null = null
+let showcaseLoading = false
 
 export const useBoosterStore = create<BoosterState>((set) => ({
   status: null,
@@ -43,6 +47,19 @@ export const useBoosterStore = create<BoosterState>((set) => ({
   offline: false,
   collectionVersion: 0,
   tally: emptyTally(),
+  showcase: null,
+
+  loadShowcase: async () => {
+    if (showcaseLoading) return
+    showcaseLoading = true
+    try {
+      set({ showcase: (await cardsApi.series()).series })
+    } catch {
+      // Sans couvertures, les paquets gardent leur décor de base.
+    } finally {
+      showcaseLoading = false
+    }
+  },
 
   refresh: () => {
     inflight ??= (async () => {
@@ -62,18 +79,18 @@ export const useBoosterStore = create<BoosterState>((set) => ({
     return inflight
   },
 
-  open: async (as) => {
+  open: async (as, choice) => {
     if (as === 'guest') {
       const guest = useGuestCardsStore.getState()
-      const { cards, receipt } = await cardsApi.guestOpen(guest.receipts)
+      const { cards, receipt, series } = await cardsApi.guestOpen(guest.receipts, choice)
       guest.add(receipt)
       set((state) => ({
         collectionVersion: state.collectionVersion + 1,
         tally: addToTally(state.tally, cards.map((pulled) => pulled.card.rarity)),
       }))
-      return cards
+      return { cards, series }
     }
-    const { cards, status } = await cardsApi.open()
+    const { cards, status, series } = await cardsApi.open(choice)
     set((state) => ({
       status,
       syncedAt: performance.now(),
@@ -81,7 +98,7 @@ export const useBoosterStore = create<BoosterState>((set) => ({
       collectionVersion: state.collectionVersion + 1,
       tally: addToTally(state.tally, cards.map((pulled) => pulled.card.rarity)),
     }))
-    return cards
+    return { cards, series }
   },
 
   collectionChanged: () => set((state) => ({ collectionVersion: state.collectionVersion + 1 })),

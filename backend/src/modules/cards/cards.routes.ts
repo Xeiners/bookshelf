@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { config } from '../../config.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
-import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, setFavorite } from './cards.service.js'
+import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
 
 /*
@@ -16,6 +16,9 @@ import { GUEST_BOOSTERS } from './guestPacks.js'
 
 /** Reçus d'essai présentés par un invité. */
 const GuestBody = z.object({ receipts: z.array(z.string().max(1024)).max(GUEST_BOOSTERS * 2).default([]) })
+/** Série du booster : 1, 2, ou la roulette (par défaut). */
+const Series = z.union([z.literal(1), z.literal(2), z.literal('random')]).default('random')
+const OpenBody = z.object({ series: Series })
 
 /** Monté sous `/api/boosters`. */
 export const boostersRouter = Router()
@@ -29,7 +32,14 @@ const guestLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: config.cards.unl
 /** Booster d'essai : cartes tirées et leur reçu signé. 409 une fois l'essai épuisé. */
 boostersRouter.post('/guest/open', guestLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store')
-  res.json(await openGuestBooster(GuestBody.parse(req.body ?? {}).receipts))
+  const { receipts } = GuestBody.parse(req.body ?? {})
+  res.json(await openGuestBooster(receipts, { series: OpenBody.parse(req.body ?? {}).series }))
+})
+
+/** Les séries et leurs couvertures (illustration des boosters). Public. */
+boostersRouter.get('/series', async (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=600')
+  res.json({ series: await seriesShowcase() })
 })
 
 boostersRouter.use(requireAuth)
@@ -49,7 +59,7 @@ const openLimiter = rateLimit({ windowMs: 60 * 1000, max: config.cards.unlimited
 /** Ouvre un booster : 4 cartes tirées, enregistrées, et le stock à jour. 409 si le stock est vide. */
 boostersRouter.post('/open', openLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store')
-  res.json(await openBooster(currentUserId(req)))
+  res.json(await openBooster(currentUserId(req), { series: OpenBody.parse(req.body ?? {}).series }))
 })
 
 /** Monté sous `/api/cards`. */

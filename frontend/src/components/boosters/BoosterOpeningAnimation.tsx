@@ -1,6 +1,7 @@
 import { useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useT } from '../../i18n'
 import type { Rarity } from '../../lib/boosters'
+import type { CardSeries } from '../../services/cardsApi'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playCutTick } from '../../lib/sfx'
@@ -24,6 +25,8 @@ interface BoosterOpeningAnimationProps {
   onSparks: (x: number, y: number, count: number) => void
   /** Fin de l'animation de déchirure : les cartes peuvent jaillir. */
   onTorn: () => void
+  /** Série du paquet (son illustration) ; `null` tant que la roulette n'a pas parlé. */
+  series?: CardSeries | null
 }
 
 /**
@@ -34,7 +37,7 @@ interface BoosterOpeningAnimationProps {
  * (ou relâchée aux trois quarts), la bande s'arrache, une gerbe d'étincelles
  * jaillit, le paquet s'enfonce hors champ ; relâchée trop tôt, elle se recolle.
  */
-export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSparks, onTorn }: BoosterOpeningAnimationProps) {
+export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSparks, onTorn, series = null }: BoosterOpeningAnimationProps) {
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   /** Découpe en cours : point de départ, avancement (0 → 1), dernières étincelles et vibrations. */
@@ -189,7 +192,7 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
         {/* Sous-arbre aplati (pas de `preserve-3d`) : un calque par élément animé, rien de plus. */}
         <div data-pack-body className="h-full w-full" style={{ willChange: 'transform' }}>
           <div data-pack-float className="h-full w-full" style={{ willChange: 'transform' }}>
-            <BoosterPackArt width={width} halo={halo} lit={ready} />
+            <BoosterPackArt width={width} halo={halo} lit={ready} series={series} />
           </div>
         </div>
       </button>

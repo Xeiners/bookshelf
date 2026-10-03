@@ -178,6 +178,25 @@ export function drawPack<C extends { id: string; rarity: string }>(
   return picked
 }
 
+/* ---- Séries ------------------------------------------------------------------------- */
+
+/** Les séries du set : chaque booster appartient à l'une d'elles. */
+export const CARD_SERIES = [1, 2] as const
+export type CardSeries = (typeof CARD_SERIES)[number]
+/** Série demandée à l'ouverture : l'une des deux, ou la roulette. */
+export type SeriesChoice = CardSeries | 'random'
+
+/**
+ * Série d'un booster : celle demandée si elle a des cartes, sinon (roulette, ou série
+ * pas encore prête) une série tirée au hasard parmi celles qui en ont. `null` : aucune.
+ */
+export function chooseSeries(available: readonly number[], choice: SeriesChoice, random: () => number): number | null {
+  const ready = CARD_SERIES.filter((series) => available.includes(series))
+  if (ready.length === 0) return null
+  if (choice !== 'random' && ready.includes(choice)) return choice
+  return ready[Math.min(ready.length - 1, Math.floor(random() * ready.length))] ?? null
+}
+
 /** Le prochain booster est le 30e de la série sèche : son dernier slot est forcé. */
 export const hasReachedHardPity = (boostersSinceLastMythic: number): boolean =>
   boostersSinceLastMythic >= HARD_PITY_PACKS - 1

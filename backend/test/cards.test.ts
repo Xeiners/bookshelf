@@ -513,3 +513,41 @@ describe('API — boosters et collection', () => {
     assert.equal(after.length, TOTAL_CARD_COUNT)
   })
 })
+
+describe('boosters — séries 1 et 2', () => {
+  it('série demandée si elle est prête, sinon la roulette', async () => {
+    const { chooseSeries } = await import('../src/modules/cards/boosters.logic.js')
+    assert.equal(chooseSeries([1, 2], 2, () => 0), 2)
+    assert.equal(chooseSeries([1, 2], 1, () => 0.99), 1)
+    assert.equal(chooseSeries([1, 2], 'random', () => 0), 1)
+    assert.equal(chooseSeries([1, 2], 'random', () => 0.99), 2)
+    // Série 2 pas encore prête : on retombe sur la 1.
+    assert.equal(chooseSeries([1], 2, () => 0.99), 1)
+    assert.equal(chooseSeries([], 'random', () => 0), null)
+  })
+
+  it('un booster de la série choisie ne contient que ses cartes ; la roulette dit laquelle est sortie', async () => {
+    const { openBooster } = await import('../src/modules/cards/cards.service.js')
+    const account = await signedUp()
+    for (const series of [1, 2] as const) {
+      const opened = await openBooster(account.userId, { unlimited: true, series })
+      assert.equal(opened.series, series)
+      assert.ok(opened.cards.every((pulled) => pulled.card.series === series))
+    }
+    const rolled = await account.request('POST', '/boosters/open', { series: 'random' })
+    assert.equal(rolled.status, 200)
+    assert.ok([1, 2].includes(rolled.body.series))
+    assert.ok(rolled.body.cards.every((pulled: { card: { series: number } }) => pulled.card.series === rolled.body.series))
+    assert.equal((await account.request('POST', '/boosters/open', { series: 3 })).status, 400)
+  })
+
+  it('vitrine : chaque série et ses couvertures, les plus rares d’abord', async () => {
+    const { status, body } = await client().request('GET', '/boosters/series')
+    assert.equal(status, 200)
+    assert.deepEqual(body.series.map((entry: { series: number }) => entry.series), [1, 2])
+    for (const entry of body.series) {
+      assert.equal(entry.size, SET_SIZE)
+      assert.ok(entry.covers.length > 0 && entry.covers.length <= 12)
+    }
+  })
+})

@@ -208,8 +208,12 @@ function BoosterAltar() {
           <div data-altar-shadow aria-hidden className="absolute bottom-6 h-5 w-28 rounded-[50%]" style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,0.85), transparent)', willChange: 'transform' }} />
           <div data-altar-pack className="relative mb-6" style={{ willChange: 'transform' }}>
             {/* Vue isométrique : perspective et rotations dans un seul transform, sous-arbre aplati. */}
-            <div style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(-24deg) rotateZ(-3deg)' }}>
-              <BoosterPackArt width={122} lit={lit} dim={!lit} halo={lit ? 'LEGENDARY' : null} />
+            {/* Les deux séries en éventail : la 2 en retrait, la 1 devant. */}
+            <div className="absolute top-2 left-10" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(-24deg) rotateZ(9deg)', opacity: 0.9 }}>
+              <BoosterPackArt width={112} series={2} lit={lit} dim={!lit} />
+            </div>
+            <div className="relative -left-6" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(-24deg) rotateZ(-5deg)' }}>
+              <BoosterPackArt width={122} series={1} lit={lit} dim={!lit} halo={lit ? 'LEGENDARY' : null} />
             </div>
           </div>
         </div>
