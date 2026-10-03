@@ -17,6 +17,7 @@ export const TITLE_IDS = [
   'sage',
   'riddler',
   'dleMaster',
+  'sharpEye',
 ] as const
 export type TitleId = (typeof TITLE_IDS)[number]
 
@@ -49,6 +50,8 @@ export interface ProfileStats {
     completion: number
   }
   gacha: { boostersOpened: number }
+  /** Higher or Lower : meilleure série de tous les temps et du jour. */
+  higherLower?: { best: number; todayBest: number }
 }
 
 export interface ProfileData {

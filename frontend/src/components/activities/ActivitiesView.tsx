@@ -12,11 +12,13 @@ import { SanctumBackdrop } from './SanctumBackdrop'
 
 // BookshelfDLE : chargé à la première partie.
 const DleView = lazy(() => import('../dle/DleView').then((module) => ({ default: module.DleView })))
+// Higher or Lower : idem.
+const HigherLowerView = lazy(() => import('../higherlower/HigherLowerView').then((module) => ({ default: module.HigherLowerView })))
 
 /**
  * Onglet « Activités » : le hub, ou un de ses modules (l'Oracle, la
- * collection, le marché d'échange, le BookshelfDLE) avec un retour vers le hub
- * (le BookshelfDLE a le sien : ses écrans ont chacun leur retour). Chaque écran arrive en glissant.
+ * collection, le marché d'échange, le BookshelfDLE, le Higher or Lower) avec un
+ * retour vers le hub (les deux jeux ont le leur : leurs écrans ont chacun leur retour). Chaque écran arrive en glissant.
  */
 export function ActivitiesView() {
   const t = useT()
@@ -37,7 +39,7 @@ export function ActivitiesView() {
       <SanctumBackdrop />
       {activity === 'hub' ? (
         <ActivitiesHub />
-      ) : activity === 'dle' ? (
+      ) : activity === 'dle' || activity === 'higherlower' ? (
         <Suspense
           fallback={
             <div className="grid flex-1 place-items-center">
@@ -45,7 +47,7 @@ export function ActivitiesView() {
             </div>
           }
         >
-          <DleView />
+          {activity === 'dle' ? <DleView /> : <HigherLowerView />}
         </Suspense>
       ) : (
         <>

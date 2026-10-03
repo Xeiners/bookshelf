@@ -309,3 +309,112 @@ export function playChime(bright = false): void {
   bell(e, bright ? 1046.5 : 880, at, 0.9, 0.035, -0.15)
   bell(e, bright ? 1568 : 1318.5, at + 0.11, 1.2, 0.03, 0.15)
 }
+
+/* ---- Higher or Lower ----------------------------------------------------------------- */
+
+/** Blip bref : un sinus (ou triangle) qui pique puis s'éteint aussitôt. */
+function blip(e: Engine, frequency: number, at: number, duration: number, gain: number, type: OscillatorType = 'sine', pan = 0, send = 0.1): void {
+  const oscillator = e.ctx.createOscillator()
+  oscillator.type = type
+  oscillator.frequency.value = frequency
+  const amp = e.ctx.createGain()
+  envelope(amp.gain, at, gain, 0.003, at + duration)
+  oscillator.connect(amp)
+  route(e, amp, send, pan)
+  oscillator.start(at)
+  oscillator.stop(at + duration + 0.03)
+}
+
+/** Choix d'un terrain : un petit « tic » de verre. */
+export function playHlSelect(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 1760, at, 0.08, 0.05)
+  noiseBurst(e, { at, duration: 0.04, from: 5000, to: 3000, q: 2, gain: 0.05, send: 0 })
+}
+
+/** Lancer une partie : arpège montant rapide, comme un compteur qui s'allume. */
+export function playHlStart(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => blip(e, frequency, at + index * 0.055, 0.18, 0.06, 'triangle', index * 0.2 - 0.3, 0.25))
+  noiseBurst(e, { at, duration: 0.3, from: 600, to: 4000, q: 1.2, gain: 0.06, send: 0.2 })
+}
+
+/** Réponse donnée : un souffle qui monte (plus haut) ou qui descend (plus bas), et un déclic. */
+export function playHlPress(choice: 'higher' | 'lower'): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const up = choice === 'higher'
+  noiseBurst(e, { at, duration: 0.2, from: up ? 700 : 2600, to: up ? 2600 : 700, q: 1.3, gain: 0.12, send: 0.1 })
+  blip(e, up ? 880 : 660, at, 0.06, 0.06, 'square', 0, 0)
+}
+
+/** Le compteur défile : tic dont la hauteur monte avec l'avancement (0 → 1). */
+export function playHlTick(progress: number): void {
+  const e = start()
+  if (!e) return
+  blip(e, 900 + progress * 1100, e.ctx.currentTime, 0.03, 0.035, 'square', 0, 0)
+}
+
+/** Bonne réponse : deux notes claires et des étincelles ; la mélodie monte d'un demi-ton par point de série (une octave au plus). */
+export function playHlRight(streak: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const shift = Math.pow(2, Math.min(12, Math.max(0, streak - 1)) / 12)
+  bell(e, 783.99 * shift, at, 0.9, 0.07, -0.2)
+  bell(e, 1174.66 * shift, at + 0.08, 1.2, 0.07, 0.2)
+  sparkle(e, at + 0.12, 5, 2093 * shift, 0.02)
+}
+
+/** Mauvaise réponse : un « bwoum » qui s'affaisse, deux triangles désaccordés et un grave. */
+export function playHlWrong(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  for (const detune of [-14, 14]) {
+    const oscillator = e.ctx.createOscillator()
+    oscillator.type = 'triangle'
+    oscillator.detune.value = detune
+    oscillator.frequency.setValueAtTime(330, at)
+    oscillator.frequency.exponentialRampToValueAtTime(110, at + 0.55)
+    const amp = e.ctx.createGain()
+    envelope(amp.gain, at, 0.09, 0.01, at + 0.6)
+    oscillator.connect(amp)
+    route(e, amp, 0.2)
+    oscillator.start(at)
+    oscillator.stop(at + 0.65)
+  }
+  boom(e, at, 120, 40, 0.6, 0.3)
+}
+
+/** Les cartes glissent : un souffle d'air qui passe de droite à gauche. */
+export function playHlSlide(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.45, from: 500, to: 2200, q: 0.9, gain: 0.08, send: 0.25, pan: 0.4 })
+  noiseBurst(e, { at: at + 0.15, duration: 0.35, from: 2200, to: 900, q: 0.9, gain: 0.06, send: 0.25, pan: -0.4 })
+}
+
+/** Palier de récompense atteint en pleine série : arpège lumineux et pluie d'étoiles. */
+export function playHlTier(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[1046.5, 1318.5, 1568, 2093].forEach((frequency, index) => bell(e, frequency, at + index * 0.06, 1.4, 0.06, index * 0.3 - 0.45))
+  sparkle(e, at + 0.25, 10, 2637, 0.025)
+}
+
+/** Fin de série sans record : accord mineur doux qui retombe. */
+export function playHlOver(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[440, 523.25, 659.25].forEach((frequency, index) => bell(e, frequency, at + index * 0.09, 1.6, 0.05, index * 0.3 - 0.3))
+  bell(e, 329.63, at + 0.35, 2, 0.05)
+}

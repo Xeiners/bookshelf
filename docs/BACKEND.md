@@ -105,6 +105,20 @@ model CatalogWork {                    // catalogue MangaDex en cache, cf. §7 t
 }
 ```
 
+Modèles ajoutés depuis (détails dans les sections dédiées) :
+
+| Modèle / champ | Rôle | Section |
+| --- | --- | --- |
+| `TradeOffer` | offre d'échange de doublons | §7 septies |
+| `Notification` | notification d'un compte (`type` + `data` JSON, `readAt`) | §7 octies |
+| `User.suspendedAt`, `suspendedReason`, `sessionVersion`, `lastSeenAt` | administration, sessions révocables | §7 nonies |
+| `UserBooster.giftedBoosters` | boosters de réserve (offerts ou achetés), hors plafond | §7 nonies, §7 duodecies |
+| `AdminAction` | journal de l'administration (sans clé étrangère) | §7 nonies |
+| `User.stardust`, `StardustEntry` | Poussières d'Étoile et historique des mouvements | §7 duodecies |
+| `DlePuzzle` `(day, category, mode)` | énigme du jour du BookshelfDLE, fixée au premier joueur | §7 undecies |
+| `DleDaily` `(userId, day, category, mode)` | partie d'un compte sur une énigme du jour | §7 undecies |
+| `DleStats` | palmarès BookshelfDLE (série, victoires) | §7 undecies |
+
 Choix notables :
 
 - **Clés composites `(userId, workId)`.** La fusion peut faire des upserts
@@ -553,6 +567,65 @@ Toutes authentifiées sauf `search`. Le livre d'un autre compte répond **404**
 Toutes authentifiées. Une offre porte `mine`, `canAccept` (exemplaire libre de la carte demandée) et
 `ownsOffered` ; le créateur n'est exposé que par son id et son pseudo, jamais son e-mail.
 
+### Notifications (cf. §7 octies)
+
+| Méthode | Route | Réponse |
+| --- | --- | --- |
+| GET | `/api/notifications?since=<ISO>` | `{ notifications, unread }` — 30 jours ; `since` : seulement les plus récentes |
+| POST | `/api/notifications/read` | `{ ids? }` → `{ unread }` — marque lues (toutes sans `ids`) |
+| DELETE | `/api/notifications/:id` | `{ unread }` |
+
+### Administration (cf. §7 nonies) — `ADMIN_EMAILS` seulement, 404 pour les autres
+
+| Méthode | Route | Rôle |
+| --- | --- | --- |
+| GET | `/api/admin/overview` | chiffres clés (comptes, actifs, suspendus, offres, échanges, boosters) |
+| GET | `/api/admin/users?q=&filter=all\|active\|suspended&cursor=` | recherche de comptes (paginée) |
+| GET | `/api/admin/users/:id` · `/users/:id/avatar-image` | fiche d'un compte · sa photo importée |
+| POST | `/api/admin/users/:id/boosters` | `{ count: 1-20, message? }` — boosters offerts |
+| POST | `/api/admin/users/:id/cards` | `{ cardId, count: 1-10, message? }` — carte offerte |
+| POST | `/api/admin/users/:id/suspend` · `/unsuspend` | `{ reason }` — 409 `already_suspended` / `not_suspended`, 403 `admin_protected` |
+| POST | `/api/admin/users/:id/moderate` | `{ displayName?, bio?, avatar?, makePrivate?, cancelOffers? }` (booléens) |
+| GET | `/api/admin/cards?q=` · `/api/admin/audit?userId=&cursor=` | recherche de cartes · journal |
+
+### Profils publics (ajouts)
+
+| Méthode | Route | Réponse |
+| --- | --- | --- |
+| GET | `/api/users/:id/avatar` | la photo importée du compte (publique, cache immuable, `?v=` change à chaque envoi) |
+| GET | `/api/users/:id/collection` | album du membre ; 403 `profile_private` (sauf le sien), 404 inconnu |
+
+### BookshelfDLE (cf. §7 undecies)
+
+`:category` ∈ `manga` · `naruto` · `onepiece` · `jojo` · `jjk` ; `:mode` ∈ `classic` · `zoom` · `pixel`.
+
+| Méthode | Route | Accès | Réponse |
+| --- | --- | --- | --- |
+| GET | `/api/dle` | libre | accueil : solde, palmarès, énigmes du jour de chaque catégorie, `currentRoom`, `guest` |
+| POST | `/api/dle/guest` | libre | `{ name? }` → `{ guest: { id, name } }` + cookie signé d'invité |
+| GET | `/api/dle/works?category=` | libre | propositions de la saisie : `{ id, name, imageUrl, rarity, number, search }[]` |
+| GET | `/api/dle/characters/:category/:id/image` | libre | portrait relayé (vignettes) |
+| GET | `/api/dle/daily/:category/:mode` | compte | énigme du jour : essais, verdicts, `focus` (zoom), réponse une fois trouvée |
+| POST | `/api/dle/daily/:category/:mode/guess` | compte | `{ cardId }` → `{ view, earned, balance, streak }` · 409 `already_solved` / `already_guessed` · 400 `unknown_work` |
+| GET | `/api/dle/daily/:category/:mode/image` | compte | image de l'énigme (formats à image), sans son adresse |
+| POST | `/api/dle/rooms` | compte ou invité | `{ category, modes[], visibility, kind }` → 201 salon |
+| POST | `/api/dle/rooms/quick` | compte ou invité | `{ category, modes[], kind }` → salon public qui attend, sinon un nouveau |
+| GET | `/api/dle/rooms/:code?v=<version>` | membre | **attente longue** : répond au changement suivant (25 s au plus) |
+| POST | `/api/dle/rooms/:code/join` · `/leave` · `/start` · `/rematch` · `/forfeit` | membre | — |
+| POST | `/api/dle/rooms/:code/settings` | hôte | `{ kind?, modes?, maxGuesses?: null\|5…30, roundSeconds?: 60…600 }` |
+| POST | `/api/dle/rooms/:code/guess` | membre | `{ cardId }` |
+| GET | `/api/dle/rooms/:code/image?round=` | membre | image de la manche (formats à image) |
+
+401 `guest_required` sur les salons sans compte ni pseudo d'invité.
+
+### Poussières d'Étoile (cf. §7 duodecies) — authentifiées
+
+| Méthode | Route | Réponse |
+| --- | --- | --- |
+| GET | `/api/stardust` | `{ balance, boosterPrice, history }` |
+| POST | `/api/stardust/booster` | `{ balance, status }` · 409 `not_enough_stardust` (`balance`, `price`) |
+| POST | `/api/stardust/claim` | `{ receipts: string[] }` → `{ balance, credited }` (reçus d'invité) |
+
 ---
 
 ## 5. Stratégie « invité d'abord »
@@ -996,6 +1069,143 @@ Tests : `backend/test/trades.test.ts` — doublon exigé, réservation, rareté,
 et conservation des cartes, refus sans effet, acceptations et créations **simultanées**, deux offres du
 même doublon acceptées en même temps, avatar nettoyé, annulation, historique.
 
+## 7 octies. Notifications (`src/modules/notifications/`)
+
+Quatre types : `trade_accepted` (une de mes offres est prise), `trade_match` (une nouvelle offre propose
+une carte qui me manque contre une que j'ai), `booster_gift` et `card_gift` (cadeaux de l'administration).
+Le serveur n'envoie que des **données** (`type` + `data` JSON : instantanés des cartes, offre, autre
+compte) ; le front rédige le texte dans sa langue.
+
+- `trade_accepted` est écrit **dans la transaction** de l'échange (jamais d'échange sans sa notification).
+- `trade_match` est envoyé après la création de l'offre, au mieux : 200 destinataires au plus, 5 alertes
+  par compte et par heure.
+- Le front interroge `GET /api/notifications?since=` toutes les 45 s (page visible) : pas de connexion
+  permanente à faire passer par Caddy et Nginx. `active` signale une offre encore ouverte.
+- Conservation : 30 jours.
+
+Tests : `backend/test/notifications.test.ts`.
+
+## 7 nonies. Administration (`src/modules/admin/`)
+
+**Accès** : les e-mails de `ADMIN_EMAILS` (liste séparée par des virgules, casse ignorée, cf.
+`config.admins`). Aucune route ni colonne ne permet de le devenir. Les autres comptes reçoivent **404**
+sur `/api/admin/*` (la route n'existe pas pour eux) ; `publicUser.isAdmin` dit au front d'afficher l'entrée.
+
+- **Suspension** : `suspendedAt` + motif, `sessionVersion` incrémentée — tous les jetons déjà émis
+  (claim `sv`) deviennent invalides. `lib/sessionGuard.ts` vérifie compte et version à chaque requête
+  (cache 20 s), répond 401 `account_suspended` ; la connexion répond 403 avec le motif, **seulement
+  après un mot de passe juste**. Les offres du compte sont retirées. Un administrateur ne peut pas être
+  suspendu. Réactiver laisse le compte se reconnecter.
+- **Boosters offerts** : `UserBooster.giftedBoosters`, hors plafond, jamais perdus, consommés **après**
+  le stock qui se régénère (son minuteur repart au plus tôt). La même réserve reçoit les boosters achetés
+  avec des Poussières (§7 duodecies).
+- **Modération** : pseudo, bio, avatar (photo supprimée du disque), profil privé, offres annulées.
+- **Journal** `AdminAction` : qui, quoi, à qui, détails JSON — sans clé étrangère, il survit aux comptes.
+- `lastSeenAt` : dernière requête authentifiée, écrite au plus toutes les 5 minutes.
+
+Tests : `backend/test/admin.test.ts`.
+
+## 7 decies. Photos de profil et collections publiques
+
+- **Photo importée** : servie par une adresse **publique par compte**, `/api/users/<id>/avatar?v=<horodatage>`
+  (le recadrage reste dans le fragment `#bookshelf-avatar=…`). L'ancienne adresse servait la photo *de la
+  personne connectée* : les autres ne voyaient jamais celle d'un membre. Migration `public_avatar_photo`
+  (réécriture SQL) ; `publicAvatarUrl` réécrit aussi à la volée une ancienne adresse restée en base.
+  Un compte ne peut pas prendre la photo d'un autre (400 `avatar_not_owned`). Les couvertures extraites des
+  EPUB restent privées.
+- **Album d'un membre** : `GET /api/users/:id/collection` — tout le set, ce qu'il possède, ses doublons ;
+  visible si le profil est public (ou par son titulaire).
+
+Tests : `backend/test/memberCollection.test.ts`, `publicProfile.test.ts`.
+
+## 7 undecies. BookshelfDLE (`src/modules/dle/`)
+
+Mini-jeu façon Loldle : deviner une œuvre ou un personnage.
+
+| Fichier | Rôle |
+| --- | --- |
+| `dle.logic.ts` | logique pure (testée) : comparaisons, paliers, zoom, gains, classement, jour de Paris, codes de salon |
+| `dle.games.ts` | une catégorie = un `DleGame` : propositions, colonnes, comparaison, résumé, image |
+| `dle.works.ts` + `dle.famous.ts` | catégorie `manga` : les cartes du set **célèbres** (110 titres choisis à la main) |
+| `naruto.characters.ts`, `onepiece.characters.ts`, `jojo.characters.ts`, `jjk.characters.ts` | fiches de personnages rédigées à la main |
+| `dle.jikan.ts` | portraits : Jikan → Kitsu → wiki Fandom → recherche Jikan |
+| `dle.daily.ts` | énigmes du jour, gains, série |
+| `dle.rooms.ts` | salons multijoueurs en mémoire, attente longue |
+| `dle.guests.ts` | invités : cookie signé, reçus de Poussières |
+
+**Catégories et formats.**
+
+- `manga` (110 œuvres), `naruto` (58), `onepiece` (55), `jojo` (60), `jjk` (45).
+- **Classique** : six colonnes par catégorie, vert (identique), orange (proche : ensembles qui se
+  recoupent, valeur ordonnée à un cran), rouge, et une flèche ↑ ↓ pour les valeurs ordonnées (année,
+  rareté, paliers de popularité ou de prime, grade, arc d'apparition).
+- **Zoom** (Couverture / Portrait) : un détail grossi autour d'un `focus` choisi par le serveur, qui
+  recule à chaque erreur.
+- **Pixels** : l'image pixellisée côté front (8 → 150 pixels de large sur 15 crans).
+- Les formats à image (`isImageMode`) n'utilisent que les propositions qui ont une image (`zoomPool`).
+
+**Énigme du jour.** Une par `(jour de Paris, catégorie, format)`, la même pour tout le monde, tirée au
+premier appel (graine secrète dérivée de `JWT_SECRET`) et fixée en base (`DlePuzzle`) : un set qui change
+ne la change pas. Pas deux fois la même proposition en 120 jours. La réponse ne quitte jamais le serveur
+avant d'être trouvée ; l'image passe par `/daily/:category/:mode/image`, qui ne la nomme pas. Essais
+illimités (60 au plus). Victoire : `dailyReward` (25 + jusqu'à 40 selon la vitesse + jusqu'à 25 de
+série), série commune à toutes les catégories (`DleStats`), tout dans une transaction ; la ligne
+`DleDaily` est créée **avant** la transaction (une création concurrente qui échoue annulerait sinon toute
+la transaction sous PostgreSQL), puis verrou optimiste sur la liste des essais.
+
+**Salons multijoueurs** (`dle.rooms.ts`).
+
+- **En mémoire** : une seule instance d'API. Un redémarrage ferme les salons ; les gains déjà
+  distribués sont en base.
+- **Temps réel par attente longue** : `GET /rooms/:code?v=N` ne répond qu'au changement suivant
+  (`bump` réveille les attentes), 25 s au plus. Nginx tient 60 s ; le Service Worker ne touche pas `/api`.
+- **10 joueurs**, comptes ou invités, un salon par joueur. Partie rapide : un salon public de même
+  catégorie, formats et type. **C'est toujours l'hôte qui lance.**
+- **VERSUS** : chacun sa grille, les autres ne voient que les couleurs de ses essais. **COOP** : une
+  grille commune (`shared`), chaque essai avec son auteur (`by`, `byName`), victoire collective.
+- **Réglages de l'hôte** : formats enchaînés (`modes`, ordre Classique → Couverture → Pixels :
+  la manche suivante part seule après 8 s, classement général à la fin), essais (`null` = illimités,
+  5 à 30), durée (1 à 10 min).
+- **Classement** : VERSUS — trouvés du plus rapide au plus lent, puis les plus proches. Gains par manche :
+  40 / 25 / 15 aux trois premiers qui trouvent, 10 aux autres, 5 sinon ; COOP : 30 chacun si l'équipe
+  trouve, 5 sinon. À deux joueurs ou plus, 8 manches récompensées par 24 h glissantes. Classement général
+  (plusieurs formats) : 3 / 2 / 1 point par manche (COOP : 1 par manche réussie).
+- Ménage toutes les 10 s : absents retirés des salons d'attente, salons abandonnés fermés.
+
+**Invités** (`dle.guests.ts`).
+
+- **Identité** : `POST /api/dle/guest` pose un cookie signé (HMAC, HTTP-only) `{ id: guest_…, name }`,
+  30 jours. `requirePlayer` accepte un compte, sinon cet invité.
+- **Gains** : pas de solde en base. En fin de manche, un **reçu signé** `{ n, a, t }` (montant, horodatage,
+  identifiant unique), que le front garde sur l'appareil et que `/api/stardust/claim` échange à la
+  connexion ou à l'inscription : une fois chacun, tous comptes confondus ; périmé à 14 jours ; 300 ✦
+  d'invité au plus par compte (pas de ferme à comptes jetables).
+
+**Portraits** (`dle.jikan.ts`, une `portraitSource` par univers).
+
+1. Listes de personnages des séries sur Jikan (MyAnimeList).
+2. Listes Kitsu des mêmes séries (mêmes portraits, sur fond).
+3. Fiche du wiki Fandom de l'univers (API MediaWiki, 50 titres par requête, redirections suivies ;
+   images souvent détourées sur fond transparent). Les images Fandom ne se servent qu'avec un
+   `User-Agent` de navigateur et un `Referer` du wiki.
+4. Recherche Jikan par nom, pour les derniers manquants.
+
+Les noms se comparent par `nameKey` (romanisations : Hyuuga = Hyuga, Kuujou = Kujo, ordre indifférent) ;
+`mal` et `wiki` corrigent les cas particuliers. La liste est servie même périmée pendant qu'une
+nouvelle se charge en arrière-plan (24 h, ou 10 min si incomplète), les requêtes Jikan de tous les
+univers passent à la file, les images sont relayées et gardées en cache (`cdn.myanimelist.net`,
+`media.kitsu.app`, `static.wikia.nocookie.net` seulement). Le serveur précharge tout au démarrage.
+
+Tests : `backend/test/dle.test.ts` — Jikan, Kitsu et Fandom simulés.
+
+## 7 duodecies. Poussières d'Étoile (`src/modules/stardust/`)
+
+Monnaie du BookshelfDLE : `User.stardust` (jamais négatif), chaque mouvement dans `StardustEntry`
+(`dle_daily`, `dle_room`, `booster_purchase`, `guest_claim`), qui sert aussi de compteur pour les
+plafonds. **Booster** : 150 ✦, débit conditionnel (`where stardust >= prix`) dans la même transaction
+que l'ajout à `giftedBoosters` — deux achats simultanés ne passent jamais à découvert. Le front ouvre le
+booster aussitôt.
+
 ## 8. Limites connues et suites possibles
 
 - Les entrées de bibliothèque créées du temps d'AniList depuis une carte
@@ -1005,6 +1215,11 @@ même doublon acceptées en même temps, avatar nettoyé, annulation, historique
   MangaDex (éditeur d'origine, édition anglaise) : moins de plateformes
   françaises (Delitoon, ONO…) qu'avant.
 
+- BookshelfDLE : les salons, les invités récompensés du jour et les listes de portraits sont en
+  mémoire, donc propres à une instance (un redémarrage ferme les salons en cours). Les portraits
+  dépendent de services tiers (Jikan, souvent en panne quand MyAnimeList le refuse ; Kitsu, incomplet ;
+  Fandom) : les garder en base éviterait de repartir de zéro à chaque démarrage. Les fiches de
+  personnages (grades, primes, natures, arcs) sont rédigées à la main et peuvent contenir des erreurs.
 - Le cache, le limiteur de débit et la file de requêtes MangaDex sont en mémoire,
   donc propres à une instance. En multi-instance, passer sur Redis (même
   interface que `TtlCache`).

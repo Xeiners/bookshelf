@@ -146,6 +146,7 @@ export function ProfileView() {
             collection={collection}
             reading={reading}
             boostersOpened={boostersOpened}
+            higherLower={own?.stats.higherLower ?? null}
             onOpenCollection={() => openActivity('collection')}
           />
         </div>

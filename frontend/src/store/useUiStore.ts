@@ -4,7 +4,7 @@ import type { ReaderSession } from '../types/reader'
 
 export type ViewId = 'discover' | 'activities' | 'search' | 'library' | 'profile'
 /** Écran de l'onglet « Activités » : le hub, ou un de ses modules. */
-export type ActivityScreen = 'hub' | 'oracle' | 'collection' | 'market' | 'dle'
+export type ActivityScreen = 'hub' | 'oracle' | 'collection' | 'market' | 'dle' | 'higherlower'
 export type ToastTone = 'like' | 'nope' | 'neutral'
 
 export interface Toast {

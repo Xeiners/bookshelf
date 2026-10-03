@@ -131,8 +131,9 @@ les workspaces npm). Chaque Dockerfile a son `Dockerfile.dockerignore` voisin
 
 Voir `.env.example` : ports (`PORT`, `APP_URL`, `DEV_*`), PostgreSQL, `JWT_SECRET`,
 `COOKIE_SECURE`, `TRUST_PROXY`, `CORS_ORIGINS`, `PUBLIC_API_BASE`,
-`VITE_API_URL`, `CATALOG_SYNC`, `MANGADEX_USER_AGENT`. Compose refuse de
-démarrer sans `POSTGRES_PASSWORD` ni `JWT_SECRET`.
+`VITE_API_URL`, `CATALOG_SYNC`, `MANGADEX_USER_AGENT`, `ADMIN_EMAILS` (comptes
+administrateurs, séparés par des virgules). Compose refuse de démarrer sans
+`POSTGRES_PASSWORD` ni `JWT_SECRET`.
 
 ## 6. Mise en production sur un serveur
 

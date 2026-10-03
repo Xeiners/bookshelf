@@ -21,6 +21,7 @@ import { notificationsRouter } from './modules/notifications/notifications.route
 import { adminRouter } from './modules/admin/admin.routes.js'
 import { dleRouter } from './modules/dle/dle.routes.js'
 import { stardustRouter } from './modules/stardust/stardust.routes.js'
+import { higherLowerRouter } from './modules/higherlower/hl.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -59,6 +60,7 @@ export function createApp() {
   app.use('/api/admin', adminRouter)
   app.use('/api/dle', dleRouter)
   app.use('/api/stardust', stardustRouter)
+  app.use('/api/higher-lower', higherLowerRouter)
   app.use('/api/profile', profileRouter)
   app.use('/api/users', publicProfileRouter)
   app.use('/api/music', musicRouter)

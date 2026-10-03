@@ -80,6 +80,7 @@ model User {
   stardustEntries StardustEntry[]
   dleDailies     DleDaily[]
   dleStats       DleStats?
+  higherLowerStats HigherLowerStats?
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -468,4 +469,26 @@ model DleStats {
   updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Higher or Lower : meilleures séries d'un compte (cf. `src/modules/higherlower/`).
+model HigherLowerStats {
+  userId     String    @id
+  /// Record de tous les temps, sa métrique et sa date (départage du classement).
+  best       Int       @default(0)
+  bestMetric String?
+  bestAt     DateTime?
+  /// Jour (heure de Paris) auquel se rapportent les trois champs suivants.
+  day        String?
+  dayBest    Int       @default(0)
+  dayMetric  String?
+  /// Poussières gagnées ce jour-là (plafonnées).
+  dayEarned  Int       @default(0)
+  games      Int       @default(0)
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([best])
+  @@index([day, dayBest])
 }

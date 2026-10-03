@@ -88,6 +88,8 @@ interface DleState {
 
   /** Achète un booster avec des Poussières, puis l'ouvre aussitôt. */
   buyBooster: () => Promise<void>
+  /** Nouveau solde de Poussières gagné ailleurs (Higher or Lower) : le badge suit. */
+  setStardust: (balance: number) => void
   reset: () => void
 }
 
@@ -266,6 +268,8 @@ export const useDleStore = create<DleState>((set, get) => ({
     useBoosterStore.setState({ status, syncedAt: performance.now(), offline: false })
     useUiStore.getState().openBooster()
   },
+
+  setStardust: (balance) => set((state) => ({ overview: state.overview ? { ...state.overview, stardust: balance } : state.overview })),
 
   reset: () => set({ screen: { kind: 'home' }, overview: null, overviewStatus: 'idle', daily: {}, room: null, pendingCode: null }),
 }))

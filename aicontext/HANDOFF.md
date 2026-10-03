@@ -15,6 +15,9 @@ Bibliothèque manga / manhwa mobile-first, en production sur
 **https://bookshelf.findi.cc**. On découvre des œuvres en les swipant, on les range
 dans une étagère, on cherche dans le catalogue, on tire un « Oracle » quotidien
 (tirage de cartes façon tarot). Favoris et notes (demi-étoiles) sur les livres lus.
+Activités : boosters et album de cartes, Marché d'échange de doublons, **BookshelfDLE**
+(devinettes façon Loldle, en solo et à plusieurs) et sa monnaie, les **Poussières d'Étoile** ;
+notifications, administration (`ADMIN_EMAILS`), albums des autres membres.
 Dark mode, animations 100 % GSAP, installable en PWA. Compte facultatif (le mode
 invité vit en localStorage et fusionne dans le compte à l'inscription). Interface
 FR / EN.
@@ -35,7 +38,7 @@ npm install                  # à la racine : les deux workspaces (+ prisma gene
 npm run dev                  # API :5000 + front :5173 (proxy /api)
 npm run typecheck            # tsgo (TypeScript 7), les deux workspaces
 npm run lint                 # oxlint
-npm test                     # API : node:test (273 tests) · front : audit i18n + tests unitaires (102)
+npm test                     # API : node:test (~400 tests) · front : audit i18n + tests unitaires (~180)
 npm run build
 npm run preview -w frontend  # seul moyen de tester le service worker (inactif en dev)
 ```
@@ -80,13 +83,20 @@ modules/discover   deck « Pour toi » et catalogue filtrable (/browse)
 modules/oracle     tirage quotidien, série (streak)
 modules/books      romans EPUB du compte : import, fichier (Range), position synchronisée ; fiches Open Library + Google Books
 modules/trades     marché d'échange de doublons : offres, réservation, échange atomique (cf. BACKEND §7 septies)
+modules/notifications  notifications (échange conclu, offre qui intéresse, cadeaux) — BACKEND §7 octies
+modules/admin      administration : ADMIN_EMAILS, suspension, cadeaux, modération, journal — §7 nonies
+modules/dle        BookshelfDLE : énigmes du jour, salons en mémoire (attente longue), invités, portraits — §7 undecies
+modules/stardust   Poussières d'Étoile : solde, historique, achat de booster, reçus d'invité — §7 duodecies
+lib/sessionGuard   sessions révocables (compte suspendu, sessionVersion), cache 20 s
 services/          catalogue MangaDex en cache, moteur de recommandation
 ```
 
 Modèles Prisma : `User`, `LibraryEntry`, `SkippedWork`, `UserPreference`,
 `CatalogWork`, `CatalogSync`, `PendingRegistration`, `UserBooster`, `Card`,
 `UserCard`, `UserBook` (romans EPUB du compte, cf. docs/BACKEND.md §7 sexies),
-`MusicPlaylist`, `TradeOffer` (marché d'échange de doublons, cf. docs/BACKEND.md §7 septies).
+`MusicPlaylist`, `TradeOffer` (marché d'échange de doublons, cf. docs/BACKEND.md §7 septies),
+`Notification`, `AdminAction`, `StardustEntry`, `DlePuzzle`, `DleDaily`, `DleStats` (tableau dans
+docs/BACKEND.md §2).
 
 ### Frontend (`frontend/src`)
 
@@ -94,10 +104,11 @@ Modèles Prisma : `User`, `LibraryEntry`, `SkippedWork`, `UserPreference`,
 App.tsx            coquille : rail / barre de nav, en-tête global, transitions de vue
 lib/gsap.ts        enregistrement unique des plugins + vocabulaire EASE / DUR
 services/api.ts    client fetch (cookie de session, ApiError avec details)
-store/             library · auth · oracle · settings · search · ui
+store/             library · auth · oracle · settings · search · ui · trade · notification · dle · guestStardust…
 hooks/             useDiscoveryQueue (deck) · usePwaInstall · useCoverTone · useCatalog…
 i18n/              fr.ts / en.ts, typés : une clé manquante casse le typecheck
 components/        discover · library · search · tarot · profile · book · layout · ui · reader
+                   activities · boosters · cards · trading · notifications · admin · dle (BookshelfDLE)
 lib/reader/        lecteur : progression, préchargement, navigation, formats, sources (purs, testés), IndexedDB
 workers/           prefetch.worker.ts (préchargement des pages hors du fil principal)
 public/sw.js       service worker (cf. §7)
@@ -234,6 +245,24 @@ officiels externes, sans page hébergée : l'API les exclut et le lecteur affich
 
 ---
 
+### 5.18 Pas de création concurrente dans une transaction interactive (PostgreSQL)
+
+Une création qui échoue (P2002, deux requêtes simultanées) **annule toute la transaction** sous
+PostgreSQL : les écritures suivantes échouent. Créer la ligne avant la transaction (`upsert`, erreur
+ignorée), puis écrire dedans avec un verrou optimiste (`updateMany … where`) — cf. `guessDaily`.
+
+### 5.19 Animer l'opacité, jamais `filter`
+
+Animer un `filter` CSS repeint l'élément à chaque frame (lent sur téléphone). Superposer des copies à
+filtres fixes et animer leur opacité, ou dessiner dans un petit canevas (mode Pixels). Toujours aucun
+flou ni `drop-shadow` (§5.5) ; les ombres extérieures débordent des grilles serrées : halos intérieurs.
+
+### 5.20 Images des wikis Fandom
+
+`static.wikia.nocookie.net` répond 403 sans `User-Agent` de navigateur ET `Referer` du wiki : le relais
+des portraits les envoie (`dle.jikan.ts`). Ces images sont souvent détourées (PNG transparent) :
+toujours les poser sur un fond opaque (pixellisation, cadres).
+
 ## 6. Production
 
 - **VPS OVH partagé** avec d'autres projets. Dépôt cloné dans `~/projects/bookshelf`.
@@ -250,6 +279,13 @@ officiels externes, sans page hébergée : l'API les exclut et le lecteur affich
   `APP_URL=https://bookshelf.findi.cc`, SMTP Gmail. **Les secrets ne sont que sur le
   serveur** ; `.env` est ignoré par git, seul `.env.example` est versionné.
 - Sans `SMTP_HOST` en production, l'inscription répond 503 `email_unavailable` (volontaire).
+- `ADMIN_EMAILS` (liste d'e-mails séparés par des virgules) : seuls ces comptes voient
+  l'administration ; vide, elle n'existe pour personne.
+- L'API doit pouvoir joindre, en sortie : MangaDex, `api.jikan.moe`, `cdn.myanimelist.net`,
+  `kitsu.app`, `media.kitsu.app`, les wikis `*.fandom.com` et `static.wikia.nocookie.net`
+  (portraits du BookshelfDLE, préchargés au démarrage : lignes `[dle] portraits … : n/N` dans les journaux).
+- Les salons multijoueurs du BookshelfDLE vivent en mémoire de l'API : **une seule instance**, et un
+  redémarrage (déploiement) ferme les parties en cours.
 
 Mettre à jour :
 
@@ -286,6 +322,9 @@ Diagnostiquer une couverture : `docker compose logs backend | grep covers` — c
   n'est plus appelé nulle part). Les couvertures passent **obligatoirement par
   notre proxy** `/api/covers` (MangaDex refuse le hotlinking depuis un navigateur).
   Proxy : cache mémoire 300 entrées / 12 h, une nouvelle tentative sur erreur réseau ou 5xx.
+- **Portraits du BookshelfDLE** : Jikan (MyAnimeList) → Kitsu → wiki Fandom → recherche Jikan
+  (docs/BACKEND.md §7 undecies). Jikan tombe souvent en panne (504 quand MyAnimeList le refuse) :
+  la liste incomplète est réessayée toutes les 10 min, servie entre-temps. **AniList reste exclu.**
 - Le catalogue est alimenté en tâche de fond (`CATALOG_SYNC`, coupé en test) dans
   `CatalogWork`. Recommandation : affinité par genres/tags (`tanh`), favoris et notes
   pondèrent (`likeWeight`), 80 % proches des goûts / 20 % découverte. Couverte par
@@ -323,10 +362,21 @@ et lecture hors-ligne sur le build de production (Service Worker actif). Détail
 la bande passante du VPS (chaque page de chapitre transite par l'API) et la limite
 MangaDex de 40 appels `/at-home/server` par minute pour tout le serveur.
 
+**Déployé le 2026-10-03** : Marché d'échange, notifications, administration, photos de profil publiques
+et albums des membres, barre de recherche qui se replie, BookshelfDLE (5 catégories, 3 formats, énigmes
+du jour, salons VERSUS / COOP jusqu'à 10 joueurs, invités), Poussières d'Étoile. Migrations jouées au
+démarrage : `notifications`, `admin`, `public_avatar_photo`, `dle_stardust`, `dle_categories`.
+
+**Connu** : 4 tests de `backend/test/profile.test.ts` échouent depuis longtemps (antérieurs
+au BookshelfDLE) — sans lien avec les fonctionnalités récentes. Les fiches de personnages du
+BookshelfDLE (grades, primes, natures, arcs) sont rédigées à la main : à corriger au fil des retours.
+
 **Connu** : les navigateurs qui ont chargé le site avant le correctif Nginx (§5.11)
 peuvent garder des 404 en cache jusqu'à 24 h — effacer les données du site.
 
-**Pistes** : mot de passe oublié (réutiliser le module de code e-mail) ; suppression
+**Pistes** : portraits du BookshelfDLE gardés en base (ne plus dépendre de Jikan au démarrage) ;
+notification « X t'invite » dans un salon ; nouvelles catégories (la carte « Prochainement ») ;
+mot de passe oublié (réutiliser le module de code e-mail) ; suppression
 de compte ; export / import JSON de la bibliothèque ; tests e2e Playwright versionnés ;
 sauvegarde planifiée du volume PostgreSQL ; cache des couvertures sur disque plutôt
 qu'en mémoire si le trafic augmente. Lecteur : vrais CBR (RAR, via un décodeur

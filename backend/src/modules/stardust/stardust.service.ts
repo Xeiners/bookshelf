@@ -13,7 +13,7 @@ import { GUEST_CLAIM_CAP, readReceipt } from '../dle/dle.guests.js'
 /** Prix d'un booster. Repère : une énigme du jour bien menée en rapporte ~60. */
 export const BOOSTER_PRICE = 150
 
-export type StardustReason = 'dle_daily' | 'dle_room' | 'booster_purchase' | 'guest_claim'
+export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'booster_purchase' | 'guest_claim'
 
 /** Crédite (ou débite, `amount` < 0) un compte et inscrit le mouvement, dans la transaction donnée. */
 export async function creditStardust(

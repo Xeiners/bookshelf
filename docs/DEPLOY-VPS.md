@@ -80,6 +80,21 @@ MAIL_FROM=Bookshelf <no-reply@ton-domaine.fr>   # domaine autorisé chez le four
 Après modification : `docker compose up -d` (l'API redémarre avec les nouveaux réglages).
 Test : créer un compte depuis l'app ; en cas d'échec, `docker compose logs backend | grep mail`.
 
+### Administration (facultatif)
+
+```bash
+ADMIN_EMAILS=toi@exemple.fr,autre@exemple.fr   # comptes qui voient l'administration
+```
+
+Vide : l'administration n'existe pour personne (404). L'entrée apparaît dans les Paramètres des
+comptes listés, après reconnexion.
+
+### Sorties réseau
+
+L'API appelle MangaDex (catalogue, couvertures, chapitres) et, pour les portraits du BookshelfDLE,
+`api.jikan.moe`, `cdn.myanimelist.net`, `kitsu.app`, `media.kitsu.app`, `*.fandom.com` et
+`static.wikia.nocookie.net`. Un pare-feu sortant doit les laisser passer.
+
 ## 3. Lancer la pile
 
 ```bash

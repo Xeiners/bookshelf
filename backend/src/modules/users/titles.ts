@@ -38,6 +38,11 @@ export interface ProfileStats {
     dailySolved: number
     roomsWon: number
   }
+  /** Higher or Lower : meilleure série de tous les temps et du jour. */
+  higherLower: {
+    best: number
+    todayBest: number
+  }
 }
 
 interface TitleRule {
@@ -57,6 +62,7 @@ export const TITLES = [
   { id: 'sage', unlocked: ({ reading }) => reading.read + reading.novelsFinished >= 50 },
   { id: 'riddler', unlocked: ({ dle }) => dle.dailySolved >= 10 },
   { id: 'dleMaster', unlocked: ({ dle }) => dle.roomsWon >= 10 },
+  { id: 'sharpEye', unlocked: ({ higherLower }) => higherLower.best >= 20 },
 ] as const satisfies readonly TitleRule[]
 
 export type TitleId = (typeof TITLES)[number]['id']

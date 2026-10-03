@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { BookOpenCheck, ChevronRight, Gift, Layers } from 'lucide-react'
+import { BookOpenCheck, ChevronRight, Gift, Layers, TrendingUp } from 'lucide-react'
 import { useCountUp } from '../../hooks/useCountUp'
 import { useT } from '../../i18n'
 import { RARITIES, RARITY_STYLE, completion, type Rarity } from '../../lib/boosters'
@@ -31,6 +31,8 @@ interface ProfileStatsProps {
   boostersOpened: number | null
   /** Absent : pas de lien vers l'album (profil d'un autre compte). */
   onOpenCollection?: () => void
+  /** Higher or Lower : meilleures séries ; absent ou jamais joué, le bloc n'apparaît pas. */
+  higherLower?: { best: number; todayBest: number } | null
 }
 
 function Count({ value, className = '' }: { value: number; className?: string }) {
@@ -65,7 +67,7 @@ function Metric({ label, value }: { label: string; value: number | null }) {
  * Statistiques du profil : collection (par rareté), lecture et boosters.
  * Barres et jauges animées en `transform` uniquement.
  */
-export function ProfileStats({ collection, reading, boostersOpened, onOpenCollection }: ProfileStatsProps) {
+export function ProfileStats({ collection, reading, boostersOpened, onOpenCollection, higherLower }: ProfileStatsProps) {
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const percent = collection ? completion(collection.owned, collection.total) : 0
@@ -186,6 +188,21 @@ export function ProfileStats({ collection, reading, boostersOpened, onOpenCollec
             <p className="mt-1 text-[11px] text-mist">{t.profile.stats.boostersOpened}</p>
           </div>
         </section>
+
+        {higherLower && higherLower.best > 0 && (
+          <section data-anim className="glass flex items-center gap-4 rounded-4xl p-5">
+            <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#5ef2c2]/12 text-[#5ef2c2]">
+              <TrendingUp size={20} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-display text-3xl leading-none text-cream">
+                <Count value={higherLower.best} />
+              </p>
+              <p className="mt-1 text-[11px] text-mist">{t.profile.stats.hlBest}</p>
+              {higherLower.todayBest > 0 && <p className="mt-0.5 text-[11px] text-[#5ef2c2]/80 tabular-nums">{t.profile.stats.hlToday(higherLower.todayBest)}</p>}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )

@@ -275,7 +275,7 @@ function ProfileBody({ data, onZoom, onOpenCollection }: ProfileBodyProps) {
 
       {stats && (
         <div className="md:col-span-5">
-          <ProfileStats collection={stats.collection} reading={reading} boostersOpened={stats.gacha.boostersOpened} />
+          <ProfileStats collection={stats.collection} reading={reading} boostersOpened={stats.gacha.boostersOpened} higherLower={stats.higherLower ?? null} />
         </div>
       )}
     </div>

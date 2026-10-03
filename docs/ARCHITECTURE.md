@@ -384,6 +384,13 @@ Page d'affiches sur tout le catalogue MangaDex (en cache côté API, cf. `docs/B
 - **Grille** : [`CatalogCard`](../frontend/src/components/search/CatalogCard.tsx), affiche plein cadre (titre sur
   dégradé, note, type, année), % de match, ajout express en wishlist ou état du titre (cœur si favori).
   2 → 6 colonnes selon la largeur.
+- **Défilement** ([`SearchView`](../frontend/src/components/search/SearchView.tsx)) : en descendant, l'en-tête de
+  l'app et le choix Mangas / Romans / Membres se replient (`useUiStore.chromeCollapsed`, deux seuils), puis la
+  barre de recherche, les filtres et le compteur (`useCollapse`). Ils reviennent dès 10 px de remontée
+  (chemin parcouru dans le sens courant, remis à zéro à chaque changement de sens), toujours tout en haut
+  (< 120 px) ou pendant la frappe. Chaque affiche apparaît en entrant à l'écran (`IntersectionObserver`,
+  cascade dans l'ordre de la grille) ; la page suivante est demandée 1 600 px avant le bas, et des affiches
+  fantômes attendent au bout tant qu'il reste des résultats.
 
 ## 4 quater bis. Favoris & notes
 
@@ -487,7 +494,10 @@ dans un effet.
 
 L'onglet « Oracle » est devenu **Activités** (`Gamepad2`, vue `activities`) :
 un hub et ses modules, sans routeur — `useUiStore.activity` vaut `hub`,
-`oracle` (le `TarotPage` existant) ou `collection`. L'étincelle dorée de la
+`oracle` (le `TarotPage` existant), `collection`, `market` (§ « Le Marché ») ou `dle`
+(BookshelfDLE, §4 decies, chargé à la demande). Le hub : autel du booster, Oracle, collection,
+BookshelfDLE (emblème « ? » lumineux), Marché ; le solde de Poussières s'affiche en tête. Les romans
+ne sont plus un artefact du hub : ils vivent dans la Bibliothèque. L'étincelle dorée de la
 navigation s'allume si le tirage du jour OU un booster attend
 (`useActivitiesStatus`).
 
@@ -577,6 +587,71 @@ confirmation), `MyTradesSheet` (offres en cours annulables, historique). Échang
 transformation, aucun flou), puis l'album se recharge (`useBoosterStore.collectionChanged`). Règles
 dupliquées côté front dans `lib/trades.ts` (pur, testé) pour ne proposer que ce que l'API acceptera ;
 l'API tranche (cf. docs/BACKEND.md §7 septies).
+
+### Notifications
+
+[`components/notifications/`](../frontend/src/components/notifications/) : `NotificationBell` (en-tête, compteur,
+balancement à l'arrivée), `NotificationBanner` (bandeau en haut : carillon, vibration, jauge du temps restant
+mise en pause au toucher, glisser vers le haut pour fermer ; masqué dans le lecteur), `NotificationCenter`
+(« À faire », « Nouvelles », « Plus tôt », glisser à gauche pour effacer avec `Draggable`, « Tout lire »,
+son coupable). Le texte est rédigé côté front (`lib/notifications.ts`, pur, testé) depuis `type` + `data`.
+[`useNotifications`](../frontend/src/hooks/useNotifications.ts) interroge l'API toutes les 45 s, page visible
+(curseur `since`). Toucher une notification ouvre sa cible : « Mes échanges », le Marché centré sur l'offre
+(anneau doré), l'autel des boosters ou l'album. Le bandeau : une coque (entrée) et une carte (glisser)
+séparées — `Draggable` et un tween d'entrée sur le même élément se battaient.
+
+### Administration
+
+[`components/admin/`](../frontend/src/components/admin/) (chargé à la demande, entrée dans les Paramètres pour les
+comptes `isAdmin`) : `AdminView` plein écran (liste et fiche côte à côte sur ordinateur, fiche qui glisse par
+dessus sur téléphone), `AdminUserPanel` (offrir boosters ou carte, modérer, suspendre — actions sensibles
+confirmées d'un second tap), `AdminAudit` (journal). Client : `services/adminApi.ts`, `lib/admin.ts`.
+
+### Profils : la collection des autres
+
+`CollectionAlbum` (extrait de `CollectionView`) sert « Ma collection » et l'album d'un membre
+([`MemberCollectionView`](../frontend/src/components/profile/MemberCollectionView.tsx), ouvert depuis son profil
+public) : ses cartes qui me manquent portent « Te manque », un filtre « Qui me manquent » les isole.
+
+## 4 decies. BookshelfDLE
+
+Mini-jeu façon Loldle (API : `docs/BACKEND.md` §7 undecies). Tout vit sous
+[`components/dle/`](../frontend/src/components/dle/), chargé à la demande (`lazy`).
+
+```
+DleView        racine : écrans, chargement de l'accueil et des propositions, lien d'invitation (?dle=)
+DleBar         barre du haut : le retour TOUJOURS au même endroit (hors des colonnes centrées), infos à droite
+BentoHome      grille des catégories (Manga, Naruto, One Piece, JoJo, Jujutsu Kaisen, « Prochainement »)
+DleHome        CategoryMenu : énigmes du jour (Classique, Couverture/Portrait, Pixels) + Multijoueur
+MenuEntry      entrée de menu sans cadre (pastille, nom, état) ; BoosterEntry (achat), DailyStatus
+DailyGame      énigme du jour ; VictoryPanel + AnswerCard (carte de collection ou portrait) à la victoire
+GuessInput     saisie avec suggestions (titres et autres noms) ; la liste mesure la place visible
+               (clavier mobile compris) et s'ouvre vers le haut si besoin
+GuessBoard     ClassicBoard (tuiles translucides en relief, révélation de l'en-tête puis des tuiles,
+               colonne d'auteur en COOP), WrongGuesses, VerdictLegend
+ZoomFrame      Couverture / Portrait : détail grossi autour d'un point, recul à chaque erreur
+PixelFrame     Pixels : image réduite dans un petit canevas, agrandie sans lissage
+DleMulti       formats (cases à cocher), VERSUS / COOP (KindPicker), pseudo d'invité, salon, code
+RoomScreen     salon : RoomLobby (réglages de l'hôte, joueurs), RoomPlay (chrono, « 3, 2, 1 », joueurs,
+               plateau), RoomResults (podium VERSUS, bandeau COOP, classement général, reçu d'invité)
+dleStyle.ts    couleurs des verdicts et des catégories, libellés des formats (pas un composant)
+```
+
+- **État** : [`useDleStore`](../frontend/src/store/useDleStore.ts) — écran affiché (`home` · `category` · `daily` ·
+  `multi` · `room`), catégorie, accueil, propositions par catégorie, énigmes du jour (`dailyKey`), salon. Le salon
+  se suit par **attente longue** (`watch` : boucle `GET /rooms/:code?v=`), jamais un état plus ancien par-dessus
+  un plus récent (`isNewer`) ; l'horloge du serveur corrige les chronos (`clockOffset`).
+  [`useGuestStardustStore`](../frontend/src/store/useGuestStardustStore.ts) garde les reçus d'invité (persisté) et
+  les échange à la connexion ou à l'inscription. Logique pure et testée : [`lib/dle.ts`](../frontend/src/lib/dle.ts).
+- **Pixels sans flou** : l'image est dessinée dans un canevas de 8 à 150 pixels de large (lissage À LA
+  RÉDUCTION : chaque pixel prend la couleur moyenne de sa zone), sur un fond opaque (un portrait détouré ne
+  laisse pas voir l'image dessous), puis agrandie par `image-rendering: pixelated`. Un seul petit dessin par
+  erreur ; l'image nette n'apparaît (en fondu) qu'à la victoire ou à la 15ᵉ erreur.
+- **Leçons** : un mode « silhouette » a été essayé puis retiré — une carte noire au départ n'apprend rien, et
+  animer `filter` repeint l'image à chaque frame (des voiles empilés dont seule l'opacité bouge étaient la
+  bonne technique). Pas d'ombre portée ni de flou : auras en dégradé radial, halos en `box-shadow` intérieurs
+  (une ombre extérieure débordait des tuiles du plateau). Pas de composant créé pendant le rendu
+  (`ModeIcon` est un vrai composant).
 
 ## 4 sexies. Performance du swipe
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
-import { Check, ChevronRight, FlaskConical, Gift, Handshake, MoonStar, Sparkle, WifiOff, Zap } from 'lucide-react'
+import { Check, ChevronRight, Flame, FlaskConical, Gift, Handshake, MoonStar, Sparkle, TrendingUp, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
 import { useCollection } from '../../hooks/useCollection'
@@ -12,12 +12,14 @@ import { vibrate } from '../../lib/haptics'
 import { formatCountdown } from '../../lib/oracle'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDleStore } from '../../store/useDleStore'
+import { useHigherLowerStore } from '../../store/useHigherLowerStore'
 import { useTradeStore } from '../../store/useTradeStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
 import { CARD_FRAMES } from '../cards/cardFrames'
 import { STARDUST_GRADIENT } from '../dle/dleStyle'
+import { HL_DOWN, HL_GRADIENT, HL_UP } from '../higherlower/hlStyle'
 import { StardustBadge } from '../dle/StardustBadge'
 import { EnergyRing } from './EnergyRing'
 
@@ -100,7 +102,10 @@ export function ActivitiesHub() {
         <OracleArtefact />
         <CollectionArtefact />
       </div>
-      <DleArtefact />
+      <div className="grid shrink-0 gap-5 md:grid-cols-2">
+        <DleArtefact />
+        <HigherLowerArtefact />
+      </div>
       <MarketArtefact />
     </div>
   )
@@ -547,5 +552,72 @@ function DleEmblem() {
       <Sparkle data-dle-spark size={9} className="absolute -bottom-1 -left-1 fill-[#ff9ad8] text-[#ff9ad8]" />
       <Sparkle data-dle-spark size={7} className="absolute top-1 -left-2 fill-[#b46cff] text-[#b46cff]" />
     </span>
+  )
+}
+
+/* ---- Higher or Lower --------------------------------------------------------------------------- */
+
+/**
+ * Le Higher or Lower : plus haut ou plus bas, en série. L'emblème — une courbe qui
+ * grimpe dans un médaillon, flèches ▲ ▼ qui respirent — et le record du compte.
+ */
+function HigherLowerArtefact() {
+  const t = useT()
+  const ref = useRef<HTMLButtonElement>(null)
+  const openActivity = useUiStore((state) => state.openActivity)
+  const covered = useUiStore((state) => state.boosterOpen)
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const me = useHigherLowerStore((state) => state.overview?.me ?? null)
+  const loadOverview = useHigherLowerStore((state) => state.loadOverview)
+
+  useEffect(() => {
+    if (signedIn) void loadOverview()
+  }, [signedIn, loadOverview])
+
+  useGSAP(
+    () => {
+      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      gsap.to('[data-hl-emblem]', { y: -4, rotation: 3, duration: 2.4, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      gsap.to('[data-hl-up]', { y: -3, duration: 1.1, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      gsap.to('[data-hl-down]', { y: 3, duration: 1.1, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.4 })
+    },
+    { scope: ref, dependencies: [covered], revertOnUpdate: true },
+  )
+
+  return (
+    <button ref={ref} type="button" data-artefact onClick={() => openActivity('higherlower')} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={ARTEFACT_SURFACE}>
+      <span aria-hidden className="absolute -top-16 -right-12 -z-10 size-56 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(94,242,194,0.18), transparent)' }} />
+      <span className="flex items-center gap-5 p-5">
+        <span aria-hidden data-hl-emblem className="relative grid size-16 shrink-0 place-items-center will-change-transform">
+          <span className="absolute inset-0 rounded-[1.35rem]" style={{ background: HL_GRADIENT, boxShadow: '0 0 26px -6px rgba(94,242,194,0.7)' }} />
+          <span className="absolute inset-[2.5px] rounded-[1.2rem]" style={{ background: 'radial-gradient(circle at 50% 38%, rgba(94,242,194,0.4), rgba(124,92,255,0.25) 45%, #0b0918 75%)' }} />
+          <TrendingUp size={30} strokeWidth={2.5} className="relative text-[#eafff7]" />
+          <span data-hl-up className="absolute -top-1.5 -right-1 text-[11px] leading-none will-change-transform" style={{ color: HL_UP.color }}>
+            ▲
+          </span>
+          <span data-hl-down className="absolute -bottom-1.5 -left-1 text-[11px] leading-none will-change-transform" style={{ color: HL_DOWN.color }}>
+            ▼
+          </span>
+        </span>
+        <span className="block min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-2xl" style={{ backgroundImage: HL_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+              {t.hl.title}
+            </span>
+            {signedIn && me?.games === 0 && (
+              <span className="rounded-full bg-[#5ef2c2]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#5ef2c2] uppercase">{t.hl.hubNew}</span>
+            )}
+          </span>
+          <span className="mt-1 block text-sm text-cream/60">{t.hl.hubBody}</span>
+          {signedIn && me && me.best > 0 && (
+            <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#ffb36b] tabular-nums">
+              <Flame size={13} className="fill-current" aria-hidden />
+              {t.hl.hubRecord(me.best)}
+            </span>
+          )}
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
+      </span>
+    </button>
   )
 }
