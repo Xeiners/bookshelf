@@ -7,12 +7,13 @@
  * démarre hors-ligne. Zéro dépendance, zéro étape de build supplémentaire.
  *
  * Stratégies :
- *  - navigation      → réseau d'abord, repli sur la coquille en cache
+ *  - installation    → précache de TOUT le code du build (liste injectée au build)
+ *  - navigation      → réseau d'abord (4 s max), repli sur la coquille en cache
  *  - /assets/* (hachés) → cache d'abord (immuables par construction)
  *  - couvertures (/api/covers, Open Library) → stale-while-revalidate, cache plafonné
  *  - pages de chapitre (/api/chapters/…/image/…, et /api/proxy/page/… pour les autres sources)
  *    → cache d'abord : le chapitre en cours, préchargé en entier, reste lisible hors-ligne
- *  - listes de chapitres et de pages → réseau d'abord, repli sur la dernière copie
+ *  - listes de chapitres et de pages → réseau d'abord (4 s max), repli sur la dernière copie
  *  - couvertures des romans du compte (/api/books/<id>/cover) → stale-while-revalidate,
  *    dans un cache « privé » que la déconnexion efface (cf. useNovelStore.clear)
  *  - reste de /api   → réseau uniquement (session, bibliothèque : jamais périmés).
@@ -20,6 +21,14 @@
  */
 
 const VERSION = 'v6'
+/**
+ * Remplacé au build (cf. `precacheManifest` dans vite.config.ts) : l'empreinte du build
+ * et TOUS ses fichiers (`assets/…`), lecteur compris. Ce fichier change donc à chaque
+ * déploiement : le navigateur installe la nouvelle version, qui précache tout.
+ */
+const PRECACHE = self.__BOOKSHELF_PRECACHE__ ?? { build: 'dev', assets: [] }
+/** Réseau trop lent (connexion faible) : on sert la copie locale au-delà de ce délai. */
+const NETWORK_TIMEOUT_MS = 4000
 const SHELL_CACHE = `bookshelf-shell-${VERSION}`
 const ASSET_CACHE = `bookshelf-assets-${VERSION}`
 const IMAGE_CACHE = `bookshelf-covers-${VERSION}`
@@ -65,8 +74,7 @@ self.addEventListener('install', (event) => {
         // `reload` court-circuite le cache HTTP : on veut la version fraîche.
         cache.addAll(SHELL_URLS.map((url) => new Request(url, { cache: 'reload' }))),
       ),
-      // Échec sans gravité : ces fichiers seront mis en cache au prochain passage.
-      precacheEntryAssets().catch(() => {}),
+      precacheAssets(),
     ]),
   )
   // Pas de skipWaiting : la nouvelle version prend la main au prochain
@@ -74,17 +82,47 @@ self.addEventListener('install', (event) => {
 })
 
 /**
- * JS et CSS d'entrée (noms hachés), lus dans `index.html`. À la première visite,
- * la page les charge AVANT que le Service Worker n'en prenne le contrôle : sans
- * ce précache, ils ne passeraient jamais par lui et l'application ne pourrait
- * pas démarrer hors-ligne (le chapitre en cache serait alors inaccessible).
+ * Tout le code de l'app, y compris ce qui n'est chargé qu'à la demande (le lecteur, ses
+ * moteurs EPUB et PDF, le worker de pdf.js…). Sans ça, le lecteur n'était en cache que
+ * si on l'avait ouvert EN LIGNE depuis le dernier déploiement : hors-ligne, il ne
+ * s'ouvrait qu'une fois sur quatre.
+ *
+ * Les fichiers sont hachés (immuables) : ceux déjà en cache ne sont pas retéléchargés.
+ * Un fichier manquant fait échouer l'installation : l'ancienne version reste en place
+ * et le navigateur réessaie au prochain passage, plutôt qu'un hors-ligne à trous.
  */
-async function precacheEntryAssets() {
+async function precacheAssets() {
+  const cache = await caches.open(ASSET_CACHE)
+  const urls = PRECACHE.assets.length > 0 ? PRECACHE.assets.map((file) => `./${file}`) : await entryAssets()
+  const missing = []
+  for (const url of urls) if (!(await cache.match(url, { ignoreVary: true }))) missing.push(url)
+  // Quelques téléchargements à la fois : une connexion mobile ne sature pas.
+  const queue = [...missing]
+  const worker = async () => {
+    for (let url = queue.shift(); url; url = queue.shift()) await cacheOne(cache, url)
+  }
+  await Promise.all(Array.from({ length: 4 }, worker))
+}
+
+/** Un fichier, avec une seconde chance (réseau mobile capricieux). */
+async function cacheOne(cache, url) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetch(url, { cache: 'reload' })
+      if (!response.ok) throw new Error(`${url} : HTTP ${response.status}`)
+      await cache.put(url, response)
+      return
+    } catch (error) {
+      if (attempt >= 1) throw error
+    }
+  }
+}
+
+/** Sans liste (source non construite) : les JS et CSS d'entrée, lus dans `index.html`. */
+async function entryAssets() {
   const response = await fetch('./index.html', { cache: 'reload' })
   const html = await response.text()
-  const urls = [...new Set(html.match(/\/assets\/[^"'\s>]+/g) ?? [])]
-  const cache = await caches.open(ASSET_CACHE)
-  await cache.addAll(urls)
+  return [...new Set(html.match(/\/assets\/[^"'\s>]+/g) ?? [])]
 }
 
 self.addEventListener('activate', (event) => {
@@ -93,10 +131,60 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys()
       const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE, PRIVATE_CACHE])
       await Promise.all(keys.filter((key) => !current.has(key)).map((key) => caches.delete(key)))
+      await pruneOldAssets()
       await self.clients.claim()
     })(),
   )
 })
+
+/** Le code des builds précédents (autres noms hachés) : inutile, on libère la place. */
+async function pruneOldAssets() {
+  if (PRECACHE.assets.length === 0) return
+  const keep = new Set(PRECACHE.assets.map((file) => new URL(`./${file}`, self.location.href).pathname))
+  const cache = await caches.open(ASSET_CACHE)
+  const keys = await cache.keys()
+  await Promise.all(keys.filter((request) => !keep.has(new URL(request.url).pathname)).map((request) => cache.delete(request)))
+}
+
+/**
+ * Le réseau, ou `fallback()` s'il échoue OU tarde (connexion faible : la requête ne
+ * répond ni n'échoue). La réponse tardive sert quand même : `onResponse` la range.
+ */
+function networkOr(request, fallback, onResponse) {
+  const network = fetch(request).then((response) => {
+    onResponse(response.clone())
+    return response
+  })
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const useFallback = async (error) => {
+      if (settled) return
+      const cached = await fallback()
+      if (settled) return
+      if (cached) {
+        settled = true
+        resolve(cached)
+      } else if (error) {
+        settled = true
+        reject(error)
+      }
+    }
+    const timer = setTimeout(() => useFallback(null), NETWORK_TIMEOUT_MS)
+    network.then(
+      (response) => {
+        clearTimeout(timer)
+        if (!settled) {
+          settled = true
+          resolve(response)
+        }
+      },
+      (error) => {
+        clearTimeout(timer)
+        useFallback(error)
+      },
+    )
+  })
+}
 
 /** Supprime les entrées les plus anciennes au-delà de `max`. */
 async function trimCache(cacheName, max) {
@@ -107,15 +195,13 @@ async function trimCache(cacheName, max) {
 }
 
 async function networkFirstShell(request) {
+  const shell = async () => (await caches.match('./index.html')) ?? (await caches.match('./'))
   try {
-    const response = await fetch(request)
-    const cache = await caches.open(SHELL_CACHE)
-    cache.put('./index.html', response.clone())
-    return response
+    return await networkOr(request, shell, (response) => {
+      if (response.ok) caches.open(SHELL_CACHE).then((cache) => cache.put('./index.html', response)).catch(() => {})
+    })
   } catch {
-    const cached = (await caches.match('./index.html')) ?? (await caches.match('./'))
-    if (cached) return cached
-    return new Response('Hors-ligne', { status: 503, statusText: 'Hors-ligne' })
+    return (await shell()) ?? new Response('Hors-ligne', { status: 503, statusText: 'Hors-ligne' })
   }
 }
 
@@ -183,23 +269,20 @@ async function chapterImage(request) {
   return response
 }
 
-/** Listes du lecteur : toujours fraîches en ligne, dernière copie connue hors-ligne. */
+/** Listes du lecteur : toujours fraîches en ligne, dernière copie connue hors-ligne (ou réseau trop lent). */
 async function networkFirstData(request) {
   const cache = await caches.open(READER_DATA_CACHE)
-  try {
-    const response = await fetch(request)
-    if (response.ok) {
+  return networkOr(
+    request,
+    () => cache.match(request),
+    (response) => {
+      if (!response.ok) return
       cache
-        .put(request, response.clone())
+        .put(request, response)
         .then(() => trimCache(READER_DATA_CACHE, MAX_READER_DATA))
         .catch(() => {})
-    }
-    return response
-  } catch (error) {
-    const cached = await cache.match(request)
-    if (cached) return cached
-    throw error
-  }
+    },
+  )
 }
 
 self.addEventListener('fetch', (event) => {
