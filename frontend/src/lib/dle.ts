@@ -1,4 +1,4 @@
-import { CATEGORY_ATTRIBUTES, type DleCategory, type DleWorkOption, type RoomView, type Standing, type Verdict } from '../services/dleApi'
+import { CATEGORY_ATTRIBUTES, DLE_CATEGORIES, DLE_MODES, type DleCategory, type DleMode, type DleOverview, type DleWorkOption, type RoomView, type Standing, type Verdict } from '../services/dleApi'
 
 /*
  * BookshelfDLE côté client (logique pure, testée) : recherche d'une œuvre à
@@ -213,4 +213,25 @@ export function mergeSweep<S extends { revealed: number[]; dirt: number }>(a: S 
   if (!a) return b
   if (!b) return a
   return { ...a, revealed: [...new Set([...a.revealed, ...b.revealed])].sort((x, y) => x - y), dirt: Math.max(a.dirt, b.dirt) }
+}
+
+/**
+ * Après une énigme du jour : la suivante à jouer. D'abord les formats restants de la
+ * catégorie, dans l'ordre du menu (Classique → Portrait → Pixels → Chiffon, en
+ * repartant du début) ; puis la première catégorie suivante qui en a encore. `null` :
+ * tout est trouvé pour aujourd'hui.
+ */
+export function nextPuzzle(daily: DleOverview['daily'], category: DleCategory, mode: DleMode): { category: DleCategory; mode: DleMode } | null {
+  const after = <T>(list: readonly T[], current: T) => {
+    const index = list.indexOf(current)
+    return [...list.slice(index + 1), ...list.slice(0, index)]
+  }
+  const remaining = (where: DleCategory) => DLE_MODES.filter((entry) => !daily[where][entry].solved)
+  const sameCategory = after(DLE_MODES, mode).find((entry) => !daily[category][entry].solved)
+  if (sameCategory) return { category, mode: sameCategory }
+  for (const other of after(DLE_CATEGORIES, category)) {
+    const first = remaining(other)[0]
+    if (first) return { category: other, mode: first }
+  }
+  return null
 }

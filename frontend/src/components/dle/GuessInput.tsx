@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Loader2, Search } from 'lucide-react'
 import { useT } from '../../i18n'
 import { RARITY_STYLE } from '../../lib/boosters'
@@ -23,6 +23,7 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
   const listId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
   /** Place de la liste : sous le champ, ou au-dessus quand l'écran (ou le clavier) n'en laisse pas assez. */
   const [placement, setPlacement] = useState<{ up: boolean; maxHeight: number }>({ up: false, maxHeight: 320 })
   const [query, setQuery] = useState('')
@@ -33,18 +34,48 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
   const suggestions = useMemo(() => (works ? searchWorks(works, query, excluded) : []), [works, query, excluded])
   const showList = open && query.trim().length > 0
 
-  // La liste ne dépasse jamais de l'écran visible : mesurée à chaque ouverture et à chaque frappe.
+  // La liste ne dépasse jamais de la zone visible : ni de l'écran (ou du clavier), ni du
+  // panneau qui défile autour du jeu (sinon elle passait sous son bord, coupée).
+  // Mesurée à l'ouverture, à chaque frappe, et quand la page défile ou change de taille.
   useLayoutEffect(() => {
-    if (!showList || !boxRef.current) return
-    const rect = boxRef.current.getBoundingClientRect()
-    const viewport = window.visualViewport
-    const top = viewport?.offsetTop ?? 0
-    const bottom = top + (viewport?.height ?? window.innerHeight)
-    const below = bottom - rect.bottom - 12
-    const above = rect.top - top - 12
-    const up = below < 220 && above > below
-    setPlacement({ up, maxHeight: Math.max(120, Math.min(320, up ? above : below)) })
+    const box = boxRef.current
+    if (!showList || !box) return
+    const measure = () => {
+      const rect = box.getBoundingClientRect()
+      const viewport = window.visualViewport
+      let top = viewport?.offsetTop ?? 0
+      let bottom = top + (viewport?.height ?? window.innerHeight)
+      const clip = scrollParent(box)
+      if (clip) {
+        const area = clip.getBoundingClientRect()
+        top = Math.max(top, area.top)
+        bottom = Math.min(bottom, area.bottom)
+      }
+      const below = bottom - rect.bottom - 12
+      const above = rect.top - top - 12
+      const up = below < 220 && above > below
+      setPlacement({ up, maxHeight: Math.max(96, Math.min(320, up ? above : below)) })
+    }
+    measure()
+    const clip = scrollParent(box)
+    clip?.addEventListener('scroll', measure, { passive: true })
+    window.visualViewport?.addEventListener('resize', measure)
+    window.addEventListener('resize', measure)
+    return () => {
+      clip?.removeEventListener('scroll', measure)
+      window.visualViewport?.removeEventListener('resize', measure)
+      window.removeEventListener('resize', measure)
+    }
   }, [showList, suggestions.length])
+
+  // Au clavier (↑ ↓), la suggestion choisie reste visible : la liste défile avec elle.
+  // (Pas au survol de la souris : la liste ne doit pas bouger sous le pointeur.)
+  const byKeyboard = useRef(false)
+  useEffect(() => {
+    if (!showList || !byKeyboard.current) return
+    byKeyboard.current = false
+    listRef.current?.querySelector<HTMLElement>(`[data-option="${active}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [active, showList])
 
   const choose = async (work: DleWorkOption | undefined) => {
     if (!work || busy || disabled) return
@@ -62,10 +93,12 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
+      byKeyboard.current = true
       setOpen(true)
       setActive((index) => Math.min(suggestions.length - 1, index + 1))
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
+      byKeyboard.current = true
       setActive((index) => Math.max(0, index - 1))
     } else if (event.key === 'Enter') {
       event.preventDefault()
@@ -112,6 +145,7 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
 
       {showList && (
         <ul
+          ref={listRef}
           id={listId}
           role="listbox"
           style={{ maxHeight: placement.maxHeight }}
@@ -121,7 +155,7 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
             <li className="px-3 py-3 text-sm text-mist">{t.dle.game.noMatch}</li>
           ) : (
             suggestions.map((work, index) => (
-              <li key={work.id} role="option" aria-selected={index === active}>
+              <li key={work.id} role="option" data-option={index} aria-selected={index === active}>
                 <button
                   type="button"
                   // `pointerdown` : le choix part avant que le champ ne perde le focus.
@@ -143,4 +177,13 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
       )}
     </div>
   )
+}
+
+/** Le plus proche parent qui défile (et coupe donc ce qui dépasse) ; `null` : la page. */
+function scrollParent(element: HTMLElement): HTMLElement | null {
+  for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') return node
+  }
+  return null
 }

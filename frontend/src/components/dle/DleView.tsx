@@ -82,7 +82,8 @@ export function DleView() {
       ) : screen.kind === 'multi' ? (
         <DleMulti currentRoom={overview?.currentRoom ?? null} />
       ) : screen.kind === 'daily' ? (
-        <DailyGame mode={screen.mode} />
+        // Une énigme = un état neuf (victoire, vitre…), et le défilement repart du haut.
+        <DailyGame key={`${category}:${screen.mode}`} mode={screen.mode} />
       ) : overview && screen.kind === 'category' ? (
         <>
           <DleBar label={t.dle.title} onBack={openHome} />

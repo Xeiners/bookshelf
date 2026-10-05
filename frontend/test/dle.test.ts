@@ -7,6 +7,7 @@ import {
   formatCountdownLong,
   formatSolveTime,
   isNewer,
+  nextPuzzle,
   msUntil,
   normalizeQuery,
   parseRoomCode,
@@ -134,5 +135,27 @@ describe('mode classique — rythme du retournement', () => {
     // Personnages : six colonnes, donc plus court.
     assert.ok(classicRevealSeconds('naruto', 3, false) < later)
     assert.equal(classicRevealSeconds('manga', 3, true), 0)
+  })
+})
+
+describe('nextPuzzle', () => {
+  const categories = ['manga', 'naruto', 'onepiece', 'jojo', 'jjk'] as const
+  const modes = ['classic', 'zoom', 'pixel', 'sweep'] as const
+  const board = (solved: string[]) =>
+    Object.fromEntries(categories.map((category) => [category, Object.fromEntries(modes.map((mode) => [mode, { attempts: 0, reward: 0, solved: solved.includes(`${category}:${mode}`) }]))])) as Parameters<typeof nextPuzzle>[0]
+
+  it('enchaîne le format suivant de la catégorie', () => {
+    assert.deepEqual(nextPuzzle(board(['onepiece:classic']), 'onepiece', 'classic'), { category: 'onepiece', mode: 'zoom' })
+  })
+
+  it('saute les formats déjà trouvés et repart du début', () => {
+    assert.deepEqual(nextPuzzle(board(['naruto:classic', 'naruto:zoom', 'naruto:pixel', 'naruto:sweep'].filter((key) => key !== 'naruto:zoom')), 'naruto', 'pixel'), { category: 'naruto', mode: 'zoom' })
+  })
+
+  it('passe à la catégorie suivante, puis rien quand tout est trouvé', () => {
+    const jjkDone = modes.map((mode) => `jjk:${mode}`)
+    assert.deepEqual(nextPuzzle(board(jjkDone), 'jjk', 'sweep'), { category: 'manga', mode: 'classic' })
+    const all = categories.flatMap((category) => modes.map((mode) => `${category}:${mode}`))
+    assert.equal(nextPuzzle(board(all), 'manga', 'classic'), null)
   })
 })

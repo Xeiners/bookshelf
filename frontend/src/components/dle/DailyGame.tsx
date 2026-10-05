@@ -16,6 +16,7 @@ import { ClassicBoard, VerdictLegend, WrongGuesses } from './GuessBoard'
 import { GuessInput } from './GuessInput'
 import { StardustBadge } from './StardustBadge'
 import { VictoryPanel } from './VictoryPanel'
+import { NextPuzzle } from './NextPuzzle'
 import { PixelFrame } from './PixelFrame'
 import { SweepFrame } from './SweepFrame'
 import { ZoomFrame } from './ZoomFrame'
@@ -138,13 +139,16 @@ export function DailyGame({ mode }: { mode: DleMode }) {
             )}
 
             {view.solved && view.answer ? (
-              <VictoryPanel
-                answer={view.answer}
-                reward={view.reward}
-                streak={victory?.streak ?? dailyStreak}
-                nextAt={view.nextAt}
-                fresh={victory !== null}
-              />
+              <>
+                <VictoryPanel
+                  answer={view.answer}
+                  reward={view.reward}
+                  streak={victory?.streak ?? dailyStreak}
+                  nextAt={view.nextAt}
+                  fresh={victory !== null}
+                />
+                <NextPuzzle category={category} mode={mode} fresh={victory !== null} />
+              </>
             ) : (
               <GuessInput works={works} excluded={excluded} onGuess={onGuess} />
             )}
