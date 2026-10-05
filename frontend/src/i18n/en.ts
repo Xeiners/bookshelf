@@ -1429,6 +1429,9 @@ export const en: Dictionary = {
     },
     sweep: {
       tagline: 'Screen cleaner',
+      preparing: 'Preparing the glass…',
+      failed: 'The glass couldn’t be prepared.',
+      retry: 'Try again',
       hint: 'Rub the screen to reveal the picture… but every wipe costs: the less you clean, the more you earn.',
       start: 'Rub to clean',
       cleaned: (percent: number) => `${percent}% cleaned`,

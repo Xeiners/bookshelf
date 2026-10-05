@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Brush, Sparkle } from 'lucide-react'
+import { Brush, Loader2, RotateCcw, Sparkle } from 'lucide-react'
 import { useT } from '../../i18n'
 import { SWEEP_COLS, SWEEP_HEIGHT, SWEEP_TILE_PX, SWEEP_WIDTH, reducedMotion, tilesUnder } from '../../lib/dle'
 import { gsap, useGSAP } from '../../lib/gsap'
@@ -15,6 +15,8 @@ const STAMP_STEP = 7
 const FLUSH_MS = 110
 /** Au plus, par envoi (le serveur refuse au-delà). */
 const BATCH = 120
+/** Échecs d'affilée avant d'arrêter et de proposer « Réessayer ». */
+const MAX_FAILURES = 3
 
 interface SweepFrameProps {
   category: DleCategory
@@ -191,6 +193,16 @@ export function SweepFrame({ category, sweep, reveal, onSweep, fullImage, disabl
   const lastRub = useRef(0)
   const lastBuzz = useRef(0)
   const [started, setStarted] = useState(sweep.revealed.length > 0)
+  /**
+   * La vitre se prépare (le serveur charge l'image et la découpe) avant le premier coup de
+   * chiffon : sans ça, les premiers gestes creusaient des trous noirs le temps de la découpe.
+   */
+  const [preparation, setStatus] = useState<'warming' | 'ready' | 'error'>('warming')
+  // Image entière (trouvé, manche finie) : plus rien à préparer.
+  const status = fullImage ? 'ready' : preparation
+  /** Un seul envoi à la fois : les suivants attendent sa réponse (jamais de requêtes en rafale). */
+  const inFlight = useRef(false)
+  const failures = useRef(0)
   const revealRef = useRef(reveal)
   const onSweepRef = useRef(onSweep)
   useEffect(() => {
@@ -230,22 +242,48 @@ export function SweepFrame({ category, sweep, reveal, onSweep, fullImage, disabl
   useEffect(() => {
     flushRef.current = () => {
       flushTimer.current = null
+      if (inFlight.current) return
       const tiles = [...pending.current].slice(0, BATCH)
-      for (const index of tiles) pending.current.delete(index)
       if (tiles.length === 0) return
-      if (pending.current.size > 0) flushTimer.current = window.setTimeout(() => flushRef.current(), FLUSH_MS)
+      for (const index of tiles) pending.current.delete(index)
+      inFlight.current = true
       revealRef
         .current(tiles)
         .then((result) => {
+          failures.current = 0
           drawTiles(result.tiles, true)
           onSweepRef.current(result.sweep)
         })
         .catch(() => {
-          // Réseau coupé : ces tuiles pourront être redemandées au prochain passage.
-          for (const index of tiles) requested.current.delete(index)
+          // Ces tuiles repartent au prochain envoi ; après plusieurs échecs, on le dit.
+          for (const index of tiles) pending.current.add(index)
+          failures.current += 1
+          if (failures.current >= MAX_FAILURES) setStatus('error')
+        })
+        .finally(() => {
+          inFlight.current = false
+          if (pending.current.size === 0 || failures.current >= MAX_FAILURES) return
+          flushTimer.current ??= window.setTimeout(() => flushRef.current(), failures.current > 0 ? 600 * failures.current : FLUSH_MS)
         })
     }
   })
+
+  /** Prépare la vitre côté serveur (demande vide) ; reprend les envois en attente. */
+  const warmUp = useCallback(() => {
+    failures.current = 0
+    revealRef
+      .current([])
+      .then(() => {
+        setStatus('ready')
+        flushRef.current()
+      })
+      .catch(() => setStatus('error'))
+  }, [])
+  /** « Réessayer » après un échec. */
+  const prepare = () => {
+    setStatus('warming')
+    warmUp()
+  }
 
   // La saleté, peinte une fois ; le fond de l'image, nuit opaque.
   useEffect(() => {
@@ -273,24 +311,27 @@ export function SweepFrame({ category, sweep, reveal, onSweep, fullImage, disabl
     context.globalCompositeOperation = 'source-over'
   }, [])
 
-  // Reprise d'une partie : les tuiles déjà nettoyées, rendues sans rien coûter.
+  // À l'arrivée : la vitre se prépare. Reprise d'une partie : les tuiles déjà nettoyées,
+  // rendues sans rien coûter (et qui préparent la vitre du même coup).
   const resumed = useRef(false)
   useEffect(() => {
     if (resumed.current) return
     resumed.current = true
+    if (fullImage) return
     const known = sweep.revealed
-    if (known.length === 0) return
+    if (known.length === 0) {
+      warmUp()
+      return
+    }
     for (const index of known) {
       requested.current.add(index)
       wipe(((index % SWEEP_COLS) + 0.5) * SWEEP_TILE_PX, (Math.floor(index / SWEEP_COLS) + 0.5) * SWEEP_TILE_PX, SWEEP_TILE_PX * 0.78)
     }
-    for (let start = 0; start < known.length; start += BATCH) {
-      revealRef
-        .current(known.slice(start, start + BATCH))
-        .then((result) => drawTiles(result.tiles, false))
-        .catch(() => undefined)
-    }
-  }, [sweep.revealed, wipe, drawTiles])
+    const batches = Array.from({ length: Math.ceil(known.length / BATCH) }, (_, batch) => known.slice(batch * BATCH, (batch + 1) * BATCH))
+    Promise.all(batches.map((tiles) => revealRef.current(tiles).then((result) => drawTiles(result.tiles, false))))
+      .then(() => setStatus('ready'))
+      .catch(() => setStatus('error'))
+  }, [sweep.revealed, fullImage, wipe, drawTiles, warmUp])
 
   /** Un tampon du chiffon : la saleté s'efface, les tuiles touchées attendent leur envoi. */
   const stamp = (x: number, y: number) => {
@@ -317,7 +358,7 @@ export function SweepFrame({ category, sweep, reveal, onSweep, fullImage, disabl
   }
 
   const onDown = (event: ReactPointerEvent<HTMLElement>) => {
-    if (disabled || fullImage) return
+    if (disabled || fullImage || status !== 'ready') return
     event.currentTarget.setPointerCapture(event.pointerId)
     const { x, y } = toImage(event)
     stroke.current = { x, y, at: performance.now() }
@@ -329,7 +370,7 @@ export function SweepFrame({ category, sweep, reveal, onSweep, fullImage, disabl
   const onMove = (event: ReactPointerEvent<HTMLElement>) => {
     moveCursor(event, !disabled && !fullImage && (event.pointerType === 'mouse' || stroke.current !== null))
     const from = stroke.current
-    if (!from || disabled || fullImage) return
+    if (!from || disabled || fullImage || status !== 'ready') return
     const { x, y } = toImage(event)
     const distance = Math.hypot(x - from.x, y - from.y)
     const now = performance.now()
@@ -415,7 +456,7 @@ export function SweepFrame({ category, sweep, reveal, onSweep, fullImage, disabl
           role="img"
           aria-label={t.dle.sweep.aria}
           className="relative aspect-[3/4] w-[17rem] touch-none overflow-hidden rounded-3xl border-2 bg-ink select-none sm:w-[20rem]"
-          style={{ borderColor: `${glow}88`, boxShadow: '0 0 0 4px rgba(11,9,24,1), 0 30px 60px -30px rgba(0,0,0,0.95)', cursor: disabled || fullImage ? 'default' : 'none' }}
+          style={{ borderColor: `${glow}88`, boxShadow: '0 0 0 4px rgba(11,9,24,1), 0 30px 60px -30px rgba(0,0,0,0.95)', cursor: disabled || fullImage || status !== 'ready' ? 'default' : 'none' }}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
@@ -445,7 +486,33 @@ export function SweepFrame({ category, sweep, reveal, onSweep, fullImage, disabl
             </span>
           )}
 
-          {!started && !disabled && !fullImage && (
+          {status === 'warming' && !fullImage && (
+            <div role="status" className="pointer-events-none absolute inset-0 grid place-items-center">
+              <span className="flex flex-col items-center gap-2 rounded-2xl bg-black/55 px-4 py-3 text-sm font-semibold text-cream">
+                <Loader2 size={24} className="animate-spin" aria-hidden />
+                {t.dle.sweep.preparing}
+              </span>
+            </div>
+          )}
+
+          {status === 'error' && !fullImage && (
+            <div role="alert" className="absolute inset-0 grid place-items-center bg-black/35 p-5">
+              <span className="flex flex-col items-center gap-3 rounded-2xl bg-black/70 px-4 py-4 text-center text-sm text-cream">
+                {t.dle.sweep.failed}
+                <button
+                  type="button"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={prepare}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-cream px-4 py-2 text-xs font-semibold text-void"
+                >
+                  <RotateCcw size={14} aria-hidden />
+                  {t.dle.sweep.retry}
+                </button>
+              </span>
+            </div>
+          )}
+
+          {status === 'ready' && !started && !disabled && !fullImage && (
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
               <span className="flex flex-col items-center gap-2 rounded-2xl bg-black/55 px-4 py-3 text-sm font-semibold text-cream">
                 <Brush data-sweep-hint-icon size={26} aria-hidden />

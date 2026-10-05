@@ -236,7 +236,9 @@ export async function revealDaily(userId: string, category: DleCategory, wanted:
   const asked = cleanTiles(wanted).slice(0, SWEEP_BATCH)
   const key = { userId_day_category_mode: { userId, day, category, mode: 'sweep' } }
   await prisma.dleDaily.upsert({ where: key, create: { userId, day, category, mode: 'sweep' }, update: {} }).catch(() => undefined)
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    // Deux gestes au même instant : celui qui perd la course retente un peu plus tard.
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 5 + Math.random() * 20 * attempt))
     const row = await prisma.dleDaily.findUnique({ where: key })
     if (!row) continue
     const guesses = parseGuesses(row.guesses).length

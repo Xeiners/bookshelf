@@ -876,12 +876,14 @@ export async function revealRoom(userId: string, code: string, wanted: readonly 
   const player = memberOf(room, userId)
   const answer = room.answer
   if (room.mode !== 'sweep' || !answer || room.phase === 'lobby') throw conflict('Pas de Chiffon dans cette manche.', 'not_sweep')
-  if (room.phase === 'countdown') throw conflict('La partie n’a pas encore commencé.', 'not_started')
+  const asked = cleanTiles(wanted).slice(0, SWEEP_BATCH)
+  // Pendant le décompte, seulement préparer la vitre (demande vide) : elle est prête au top départ.
+  if (room.phase === 'countdown' && asked.length > 0) throw conflict('La partie n’a pas encore commencé.', 'not_started')
   const round = room.round
   const tiles = await sweepTiles(`room:${room.code}:${round}:${answer.id}`, () => gameOf(room.category).image(answer, `${room.code}:${round}`), room.category !== 'manga')
   // La manche a pu changer pendant la découpe.
   if (room.round !== round) throw conflict('La manche est terminée.', 'round_over')
-  const asked = cleanTiles(wanted).slice(0, SWEEP_BATCH)
+  if (asked.length === 0) return { tiles: {}, sweep: { revealed: cleanTiles(revealedOf(room, player)), dirt: dirtOf(room, player) } }
   const glass = revealedOf(room, player)
   const counting = room.phase === 'playing' && player.inRound && !isDone(room, player)
   if (!counting) return { tiles: pickTiles(tiles, room.phase === 'results' || isDone(room, player) ? asked : asked.filter((index) => glass.has(index))), sweep: { revealed: cleanTiles(glass), dirt: dirtOf(room, player) } }

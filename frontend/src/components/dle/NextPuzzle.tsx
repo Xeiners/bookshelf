@@ -55,8 +55,8 @@ export function NextPuzzle({ category, mode, fresh }: { category: DleCategory; m
           if (otherCategory) openCategory(next.category)
           openDaily(next.mode)
         }}
-        className="group flex w-full items-center gap-3.5 rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-2.5 pr-4 text-left transition-colors hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-glow"
-        style={{ boxShadow: `0 18px 40px -26px ${style.accent}` }}
+        className="group flex w-full items-center gap-3.5 rounded-[1.4rem] border p-2.5 pr-4 text-left transition-[filter] hover:brightness-125 focus-visible:outline-2 focus-visible:outline-glow"
+        style={{ borderColor: `${style.accent}40`, background: `linear-gradient(100deg, ${style.accent}1f, rgba(255,255,255,0.02) 70%)` }}
       >
         <span className="grid size-12 shrink-0 place-items-center rounded-2xl text-void" style={{ background: style.gradient }}>
           <ModeIcon category={next.category} mode={next.mode} size={22} />

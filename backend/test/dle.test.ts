@@ -834,6 +834,10 @@ describe('dle — Chiffon (nettoyeur d’écran)', () => {
     assert.deepEqual(view.body.sweep, { revealed: [], dirt: 0 })
     assert.equal((await dora.send('GET', '/dle/daily/naruto/sweep/image')).status, 403, 'pas d’image entière avant la fin')
 
+    // Préparer la vitre (demande vide) : rien de dévoilé, rien de compté.
+    const warmed = await dora.request('POST', '/dle/daily/naruto/sweep/reveal', { tiles: [] })
+    assert.equal(warmed.status, 200)
+    assert.deepEqual(warmed.body, { tiles: {}, sweep: { revealed: [], dirt: 0 } })
     const first = await dora.request('POST', '/dle/daily/naruto/sweep/reveal', { tiles: [0, 1, 2, 2, 999] })
     assert.equal(first.status, 200, JSON.stringify(first.body))
     assert.deepEqual(Object.keys(first.body.tiles).map(Number), [0, 1, 2])
@@ -860,6 +864,15 @@ describe('dle — Chiffon (nettoyeur d’écran)', () => {
     assert.deepEqual(after.body.sweep.revealed, [0, 1, 2])
   })
 
+  it('énigme du jour : des coups de chiffon simultanés passent tous, chaque tuile comptée une fois', async () => {
+    const zoe = await account('zoe-dle@example.com', 'Zoé')
+    const batches = Array.from({ length: 8 }, (_, batch) => Array.from({ length: 5 }, (_, index) => batch * 5 + index))
+    const replies = await Promise.all(batches.map((tiles) => zoe.request('POST', '/dle/daily/jjk/sweep/reveal', { tiles })))
+    for (const reply of replies) assert.equal(reply.status, 200)
+    const state = await zoe.request('POST', '/dle/daily/jjk/sweep/reveal', { tiles: [] })
+    assert.equal(state.body.sweep.revealed.length, 40)
+  })
+
   it('salon VERSUS : chacun sa vitre, la part nettoyée des autres en direct, le plus propre gagne', async () => {
     const eli = await account('eli-dle@example.com', 'Eli')
     const fanny = await account('fanny-dle@example.com', 'Fanny')
@@ -869,6 +882,10 @@ describe('dle — Chiffon (nettoyeur d’écran)', () => {
     await fanny.request('POST', `/dle/rooms/${code}/join`)
     await eli.request('POST', `/dle/rooms/${code}/start`)
     assert.equal((await eli.request('POST', `/dle/rooms/${code}/reveal`, { tiles: [0] })).body.error.code, 'not_started')
+    // Pendant le décompte, la vitre se prépare (demande vide) sans rien dévoiler ni compter.
+    const warmed = await eli.request('POST', `/dle/rooms/${code}/reveal`, { tiles: [] })
+    assert.equal(warmed.status, 200)
+    assert.deepEqual(warmed.body, { tiles: {}, sweep: { revealed: [], dirt: 0 } })
     await wait(rooms.COUNTDOWN_MS + 100)
     assert.equal((await eli.send('GET', `/dle/rooms/${code}/image`)).status, 403)
 

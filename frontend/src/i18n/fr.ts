@@ -1444,6 +1444,9 @@ export const fr = {
     },
     sweep: {
       tagline: 'Nettoyeur d’écran',
+      preparing: 'Préparation de la vitre…',
+      failed: 'La vitre n’a pas pu être préparée.',
+      retry: 'Réessayer',
       hint: 'Frotte l’écran pour dévoiler l’image… mais chaque coup de chiffon coûte : moins tu nettoies, plus tu gagnes.',
       start: 'Frotte pour nettoyer',
       cleaned: (percent: number) => `${percent} % nettoyé`,
