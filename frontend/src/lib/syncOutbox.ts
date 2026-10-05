@@ -232,7 +232,20 @@ export const outbox = {
 }
 
 // Retour du réseau : on vide la file sans attendre le prochain essai programmé.
+// App en arrière-plan ou onglet fermé : tout part TOUT DE SUITE (sans le délai de
+// regroupement) ; sinon la dernière page lue sur l'ordinateur n'arrivait au compte
+// qu'à sa prochaine ouverture, et le téléphone repartait d'une position périmée.
 if (typeof window !== 'undefined') {
+  const sendNow = () => {
+    if (!enabled || queue.length === 0) return
+    window.clearTimeout(timer)
+    void flush()
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') sendNow()
+  })
+  window.addEventListener('pagehide', sendNow)
+
   window.addEventListener('online', () => {
     retryDelay = RETRY_MIN_MS
     if (enabled && queue.length > 0) schedule(0)

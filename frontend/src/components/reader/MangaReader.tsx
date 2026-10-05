@@ -17,7 +17,9 @@ import {
   versionFrom,
 } from '../../lib/reader/sources'
 import { readerApi } from '../../services/readerApi'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
+import { useUiStore } from '../../store/useUiStore'
 import { useReaderStore } from '../../store/useReaderStore'
 import { OfficialPlatforms } from '../book/OfficialPlatforms'
 import type { Book } from '../../types/book'
@@ -27,6 +29,8 @@ import { ImageReader } from './ImageReader'
 import { ReaderMessage } from './ReaderMessage'
 import { Choice, SettingGroup } from './ReaderSettings'
 
+/** Ouverture du lecteur : la position du compte est attendue au plus… (puis celle de l'appareil). */
+const RESUME_SYNC_TIMEOUT_MS = 2500
 /** Une position n'est écrite qu'une fois la page posée : pas de rafale pendant un défilement. */
 const SAVE_DELAY_MS = 900
 /** À partir de cet avancement, le chapitre suivant est préparé (pages + premières images). */
@@ -59,7 +63,42 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
   const chaptersRead = useLibraryStore((state) => state.entries[book.id]?.chaptersRead ?? 0)
 
   // Position à l'ouverture seulement : la suite de la lecture ne doit pas la déplacer.
-  const [opening] = useState(() => useLibraryStore.getState().entries[book.id]?.position ?? null)
+  // D'abord celle du COMPTE (lue peut-être sur un autre appareil depuis) ; `undefined`
+  // tant qu'on la cherche. Hors-ligne ou réseau trop lent : celle de l'appareil.
+  const [opening, setOpening] = useState<ReadingPosition | null | undefined>(undefined)
+  const notify = useUiStore((state) => state.notify)
+  useEffect(() => {
+    const local = useLibraryStore.getState().entries[book.id]?.position ?? null
+    let done = false
+    const settle = () => {
+      if (done) return
+      done = true
+      const fresh = useLibraryStore.getState().entries[book.id]?.position ?? null
+      setOpening(fresh)
+      // Plus loin ailleurs : on le dit, la reprise ne surprend pas.
+      if (fresh && (!local || fresh.at > local.at) && (fresh.chapterId !== local?.chapterId || fresh.page !== local?.page)) {
+        notify(t.reader.resumedFromAccount, 'like')
+      }
+    }
+    const timer = window.setTimeout(settle, RESUME_SYNC_TIMEOUT_MS)
+    void useAuthStore
+      .getState()
+      .refreshLibrary()
+      .finally(() => {
+        window.clearTimeout(timer)
+        settle()
+      })
+    return () => {
+      done = true
+      window.clearTimeout(timer)
+    }
+    // Une fois par ouverture du lecteur.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book.id])
+  const openingRef = useRef(opening)
+  useEffect(() => {
+    openingRef.current = opening
+  })
   const language: ChapterLanguage = preferredLanguage ?? interfaceLanguage
 
   const [listTick, setListTick] = useState(0)
@@ -78,6 +117,25 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
 
   /* ---- Liste des chapitres ------------------------------------------------ */
 
+  /** Liste arrivée avant la position du compte : le choix du chapitre l'attend. */
+  const awaitingResume = useRef<{ all: ReaderChapter[]; before: ReaderChapter[] } | null>(null)
+  const pickChapter = (all: ReaderChapter[], before: ReaderChapter[], resume: ReadingPosition | null) => {
+    // Chapitre encore valable dans cette langue ? Sinon, le même numéro, sinon la reprise.
+    const currentId = chapterRef.current
+    if (currentId && findChapter(all, currentId)) return
+    const previous = currentId ? findChapter(before, currentId) : undefined
+    const sameNumber = previous?.number ? all.find((chapter) => chapter.number === previous.number) : undefined
+    // Reprise : la version exacte de la dernière position, même chez une autre source que la préférée.
+    const resumeId = resume?.chapterId ?? null
+    const preferred = useReaderStore.getState().sourceByWork[book.id] ?? null
+    const resumeOrder = readingOrder(ensureChapter(applySourcePreference(all, preferred), resumeId), [], resumeId)
+    setChapterId(sameNumber?.id ?? initialChapterId(resumeOrder, resume, useLibraryStore.getState().entries[book.id]?.chaptersRead ?? 0))
+  }
+  const pickRef = useRef(pickChapter)
+  useEffect(() => {
+    pickRef.current = pickChapter
+  })
+
   useEffect(() => {
     const controller = new AbortController()
     readerApi
@@ -86,23 +144,23 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
         setList({ status: 'ready', data, key: listKey })
         const before = lastChapters.current
         lastChapters.current = data.chapters
-        // Chapitre encore valable dans cette langue ? Sinon, le même numéro, sinon la reprise.
-        const currentId = chapterRef.current
-        const all = data.chapters
-        if (currentId && findChapter(all, currentId)) return
-        const previous = currentId ? findChapter(before, currentId) : undefined
-        const sameNumber = previous?.number ? all.find((chapter) => chapter.number === previous.number) : undefined
-        // Reprise : la version exacte de la dernière position, même chez une autre source que la préférée.
-        const resumeId = opening?.chapterId ?? null
-        const preferred = useReaderStore.getState().sourceByWork[book.id] ?? null
-        const resumeOrder = readingOrder(ensureChapter(applySourcePreference(all, preferred), resumeId), [], resumeId)
-        setChapterId(sameNumber?.id ?? initialChapterId(resumeOrder, opening, useLibraryStore.getState().entries[book.id]?.chaptersRead ?? 0))
+        const resume = openingRef.current
+        if (resume === undefined) awaitingResume.current = { all: data.chapters, before }
+        else pickRef.current(data.chapters, before, resume)
       })
       .catch(() => {
         if (!controller.signal.aborted) setList({ status: 'error', key: listKey })
       })
     return () => controller.abort()
-  }, [book.id, language, listKey, opening])
+  }, [book.id, language, listKey])
+
+  // La position du compte est connue : le chapitre de reprise peut être choisi.
+  useEffect(() => {
+    const waiting = awaitingResume.current
+    if (opening === undefined || !waiting) return
+    awaitingResume.current = null
+    pickRef.current(waiting.all, waiting.before, opening)
+  }, [opening])
 
   // Source préférée appliquée, et chapitre ouvert gardé à sa place même s'il vient d'une autre source.
   // `list` est recréé à chaque rendu pendant le chargement ; ses chapitres, eux, sont stables.

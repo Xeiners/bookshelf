@@ -1147,6 +1147,7 @@ export const en: Dictionary = {
     errorChapters: 'Couldn’t load the chapter list.',
     errorPages: 'Couldn’t load this chapter.',
     errorFile: 'Couldn’t open this file.',
+    resumedFromAccount: 'Picked up where you left off on your other device.',
     offlineHint: 'Offline: only chapters you already opened are available.',
     noChapters: 'No chapter readable in French or English for this title.',
     noChaptersLicensed: 'This title is licensed: no chapters are hosted here, but you can read it officially on:',

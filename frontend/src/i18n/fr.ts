@@ -1162,6 +1162,7 @@ export const fr = {
     errorChapters: 'Impossible de charger la liste des chapitres.',
     errorPages: 'Impossible de charger ce chapitre.',
     errorFile: 'Impossible d’ouvrir ce fichier.',
+    resumedFromAccount: 'Repris là où tu t’es arrêté sur ton autre appareil.',
     offlineHint: 'Hors-ligne : seuls les chapitres déjà ouverts restent lisibles.',
     noChapters: 'Aucun chapitre lisible en français ni en anglais pour ce titre.',
     noChaptersLicensed: 'Ce titre est sous licence : aucun chapitre n’est hébergé ici, mais il se lit officiellement ici :',

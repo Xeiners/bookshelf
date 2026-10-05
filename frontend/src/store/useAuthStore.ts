@@ -38,6 +38,12 @@ interface AuthState {
 
   /** Au démarrage : valide la session, vide l'outbox, récupère la bibliothèque du compte. */
   bootstrap: () => Promise<void>
+  /**
+   * Reprend la bibliothèque du compte (positions de lecture comprises) : ce qui a été lu
+   * sur un autre appareil depuis. Envoie d'abord ce qui attend ici. `ifOlderThanMs` :
+   * seulement si la dernière reprise date d'au moins autant.
+   */
+  refreshLibrary: (options?: { ifOlderThanMs?: number }) => Promise<void>
   /** Inscription, étape 1 : un code part par e-mail (le compte n'existe pas encore). */
   startRegistration: (input: Credentials & { displayName?: string }) => Promise<PendingRegistration>
   /** Étape 2 : le bon code crée le compte et ouvre la session. */
@@ -69,6 +75,10 @@ function adoptAccountLanguage(user: AuthUser) {
   if (outbox.hasPendingPrefs()) return
   useSettingsStore.getState().applyAccountLanguage(user.preferredLanguage)
 }
+
+/** Reprise de la bibliothèque du compte : une seule à la fois, et quand date la dernière. */
+let refreshing: Promise<void> | null = null
+let lastLibraryRefresh = 0
 
 function endSession(reason: 'expired' | 'logout') {
   outbox.disable()
@@ -124,6 +134,7 @@ export const useAuthStore = create<AuthState>()(
           // Un swipe a pu partir pendant le chargement : l'état local est alors
           // plus récent que la réponse, on le garde (l'outbox l'enverra).
           if (outbox.size() === 0) useLibraryStore.getState().replaceAll(library)
+          lastLibraryRefresh = Date.now()
         } catch (error) {
           if (error instanceof ApiError && error.status === 401) {
             endSession('expired')
@@ -131,6 +142,29 @@ export const useAuthStore = create<AuthState>()(
             if (error.code === 'account_suspended') useUiStore.getState().notify(getT().account.suspended, 'nope')
           } else set({ offline: true })
         }
+      },
+
+      refreshLibrary: ({ ifOlderThanMs = 0 } = {}) => {
+        if (!get().user || !navigator.onLine) return Promise.resolve()
+        if (Date.now() - lastLibraryRefresh < ifOlderThanMs) return Promise.resolve()
+        refreshing ??= (async () => {
+          try {
+            // Ce qui attend ici part d'abord : la réponse en tiendra compte.
+            const drained = await outbox.flush()
+            if (!drained) return
+            const library = await libraryApi.fetch()
+            // Une lecture a pu reprendre pendant le chargement : l'état local est alors plus récent.
+            if (outbox.size() === 0) useLibraryStore.getState().replaceAll(library)
+            lastLibraryRefresh = Date.now()
+            set({ offline: false })
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 401) endSession('expired')
+            // Réseau : on garde l'état local, la prochaine reprise réessaiera.
+          }
+        })().finally(() => {
+          refreshing = null
+        })
+        return refreshing
       },
 
       startRegistration: ({ email, password, displayName }) =>

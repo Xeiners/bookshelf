@@ -59,6 +59,8 @@ const AdminView = lazy(() => import('./components/admin/AdminView').then((module
 const NovelsSheet = lazy(() => import('./components/novels/NovelsSheet').then((module) => ({ default: module.NovelsSheet })))
 
 const SPLASH_KEY = 'bookshelf:splash-seen'
+/** Retour au premier plan : la bibliothèque du compte est reprise si elle date d'au moins… */
+const LIBRARY_REFRESH_MS = 5_000
 
 function readSplashFlag(): boolean {
   try {
@@ -89,6 +91,22 @@ export default function App() {
   // Session : validation, envoi des actions en attente, récupération du compte.
   useEffect(() => {
     void useAuthStore.getState().bootstrap()
+  }, [])
+
+  // Autre appareil : l'app revenue au premier plan (ou le réseau revenu) reprend la
+  // bibliothèque du compte, positions de lecture comprises. Une app installée revient
+  // souvent de l'arrière-plan sans redémarrer : sans ça, elle gardait l'état du matin.
+  useEffect(() => {
+    const refresh = () => void useAuthStore.getState().refreshLibrary({ ifOlderThanMs: LIBRARY_REFRESH_MS })
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', refresh)
+    }
   }, [])
 
   // Lien de profil partagé (`?u=<id>`) : ouvert une fois, puis retiré de l'adresse.

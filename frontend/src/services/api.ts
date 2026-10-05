@@ -30,18 +30,24 @@ interface RequestOptions {
   signal?: AbortSignal
 }
 
+const isHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal } = options
 
   let response: Response
   try {
+    const payload = body === undefined ? undefined : JSON.stringify(body)
     response = await fetch(`${API_BASE}${path}`, {
       method,
       signal,
+      // Page en arrière-plan (onglet fermé, app quittée) : l'envoi doit survivre à sa fermeture.
+      // Le navigateur plafonne ces requêtes à 64 Ko : seules les petites y ont droit.
+      keepalive: method !== 'GET' && isHidden() && (payload?.length ?? 0) < 60_000,
       // Le cookie de session HTTP-only voyage aussi en cross-origin (VITE_API_URL).
       credentials: 'include',
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: payload,
     })
   } catch (error) {
     if (signal?.aborted) throw error
