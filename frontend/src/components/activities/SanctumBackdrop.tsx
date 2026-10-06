@@ -14,9 +14,11 @@ const AURORA = [
  * un portail, en plein écran derrière l'interface : la zone animée (`<main>`,
  * transformée) piégerait un élément fixe.
  *
- * VOLONTAIREMENT IMMOBILE : un calque plein écran qui bouge oblige à
- * recomposer tout l'écran à chaque image — c'était la première cause de
- * saccades sur téléphone. La vie vient des artefacts, pas du fond.
+ * Deux lueurs dérivent lentement par-dessus (une violette, une rose dorée). Le calque plein
+ * écran, lui, reste IMMOBILE : le faire bouger obligeait à recomposer tout l'écran à chaque
+ * image (saccades sur téléphone). Les lueurs ne bougent que par `transform`, en CSS (le
+ * compositeur s'en charge), sont floues par leur dégradé (pas de `filter: blur`), et
+ * s'arrêtent si l'appareil demande moins d'animations.
  */
 export function SanctumBackdrop() {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -26,7 +28,16 @@ export function SanctumBackdrop() {
   })
 
   return createPortal(
-    <div ref={rootRef} aria-hidden className="pointer-events-none fixed inset-0 -z-[5] bg-[#050507]" style={{ backgroundImage: AURORA }} />,
+    <div ref={rootRef} aria-hidden className="pointer-events-none fixed inset-0 -z-[5] overflow-hidden bg-[#050507]" style={{ backgroundImage: AURORA }}>
+      <span
+        className="sanctum-orb absolute top-[8%] left-[-12%] size-[min(70vmax,900px)] rounded-full"
+        style={{ background: 'radial-gradient(closest-side, rgba(124, 92, 255, 0.38), rgba(124, 92, 255, 0.12) 50%, transparent)', animation: 'sanctum-drift-a 38s ease-in-out infinite alternate' }}
+      />
+      <span
+        className="sanctum-orb absolute right-[-14%] bottom-[-10%] size-[min(60vmax,780px)] rounded-full"
+        style={{ background: 'radial-gradient(closest-side, rgba(255, 110, 170, 0.28), rgba(255, 170, 90, 0.10) 55%, transparent)', animation: 'sanctum-drift-b 46s ease-in-out infinite alternate' }}
+      />
+    </div>,
     document.body,
   )
 }

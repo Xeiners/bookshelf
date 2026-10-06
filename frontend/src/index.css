@@ -303,6 +303,41 @@
   }
 }
 
+/* Lueurs du fond des Activités : une lente dérive, transform seulement. */
+@keyframes sanctum-drift-a {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(22vw, 14vh, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(8vw, 32vh, 0) scale(0.94);
+  }
+}
+
+@keyframes sanctum-drift-b {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-24vw, -18vh, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(-10vw, -36vh, 0) scale(0.96);
+  }
+}
+
+.sanctum-orb {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sanctum-orb {
+    animation: none !important;
+  }
+}
+
 @keyframes bomb-float {
   0%,
   100% {
