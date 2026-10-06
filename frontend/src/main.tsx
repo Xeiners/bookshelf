@@ -1,8 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-// Police des titres, servie par l'app (disponible hors-ligne) : Fraunces, axes complets (SOFT).
-import '@fontsource-variable/fraunces/full.css'
-import '@fontsource-variable/fraunces/full-italic.css'
+// Inter, servie par l'app (disponible hors-ligne), avec sa taille optique : à grande taille,
+// elle prend le dessin serré d'Inter Display, pour les titres.
+import '@fontsource-variable/inter/opsz.css'
+import '@fontsource-variable/inter/opsz-italic.css'
 import './index.css'
 import App from './App'
 import { registerServiceWorker } from './lib/pwa'

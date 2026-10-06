@@ -17,8 +17,8 @@ const HEIGHT = 1350
 const GOLD = '#d9b25f'
 const CREAM = '#f7f5f0'
 // Piles de polices CSS : des noms techniques, pas du texte d'interface.
-const SERIF = '"Fraunces Variable", Georgia, serif' // i18n-ignore
-const SANS = 'Inter, system-ui, sans-serif' // i18n-ignore
+const DISPLAY = '-apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", Roboto, sans-serif' // i18n-ignore
+const SANS = DISPLAY
 
 export type ShareOutcome = 'shared' | 'saved' | 'cancelled'
 
@@ -115,7 +115,7 @@ async function render(input: ShareInput): Promise<Blob> {
   if (!context) throw new Error('canvas unavailable')
 
   // Polices de l'app, si elles sont disponibles.
-  await Promise.all([document.fonts.load(`80px ${SERIF}`), document.fonts.load(`600 30px ${SANS}`)]).catch(() => undefined)
+  await Promise.all([document.fonts.load(`600 80px ${DISPLAY}`), document.fonts.load(`600 30px ${SANS}`)]).catch(() => undefined)
 
   // Fond nuit + halos (pépite en haut, ambiance en bas).
   context.fillStyle = '#07060c'
@@ -152,7 +152,7 @@ async function render(input: ShareInput): Promise<Blob> {
   context.fillText(`${BRAND.toUpperCase()} · ORACLE`, WIDTH / 2, 132) // i18n-ignore : marque + nom de la fonctionnalité
   context.letterSpacing = '0px'
   context.fillStyle = CREAM
-  context.font = `84px ${SERIF}`
+  context.font = `600 84px ${DISPLAY}`
   context.fillText(t.oracle.shareTitle, WIDTH / 2, 226)
   context.fillStyle = 'rgba(247,245,240,0.55)'
   context.font = `500 28px ${SANS}`
@@ -179,7 +179,7 @@ async function render(input: ShareInput): Promise<Blob> {
     context.fillStyle = gradient
     context.fillRect(cover.x, cover.y, cover.w, cover.h)
     context.fillStyle = 'rgba(247,245,240,0.8)'
-    context.font = `160px ${SERIF}`
+    context.font = `600 160px ${DISPLAY}`
     context.fillText(initials(draw.pepite.title), WIDTH / 2, cover.y + cover.h / 2 + 50)
   }
   context.restore()
@@ -204,7 +204,7 @@ async function render(input: ShareInput): Promise<Blob> {
   context.textAlign = 'center'
   context.textBaseline = 'alphabetic'
   context.fillStyle = CREAM
-  context.font = `66px ${SERIF}`
+  context.font = `600 66px ${DISPLAY}`
   const titleLines = wrap(context, draw.pepite.title, 880, 2)
   titleLines.forEach((line, index) => context.fillText(line, WIDTH / 2, 1030 + index * 70))
 
