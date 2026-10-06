@@ -3,11 +3,14 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 import { registerServiceWorker } from './lib/pwa'
+import { resumeDownloads } from './lib/reader/downloads'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root introuvable dans index.html')
 
 registerServiceWorker()
+// Téléchargements de chapitres interrompus (app fermée) : ils reprennent.
+resumeDownloads()
 
 createRoot(container).render(
   <StrictMode>

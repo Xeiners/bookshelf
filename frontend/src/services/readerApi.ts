@@ -1,6 +1,7 @@
 import type { ReadingStatus } from '../types/book'
 import type { ChapterLanguage, ChapterList, ChapterPages, ChapterSource, OfficialPlatform, ReaderPage, ReadingPosition } from '../types/reader'
-import { api } from './api'
+import { downloadedChapterList, downloadedPages } from '../lib/reader/downloads'
+import { api, isNetworkError } from './api'
 
 interface PagesResponse {
   chapterId: string
@@ -24,7 +25,12 @@ const platformsCache = new Map<string, Promise<OfficialPlatform[]>>()
 
 export const readerApi = {
   chapters: (mangaId: string, lang: ChapterLanguage, signal?: AbortSignal) =>
-    api<ChapterList>(`/manga/${encodeURIComponent(mangaId)}/chapters?lang=${lang}`, { signal }),
+    api<ChapterList>(`/manga/${encodeURIComponent(mangaId)}/chapters?lang=${lang}`, { signal }).catch((error: unknown) => {
+      // Hors-ligne, sans copie de la liste : les chapitres téléchargés suffisent à lire.
+      const local = isNetworkError(error) ? downloadedChapterList(mangaId, lang) : null
+      if (local) return local
+      throw error
+    }),
 
   /**
    * `alternates` : le même chapitre chez d'autres sources, que l'API essaie si
@@ -32,6 +38,9 @@ export const readerApi = {
    * le même chapitre, quelle que soit la liste de replis.
    */
   pages(chapterId: string, quality: 'data' | 'data-saver', alternates: readonly string[] = []): Promise<ChapterPages> {
+    // Chapitre téléchargé : ses pages sont sur l'appareil, aucun appel (même en ligne).
+    const local = downloadedPages(chapterId)
+    if (local) return Promise.resolve(local)
     const key = `${chapterId}:${quality}`
     let pending = pagesCache.get(key)
     if (!pending) {

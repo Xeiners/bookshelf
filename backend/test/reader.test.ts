@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
+import { randomBytes } from 'node:crypto'
+import sharp from 'sharp'
 // Module pur (sans `config`) : importable avant `prepareEnvironment`.
 import { compareChapters, normalizeChapter, type ReaderChapter } from '../src/modules/chapters/chapters.normalize.js'
 import type { MdChapter } from '../src/modules/chapters/chapters.client.js'
@@ -40,6 +42,8 @@ const FEED: MdChapter[] = [
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
+const REAL_PNG = await sharp(randomBytes(160 * 160 * 3), { raw: { width: 160, height: 160, channels: 3 } }).png().toBuffer()
+
 /** Nœuds en panne : leurs images répondent 502. */
 const brokenNodes = new Set<string>()
 let atHomeCalls = 0
@@ -74,6 +78,8 @@ extraMocks.push((url, init) => {
     if (brokenNodes.has(url.hostname) || (brokenNodes.has('*data') && url.pathname.includes('/data/'))) {
       return new Response('down', { status: 502 })
     }
+    // La première page est une vraie image (bruit : un PNG lourd), pour la conversion WebP.
+    if (url.pathname.endsWith('/x1-aaa.png')) return new Response(new Uint8Array(REAL_PNG), { status: 200, headers: { 'Content-Type': 'image/png' } })
     const kind = url.pathname.endsWith('.png') ? 'image/png' : 'image/jpeg'
     return new Response(new Uint8Array([1, 2, 3, url.pathname.length]), { status: 200, headers: { 'Content-Type': kind } })
   }
@@ -179,6 +185,27 @@ describe('pages MangaDex At-Home', () => {
     assert.equal(response.headers.get('content-type'), 'image/jpeg')
     assert.equal(response.headers.get('x-reader-quality'), 'data-saver')
     assert.doesNotMatch(response.headers.get('cache-control') ?? '', /immutable/)
+  })
+
+  it('manifeste hors-ligne (`format=webp`) : les pages dans l’ordre, adresses en WebP', async () => {
+    const res = await client().request('GET', `/chapters/${CH(1)}/pages?quality=data&format=webp`)
+    assert.deepEqual(
+      res.body.pages.map((page: { url: string }) => page.url),
+      [`/api/chapters/${CH(1)}/image/data/x1-aaa.png?format=webp`, `/api/chapters/${CH(1)}/image/data/x2-bbb.png?format=webp`],
+    )
+    assert.equal(res.body.pages[0].fallbackUrl, `/api/chapters/${CH(1)}/image/data-saver/x1-aaa.jpg?format=webp`)
+  })
+
+  it('page en WebP : réencodée et plus légère ; image illisible : l’originale, telle quelle', async () => {
+    const original = await fetch(`${base}/chapters/${CH(1)}/image/data/x1-aaa.png`)
+    const webp = await fetch(`${base}/chapters/${CH(1)}/image/data/x1-aaa.png?format=webp`)
+    assert.equal(webp.status, 200)
+    assert.equal(webp.headers.get('content-type'), 'image/webp')
+    const [before, after] = [(await original.arrayBuffer()).byteLength, (await webp.arrayBuffer()).byteLength]
+    assert.ok(after < before, `${after} < ${before}`)
+    const broken = await fetch(`${base}/chapters/${CH(1)}/image/data/x2-bbb.png?format=webp`)
+    assert.equal(broken.status, 200)
+    assert.equal(broken.headers.get('content-type'), 'image/png')
   })
 
   it('fichier absent du chapitre → 404, nom suspect → 400', async () => {

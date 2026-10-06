@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { MAX_ALTERNATES } from '../../extensions/aggregator.js'
 import { isChapterKey } from '../../extensions/chapterKey.js'
 import { badRequest } from '../../lib/errors.js'
+import { toWebp, wantsWebp, withWebp } from '../../lib/webp.js'
 import { LangQuerySchema } from '../../lib/language.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
 import { listChapters, listPages } from './chapters.service.js'
@@ -18,6 +19,8 @@ const PagesQuery = z.object({
   quality: QualitySchema.catch('data'),
   /** Versions du même chapitre chez d'autres sources, essayées si celle-ci échoue. */
   alt: z.string().max(4_000).optional().catch(undefined),
+  /** `webp` : téléchargement hors-ligne, pages réencodées (cf. `lib/webp.ts`). */
+  format: z.enum(['webp']).optional().catch(undefined),
 })
 
 /**
@@ -56,7 +59,7 @@ chaptersRouter.get('/:chapterId/pages', pagesLimiter, async (req, res) => {
   // Avec un middleware devant, Express type les paramètres en `string | string[]`.
   const chapterId = String(req.params.chapterId)
   if (!isChapterKey(chapterId)) throw badRequest('Identifiant de chapitre invalide.')
-  const { quality, alt } = PagesQuery.parse(req.query)
+  const { quality, alt, format } = PagesQuery.parse(req.query)
   const alternates = (alt ?? '').split(',').filter(isChapterKey).slice(0, MAX_ALTERNATES)
   const served = await listPages(chapterId, quality, alternates)
   // Les URL listées pointent vers nos relais, stables : cacheables un moment.
@@ -68,7 +71,8 @@ chaptersRouter.get('/:chapterId/pages', pagesLimiter, async (req, res) => {
     source: served.source,
     fallback: served.fallback,
     quality,
-    pages: served.pages,
+    // Manifeste du chapitre : les pages dans l'ordre, prêtes à être téléchargées par lots.
+    pages: format === 'webp' ? served.pages.map((page) => ({ ...page, url: withWebp(page.url), fallbackUrl: withWebp(page.fallbackUrl) })) : served.pages,
   })
 })
 
@@ -85,7 +89,8 @@ chaptersRouter.get('/:chapterId/image/:quality/:file', async (req, res) => {
   if (!UUID.test(chapterId) || !PAGE_FILE.test(file)) throw badRequest('Page invalide.')
   const quality = QualitySchema.parse(req.params.quality)
 
-  const image = await loadPageImage(chapterId, quality, file)
+  const loaded = await loadPageImage(chapterId, quality, file)
+  const image = wantsWebp(req.query.format) ? { ...loaded, ...(await toWebp(loaded)) } : loaded
   // Nom de fichier = empreinte du contenu : immuable. Sauf repli « Data Saver »
   // servi à la place de l'originale : il ne doit pas s'installer durablement.
   res.set(

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { CloudOff } from 'lucide-react'
 import { PageRecoveryContext, type PageRecovery } from '../../hooks/reader/usePageRecovery'
 import { usePrefetch } from '../../hooks/reader/usePrefetch'
 import { useReaderChrome } from '../../hooks/reader/useReaderUi'
@@ -44,6 +45,8 @@ export interface ImageReaderProps {
   prefetchNext?: string[]
   /** Bandeau d'information (hors-ligne, source de repli…). */
   notice?: string | null
+  /** Pastille discrète en haut à droite (« Mode hors-ligne »). */
+  badge?: string | null
   /** Choix de la source du chapitre en cours (chapitre publié par plusieurs sources). */
   sourcePicker?: SourcePicker | null
   /** Page en erreur : proposer ce chapitre chez une autre source (cf. `PageImage`). */
@@ -76,6 +79,7 @@ export function ImageReader(props: ImageReaderProps) {
     credits,
     prefetchNext,
     notice,
+    badge = null,
     sourcePicker,
     pageRecovery,
   } = props
@@ -190,6 +194,17 @@ export function ImageReader(props: ImageReaderProps) {
         <p className="pointer-events-none absolute inset-x-0 top-[max(2rem,env(safe-area-inset-top))] z-10 text-center text-[11px] text-gold/80">
           {notice}
         </p>
+      )}
+
+      {badge && (
+        // Sous la barre du haut quand elle est affichée, jamais dessous.
+        <span
+          style={{ top: ui.controls ? 'calc(env(safe-area-inset-top) + 4.75rem)' : 'max(0.75rem, env(safe-area-inset-top))' }}
+          className="pointer-events-none absolute right-3 z-30 inline-flex transition-[top] duration-200 ease-out items-center gap-1.5 rounded-full border border-white/10 bg-black/60 px-2.5 py-1 text-[10px] font-medium tracking-wide text-cream/80 backdrop-blur"
+        >
+          <CloudOff size={11} aria-hidden />
+          {badge}
+        </span>
       )}
 
       <ReaderStatus visible={showStatus && !ui.controls} />

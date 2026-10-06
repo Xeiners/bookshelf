@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useReaderChrome } from '../../hooks/reader/useReaderUi'
+import { useOnline } from '../../hooks/useOnline'
 import { useLanguage, useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
 import { neighbours, readingOrder } from '../../lib/reader/navigation'
@@ -20,6 +21,8 @@ import { readerApi } from '../../services/readerApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useUiStore } from '../../store/useUiStore'
+import { isDownloaded, useDownloadStore } from '../../store/useDownloadStore'
+import { DownloadButton } from './DownloadButton'
 import { useReaderStore } from '../../store/useReaderStore'
 import { OfficialPlatforms } from '../book/OfficialPlatforms'
 import type { Book } from '../../types/book'
@@ -60,6 +63,8 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
   const preferredSource = useReaderStore((state) => state.sourceByWork[book.id] ?? null)
   const setSource = useReaderStore((state) => state.setSource)
   const recordReading = useLibraryStore((state) => state.recordReading)
+  const downloads = useDownloadStore((state) => state.chapters)
+  const online = useOnline()
   const chaptersRead = useLibraryStore((state) => state.entries[book.id]?.chaptersRead ?? 0)
 
   // Position à l'ouverture seulement : la suite de la lecture ne doit pas la déplacer.
@@ -316,6 +321,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
       state: chapter.id === chapterId ? 'current' : number !== null && number <= chaptersRead ? 'read' : null,
       badge: showSource || isExtensionSource(sourceOf(chapter)) ? sourceOf(chapter).name : null,
       extension: isExtensionSource(sourceOf(chapter)),
+      action: <DownloadButton book={book} chapter={chapter} language={language} label={label(chapter) ?? ''} />,
     }
   })
 
@@ -346,13 +352,15 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
   const nextSource = versions[1]
   const pageRecovery = nextSource ? { label: t.reader.trySource(nextSource.name), onSwitch: () => switchSource(nextSource.id) } : null
 
-  const offline = typeof navigator !== 'undefined' && !navigator.onLine
+  const offline = !online
   // Nom du site qui a réellement servi (« Asura Scans », pas le fournisseur « Tachiyomi ») : lu dans la liste.
   const fallbackSource =
     pageState.status === 'ready' && pageState.data.fallback
       ? ((findChapter(listed, pageState.data.servedBy)?.source ?? pageState.data.source)?.name ?? null)
       : null
-  const notice = offline ? t.reader.offlineHint : fallbackSource ? t.reader.sourceFallback(fallbackSource) : null
+  // Chapitre téléchargé : il se lit entièrement sans réseau, inutile d'avertir.
+  const currentDownloaded = isDownloaded(downloads[chapterId ?? ''])
+  const notice = offline && !currentDownloaded ? t.reader.offlineHint : fallbackSource ? t.reader.sourceFallback(fallbackSource) : null
 
   const ui = useReaderChrome()
 
@@ -429,6 +437,7 @@ export function MangaReader({ book, chapterId: requested }: MangaReaderProps) {
       credits={credits}
       prefetchNext={nextFirst}
       notice={notice}
+      badge={offline ? t.downloads.offlineBadge : null}
       sourcePicker={sourcePicker}
       pageRecovery={pageRecovery}
     />

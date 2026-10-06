@@ -12,7 +12,7 @@
  *  - /assets/* (hachés) → cache d'abord (immuables par construction)
  *  - couvertures (/api/covers, Open Library) → stale-while-revalidate, cache plafonné
  *  - pages de chapitre (/api/chapters/…/image/…, et /api/proxy/page/… pour les autres sources)
- *    → cache d'abord : le chapitre en cours, préchargé en entier, reste lisible hors-ligne
+ *    → chapitres TÉLÉCHARGÉS d'abord (cache sans plafond), puis cache d'abord : le chapitre en cours, préchargé en entier, reste lisible hors-ligne
  *  - listes de chapitres et de pages → réseau d'abord (4 s max), repli sur la dernière copie
  *  - couvertures des romans du compte (/api/books/<id>/cover) → stale-while-revalidate,
  *    dans un cache « privé » que la déconnexion efface (cf. useNovelStore.clear)
@@ -34,6 +34,11 @@ const ASSET_CACHE = `bookshelf-assets-${VERSION}`
 const IMAGE_CACHE = `bookshelf-covers-${VERSION}`
 const PAGES_CACHE = `bookshelf-pages-${VERSION}`
 const READER_DATA_CACHE = `bookshelf-reader-data-${VERSION}`
+/**
+ * Chapitres téléchargés pour la lecture hors-ligne (cf. `src/lib/reader/downloads.ts`) :
+ * remplis par l'app, JAMAIS purgés ici (ni plafond, ni changement de version).
+ */
+const DOWNLOADS_CACHE = 'bookshelf-downloads-v1'
 /** Données d'un compte : le préfixe `bookshelf-private-` est effacé à la déconnexion. */
 const PRIVATE_CACHE = `bookshelf-private-${VERSION}`
 
@@ -129,7 +134,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys()
-      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE, PRIVATE_CACHE])
+      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE, PRIVATE_CACHE, DOWNLOADS_CACHE])
       await Promise.all(keys.filter((key) => !current.has(key)).map((key) => caches.delete(key)))
       await pruneOldAssets()
       await self.clients.claim()
@@ -253,6 +258,9 @@ async function staleWhileRevalidate(request, cacheName) {
  * ou page d'une autre source (en-tête `X-Reader-Fallback`).
  */
 async function chapterImage(request) {
+  // Chapitre téléchargé : servi depuis l'appareil, sans réseau ni attente.
+  const downloaded = await (await caches.open(DOWNLOADS_CACHE)).match(request)
+  if (downloaded) return downloaded
   const cache = await caches.open(PAGES_CACHE)
   const cached = await cache.match(request)
   if (cached) return cached
@@ -274,7 +282,8 @@ async function networkFirstData(request) {
   const cache = await caches.open(READER_DATA_CACHE)
   return networkOr(
     request,
-    () => cache.match(request),
+    // Dernière copie connue, sinon celle rangée avec un chapitre téléchargé.
+    async () => (await cache.match(request)) ?? (await (await caches.open(DOWNLOADS_CACHE)).match(request)),
     (response) => {
       if (!response.ok) return
       cache

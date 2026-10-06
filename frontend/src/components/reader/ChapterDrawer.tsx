@@ -14,6 +14,8 @@ export interface DrawerItem {
   badge?: string | null
   /** Le badge désigne le site d'une extension Tachiyomi : marqué d'un éclair. */
   extension?: boolean
+  /** Action au bout de la ligne (télécharger le chapitre pour le hors-ligne). */
+  action?: ReactNode
 }
 
 interface ChapterDrawerProps {
@@ -49,12 +51,12 @@ export function ChapterDrawer({ open, title, items, onSelect, onClose, header, f
         {items.map((item) => {
           const current = item.state === 'current'
           return (
-            <li key={item.id} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 56px' }}>
+            <li key={item.id} className="flex items-center gap-1" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 56px' }}>
               <button
                 type="button"
                 aria-current={current ? 'true' : undefined}
                 onClick={() => onSelect(item.id)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
                   current ? 'bg-gold/15 text-gold' : 'text-cream/85 hover:bg-white/[0.06]'
                 }`}
                 style={item.depth ? { paddingLeft: `${0.75 + item.depth * 0.9}rem` } : undefined}
@@ -72,6 +74,7 @@ export function ChapterDrawer({ open, title, items, onSelect, onClose, header, f
                 {current && <span className="shrink-0 text-[10px] tracking-wide uppercase">{t.reader.current}</span>}
                 {item.state === 'read' && <Check size={14} aria-label={t.reader.readMark} className="shrink-0 text-like/70" />}
               </button>
+              {item.action}
             </li>
           )
         })}

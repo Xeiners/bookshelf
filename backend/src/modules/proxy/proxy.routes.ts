@@ -5,6 +5,7 @@ import { MAX_ALTERNATES } from '../../extensions/aggregator.js'
 import { decodeChapterKey, MANGADEX_SOURCE_ID } from '../../extensions/chapterKey.js'
 import { sourceAggregator } from '../../extensions/index.js'
 import { badRequest, upstreamError } from '../../lib/errors.js'
+import { toWebp, wantsWebp } from '../../lib/webp.js'
 import { relayImage } from './proxy.fetch.js'
 
 /**
@@ -78,7 +79,8 @@ proxyRouter.get('/page/:chapterKey/:index', async (req, res) => {
       res.set('Cache-Control', 'public, max-age=300')
       res.set('X-Reader-Fallback', resolved.source.id)
     }
-    res.type(image.contentType).send(image.body)
+    const served = wantsWebp(req.query.format) ? await toWebp(image) : image
+    res.type(served.contentType).send(served.body)
     return
   }
 

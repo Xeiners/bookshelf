@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import {
   BookOpen,
+  ChevronDown,
   ChevronRight,
   CloudCheck,
   CloudOff,
   CloudUpload,
+  Download,
   Eye,
   Globe,
   Link2,
@@ -23,12 +25,14 @@ import { apiErrorMessage } from '../../lib/apiErrors'
 import { formatBytes } from '../../lib/format'
 import { vibrate } from '../../lib/haptics'
 import { clearLocalCache, deviceUsage } from '../../lib/localCache'
+import { downloadsBytes, removeAllDownloads, removeDownload } from '../../lib/reader/downloads'
 import { profileLink } from '../../lib/profileLink'
 import { profileApi, type BooksStorage } from '../../services/profileApi'
 import { useAmbientStore } from '../../store/useAmbientStore'
 import { useAuthStore, usePendingSync } from '../../store/useAuthStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useNovelStore } from '../../store/useNovelStore'
+import { useDownloadStore, type DownloadedChapter } from '../../store/useDownloadStore'
 import { useProfileStore } from '../../store/useProfileStore'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -395,6 +399,122 @@ function PublicProfileSection({ userId }: { userId: string }) {
   )
 }
 
+/* ---- Mes téléchargements (chapitres hors-ligne) ------------------------------------ */
+
+function DownloadsSection() {
+  const t = useT()
+  const notify = useUiStore((state) => state.notify)
+  const chapters = useDownloadStore((state) => state.chapters)
+  const [openManga, setOpenManga] = useState<string | null>(null)
+  const [confirmingAll, setConfirmingAll] = useState(false)
+
+  useEffect(() => {
+    if (!confirmingAll) return
+    const timer = window.setTimeout(() => setConfirmingAll(false), 3000)
+    return () => window.clearTimeout(timer)
+  }, [confirmingAll])
+
+  // Par manga (les plus récents en tête), chapitres dans l'ordre.
+  const groups = new Map<string, DownloadedChapter[]>()
+  for (const entry of Object.values(chapters)) groups.set(entry.manga.id, [...(groups.get(entry.manga.id) ?? []), entry])
+  const value = (entry: DownloadedChapter) => (entry.number === null ? -1 : Number.parseFloat(entry.number))
+  const mangas = [...groups.values()]
+    .map((list) => list.sort((a, b) => value(a) - value(b)))
+    .sort((a, b) => Math.max(...b.map((entry) => entry.queuedAt)) - Math.max(...a.map((entry) => entry.queuedAt)))
+  const label = (entry: DownloadedChapter) => (entry.number ? t.reader.chapter(entry.number) : (entry.title ?? t.reader.oneshot))
+
+  return (
+    <Section icon={Download} title={t.downloads.title}>
+      {mangas.length === 0 ? (
+        <p className="text-[11px] leading-relaxed text-mist">{t.downloads.none}</p>
+      ) : (
+        <>
+          <p className="text-xs text-cream/85 tabular-nums">{t.downloads.used(formatBytes(downloadsBytes(chapters), t.locale))}</p>
+          <ul className="flex flex-col gap-1.5">
+            {mangas.map((list) => {
+              const manga = list[0]?.manga
+              if (!manga) return null
+              const expanded = openManga === manga.id
+              const pending = list.some((entry) => entry.status === 'queued' || entry.status === 'downloading')
+              return (
+                <li key={manga.id} className="rounded-2xl bg-cream/[0.04]">
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    onClick={() => setOpenManga(expanded ? null : manga.id)}
+                    className="flex w-full items-center gap-3 p-2.5 text-left"
+                  >
+                    {manga.cover ? (
+                      <img src={manga.cover} alt="" loading="lazy" className="h-12 w-8 shrink-0 rounded-md bg-ink object-cover" />
+                    ) : (
+                      <span className="h-12 w-8 shrink-0 rounded-md bg-ink" />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-cream">{manga.title}</span>
+                      <span className="block text-[11px] text-mist tabular-nums">
+                        {t.downloads.chapters(list.length)} · {formatBytes(list.reduce((sum, entry) => sum + entry.bytes, 0), t.locale)}
+                        {pending && ` · ${t.downloads.pending}`}
+                      </span>
+                    </span>
+                    <ChevronDown size={16} aria-hidden className={`shrink-0 text-mist transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expanded && (
+                    <ul className="px-2.5 pb-2">
+                      {list.map((entry) => (
+                        <li key={entry.chapterId} className="flex items-center gap-2 py-1">
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs text-cream/85">{label(entry)}</span>
+                            <span className={`block text-[10px] tabular-nums ${entry.status === 'error' ? 'text-gold' : 'text-mist'}`}>
+                              {entry.status === 'done'
+                                ? formatBytes(entry.bytes, t.locale)
+                                : entry.status === 'error'
+                                  ? t.downloads.errors[entry.error ?? 'network']
+                                  : entry.status === 'queued' || entry.pages.length === 0
+                                    ? t.downloads.queued
+                                    : t.downloads.progress(Math.round((entry.done / entry.pages.length) * 100))}
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              vibrate(8)
+                              void removeDownload(entry.chapterId)
+                            }}
+                            aria-label={t.downloads.remove(label(entry))}
+                            className="grid size-8 shrink-0 place-items-center rounded-full text-cream/50 transition-colors hover:bg-nope/15 hover:text-nope"
+                          >
+                            <Trash2 size={14} aria-hidden />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          <button
+            type="button"
+            onClick={() => {
+              if (!confirmingAll) {
+                setConfirmingAll(true)
+                return
+              }
+              setConfirmingAll(false)
+              vibrate(12)
+              void removeAllDownloads().then(() => notify(t.downloads.removedAll, 'neutral'))
+            }}
+            className={`flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-xs ${confirmingAll ? 'bg-nope/15 text-nope' : 'glass text-cream/85'}`}
+          >
+            <Trash2 size={13} aria-hidden />
+            {confirmingAll ? t.downloads.removeAllConfirm : t.downloads.removeAll}
+          </button>
+        </>
+      )}
+    </Section>
+  )
+}
+
 /* ---- Stockage & synchronisation -------------------------------------------------- */
 
 function StorageSection() {
@@ -617,6 +737,7 @@ export function SettingsSheet() {
           <ReadingSection />
           {userId && <PublicProfileSection userId={userId} />}
           <StorageSection />
+          <DownloadsSection />
           {isAdmin && <AdminSection />}
           {signedIn && <SessionSection onDone={dismiss} />}
         </div>

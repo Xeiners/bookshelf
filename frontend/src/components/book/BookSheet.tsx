@@ -17,6 +17,7 @@ import { FavoriteButton } from '../ui/FavoriteButton'
 import { Pill } from '../ui/Pill'
 import { Pressable } from '../ui/Pressable'
 import { StarRating } from '../ui/StarRating'
+import { ChapterDownloads } from './ChapterDownloads'
 import { OfficialPlatforms } from './OfficialPlatforms'
 
 const PROGRESS_STEP = 0.1
@@ -269,6 +270,9 @@ export function BookSheet({ book }: BookSheetProps) {
               <OfficialPlatforms platforms={officialPlatforms} />
             </div>
           )}
+
+          {/* Chapitres à télécharger pour la lecture hors-ligne. */}
+          {isReadable(book) && <ChapterDownloads book={entry?.book ?? book} chaptersRead={entry?.chaptersRead ?? 0} />}
 
           {entry?.status === 'reading' && (
             <div className="mt-6 rounded-2xl bg-cream/[0.04] p-4" data-sheet-item>

@@ -3,7 +3,8 @@ import { forgetAllDownloads } from './reader/cloudBooks'
 /**
  * Caches du Service Worker (cf. `public/sw.js`) qui se reconstituent seuls :
  * couvertures, pages de chapitres, données du lecteur, couvertures des romans.
- * L'app elle-même (`shell`, `assets`) reste : elle doit démarrer hors-ligne.
+ * L'app elle-même (`shell`, `assets`) reste : elle doit démarrer hors-ligne. Les chapitres
+ * téléchargés (`downloads`) aussi : ils se gèrent dans « Mes téléchargements ».
  */
 const DISPOSABLE_CACHES = /^bookshelf-(covers|pages|reader-data|private)-/
 
