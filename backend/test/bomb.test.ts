@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { after, describe, it } from 'node:test'
-import { prepareEnvironment, startServer, type TestClient } from './harness.js'
+import { extraMocks, installMangadexMock, mockedHosts, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
 prepareEnvironment('bomb')
-const { client, close } = await startServer()
+installMangadexMock()
+const { client, close, base } = await startServer()
 const dictionary = await import('../src/modules/bomb/bomb.dictionary.js')
 const logic = await import('../src/modules/bomb/bomb.logic.js')
 const rooms = await import('../src/modules/bomb/bomb.rooms.js')
@@ -291,5 +292,36 @@ describe('bomb party — salon en temps réel', () => {
     const late = client()
     await late.request('POST', '/dle/guest', { name: 'Retard' })
     assert.equal((await late.request('POST', `/bomb/rooms/${code}/join`)).body.error.code, 'room_full')
+  })
+})
+
+describe('bomb party — portraits des répliques', () => {
+  it('relaie la photo MyAnimeList du bon personnage, et refuse une réplique inconnue', async () => {
+    mockedHosts.add('api.jikan.moe')
+    mockedHosts.add('cdn.myanimelist.net')
+    const searches: string[] = []
+    extraMocks.push((url) => {
+      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/characters') {
+        searches.push(url.searchParams.get('q') ?? '')
+        return Response.json({
+          data: [
+            { mal_id: 1, name: 'Saitama, Someone', images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/characters/wrong.jpg' } } },
+            { mal_id: 73935, name: 'Saitama', images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/characters/saitama.jpg' } } },
+          ],
+        })
+      }
+      if (url.hostname === 'cdn.myanimelist.net') {
+        return new Response(url.pathname.endsWith('saitama.jpg') ? 'SAITAMA' : 'WRONG', { headers: { 'Content-Type': 'image/jpeg' } })
+      }
+      return undefined
+    })
+    const first = await fetch(`${base}/bomb/quotes/saitama/portrait`)
+    assert.equal(first.status, 200)
+    assert.equal(first.headers.get('content-type'), 'image/jpeg')
+    assert.equal(await first.text(), 'SAITAMA')
+    assert.equal((await fetch(`${base}/bomb/quotes/saitama/portrait`)).status, 200)
+    assert.deepEqual(searches, ['Saitama'], 'une seule recherche : le portrait est gardé en cache')
+    assert.equal((await fetch(`${base}/bomb/quotes/inconnu/portrait`)).status, 404)
+    assert.equal((await fetch(`${base}/bomb/quotes/__proto__/portrait`)).status, 404)
   })
 })

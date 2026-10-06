@@ -73,7 +73,7 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** Jikan limite à quelques requêtes par seconde : les chargements de tous les univers passent l'un après l'autre. */
 let jikanQueue: Promise<unknown> = Promise.resolve()
-function serial<T>(task: () => Promise<T>): Promise<T> {
+export function serial<T>(task: () => Promise<T>): Promise<T> {
   const run = jikanQueue.then(task, task)
   jikanQueue = run.catch(() => undefined)
   return run
@@ -103,7 +103,7 @@ async function animeCharacters(animeId: number): Promise<JikanCharacters | null>
 }
 
 /** Recherche d'un personnage par nom : le plus aimé de ceux dont le nom correspond. `undefined` : Jikan n'a pas répondu. */
-async function searchPortrait(character: PortraitCharacter): Promise<{ url: string; malId: number | null } | null | undefined> {
+export async function searchPortrait(character: PortraitCharacter): Promise<{ url: string; malId: number | null } | null | undefined> {
   const keys = new Set(namesOf(character).map(nameKey))
   try {
     const response = await fetch(`${JIKAN}/characters?q=${encodeURIComponent(character.mal?.[0] ?? character.name)}&limit=10&order_by=favorites&sort=desc`, {

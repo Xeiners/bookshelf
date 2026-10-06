@@ -119,10 +119,10 @@ export function Bomb({ syllable, endsAt, totalMs, variant = 'orb', audible = fal
   /** Syllabe : où et comment l'écrire, selon le style. */
   const label =
     variant === 'chibi'
-      ? { top: '77.5%', color: '#1d1233', shadow: 'none', scale: long ? 0.11 : 0.13 }
+      ? { top: '78%', color: '#140c26', shadow: '0 1px 0 rgba(255,255,255,0.9)', scale: long ? 0.135 : 0.16 }
       : variant === 'talisman'
-        ? { top: '55%', color: '#2b0a0a', shadow: '0 0 1px rgba(43,10,10,0.4)', scale: long ? 0.15 : 0.18 }
-        : { top: '57%', color: '#ffffff', shadow: '0 0 18px var(--heat), 0 2px 0 rgba(0,0,0,0.45)', scale: long ? 0.168 : 0.2 }
+        ? { top: '55%', color: '#2b0a0a', shadow: '0 1px 0 rgba(255,244,220,0.8)', scale: long ? 0.16 : 0.19 }
+        : { top: '57%', color: '#ffffff', shadow: '0 0 3px rgba(0,0,0,0.9), 0 2px 0 rgba(0,0,0,0.65), 0 0 18px var(--heat)', scale: long ? 0.17 : 0.2 }
 
   return (
     <div
@@ -260,7 +260,7 @@ export function Bomb({ syllable, endsAt, totalMs, variant = 'orb', audible = fal
       {/* La syllabe, au cœur de la bombe (sur l'étiquette de la chibi, à l'encre sur le parchemin). */}
       {syllable && (
         <span
-          className="absolute font-display leading-none font-bold tracking-[0.06em] uppercase"
+          className="absolute font-sans leading-none font-black tracking-[0.04em] uppercase"
           style={{ top: label.top, transform: `translateY(-50%)${variant === 'talisman' ? ' rotate(-6deg)' : ''}`, fontSize: Math.round(size * label.scale), color: label.color, textShadow: label.shadow }}
         >
           {syllable}
@@ -309,7 +309,7 @@ function ChibiBody({ id, stage, blink }: { id: string; stage: HeatStage; blink: 
       {stage !== 'calm' && <path d="M150 92 q6 10 0 14 q-6 -4 0 -14z" fill="#9be8ff" fillOpacity="0.9" />}
       {stage === 'critical' && <path d="M48 100 q5 8 0 11 q-5 -3 0 -11z" fill="#9be8ff" fillOpacity="0.9" />}
       {/* L'étiquette de la syllabe. */}
-      <rect x="66" y="150" width="68" height="28" rx="14" fill="#fff4dc" stroke="#1d1233" strokeOpacity="0.25" />
+      <rect x="50" y="148" width="100" height="38" rx="19" fill="#fff6e2" stroke="#140c26" strokeOpacity="0.55" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 0 6px var(--glow))' }} />
     </g>
   )
 }

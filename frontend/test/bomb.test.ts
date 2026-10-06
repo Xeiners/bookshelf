@@ -60,7 +60,7 @@ describe('bomb party — répliques de défaite', async () => {
   it('chaque réplique existe en français et en anglais, portrait relayé par l’API', () => {
     for (const quote of BOMB_QUOTES) {
       assert.ok(fr.bomb.quotes[quote.id].text && en.bomb.quotes[quote.id].text, quote.id)
-      if (quote.portrait) assert.match(quotePortrait(quote) ?? '', /^\/api\/dle\/characters\/\w+\/[\w-]+\/image$/)
+      assert.equal(quotePortrait(quote), `/api/bomb/quotes/${quote.id}/portrait`)
     }
   })
 })

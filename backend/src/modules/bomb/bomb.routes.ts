@@ -9,12 +9,21 @@ import { BOMB_STYLES, MAX_LIVES, MAX_WORD_LENGTH, MIN_FUSE_OPTIONS } from './bom
 import { bombTyping, bombWord, createBombRoom, currentBombRoomOf, joinBombRoom, leaveBombRoom, setBombMode, setBombSettings, startBombRoom, subscribeBombRoom } from './bomb.rooms.js'
 import { soloExplode, soloQuit, soloWord, startSolo } from './bomb.solo.js'
 import { bombRecords } from './bomb.stats.js'
+import { quotePortrait } from './bomb.portraits.js'
 
 /**
  * Anime Bomb Party (cf. `bomb.rooms.ts`, `bomb.solo.ts`). Monté sous `/api/bomb` : un
  * compte, ou un invité avec son pseudo (le même que celui du BookshelfDLE).
  */
 export const bombRouter = Router()
+
+/** Portrait de l'auteur d'une réplique de fin de partie : public, comme ceux du BookshelfDLE. */
+bombRouter.get('/quotes/:id/portrait', async (req, res) => {
+  const image = await quotePortrait(z.string().max(20).parse(req.params.id))
+  res.set('Cache-Control', 'public, max-age=86400')
+  res.type(image.contentType).send(image.body)
+})
+
 bombRouter.use(requirePlayer)
 bombRouter.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store')
