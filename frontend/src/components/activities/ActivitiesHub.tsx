@@ -118,15 +118,27 @@ export function ActivitiesHub() {
 /* ---- Cadre d'artefact ---------------------------------------------------------- */
 
 /**
- * Surface d'un artefact, façon widget : la couleur de l'activité naît d'un coin et se fond
- * doucement dans l'encre de la carte ; liseré uni, teinté de la même couleur.
+ * Surface d'un artefact, façon widget : deux teintes de l'activité naissent de coins opposés
+ * et se mêlent en diagonale sur l'encre de la carte ; liseré uni, teinté de la première.
  */
-const surface = (tint: string, from = '0% 0%'): CSSProperties => ({
-  background: `radial-gradient(120% 140% at ${from}, ${tint}3d 0%, ${tint}18 40%, transparent 72%), linear-gradient(180deg, #13131c, #0d0d14)`,
-  borderColor: `${tint}33`,
+const surface = ([tint, accent]: readonly [string, string], from = '0% 0%'): CSSProperties => ({
+  background: [
+    `radial-gradient(110% 130% at ${from}, ${tint}4d 0%, ${tint}1f 38%, transparent 70%)`,
+    `radial-gradient(90% 110% at 100% 100%, ${accent}38 0%, ${accent}12 40%, transparent 72%)`,
+    'linear-gradient(160deg, #15151f, #0c0c13)',
+  ].join(', '),
+  borderColor: `${tint}3d`,
 })
 
-const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0' } as const
+const TINT = {
+  booster: ['#ffc46b', '#ff5ec4'],
+  oracle: ['#9d7bff', '#4c6bff'],
+  collection: ['#e0a82e', '#ff7a3d'],
+  market: ['#3fe0a0', '#4cc9f0'],
+  bomb: ['#b46cff', '#ff5e9c'],
+  dle: ['#ff5ec4', '#9d7bff'],
+  hl: ['#4cc9f0', '#3fe0a0'],
+} as const
 
 /**
  * Lueur incandescente autour d'un artefact « chargé ». Fixe : une grande ombre
@@ -287,8 +299,9 @@ function GoldButton({ onClick, icon, label, disabled = false }: { onClick: () =>
         disabled
           ? { background: 'rgba(247,245,240,0.08)', color: 'rgba(247,245,240,0.45)' }
           : {
-              background: '#f2c14e',
+              background: 'linear-gradient(180deg, #ffdf8a, #f2b83a)',
               color: '#2a1a02',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55), 0 8px 22px -10px rgba(242,184,58,0.8)',
             }
       }
     >
@@ -437,7 +450,7 @@ function MarketArtefact() {
       data-artefact
       onClick={() => openActivity('market')}
       className={`${ARTEFACT_CLASS} w-full`}
-      style={unread > 0 ? { ...surface(TINT.market), borderColor: `${TINT.market}73` } : surface(TINT.market)}
+      style={unread > 0 ? { ...surface(TINT.market), borderColor: `${TINT.market[0]}80` } : surface(TINT.market)}
     >
       <span className="flex items-center gap-5 p-5">
         <span
@@ -551,7 +564,7 @@ function DleArtefact() {
       data-artefact
       onClick={() => openActivity('dle')}
       className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
-      style={lit ? { ...surface(TINT.dle), borderColor: `${TINT.dle}73` } : surface(TINT.dle)}
+      style={lit ? { ...surface(TINT.dle), borderColor: `${TINT.dle[0]}80` } : surface(TINT.dle)}
     >
       <span className="flex items-center gap-5 p-5">
         <DleEmblem />

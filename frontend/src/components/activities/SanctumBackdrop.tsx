@@ -2,10 +2,11 @@ import { useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { gsap, useGSAP } from '../../lib/gsap'
 
-/** Une aurore discrète : un voile violet au sommet, une braise dorée tout en bas. */
+/** Une aurore douce : voiles violet et rose au sommet, une braise dorée tout en bas. */
 const AURORA = [
-  'radial-gradient(90% 55% at 50% -8%, rgba(124, 92, 255, 0.28), rgba(124, 92, 255, 0.08) 45%, transparent 75%)',
-  'radial-gradient(60% 40% at 85% 108%, rgba(255, 170, 90, 0.10), transparent 70%)',
+  'radial-gradient(70% 50% at 20% -10%, rgba(124, 92, 255, 0.30), rgba(124, 92, 255, 0.08) 45%, transparent 75%)',
+  'radial-gradient(60% 45% at 85% -5%, rgba(255, 94, 196, 0.16), transparent 70%)',
+  'radial-gradient(60% 40% at 85% 108%, rgba(255, 170, 90, 0.12), transparent 70%)',
 ].join(', ')
 
 /**
