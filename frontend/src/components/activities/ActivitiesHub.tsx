@@ -117,10 +117,10 @@ export function ActivitiesHub() {
 
 /* ---- Cadre d'artefact ---------------------------------------------------------- */
 
-/** Liseré doré qui s'estompe vers le violet, sur un verre d'encre (bordure en dégradé). */
+/** Surface d'un artefact : une carte sombre et unie, au liseré discret (ni dégradé ni halo). */
 const ARTEFACT_SURFACE: CSSProperties = {
-  background:
-    'linear-gradient(160deg, rgba(20,18,32,0.92), rgba(8,8,14,0.94)) padding-box, linear-gradient(135deg, rgba(255,228,160,0.55), rgba(255,228,160,0.08) 35%, rgba(124,92,255,0.35) 100%) border-box',
+  backgroundColor: '#101017',
+  borderColor: 'rgba(255,255,255,0.08)',
 }
 
 /**
@@ -132,12 +132,12 @@ function Incandescence() {
     <div
       aria-hidden
       className="pointer-events-none absolute -inset-px -z-10 rounded-[1.8rem]"
-      style={{ boxShadow: '0 0 0 1px rgba(255,228,160,0.9), 0 0 22px rgba(255,196,107,0.4)' }}
+      style={{ boxShadow: '0 0 0 1px rgba(255,228,160,0.7)' }}
     />
   )
 }
 
-const ARTEFACT_CLASS = 'relative isolate shrink-0 rounded-[1.75rem] border border-transparent text-left'
+const ARTEFACT_CLASS = 'relative isolate shrink-0 rounded-[1.75rem] border text-left'
 
 /* ---- Autel du booster ---------------------------------------------------------------- */
 
@@ -282,20 +282,11 @@ function GoldButton({ onClick, icon, label, disabled = false }: { onClick: () =>
         disabled
           ? { background: 'rgba(247,245,240,0.08)', color: 'rgba(247,245,240,0.45)' }
           : {
-              background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)',
+              background: '#f2c14e',
               color: '#2a1a02',
-              boxShadow: '0 0 26px rgba(255,196,107,0.5), inset 0 1px 0 rgba(255,255,255,0.7)',
             }
       }
     >
-      {!disabled && (
-        <span
-          aria-hidden
-          data-card-fx
-          className="absolute inset-y-0 left-0 w-1/2 -skew-x-12"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)', animation: 'shimmer 2.8s ease-in-out infinite' }}
-        />
-      )}
       {/* Libellé long (autre langue, écran étroit) : points de suspension, jamais de texte coupé net. */}
       <span className="relative flex min-w-0 items-center gap-2">
         <span className="shrink-0">{icon}</span>
@@ -441,7 +432,7 @@ function MarketArtefact() {
       data-artefact
       onClick={() => openActivity('market')}
       className={`${ARTEFACT_CLASS} w-full`}
-      style={unread > 0 ? { ...ARTEFACT_SURFACE, boxShadow: '0 0 0 1px rgba(63,224,160,0.45), 0 18px 46px -22px rgba(63,224,160,0.6)' } : ARTEFACT_SURFACE}
+      style={unread > 0 ? { ...ARTEFACT_SURFACE, borderColor: 'rgba(63,224,160,0.45)' } : ARTEFACT_SURFACE}
     >
       <span className="flex items-center gap-5 p-5">
         <span
@@ -495,9 +486,8 @@ function BombArtefact() {
       data-artefact
       onClick={() => openActivity('bomb')}
       className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
-      style={{ ...ARTEFACT_SURFACE, boxShadow: '0 0 0 1px rgba(111,214,255,0.25), 0 18px 46px -24px rgba(124,92,255,0.7)' }}
+      style={ARTEFACT_SURFACE}
     >
-      <span aria-hidden className="absolute -bottom-20 -left-10 -z-10 size-64 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(255,94,156,0.2), transparent)' }} />
       <span className="flex items-center gap-4 p-4 pr-5">
         <span className="-my-3 -ml-2 shrink-0">
           <Bomb syllable="爆" endsAt={covered ? null : endsAt} totalMs={HUB_FUSE_MS} onZero={() => setEndsAt(Date.now() + HUB_FUSE_MS)} size={96} />
@@ -556,9 +546,8 @@ function DleArtefact() {
       data-artefact
       onClick={() => openActivity('dle')}
       className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
-      style={lit ? { ...ARTEFACT_SURFACE, boxShadow: '0 0 0 1px rgba(255,94,196,0.4), 0 18px 46px -22px rgba(255,94,196,0.6)' } : ARTEFACT_SURFACE}
+      style={lit ? { ...ARTEFACT_SURFACE, borderColor: 'rgba(255,94,196,0.45)' } : ARTEFACT_SURFACE}
     >
-      <span aria-hidden className="absolute -top-16 -right-12 -z-10 size-56 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(255,94,196,0.22), transparent)' }} />
       <span className="flex items-center gap-5 p-5">
         <DleEmblem />
         <span className="block min-w-0 flex-1">
@@ -637,7 +626,6 @@ function HigherLowerArtefact() {
 
   return (
     <button ref={ref} type="button" data-artefact onClick={() => openActivity('higherlower')} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={ARTEFACT_SURFACE}>
-      <span aria-hidden className="absolute -top-16 -right-12 -z-10 size-56 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(94,242,194,0.18), transparent)' }} />
       <span className="flex items-center gap-5 p-5">
         <span aria-hidden data-hl-emblem className="relative grid size-16 shrink-0 place-items-center will-change-transform">
           <span className="absolute inset-0 rounded-[1.35rem]" style={{ background: HL_GRADIENT, boxShadow: '0 0 26px -6px rgba(94,242,194,0.7)' }} />
