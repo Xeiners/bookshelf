@@ -10,6 +10,7 @@
 !backend/prisma
 !backend/scripts
 !backend/src
+!backend/data
 
 # Jamais, même dans les dossiers autorisés
 **/node_modules

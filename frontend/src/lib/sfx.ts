@@ -530,3 +530,57 @@ export function playGlint(): void {
   const at = e.ctx.currentTime
   blip(e, 2093 + Math.random() * 600, at, 0.12, 0.018, 'sine', (Math.random() - 0.5) * 0.6, 0.35)
 }
+
+/* ---- Anime Bomb Party --------------------------------------------------------------- */
+
+/** Tic-tac de la mèche : sec et boisé au calme, plus aigu et plus fort quand ça chauffe (`heat` 0 → 1). */
+export function playBombTick(heat: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const level = Math.max(0, Math.min(1, heat))
+  blip(e, 760 + level * 900, at, 0.03, 0.025 + level * 0.035, 'square', 0, 0)
+  noiseBurst(e, { at, duration: 0.025, from: 3200, to: 2400, q: 6, gain: 0.05 + level * 0.06, send: 0 })
+}
+
+/** Mot validé : arpège clair qui monte un peu plus haut à chaque mot d'affilée. */
+export function playBombWord(combo: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const lift = Math.pow(2, Math.min(combo, 8) / 12)
+  ;[523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => blip(e, frequency * lift, at + index * 0.045, 0.22, 0.05, 'triangle', index * 0.3 - 0.45, 0.25))
+  sparkle(e, at + 0.12, 5, 1568 * lift, 0.022)
+}
+
+/** Mot refusé : petit bourdon grave, deux fois. */
+export function playBombFail(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 147, at, 0.09, 0.06, 'sawtooth', 0, 0.02)
+  blip(e, 139, at + 0.11, 0.12, 0.06, 'sawtooth', 0, 0.02)
+}
+
+/** C'est ton tour : la bombe arrive entre tes mains. */
+export function playBombTurn(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 987.77, at, 0.08, 0.05, 'sine', 0, 0.2)
+  blip(e, 1479.98, at + 0.07, 0.16, 0.05, 'sine', 0, 0.25)
+}
+
+/** L'explosion : impact grave, souffle qui s'assombrit, crépitements. */
+export function playBombExplosion(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 140, 28, 1.3, 0.95)
+  boom(e, at, 70, 22, 1.6, 0.6)
+  noiseBurst(e, { at, duration: 1.1, from: 5200, to: 160, q: 0.4, gain: 0.55, type: 'lowpass', send: 0.5 })
+  noiseBurst(e, { at: at + 0.04, duration: 0.5, from: 1800, to: 600, q: 0.9, gain: 0.25, grain: 38, send: 0.3 })
+  for (let index = 0; index < 7; index += 1) {
+    noiseBurst(e, { at: at + 0.25 + index * 0.09 + Math.random() * 0.05, duration: 0.05, from: 4200, to: 2600, q: 4, gain: 0.08, pan: Math.random() * 1.6 - 0.8, send: 0.4 })
+  }
+}

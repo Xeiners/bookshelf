@@ -14,6 +14,8 @@ import { SanctumBackdrop } from './SanctumBackdrop'
 const DleView = lazy(() => import('../dle/DleView').then((module) => ({ default: module.DleView })))
 // Higher or Lower : idem.
 const HigherLowerView = lazy(() => import('../higherlower/HigherLowerView').then((module) => ({ default: module.HigherLowerView })))
+// Anime Bomb Party : idem.
+const BombView = lazy(() => import('../bomb/BombView').then((module) => ({ default: module.BombView })))
 
 /**
  * Onglet « Activités » : le hub, ou un de ses modules (l'Oracle, la
@@ -39,7 +41,7 @@ export function ActivitiesView() {
       <SanctumBackdrop />
       {activity === 'hub' ? (
         <ActivitiesHub />
-      ) : activity === 'dle' || activity === 'higherlower' ? (
+      ) : activity === 'dle' || activity === 'higherlower' || activity === 'bomb' ? (
         <Suspense
           fallback={
             <div className="grid flex-1 place-items-center">
@@ -47,7 +49,7 @@ export function ActivitiesView() {
             </div>
           }
         >
-          {activity === 'dle' ? <DleView /> : <HigherLowerView />}
+          {activity === 'dle' ? <DleView /> : activity === 'bomb' ? <BombView /> : <HigherLowerView />}
         </Suspense>
       ) : (
         <>

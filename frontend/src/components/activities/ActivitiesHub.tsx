@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Check, ChevronRight, Flame, FlaskConical, Gift, Handshake, MoonStar, Sparkle, TrendingUp, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
@@ -20,6 +20,8 @@ import { CardBack } from '../cards/CardBack'
 import { CARD_FRAMES } from '../cards/cardFrames'
 import { STARDUST_GRADIENT } from '../dle/dleStyle'
 import { HL_DOWN, HL_GRADIENT, HL_UP } from '../higherlower/hlStyle'
+import { Bomb } from '../bomb/Bomb'
+import { BOMB_GRADIENT } from '../../lib/bomb'
 import { StardustBadge } from '../dle/StardustBadge'
 import { EnergyRing } from './EnergyRing'
 
@@ -106,6 +108,7 @@ export function ActivitiesHub() {
         <DleArtefact />
         <HigherLowerArtefact />
       </div>
+      <BombArtefact />
       <MarketArtefact />
     </div>
   )
@@ -463,6 +466,49 @@ function MarketArtefact() {
           </span>
           <span className="mt-1 block text-sm text-cream/60">{t.trades.body}</span>
           {openOffers !== null && <span className="mt-1.5 block text-[11px] text-gold/80">{t.trades.hubOpen(openOffers)}</span>}
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
+      </span>
+    </button>
+  )
+}
+
+/* ---- Anime Bomb Party ------------------------------------------------------------------------ */
+
+/** Mèche de l'artefact : elle brûle en boucle (bleu → rouge), sans tic-tac. */
+const HUB_FUSE_MS = 9000
+
+/**
+ * L'Anime Bomb Party : une syllabe, une bombe, un mot avant l'explosion. Sur l'artefact,
+ * la petite bombe brûle sa mèche en boucle.
+ */
+function BombArtefact() {
+  const t = useT()
+  const openActivity = useUiStore((state) => state.openActivity)
+  const covered = useUiStore((state) => state.boosterOpen)
+  const [endsAt, setEndsAt] = useState(() => Date.now() + HUB_FUSE_MS)
+
+  return (
+    <button
+      type="button"
+      data-artefact
+      onClick={() => openActivity('bomb')}
+      className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
+      style={{ ...ARTEFACT_SURFACE, boxShadow: '0 0 0 1px rgba(111,214,255,0.25), 0 18px 46px -24px rgba(124,92,255,0.7)' }}
+    >
+      <span aria-hidden className="absolute -bottom-20 -left-10 -z-10 size-64 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(255,94,156,0.2), transparent)' }} />
+      <span className="flex items-center gap-4 p-4 pr-5">
+        <span className="-my-3 -ml-2 shrink-0">
+          <Bomb syllable="爆" endsAt={covered ? null : endsAt} totalMs={HUB_FUSE_MS} onZero={() => setEndsAt(Date.now() + HUB_FUSE_MS)} size={96} />
+        </span>
+        <span className="block min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-2xl" style={{ backgroundImage: BOMB_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+              {t.bomb.title}
+            </span>
+            <span className="rounded-full bg-[#6fd6ff]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#9be8ff] uppercase">{t.bomb.hub.eyebrow}</span>
+          </span>
+          <span className="mt-1.5 block text-xs leading-relaxed text-cream/65">{t.bomb.hub.body}</span>
         </span>
         <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
       </span>

@@ -81,6 +81,7 @@ model User {
   dleDailies     DleDaily[]
   dleStats       DleStats?
   higherLowerStats HigherLowerStats?
+  bombStats        BombStats?
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -511,4 +512,20 @@ model HigherLowerStats {
 
   @@index([best])
   @@index([day, dayBest])
+}
+
+/// Anime Bomb Party : records (mots trouvés en solo, par mode), parties, victoires en
+/// salon et Poussières gagnées dans la journée (plafonnées, solo et salons confondus).
+model BombStats {
+  userId      String   @id
+  bestClassic Int      @default(0)
+  bestManga   Int      @default(0)
+  games       Int      @default(0)
+  wins        Int      @default(0)
+  /// Jour (heure de Paris) auquel se rapporte `dayEarned`.
+  day         String?
+  dayEarned   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

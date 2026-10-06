@@ -33,6 +33,8 @@ import { usePlaylistSync } from './hooks/useAmbientMusic'
 import { profileIdFromSearch, withoutProfileParam } from './lib/profileLink'
 import { roomCodeFromSearch, withoutRoomParam } from './lib/dle'
 import { coopCodeFromSearch, withoutCoopParam } from './lib/higherLower'
+import { bombCodeFromSearch, withoutBombParam } from './lib/bomb'
+import { useBombStore } from './store/useBombStore'
 import { useHlCoopStore } from './store/useHlCoopStore'
 import { useDleStore } from './store/useDleStore'
 import { useNotificationPolling } from './hooks/useNotifications'
@@ -133,6 +135,15 @@ export default function App() {
     useHlCoopStore.getState().setPendingCode(code)
     useUiStore.getState().openActivity('higherlower')
     window.history.replaceState(window.history.state, '', withoutCoopParam(window.location.href))
+  }, [])
+
+  // Invitation à un salon de l'Anime Bomb Party (`?bomb=<code>`).
+  useEffect(() => {
+    const code = bombCodeFromSearch(window.location.search)
+    if (!code) return
+    useBombStore.getState().setPendingCode(code)
+    useUiStore.getState().openActivity('bomb')
+    window.history.replaceState(window.history.state, '', withoutBombParam(window.location.href))
   }, [])
 
   // Bibliothèque enregistrée retraduite dans la langue choisie.

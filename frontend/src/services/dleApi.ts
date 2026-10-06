@@ -240,7 +240,7 @@ export interface RoomView {
   results: { standings: Standing[]; answer: WorkSummary; receipt: string | null; overall: OverallStanding[] | null } | null
 }
 
-export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'booster_purchase' | 'guest_claim'
+export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'booster_purchase' | 'guest_claim'
 
 export interface StardustWallet {
   balance: number

@@ -70,6 +70,8 @@ COPY --from=builder --chown=node:node /app/node_modules/@img ./node_modules/@img
 COPY --chown=node:node backend/package.json backend/prisma.config.ts ./backend/
 COPY --chown=node:node backend/prisma ./backend/prisma
 COPY --from=builder --chown=node:node /app/backend/dist ./backend/dist
+# Dictionnaire de l'Anime Bomb Party (lu à l'exécution, cf. `bomb.dictionary.ts`).
+COPY --chown=node:node backend/data ./backend/data
 # Dossier des romans importés, à l'utilisateur `node` : le volume nommé qui s'y
 # monte (docker-compose.yml) hérite de ces droits à sa création.
 RUN mkdir -p /app/backend/uploads/books && chown -R node:node /app/backend/uploads
