@@ -158,11 +158,11 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
               <li key={work.id} role="option" data-option={index} aria-selected={index === active}>
                 <button
                   type="button"
-                  // `pointerdown` : le choix part avant que le champ ne perde le focus.
-                  onPointerDown={(event) => {
-                    event.preventDefault()
-                    void choose(work)
-                  }}
+                  // Le choix part au clic (un vrai tap), jamais au toucher : sur mobile, faire
+                  // défiler la liste commence aussi par un toucher. `mousedown` empêché : le
+                  // champ garde le focus (et le clavier reste ouvert).
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => void choose(work)}
                   onMouseEnter={() => setActive(index)}
                   className={`flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors ${index === active ? 'bg-white/[0.08]' : ''}`}
                 >
