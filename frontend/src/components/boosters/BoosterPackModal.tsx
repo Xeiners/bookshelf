@@ -3,7 +3,7 @@ import { Dices, FlaskConical, Gift, X, Zap } from 'lucide-react'
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
-import { RARITIES, RARITY_STYLE, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
+import { RARITIES, RARITY_STYLE, baitRarity, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playHlTick, playTear } from '../../lib/sfx'
@@ -29,18 +29,12 @@ const readViewport = (): Viewport => ({ width: window.innerWidth, height: window
 
 const packWidthFor = (viewport: number) => Math.min(250, Math.round(viewport * 0.56))
 
-/** Halo du paquet : seulement si une Épique (ou mieux) se cache dedans — sinon aucun indice. */
-const haloFor = (cards: PulledCard[]): Rarity | null => {
-  if (cards.length === 0) return null
-  const best = bestRarity(cards.map((pulled) => pulled.card.rarity))
-  return RARITY_STYLE[best].holo ? best : null
-}
 
 /**
  * Ouverture d'un booster, en plein écran : fond flouté sous une vignette très
  * sombre. Le serveur tire le booster dès l'ouverture de la fenêtre, pendant
- * que le paquet s'avance : son halo peut ainsi trahir une Légendaire (dorée)
- * ou une Mythique (irisée). Puis déchirure (glisser ou toucher), jaillissement
+ * que le paquet s'avance : son halo laisse deviner une Légendaire (dorée) ou
+ * une Mythique (irisée)… ou bluffe (cf. `baitRarity`). Puis déchirure (glisser ou toucher), jaillissement
  * des cartes et révélation une à une, avec tremblement d'écran pour les grandes.
  *
  * Le booster est dépensé à l'ouverture de la fenêtre : la fermer avant la
@@ -65,6 +59,8 @@ export function BoosterPackModal() {
   const [stage, setStage] = useState<Stage>(preset === null ? 'choose' : preset === 'random' ? 'roulette' : 'summoning')
   const [round, setRound] = useState(0)
   const [cards, setCards] = useState<PulledCard[]>([])
+  /** Lueur-appât du paquet, tirée avec son contenu : la vraie couleur attend la fin. */
+  const [bait, setBait] = useState<Rarity | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [burst, setBurst] = useState<Burst | null>(null)
   /** Carte révélée affichée en grand, avec son résumé. */
@@ -120,6 +116,7 @@ export function BoosterPackModal() {
       .then((pulled) => {
         if (requested.current !== current) return
         setCards(pulled.cards)
+        setBait(baitRarity(bestRarity(pulled.cards.map((card) => card.card.rarity))))
         setSeries(pulled.series)
         // La roulette s'arrête d'elle-même sur la série tirée, puis passe la main.
         if (choice !== 'random') setStage('intro')
@@ -189,6 +186,7 @@ export function BoosterPackModal() {
   // Booster suivant : on rechoisit sa série (ou la roulette).
   const again = () => {
     setCards([])
+    setBait(null)
     setError(null)
     setBurst(null)
     setChoice(null)
@@ -203,7 +201,8 @@ export function BoosterPackModal() {
   }
 
   const best = cards.length > 0 ? bestRarity(cards.map((pulled) => pulled.card.rarity)) : null
-  const tone = (stage === 'done' || stage === 'reveal') && best ? RARITY_STYLE[best].color : '#7c5cff'
+  // Pendant la révélation, le fond garde la lueur-appât ; la vraie couleur n'arrive qu'à la fin.
+  const tone = stage === 'done' && best ? RARITY_STYLE[best].color : stage === 'reveal' && bait ? RARITY_STYLE[bait].color : '#7c5cff'
   const canAgain = boosters.unlimited || boosters.available > 0
   // Invité à court d'essais : la suite passe par un compte (et ses 2 boosters offerts).
   const signUp =
@@ -223,7 +222,7 @@ export function BoosterPackModal() {
       aria-label={t.boosters.dialog}
       className="fixed inset-0 z-[90] flex flex-col overflow-hidden text-cream select-none [-webkit-touch-callout:none]"
     >
-      {/* Fond presque opaque (aucun flou : trop coûteux), halo de la meilleure carte, vignette très sombre. */}
+      {/* Fond presque opaque (aucun flou : trop coûteux), lueur (appât, puis meilleure carte), vignette très sombre. */}
       <div data-booster-backdrop aria-hidden className="absolute inset-0 bg-[#050507]/95">
         <div
           className="absolute inset-0 transition-[background] duration-700"
@@ -280,7 +279,7 @@ export function BoosterPackModal() {
               key={round}
               series={series}
               width={packWidthFor(viewport.width)}
-              halo={haloFor(cards)}
+              halo={cards.length > 0 ? bait : null}
               ready={stage !== 'summoning'}
               torn={stage === 'tearing'}
               onTear={tear}

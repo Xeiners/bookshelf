@@ -14,7 +14,7 @@ const CUT_COMMIT = 0.75
 
 interface BoosterOpeningAnimationProps {
   width: number
-  /** Meilleure carte du booster, dès que le serveur l'a tiré : colore le halo. */
+  /** Lueur-appât du booster (souvent sa meilleure carte, parfois un bluff) : colore le halo. */
   halo: Rarity | null
   /** Le contenu est connu : la déchirure est possible. */
   ready: boolean
@@ -31,7 +31,7 @@ interface BoosterOpeningAnimationProps {
 
 /**
  * L'artefact en suspens : le booster s'avance vers l'écran, flotte au-dessus
- * de son ombre portée, et s'entoure d'un halo à la couleur de sa meilleure
+ * de son ombre portée, et s’entoure d’un halo qui laisse deviner sa meilleure
  * carte. Glisser vers la droite découpe la bande EN TEMPS RÉEL, sous le
  * doigt : la partie coupée se soulève, une étincelle suit la coupe. Au bout
  * (ou relâchée aux trois quarts), la bande s'arrache, une gerbe d'étincelles

@@ -71,6 +71,26 @@ export function bestRarity(rarities: readonly Rarity[]): Rarity {
   return rarities.reduce<Rarity>((best, rarity) => (rarityRank(rarity) > rarityRank(best) ? rarity : best), 'COMMON')
 }
 
+/**
+ * Lueur-appât d'un booster : la couleur que le paquet (puis le fond, pendant la révélation)
+ * laisse deviner. Souvent vraie, jamais sûre : une grosse carte peut se cacher derrière une
+ * lueur modeste (ou aucune), et un paquet ordinaire peut promettre une Légendaire, voire une
+ * Mythique, qu'il n'a pas. `null` : aucune lueur. Tirée une fois par paquet.
+ */
+export function baitRarity(best: Rarity, random: () => number = Math.random): Rarity | null {
+  const roll = random()
+  switch (best) {
+    case 'MYTHIC':
+      return roll < 0.6 ? 'MYTHIC' : roll < 0.8 ? 'LEGENDARY' : roll < 0.9 ? 'EPIC' : null
+    case 'LEGENDARY':
+      return roll < 0.6 ? 'LEGENDARY' : roll < 0.75 ? 'MYTHIC' : roll < 0.9 ? 'EPIC' : null
+    case 'EPIC':
+      return roll < 0.5 ? 'EPIC' : roll < 0.7 ? 'LEGENDARY' : roll < 0.8 ? 'MYTHIC' : null
+    default:
+      return roll < 0.15 ? 'EPIC' : roll < 0.27 ? 'LEGENDARY' : roll < 0.33 ? 'MYTHIC' : null
+  }
+}
+
 /* ---- Recette : taux observés -------------------------------------------------------- */
 
 export interface DropTally {

@@ -7,6 +7,7 @@ import {
   observedRate,
   RARITIES,
   RARITY_STYLE,
+  baitRarity,
   bestRarity,
   completion,
   filterCollection,
@@ -57,6 +58,23 @@ describe('raretés', () => {
     assert.equal(bestRarity(['COMMON', 'EPIC', 'RARE']), 'EPIC')
     assert.equal(bestRarity(['MYTHIC', 'COMMON']), 'MYTHIC')
     assert.equal(bestRarity([]), 'COMMON')
+  })
+
+  it('lueur-appât : souvent vraie, jamais sûre (bluff dans les deux sens)', () => {
+    const at = (roll: number) => () => roll
+    // Une grosse carte se montre le plus souvent… ou se cache.
+    assert.equal(baitRarity('MYTHIC', at(0.1)), 'MYTHIC')
+    assert.equal(baitRarity('MYTHIC', at(0.95)), null)
+    assert.equal(baitRarity('LEGENDARY', at(0.7)), 'MYTHIC')
+    // Un paquet ordinaire reste éteint le plus souvent… ou promet ce qu'il n'a pas.
+    assert.equal(baitRarity('COMMON', at(0.9)), null)
+    assert.equal(baitRarity('RARE', at(0.2)), 'LEGENDARY')
+    assert.equal(baitRarity('RARE', at(0.3)), 'MYTHIC')
+    // Sur un grand nombre de paquets : une Mythique annoncée n'en est pas toujours une.
+    let seed = 7
+    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    const fakes = Array.from({ length: 2000 }, () => baitRarity('RARE', random)).filter((halo) => halo === 'MYTHIC').length
+    assert.ok(fakes > 50 && fakes < 250, String(fakes))
   })
 })
 
