@@ -16,6 +16,17 @@ export const BOMB_QUOTES = [
   { id: 'edward', portrait: null, tint: '#e0a82e' },
   { id: 'eren', portrait: null, tint: '#8bc34a' },
   { id: 'saitama', portrait: null, tint: '#ffd23f' },
+  { id: 'kakashi', portrait: { category: 'naruto', id: 'kakashi' }, tint: '#9fb4c7' },
+  { id: 'whitebeard', portrait: { category: 'onepiece', id: 'whitebeard' }, tint: '#f5f5f5' },
+  { id: 'jotaro', portrait: { category: 'jojo', id: 'jotaro' }, tint: '#7c5cff' },
+  { id: 'gojo', portrait: { category: 'jjk', id: 'gojo' }, tint: '#6fd6ff' },
+  { id: 'todo', portrait: { category: 'jjk', id: 'todo' }, tint: '#ff8a3d' },
+  { id: 'kamina', portrait: null, tint: '#ff3b6b' },
+  { id: 'kageyama', portrait: null, tint: '#ff9f1a' },
+  { id: 'escanor', portrait: null, tint: '#ffb347' },
+  { id: 'asta', portrait: null, tint: '#5ef2c2' },
+  { id: 'erwin', portrait: null, tint: '#c9a86a' },
+  { id: 'jinwoo', portrait: null, tint: '#8a6cff' },
 ] as const
 
 export type BombQuoteId = (typeof BOMB_QUOTES)[number]['id']
