@@ -6,6 +6,7 @@ import { reducedMotion } from '../../lib/dle'
 import { gsap, useGSAP } from '../../lib/gsap'
 import type { SoloView } from '../../services/bombApi'
 import { STARDUST_GRADIENT } from '../dle/dleStyle'
+import { QuoteCard } from './QuoteCard'
 
 interface SoloOverProps {
   over: NonNullable<SoloView['over']>
@@ -86,6 +87,10 @@ export function SoloOver({ over, restarting, onHome, onReplay }: SoloOverProps) 
         <p data-over-line className="relative text-xs text-mist">
           {t.bomb.over.best(over.best)}
         </p>
+        {/* La bombe a fini par exploser : une réplique pour repartir. */}
+        <div className="relative mt-1 w-full">
+          <QuoteCard delay={0.55} />
+        </div>
         <div data-over-line className="relative mt-2 flex w-full gap-2">
           <button type="button" onClick={onHome} className="flex-1 rounded-full border border-white/15 bg-white/[0.04] py-3 text-sm text-cream/85 transition-colors hover:bg-white/[0.08]">
             {t.bomb.over.home}

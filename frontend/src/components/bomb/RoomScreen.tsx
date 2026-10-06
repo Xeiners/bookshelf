@@ -19,6 +19,7 @@ import { Bomb } from './Bomb'
 import { TypedWord, WordInput } from './BombParts'
 import { Arena } from './Arena'
 import { Seat } from './Seat'
+import { QuoteCard } from './QuoteCard'
 import { Explosion } from './Explosion'
 
 /** Frappe en direct : un envoi toutes les … ms au plus. */
@@ -587,6 +588,12 @@ function OverPanel({ room, me }: { room: BombRoomView; me: string }) {
       <p className="font-display text-2xl text-cream">
         {winner ? (winner.id === me ? t.bomb.room.youWon : t.bomb.room.winner(nameOf(winner, t.bomb.room.anonymous))) : t.bomb.room.draw}
       </p>
+      {/* Perdu : une réplique d'anime pour repartir (le vainqueur, lui, savoure). */}
+      {winner?.id !== me && room.players.some((player) => player.id === me) && (
+        <div className="w-full max-w-sm">
+          <QuoteCard />
+        </div>
+      )}
       {room.mine && room.mine.reward > 0 && (
         <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold text-[#1a0b1f]" style={{ background: STARDUST_GRADIENT }}>
           <Sparkle size={14} className="fill-current" aria-hidden />+{room.mine.reward}

@@ -42,3 +42,25 @@ describe('bomb party — affichage', () => {
     assert.equal(withoutBombParam('https://a.b/?bomb=ABCDEF&u=1'), '/?u=1')
   })
 })
+
+describe('bomb party — répliques de défaite', async () => {
+  const { BOMB_QUOTES, pickQuote, quotePortrait } = await import('../src/lib/bombQuotes')
+  const { fr } = await import('../src/i18n/fr')
+  const { en } = await import('../src/i18n/en')
+
+  it('jamais deux fois la même réplique d’affilée', () => {
+    let previous = pickQuote(() => 0)
+    for (let index = 0; index < 50; index += 1) {
+      const next = pickQuote(() => 0)
+      assert.notEqual(next.id, previous.id)
+      previous = next
+    }
+  })
+
+  it('chaque réplique existe en français et en anglais, portrait relayé par l’API', () => {
+    for (const quote of BOMB_QUOTES) {
+      assert.ok(fr.bomb.quotes[quote.id].text && en.bomb.quotes[quote.id].text, quote.id)
+      if (quote.portrait) assert.match(quotePortrait(quote) ?? '', /^\/api\/dle\/characters\/\w+\/[\w-]+\/image$/)
+    }
+  })
+})
