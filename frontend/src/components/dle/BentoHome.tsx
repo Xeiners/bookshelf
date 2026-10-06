@@ -12,6 +12,7 @@ import { pendingGuestStardust, useGuestStardustStore } from '../../store/useGues
 import { CATEGORY_STYLE, STARDUST_GRADIENT } from './dleStyle'
 import { BoosterEntry } from './MenuEntry'
 import { StardustBadge } from './StardustBadge'
+import { inkText } from '../../lib/ink'
 
 type CharacterCategory = Exclude<DleCategory, 'manga'>
 
@@ -70,7 +71,7 @@ export function BentoHome({ overview }: { overview: DleOverview }) {
         <header data-logo className="flex flex-col items-center gap-3">
           <h2 className="flex items-center gap-3 font-display text-[2.6rem] leading-none sm:text-5xl">
             <Sparkles data-logo-star size={22} className="text-[#ffc46b]" aria-hidden />
-            <span style={{ backgroundImage: STARDUST_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{t.dle.title}</span>
+            <span style={inkText(STARDUST_GRADIENT)}>{t.dle.title}</span>
             <Sparkles data-logo-star size={22} className="text-[#b46cff]" aria-hidden />
           </h2>
           <div className="flex items-center gap-2">

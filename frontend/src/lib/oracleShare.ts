@@ -17,7 +17,7 @@ const HEIGHT = 1350
 const GOLD = '#d9b25f'
 const CREAM = '#f7f5f0'
 // Piles de polices CSS : des noms techniques, pas du texte d'interface.
-const SERIF = '"Instrument Serif", Georgia, serif' // i18n-ignore
+const SERIF = '"Fraunces Variable", Georgia, serif' // i18n-ignore
 const SANS = 'Inter, system-ui, sans-serif' // i18n-ignore
 
 export type ShareOutcome = 'shared' | 'saved' | 'cancelled'

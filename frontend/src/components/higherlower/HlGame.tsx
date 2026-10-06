@@ -10,7 +10,8 @@ import { hlSound, useHigherLowerStore } from '../../store/useHigherLowerStore'
 import { DleBar } from '../dle/DleBar'
 import { HlCard } from './HlCard'
 import { SoundToggle } from './SoundToggle'
-import { HL_DOWN, HL_GRADIENT, HL_UP, gradientText } from './hlStyle'
+import { HL_DOWN, HL_GRADIENT, HL_UP } from './hlStyle'
+import { inkText } from '../../lib/ink'
 
 type Phase = 'choose' | 'reveal' | 'shift' | 'lost'
 
@@ -295,7 +296,7 @@ export function HlGame() {
               ) : verdict === 'wrong' ? (
                 <X size={30} strokeWidth={3} style={{ color: HL_DOWN.color }} aria-label={t.hl.wrong} />
               ) : (
-                <span className="font-display text-xl md:text-2xl" style={gradientText(HL_GRADIENT)}>
+                <span className="font-display text-xl md:text-2xl" style={inkText(HL_GRADIENT)}>
                   {t.hl.vs}
                 </span>
               )}

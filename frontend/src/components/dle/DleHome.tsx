@@ -13,6 +13,7 @@ import { CATEGORY_STYLE, modeLabel } from './dleStyle'
 import { ModeIcon } from './ModeIcon'
 import { DailyStatus, MenuEntry } from './MenuEntry'
 import { StardustBadge } from './StardustBadge'
+import { inkText } from '../../lib/ink'
 
 /**
  * Menu d'une catégorie, façon Loldle : son nom, puis les deux énigmes du jour
@@ -42,7 +43,7 @@ export function CategoryMenu({ overview, category }: { overview: DleOverview; ca
     <div ref={rootRef} className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-16">
       <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6 pt-2">
         <header data-logo className="flex flex-col items-center gap-3">
-          <h2 className="font-display text-[2.75rem] leading-none sm:text-5xl" style={{ backgroundImage: style.gradient, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+          <h2 className="font-display text-[2.75rem] leading-none sm:text-5xl" style={inkText(style.gradient)}>
             {t.dle.categories[category].title}
           </h2>
           <StardustBadge balance={signedIn ? overview.stardust : pendingGuestStardust(guestReceipts)} />

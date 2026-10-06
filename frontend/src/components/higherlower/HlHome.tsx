@@ -15,7 +15,8 @@ import { useHlCoopStore } from '../../store/useHlCoopStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CardAvatar } from '../profile/CardAvatar'
 import { MetricIcon } from './MetricIcon'
-import { CARD_INK, HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE, gradientText } from './hlStyle'
+import { CARD_INK, HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE } from './hlStyle'
+import { inkText } from '../../lib/ink'
 
 /** Terrain choisi la dernière fois, gardé sur l'appareil (confort, jamais indispensable). */
 const METRIC_KEY = 'bookshelf.hl.metric'
@@ -76,7 +77,7 @@ export function HlHome() {
   return (
     <div ref={rootRef} className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-12">
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col items-center justify-center gap-7 py-2">
-        <h2 data-hl-in className="font-display text-[2.6rem] leading-none sm:text-5xl" style={gradientText(HL_GRADIENT)}>
+        <h2 data-hl-in className="font-display text-[2.6rem] leading-none sm:text-5xl" style={inkText(HL_GRADIENT)}>
           {t.hl.title}
         </h2>
 
@@ -371,7 +372,7 @@ function Showcase({ metric, current, next }: { metric: HlMetric; current: HlCard
         className="absolute top-1/2 left-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/20 font-display text-lg will-change-transform"
         style={{ background: 'radial-gradient(circle at 50% 35%, rgba(124,92,255,0.5), #08080f 70%)', boxShadow: '0 0 0 5px #050508' }}
       >
-        <span style={gradientText(HL_GRADIENT)}>{t.hl.vs}</span>
+        <span style={inkText(HL_GRADIENT)}>{t.hl.vs}</span>
       </span>
     </div>
   )
@@ -397,13 +398,13 @@ function PreviewCard({ card, metric }: { card: HlCard; metric: HlMetric }) {
       <div className="flex h-full flex-col items-center justify-end p-3 text-center">
         <p className="line-clamp-2 font-display text-lg leading-tight text-cream">{card.name}</p>
         {card.value !== null ? (
-          <p className="mt-1 font-display text-base leading-none tabular-nums" style={gradientText('linear-gradient(180deg, #fff8dc, #ffc46b 60%, #ff9a3d)')}>
+          <p className="mt-1 font-display text-base leading-none tabular-nums" style={inkText('linear-gradient(180deg, #fff8dc, #ffc46b 60%, #ff9a3d)')}>
             {formatHlValue(card.value, metric, locale)} <span className="text-[11px] text-cream/50">{t.hl.metrics[metric].unit}</span>
           </p>
         ) : (
           <p className="mt-1 flex items-center gap-1.5 leading-none">
             <ArrowUp data-show-up size={14} strokeWidth={3} style={{ color: HL_UP.color }} aria-hidden />
-            <span data-show-mark className="inline-block font-display text-2xl will-change-transform" style={gradientText(HL_GRADIENT)}>
+            <span data-show-mark className="inline-block font-display text-2xl will-change-transform" style={inkText(HL_GRADIENT)}>
               ?
             </span>
             <ArrowDown data-show-down size={14} strokeWidth={3} style={{ color: HL_DOWN.color }} aria-hidden />

@@ -14,6 +14,7 @@ import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { AnswerCard } from './AnswerCard'
 import { STARDUST_GRADIENT, modeLabel } from './dleStyle'
 import { PlayerAvatar } from './PlayerToken'
+import { inkText } from '../../lib/ink'
 
 /** Hauteur des marches du podium (1ᵉʳ, 2ᵉ, 3ᵉ), et leur métal. */
 const STEP: Record<number, { height: string; metal: string; glow: string }> = {
@@ -121,7 +122,7 @@ export function RoomResults({ room }: { room: RoomView }) {
             <p
               data-podium-avatar
               className={`inline-flex items-center gap-2 font-display text-3xl ${mine?.solved ? '' : 'text-cream/70'}`}
-              style={mine?.solved ? { backgroundImage: 'linear-gradient(135deg, #dcfff1, #3fe0a0 50%, #4cc9f0)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : undefined}
+              style={mine?.solved ? inkText('linear-gradient(135deg, #dcfff1, #3fe0a0 50%, #4cc9f0)') : undefined}
             >
               <Handshake size={26} className={mine?.solved ? 'text-like' : 'text-mist'} aria-hidden />
               {results.standings.some((standing) => standing.solved) ? t.dle.room.teamWin : t.dle.room.teamLoss}

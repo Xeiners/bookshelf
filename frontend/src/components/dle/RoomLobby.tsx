@@ -14,6 +14,7 @@ import { STARDUST_GRADIENT, auraOf, modeLabel, playerName } from './dleStyle'
 import { ModeIcon } from './ModeIcon'
 import { KindPicker } from './KindPicker'
 import { PlayerAvatar } from './PlayerToken'
+import { inkText } from '../../lib/ink'
 
 /**
  * Salle d'attente : le code à partager, les réglages de la partie (type, essais,
@@ -82,7 +83,7 @@ export function RoomLobby({ room, onShare }: { room: RoomView; onShare: () => vo
           <button type="button" onClick={onShare} className="group flex flex-col items-center gap-2">
             <span
               className="font-mono text-[2rem] font-bold tracking-[0.18em] sm:text-5xl sm:tracking-[0.22em]"
-              style={{ backgroundImage: 'linear-gradient(135deg, #fff4c8, #ffc46b 40%, #ff5ec4 75%, #b46cff)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}
+              style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 40%, #ff5ec4 75%, #b46cff)')}
             >
               {displayRoomCode(room.code)}
             </span>

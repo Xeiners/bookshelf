@@ -11,7 +11,8 @@ import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { SoundToggle } from './SoundToggle'
 import { MetricIcon } from './MetricIcon'
-import { HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE, gradientText } from './hlStyle'
+import { HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE } from './hlStyle'
+import { inkText } from '../../lib/ink'
 
 /**
  * Bilan d'une série : le score qui défile en grand, un record salué par une
@@ -94,7 +95,7 @@ export function HlGameOver() {
             )}
             <div aria-hidden className="absolute inset-8 rounded-full" style={{ background: `radial-gradient(closest-side, ${celebrate ? 'rgba(255,196,107,0.35)' : style.glow}, transparent)` }} />
             <div data-over-score className="relative flex flex-col items-center">
-              <span className="font-display text-[6.5rem] leading-none tabular-nums" style={gradientText(celebrate ? 'linear-gradient(180deg, #fff8dc, #ffc46b 55%, #ff7a3d)' : HL_GRADIENT)}>
+              <span className="font-display text-[6.5rem] leading-none tabular-nums" style={inkText(celebrate ? 'linear-gradient(180deg, #fff8dc, #ffc46b 55%, #ff7a3d)' : HL_GRADIENT)}>
                 <span ref={scoreRef}>0</span>
               </span>
               <span className="mt-1 flex items-center gap-1 text-xs text-cream/60">
@@ -118,7 +119,7 @@ export function HlGameOver() {
           {/* Les Poussières. */}
           <div data-over-reward className="flex flex-col items-center gap-1.5">
             {result.reward > 0 ? (
-              <span className="inline-flex items-center gap-2 font-display text-4xl" style={gradientText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}>
+              <span className="inline-flex items-center gap-2 font-display text-4xl" style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}>
                 <Sparkle size={26} className="fill-[#ffc46b] text-[#ffc46b]" aria-hidden />+{result.reward}
               </span>
             ) : (

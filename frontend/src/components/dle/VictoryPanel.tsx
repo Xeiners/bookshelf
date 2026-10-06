@@ -7,6 +7,7 @@ import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import type { WorkSummary } from '../../services/dleApi'
 import { AnswerCard } from './AnswerCard'
 import { STARDUST_GRADIENT } from './dleStyle'
+import { inkText } from '../../lib/ink'
 
 interface VictoryPanelProps {
   answer: WorkSummary
@@ -47,7 +48,7 @@ export function VictoryPanel({ answer, reward, streak = 0, nextAt, fresh }: Vict
         <AnswerCard work={answer} width={150} />
       </div>
       <div className="flex flex-col items-center gap-1.5">
-        <p data-victory-line className="font-display text-3xl" style={{ backgroundImage: 'linear-gradient(135deg, #dcfff1, #3fe0a0 50%, #4cc9f0)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+        <p data-victory-line className="font-display text-3xl" style={inkText('linear-gradient(135deg, #dcfff1, #3fe0a0 50%, #4cc9f0)')}>
           {t.dle.game.solvedTitle}
         </p>
         <p data-victory-line className="max-w-xs text-sm text-cream/85">{answer.name}</p>

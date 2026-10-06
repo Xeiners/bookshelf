@@ -6,6 +6,7 @@ import { BRAND } from '../../lib/brand'
 import type { CardSeries } from '../../services/cardsApi'
 import { useBoosterStore } from '../../store/useBoosterStore'
 import { IRIDESCENT } from '../cards/cardFrames'
+import { inkText } from '../../lib/ink'
 
 interface BoosterPackArtProps {
   width: number
@@ -189,7 +190,7 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
               className="absolute inset-x-0 bottom-0 flex h-[25%] flex-col items-center justify-center gap-[0.3em] border-t text-center"
               style={{ fontSize: width * 0.06, borderColor: `${gild}88`, background: `linear-gradient(180deg, ${style?.ink}e6, ${style?.ink})` }}
             >
-              <span className="font-display leading-none font-bold tracking-[0.06em] uppercase" style={{ fontSize: '1.9em', backgroundImage: style?.title, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+              <span className="font-display leading-none font-bold tracking-[0.06em] uppercase" style={{ fontSize: '1.9em', ...inkText(style?.title) }}>
                 {t.boosters.seriesName(series ?? 1)}
               </span>
               <span className="tracking-[0.3em] uppercase" style={{ fontSize: '0.62em', color: gild }}>

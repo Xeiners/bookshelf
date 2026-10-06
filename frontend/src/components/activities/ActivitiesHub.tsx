@@ -24,6 +24,7 @@ import { Bomb } from '../bomb/Bomb'
 import { BOMB_GRADIENT } from '../../lib/bomb'
 import { StardustBadge } from '../dle/StardustBadge'
 import { EnergyRing } from './EnergyRing'
+import { inkText } from '../../lib/ink'
 
 /** Texte néon : lueur de la couleur donnée. */
 const neon = (color: string): CSSProperties => ({ color, textShadow: `0 0 6px ${color}, 0 0 18px ${color}` })
@@ -226,7 +227,7 @@ function BoosterAltar() {
             <p className="text-[10px] tracking-[0.32em] text-[#fff4c8]/60 uppercase">{t.activities.booster.eyebrow}</p>
             <h2
               className="mt-1 font-display text-[2rem] leading-[1.05]"
-              style={{ backgroundImage: 'linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}
+              style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}
             >
               {t.activities.booster.title}
             </h2>
@@ -503,7 +504,7 @@ function BombArtefact() {
         </span>
         <span className="block min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-display text-2xl" style={{ backgroundImage: BOMB_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+            <span className="font-display text-2xl" style={inkText(BOMB_GRADIENT)}>
               {t.bomb.title}
             </span>
             <span className="rounded-full bg-[#6fd6ff]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#9be8ff] uppercase">{t.bomb.hub.eyebrow}</span>
@@ -562,7 +563,7 @@ function DleArtefact() {
         <DleEmblem />
         <span className="block min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-display text-2xl" style={{ backgroundImage: STARDUST_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+            <span className="font-display text-2xl" style={inkText(STARDUST_GRADIENT)}>
               {t.dle.title}
             </span>
             <span className="rounded-full bg-[#ff5ec4]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#ff9ad8] uppercase">{t.dle.eyebrow}</span>
@@ -593,7 +594,7 @@ function DleEmblem() {
       <span
         data-dle-mark
         className="relative font-display text-[2.6rem] leading-none will-change-transform"
-        style={{ backgroundImage: 'linear-gradient(180deg, #fff8dc, #ffc46b 55%, #ff5ec4)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}
+        style={inkText('linear-gradient(180deg, #fff8dc, #ffc46b 55%, #ff5ec4)')}
       >
         ?
       </span>
@@ -651,7 +652,7 @@ function HigherLowerArtefact() {
         </span>
         <span className="block min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-display text-2xl" style={{ backgroundImage: HL_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+            <span className="font-display text-2xl" style={inkText(HL_GRADIENT)}>
               {t.hl.title}
             </span>
             {signedIn && me?.games === 0 && (

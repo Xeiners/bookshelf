@@ -18,6 +18,7 @@ import { PlayerAvatar } from './PlayerToken'
 import { PixelFrame } from './PixelFrame'
 import { SweepFrame } from './SweepFrame'
 import { ZoomFrame } from './ZoomFrame'
+import { inkText } from '../../lib/ink'
 
 /** Sous ce seuil, le chrono passe au rouge et bat. */
 const HURRY_MS = 30_000
@@ -298,7 +299,7 @@ function CountdownOverlay({ msLeft }: { msLeft: number }) {
         key={label}
         data-count
         className="font-display text-[7rem] leading-none sm:text-[9rem]"
-        style={{ backgroundImage: 'linear-gradient(135deg, #fff4c8, #ffc46b 40%, #ff5ec4 75%, #b46cff)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}
+        style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 40%, #ff5ec4 75%, #b46cff)')}
       >
         {label}
       </span>

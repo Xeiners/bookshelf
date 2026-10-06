@@ -18,6 +18,3 @@ export const METRIC_STYLE: Record<HlMetric, { gradient: string; accent: string; 
   chapters: { gradient: 'linear-gradient(135deg, #ead6ff, #b46cff 50%, #6a2bd9)', accent: '#b46cff', glow: 'rgba(180,108,255,0.45)' },
   score: { gradient: 'linear-gradient(135deg, #ffe0f1, #ff9ad8 45%, #ff5ec4)', accent: '#ff9ad8', glow: 'rgba(255,94,196,0.45)' },
 }
-
-/** Texte en dégradé (titres, valeurs). */
-export const gradientText = (gradient: string) => ({ backgroundImage: gradient, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }) as const

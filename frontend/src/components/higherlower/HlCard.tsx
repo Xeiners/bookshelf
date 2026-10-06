@@ -7,7 +7,8 @@ import { playHlTick } from '../../lib/sfx'
 import { hlSound } from '../../store/useHigherLowerStore'
 import type { HlCard as HlCardData, HlChoice, HlMetric } from '../../services/higherLowerApi'
 import { MetricIcon } from './MetricIcon'
-import { CARD_INK, HL_DOWN, HL_UP, METRIC_STYLE, gradientText } from './hlStyle'
+import { CARD_INK, HL_DOWN, HL_UP, METRIC_STYLE } from './hlStyle'
+import { inkText } from '../../lib/ink'
 
 /** Valeur qui défile de 0 à `to`, puis prévient (`onDone`). Écrit dans le DOM : aucun rendu React par frame. */
 function CountUp({ to, metric, onDone }: { to: number; metric: HlMetric; onDone: () => void }) {
@@ -94,7 +95,7 @@ export function HlCard({ card, metric, role, revealed = null, onRevealed, verdic
         />
       ) : (
         <div aria-hidden className="absolute inset-0 -z-10 grid place-items-center" style={{ background: `radial-gradient(circle at 50% 35%, ${style.glow}, transparent 70%), ${CARD_INK}` }}>
-          <span className="font-display text-[clamp(5rem,22vw,9rem)] leading-none opacity-80" style={gradientText(style.gradient)}>
+          <span className="font-display text-[clamp(5rem,22vw,9rem)] leading-none opacity-80" style={inkText(style.gradient)}>
             {initialsOf(card.name)}
           </span>
         </div>
@@ -124,7 +125,7 @@ export function HlCard({ card, metric, role, revealed = null, onRevealed, verdic
 
           {value !== null ? (
             <p className="mt-1.5 flex flex-wrap items-baseline justify-center gap-x-2 font-display leading-none tabular-nums">
-              <span className="text-[clamp(1.7rem,7.5vw,3rem)]" style={gradientText(valueGradient)}>
+              <span className="text-[clamp(1.7rem,7.5vw,3rem)]" style={inkText(valueGradient)}>
                 {role === 'next' && revealed !== null ? <CountUp to={revealed} metric={metric} onDone={() => onRevealed?.()} /> : formatHlValue(value, metric, locale)}
               </span>
               <span className="text-sm text-cream/55 md:text-base">{words.unit}</span>

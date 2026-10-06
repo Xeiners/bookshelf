@@ -75,7 +75,7 @@ export function AppHeader({ view }: AppHeaderProps) {
           </p>
           <h1
             data-header-line
-            className="text-gradient mt-1 text-[2rem] leading-[1.1] md:text-[2.75rem]"
+            className="text-title mt-1 text-[2rem] leading-[1.1] md:text-[2.75rem]"
           >
             {copy.title}
           </h1>

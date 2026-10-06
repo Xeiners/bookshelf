@@ -19,7 +19,8 @@ import { CardAvatar } from '../profile/CardAvatar'
 import { HlCard } from './HlCard'
 import { MetricIcon } from './MetricIcon'
 import { SoundToggle } from './SoundToggle'
-import { HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE, gradientText } from './hlStyle'
+import { HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE } from './hlStyle'
+import { inkText } from '../../lib/ink'
 
 /** Couleur de la flamme selon la série (comme en solo). */
 const FLAME_COLORS = ['#ffc46b', '#ff8a3d', '#ff5e8a', '#c86bff'] as const
@@ -132,7 +133,7 @@ function CoopLobby({ room }: { room: CoopView }) {
               <Users size={13} aria-hidden />
               {t.hl.coop.lobby}
             </p>
-            <p className="font-display text-5xl tracking-[0.08em] tabular-nums" style={gradientText(HL_GRADIENT)} aria-label={`${t.hl.coop.code} ${room.code}`}>
+            <p className="font-display text-5xl tracking-[0.08em] tabular-nums" style={inkText(HL_GRADIENT)} aria-label={`${t.hl.coop.code} ${room.code}`}>
               {displayRoomCode(room.code)}
             </p>
             <button
@@ -495,7 +496,7 @@ function CoopPlay({ room, onOver }: { room: CoopView; onOver: () => void }) {
             ) : verdict === 'wrong' ? (
               <X size={30} strokeWidth={3} style={{ color: HL_DOWN.color }} aria-label={t.hl.wrong} />
             ) : (
-              <span className="font-display text-xl md:text-2xl" style={gradientText(HL_GRADIENT)}>
+              <span className="font-display text-xl md:text-2xl" style={inkText(HL_GRADIENT)}>
                 {t.hl.vs}
               </span>
             )}
@@ -589,7 +590,7 @@ function CoopResults({ room }: { room: CoopView }) {
           <div className="relative grid size-48 place-items-center">
             <div aria-hidden className="absolute inset-8 rounded-full" style={{ background: `radial-gradient(closest-side, ${METRIC_STYLE[room.metric].glow}, transparent)` }} />
             <div data-coop-score className="relative flex flex-col items-center">
-              <span className="font-display text-[6rem] leading-none tabular-nums" style={gradientText(HL_GRADIENT)}>
+              <span className="font-display text-[6rem] leading-none tabular-nums" style={inkText(HL_GRADIENT)}>
                 <span ref={scoreRef}>0</span>
               </span>
               <span className="mt-1 flex items-center gap-1 text-xs text-cream/60">
@@ -602,7 +603,7 @@ function CoopResults({ room }: { room: CoopView }) {
           <div data-coop-in className="flex flex-col items-center gap-1.5">
             {result?.endedBy === 'exhausted' && <span className="text-sm text-[#5ef2c2]">{t.hl.coop.exhausted}</span>}
             {reward > 0 ? (
-              <span className="inline-flex items-center gap-2 font-display text-3xl" style={gradientText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}>
+              <span className="inline-flex items-center gap-2 font-display text-3xl" style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}>
                 <Sparkle size={22} className="fill-[#ffc46b] text-[#ffc46b]" aria-hidden />
                 {t.hl.coop.reward(reward)}
               </span>

@@ -7,7 +7,9 @@
    ========================================================================== */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Instrument Serif', ui-serif, Georgia, 'Times New Roman', serif;
+  /* Fraunces, version douce (axe SOFT au maximum) : un serif rond et chaleureux. */
+  --font-display: 'Fraunces Variable', 'Fraunces', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-display--font-variation-settings: 'SOFT' 100, 'WONK' 0;
 
   /* Neutres profonds */
   --color-void: #06060a;
@@ -104,15 +106,9 @@
   padding-top: max(1rem, env(safe-area-inset-top));
 }
 
-/* Dégradé de texte pour les titres imposants */
-@utility text-gradient {
-  background-image: linear-gradient(
-    170deg,
-    var(--color-cream) 0%,
-    color-mix(in oklab, var(--color-cream) 60%, var(--color-glow)) 100%
-  );
-  background-clip: text;
-  color: transparent;
+/* Titres imposants : crème, à peine teintée de la lueur (sans dégradé). */
+@utility text-title {
+  color: color-mix(in oklab, var(--color-cream) 88%, var(--color-glow));
 }
 
 /* ==========================================================================

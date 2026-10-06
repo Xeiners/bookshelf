@@ -10,6 +10,7 @@ import { BOMB_MODES, BOMB_STYLES } from '../../services/bombApi'
 import { useBombStore } from '../../store/useBombStore'
 import { useUiStore } from '../../store/useUiStore'
 import { Bomb } from './Bomb'
+import { inkText } from '../../lib/ink'
 
 
 /** Accueil : le mode (vocabulaire ou manga), le solo, les salons, les records. */
@@ -68,7 +69,7 @@ export function BombHome() {
           <div data-bomb-fx style={{ animation: 'bomb-float 3.2s ease-in-out infinite' }}>
             <Bomb syllable={mode === 'classic' ? 'par' : 'lu'} endsAt={null} totalMs={1} variant={style} size={176} />
           </div>
-          <h2 className="-mt-2 font-display text-[2.6rem] leading-none" style={{ backgroundImage: BOMB_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+          <h2 className="-mt-2 font-display text-[2.6rem] leading-none" style={inkText(BOMB_GRADIENT)}>
             {t.bomb.title}
           </h2>
           <p className="max-w-xs text-sm text-cream/70">{t.bomb.tagline}</p>
