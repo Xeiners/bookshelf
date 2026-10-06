@@ -117,11 +117,16 @@ export function ActivitiesHub() {
 
 /* ---- Cadre d'artefact ---------------------------------------------------------- */
 
-/** Surface d'un artefact : une carte sombre et unie, au liseré discret (ni dégradé ni halo). */
-const ARTEFACT_SURFACE: CSSProperties = {
-  backgroundColor: '#101017',
-  borderColor: 'rgba(255,255,255,0.08)',
-}
+/**
+ * Surface d'un artefact, façon widget : la couleur de l'activité naît d'un coin et se fond
+ * doucement dans l'encre de la carte ; liseré uni, teinté de la même couleur.
+ */
+const surface = (tint: string, from = '0% 0%'): CSSProperties => ({
+  background: `radial-gradient(120% 140% at ${from}, ${tint}3d 0%, ${tint}18 40%, transparent 72%), linear-gradient(180deg, #13131c, #0d0d14)`,
+  borderColor: `${tint}33`,
+})
+
+const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0' } as const
 
 /**
  * Lueur incandescente autour d'un artefact « chargé ». Fixe : une grande ombre
@@ -194,7 +199,7 @@ function BoosterAltar() {
   const progress = boosters.unlimited || boosters.available > 0 ? 1 : boosters.progress
 
   return (
-    <section data-artefact aria-label={t.activities.booster.title} className={`${ARTEFACT_CLASS} overflow-hidden`} style={ARTEFACT_SURFACE}>
+    <section data-artefact aria-label={t.activities.booster.title} className={`${ARTEFACT_CLASS} overflow-hidden`} style={surface(TINT.booster, '20% 100%')}>
       {lit && <Incandescence />}
       <div ref={ref} className="flex flex-col items-center gap-5 p-5 md:flex-row md:items-center md:gap-8 md:p-7">
         {/* Piédestal : cercle doré lumineux, ombre portée, paquet isométrique. */}
@@ -315,7 +320,7 @@ function OracleArtefact() {
   )
 
   return (
-    <button ref={ref} type="button" data-artefact onClick={() => openActivity('oracle')} className={`${ARTEFACT_CLASS} w-full`} style={ARTEFACT_SURFACE}>
+    <button ref={ref} type="button" data-artefact onClick={() => openActivity('oracle')} className={`${ARTEFACT_CLASS} w-full`} style={surface(TINT.oracle)}>
       <span className="flex items-center gap-5 p-5">
         {/* Lame de tarot flottante. */}
         <span
@@ -364,7 +369,7 @@ function CollectionArtefact() {
       data-artefact
       onClick={() => openActivity('collection')}
       className={`${ARTEFACT_CLASS} w-full`}
-      style={ARTEFACT_SURFACE}
+      style={surface(TINT.collection)}
     >
       <span className="flex items-center gap-5 p-5">
         <span aria-hidden className="relative block h-28 w-[5.4rem] shrink-0">
@@ -432,7 +437,7 @@ function MarketArtefact() {
       data-artefact
       onClick={() => openActivity('market')}
       className={`${ARTEFACT_CLASS} w-full`}
-      style={unread > 0 ? { ...ARTEFACT_SURFACE, borderColor: 'rgba(63,224,160,0.45)' } : ARTEFACT_SURFACE}
+      style={unread > 0 ? { ...surface(TINT.market), borderColor: `${TINT.market}73` } : surface(TINT.market)}
     >
       <span className="flex items-center gap-5 p-5">
         <span
@@ -486,7 +491,7 @@ function BombArtefact() {
       data-artefact
       onClick={() => openActivity('bomb')}
       className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
-      style={ARTEFACT_SURFACE}
+      style={surface(TINT.bomb)}
     >
       <span className="flex items-center gap-4 p-4 pr-5">
         <span className="-my-3 -ml-2 shrink-0">
@@ -546,7 +551,7 @@ function DleArtefact() {
       data-artefact
       onClick={() => openActivity('dle')}
       className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
-      style={lit ? { ...ARTEFACT_SURFACE, borderColor: 'rgba(255,94,196,0.45)' } : ARTEFACT_SURFACE}
+      style={lit ? { ...surface(TINT.dle), borderColor: `${TINT.dle}73` } : surface(TINT.dle)}
     >
       <span className="flex items-center gap-5 p-5">
         <DleEmblem />
@@ -625,7 +630,7 @@ function HigherLowerArtefact() {
   )
 
   return (
-    <button ref={ref} type="button" data-artefact onClick={() => openActivity('higherlower')} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={ARTEFACT_SURFACE}>
+    <button ref={ref} type="button" data-artefact onClick={() => openActivity('higherlower')} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={surface(TINT.hl)}>
       <span className="flex items-center gap-5 p-5">
         <span aria-hidden data-hl-emblem className="relative grid size-16 shrink-0 place-items-center will-change-transform">
           <span className="absolute inset-0 rounded-[1.35rem]" style={{ background: HL_GRADIENT, boxShadow: '0 0 26px -6px rgba(94,242,194,0.7)' }} />
