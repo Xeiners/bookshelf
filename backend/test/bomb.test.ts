@@ -229,6 +229,55 @@ describe('bomb party — salon en temps réel', () => {
     }
   })
 
+  it('réglages de l’hôte : vies, mèche minimale, syllabe gardée après une explosion, style', async () => {
+    logic.timing.countdownMs = 30
+    logic.timing.pauseMs = 0
+    try {
+      const host = await account('reglages-bomb@example.com', 'Réglages')
+      const friend = client()
+      await friend.request('POST', '/dle/guest', { name: 'Ami' })
+      const created = await host.request('POST', '/bomb/rooms', { mode: 'classic', style: 'chibi' })
+      const code = created.body.code
+      assert.deepEqual(created.body.settings, { lives: logic.LIVES, minFuse: 10, keepSyllable: false, style: 'chibi' })
+      await friend.request('POST', `/bomb/rooms/${code}/join`)
+      assert.equal((await friend.request('POST', `/bomb/rooms/${code}/settings`, { lives: 1 })).status, 403)
+      assert.equal((await host.request('POST', `/bomb/rooms/${code}/settings`, { lives: 5 })).status, 400)
+      assert.equal((await host.request('POST', `/bomb/rooms/${code}/settings`, { minFuse: 7 })).status, 400)
+      const set = await host.request('POST', `/bomb/rooms/${code}/settings`, { lives: 2, minFuse: 5, keepSyllable: true, style: 'talisman' })
+      assert.deepEqual(set.body.settings, { lives: 2, minFuse: 5, keepSyllable: true, style: 'talisman' })
+      assert.ok(set.body.players.every((player: { lives: number }) => player.lives === 2))
+
+      // Mèche : jamais sous le minimum, jusqu'à 8 s de plus (4 s quand la partie s'emballe).
+      assert.equal(logic.roomFuseMs(0, 5, () => 0), 5_000)
+      assert.equal(logic.roomFuseMs(0, 5, () => 1), 13_000)
+      assert.equal(logic.roomFuseMs(40, 15, () => 1), 19_000)
+
+      const stream = listen(host, code)
+      await stream.ready
+      // Mèches très courtes : la première bombe explose aussitôt.
+      logic.timing.fuseScale = 0.06
+      await host.request('POST', `/bomb/rooms/${code}/start`)
+      await until(() => stream.last('state')?.phase === 'playing')
+      const first = stream.last('state')
+      // Explosion : le joueur suivant hérite de la MÊME syllabe.
+      const holder = first.turn === host.userId ? host : friend
+      await holder.request('POST', `/bomb/rooms/${code}/word`, { word: 'zzzzqx' })
+      await until(() => stream.last('state')?.events.some((event: { kind: string }) => event.kind === 'explode'), 8000)
+      const after = stream.last('state')
+      if (after.phase === 'playing') {
+        assert.notEqual(after.turn, first.turn)
+        assert.equal(after.syllable, first.syllable)
+      }
+      assert.equal(after.players.find((player: { id: string }) => player.id === first.turn).lives, 1)
+      stream.stop()
+      rooms.leaveBombRoom(host.userId, code)
+    } finally {
+      logic.timing.countdownMs = 3000
+      logic.timing.pauseMs = 1600
+      logic.timing.fuseScale = 1
+    }
+  })
+
   it('salon : code inconnu → 404, salon complet → 409, pas d’hôte pour lancer seul', async () => {
     const solo = await account('solo-bomb@example.com', 'Solo')
     assert.equal((await solo.request('POST', '/bomb/rooms/ZZZZZZ/join')).status, 404)

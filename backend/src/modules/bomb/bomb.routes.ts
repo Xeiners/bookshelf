@@ -5,8 +5,8 @@ import { rateLimit } from '../../middleware/rateLimit.js'
 import { currentPlayer, requirePlayer } from '../dle/dle.guests.js'
 import { ROOM_CODE, normalizeRoomCode } from '../dle/dle.logic.js'
 import { BOMB_MODES, classicLexicon } from './bomb.dictionary.js'
-import { MAX_WORD_LENGTH } from './bomb.logic.js'
-import { bombTyping, bombWord, createBombRoom, currentBombRoomOf, joinBombRoom, leaveBombRoom, setBombMode, startBombRoom, subscribeBombRoom } from './bomb.rooms.js'
+import { BOMB_STYLES, MAX_LIVES, MAX_WORD_LENGTH, MIN_FUSE_OPTIONS } from './bomb.logic.js'
+import { bombTyping, bombWord, createBombRoom, currentBombRoomOf, joinBombRoom, leaveBombRoom, setBombMode, setBombSettings, startBombRoom, subscribeBombRoom } from './bomb.rooms.js'
 import { soloExplode, soloQuit, soloWord, startSolo } from './bomb.solo.js'
 import { bombRecords } from './bomb.stats.js'
 
@@ -28,6 +28,14 @@ const roomLimiter = rateLimit({ windowMs: 60 * 1000, max: test ? 10_000 : 60 })
 const typingLimiter = rateLimit({ windowMs: 60 * 1000, max: test ? 10_000 : 900 })
 
 const Mode = z.enum(BOMB_MODES)
+const Settings = z
+  .object({
+    lives: z.number().int().min(1).max(MAX_LIVES),
+    minFuse: z.literal(MIN_FUSE_OPTIONS),
+    keepSyllable: z.boolean(),
+    style: z.enum(BOMB_STYLES),
+  })
+  .partial()
 const Word = z.object({ word: z.string().max(MAX_WORD_LENGTH * 2) })
 const GameId = z.string().regex(/^[0-9a-f]{18}$/)
 const Code = z
@@ -63,7 +71,8 @@ bombRouter.post('/solo/:id/quit', playLimiter, async (req, res) => {
 /* ---- Salons ------------------------------------------------------------------------------ */
 
 bombRouter.post('/rooms', roomLimiter, async (req, res) => {
-  res.status(201).json(await createBombRoom(currentPlayer(req), z.object({ mode: Mode }).parse(req.body).mode))
+  const { mode, style } = z.object({ mode: Mode, style: z.enum(BOMB_STYLES).optional() }).parse(req.body)
+  res.status(201).json(await createBombRoom(currentPlayer(req), mode, style ? { style } : {}))
 })
 
 bombRouter.post('/rooms/:code/join', roomLimiter, async (req, res) => {
@@ -77,6 +86,10 @@ bombRouter.post('/rooms/:code/leave', roomLimiter, (req, res) => {
 
 bombRouter.post('/rooms/:code/mode', roomLimiter, (req, res) => {
   res.json(setBombMode(currentPlayer(req).id, Code.parse(req.params.code), z.object({ mode: Mode }).parse(req.body).mode))
+})
+
+bombRouter.post('/rooms/:code/settings', roomLimiter, (req, res) => {
+  res.json(setBombSettings(currentPlayer(req).id, Code.parse(req.params.code), Settings.parse(req.body)))
 })
 
 bombRouter.post('/rooms/:code/start', roomLimiter, async (req, res) => {

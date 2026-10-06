@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { reducedMotion } from '../../lib/dle'
 import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -43,7 +44,8 @@ export function Explosion({ burst, label }: { burst: number; label: string }) {
     { scope: rootRef, dependencies: [burst] },
   )
 
-  return (
+  // Portail sur <body> : un parent animé (transformé) ne doit pas enfermer le plein écran.
+  return createPortal(
     <div ref={rootRef} aria-hidden className="pointer-events-none fixed inset-0 z-[130] grid place-items-center overflow-hidden" style={{ visibility: 'hidden' }}>
       <div data-boom-flash className="absolute inset-0 bg-[radial-gradient(circle,#fff6d8,#ffb347_45%,#ff3b3b_80%)] opacity-0" />
       {/* Lignes de vitesse : un dégradé conique répété, comme un impact de manga. */}
@@ -75,6 +77,7 @@ export function Explosion({ burst, label }: { burst: number; label: string }) {
           {label}
         </span>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

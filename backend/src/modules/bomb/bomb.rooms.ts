@@ -4,7 +4,7 @@ import type { Participant } from '../dle/dle.guests.js'
 import { roomCode } from '../dle/dle.logic.js'
 import { profileOf, type PlayerProfile } from '../dle/dle.rooms.js'
 import { checkWord, lexiconOf, normalizeWord, type BombMode, type Lexicon, type WordVerdict } from './bomb.dictionary.js'
-import { LIVES, MAX_PLAYERS, MAX_WORD_LENGTH, MIN_PLAYERS, fuseMs, pickSyllable, rememberSyllable, timing, versusReward } from './bomb.logic.js'
+import { DEFAULT_SETTINGS, MAX_PLAYERS, MAX_WORD_LENGTH, MIN_PLAYERS, pickSyllable, rememberSyllable, roomFuseMs, timing, versusReward, type RoomSettings } from './bomb.logic.js'
 import { settleGame, type BombReward } from './bomb.stats.js'
 
 /*
@@ -58,6 +58,7 @@ interface Subscriber {
 interface Room {
   code: string
   mode: BombMode
+  settings: RoomSettings
   hostId: string
   players: Map<string, RoomPlayer>
   phase: Phase
@@ -96,6 +97,7 @@ export interface BombRoomPlayerView {
 export interface BombRoomView {
   code: string
   mode: BombMode
+  settings: RoomSettings
   phase: Phase
   hostId: string
   players: BombRoomPlayerView[]
@@ -125,6 +127,7 @@ function viewFor(room: Room, playerId: string): BombRoomView {
   return {
     code: room.code,
     mode: room.mode,
+    settings: room.settings,
     phase: room.phase,
     hostId: room.hostId,
     players: [...room.players.values()].map((player) => ({
@@ -204,12 +207,17 @@ function clearTimer(room: Room): void {
   room.timer = null
 }
 
-/** Nouvelle bombe pour `turn` : syllabe, mèche tirée au sort, minuteur à l'heure du serveur. */
-function arm(room: Room, from: number): void {
+/**
+ * Nouvelle bombe pour `turn` : syllabe (la même si `keep`), mèche tirée au sort (jamais sous
+ * le minimum du salon), minuteur à l'heure du serveur.
+ */
+function arm(room: Room, from: number, keep = false): void {
   if (!room.lexicon) return
-  room.syllable = pickSyllable(room.lexicon, room.progress, room.recent, Math.random)
-  room.recent = rememberSyllable(room.recent, room.syllable)
-  room.fuseMs = fuseMs(room.progress, Math.random)
+  if (!keep || !room.syllable) {
+    room.syllable = pickSyllable(room.lexicon, room.progress, room.recent, Math.random)
+    room.recent = rememberSyllable(room.recent, room.syllable)
+  }
+  room.fuseMs = roomFuseMs(room.progress, room.settings.minFuse, Math.random)
   room.fuseEndsAt = from + room.fuseMs
   room.typing = ''
   clearTimer(room)
@@ -233,7 +241,8 @@ function explode(room: Room): void {
     return
   }
   room.turn = nextAlive(room, victim.id)
-  arm(room, Date.now() + timing.pauseMs)
+  // Réglage du salon : le joueur suivant hérite de la même syllabe, ou en reçoit une nouvelle.
+  arm(room, Date.now() + timing.pauseMs, room.settings.keepSyllable)
   broadcast(room)
 }
 
@@ -272,7 +281,7 @@ function begin(room: Room): void {
 
 /* ---- Actions ---------------------------------------------------------------------------- */
 
-export async function createBombRoom(participant: Participant, mode: BombMode): Promise<BombRoomView> {
+export async function createBombRoom(participant: Participant, mode: BombMode, settings: Partial<RoomSettings> = {}): Promise<BombRoomView> {
   leaveAll(participant.id)
   const profile = await profileOf(participant)
   let code = roomCode(Math.random)
@@ -280,8 +289,9 @@ export async function createBombRoom(participant: Participant, mode: BombMode): 
   const room: Room = {
     code,
     mode,
+    settings: { ...DEFAULT_SETTINGS, ...settings },
     hostId: participant.id,
-    players: new Map([[participant.id, { id: participant.id, profile, lives: LIVES, alive: false, words: 0, streams: 0 }]]),
+    players: new Map([[participant.id, { id: participant.id, profile, lives: DEFAULT_SETTINGS.lives, alive: false, words: 0, streams: 0 }]]),
     phase: 'lobby',
     turn: null,
     syllable: '',
@@ -312,7 +322,7 @@ export async function joinBombRoom(participant: Participant, code: string): Prom
     if (room.players.size >= MAX_PLAYERS) throw conflict('Le salon est complet.', 'room_full')
     const profile = await profileOf(participant)
     // Arrivé en pleine partie : il regarde, et jouera la suivante.
-    room.players.set(participant.id, { id: participant.id, profile, lives: room.phase === 'lobby' ? LIVES : 0, alive: false, words: 0, streams: 0 })
+    room.players.set(participant.id, { id: participant.id, profile, lives: room.phase === 'lobby' ? room.settings.lives : 0, alive: false, words: 0, streams: 0 })
     pushEvent(room, { kind: 'join', playerId: participant.id })
     broadcast(room)
   }
@@ -367,6 +377,18 @@ export function setBombMode(playerId: string, code: string, mode: BombMode): Bom
   return viewFor(room, playerId)
 }
 
+/** L'hôte règle la partie (entre deux parties seulement) : vies, mèche, syllabe, style. */
+export function setBombSettings(playerId: string, code: string, change: Partial<RoomSettings>): BombRoomView {
+  const room = roomOf(code)
+  memberOf(room, playerId)
+  if (room.hostId !== playerId) throw new HttpError(403, 'not_host', 'Seul l’hôte règle la partie.')
+  if (room.phase === 'playing' || room.phase === 'countdown') throw conflict('La partie est en cours.', 'in_progress')
+  room.settings = { ...room.settings, ...change }
+  if (room.phase === 'lobby') for (const player of room.players.values()) player.lives = room.settings.lives
+  broadcast(room)
+  return viewFor(room, playerId)
+}
+
 /** L'hôte lance (ou relance) la partie : décompte, puis la première bombe. */
 export async function startBombRoom(playerId: string, code: string): Promise<BombRoomView> {
   const room = roomOf(code)
@@ -375,7 +397,7 @@ export async function startBombRoom(playerId: string, code: string): Promise<Bom
   if (room.phase === 'playing' || room.phase === 'countdown') throw conflict('La partie est déjà lancée.', 'in_progress')
   if (room.players.size < MIN_PLAYERS) throw conflict('Il faut au moins deux joueurs.', 'not_enough_players')
   room.lexicon = await lexiconOf(room.mode)
-  for (const player of room.players.values()) Object.assign(player, { lives: LIVES, alive: true, words: 0 })
+  for (const player of room.players.values()) Object.assign(player, { lives: room.settings.lives, alive: true, words: 0 })
   Object.assign(room, {
     phase: 'countdown',
     turn: null,

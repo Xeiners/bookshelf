@@ -6,6 +6,22 @@ import { API_BASE, api } from './api'
 export const BOMB_MODES = ['classic', 'manga'] as const
 export type BombMode = (typeof BOMB_MODES)[number]
 
+/** Apparence de la bombe : orbe d'énergie, bombe chibi, parchemin explosif. */
+export const BOMB_STYLES = ['orb', 'chibi', 'talisman'] as const
+export type BombStyle = (typeof BOMB_STYLES)[number]
+export const MIN_FUSE_OPTIONS = [5, 8, 10, 15] as const
+export type MinFuse = (typeof MIN_FUSE_OPTIONS)[number]
+export const MAX_LIVES = 4
+
+/** Réglages d'un salon, choisis par l'hôte avant la partie. */
+export interface RoomSettings {
+  lives: number
+  minFuse: MinFuse
+  /** Après une explosion, le joueur suivant garde la même syllabe. */
+  keepSyllable: boolean
+  style: BombStyle
+}
+
 export type WordRefusal = 'short' | 'syllable' | 'unknown' | 'used' | 'late'
 export type WordVerdict = { ok: true; key: string; display: string } | { ok: false; reason: WordRefusal }
 
@@ -75,6 +91,7 @@ export type BombPhase = 'lobby' | 'countdown' | 'playing' | 'over'
 export interface BombRoomView {
   code: string
   mode: BombMode
+  settings: RoomSettings
   phase: BombPhase
   hostId: string
   players: BombPlayer[]
@@ -100,7 +117,8 @@ export const bombApi = {
   soloExplode: (id: string) => api<SoloView>(`/bomb/solo/${id}/explode`, { method: 'POST' }),
   soloQuit: (id: string) => api<SoloView>(`/bomb/solo/${id}/quit`, { method: 'POST' }),
 
-  createRoom: (mode: BombMode) => api<BombRoomView>('/bomb/rooms', { method: 'POST', body: { mode } }),
+  createRoom: (mode: BombMode, style: BombStyle) => api<BombRoomView>('/bomb/rooms', { method: 'POST', body: { mode, style } }),
+  setSettings: (code: string, settings: Partial<RoomSettings>) => api<BombRoomView>(`${room(code)}/settings`, { method: 'POST', body: settings }),
   joinRoom: (code: string) => api<BombRoomView>(`${room(code)}/join`, { method: 'POST' }),
   leaveRoom: (code: string) => api<void>(`${room(code)}/leave`, { method: 'POST' }),
   setMode: (code: string, mode: BombMode) => api<BombRoomView>(`${room(code)}/mode`, { method: 'POST', body: { mode } }),

@@ -10,6 +10,26 @@ import type { Difficulty, Lexicon } from './bomb.dictionary.js'
  */
 
 export const LIVES = 3
+/** Salon : vies au choix de l'hôte. */
+export const MAX_LIVES = 4
+/** Mèche minimale au choix de l'hôte (secondes). */
+export const MIN_FUSE_OPTIONS = [5, 8, 10, 15] as const
+export type MinFuse = (typeof MIN_FUSE_OPTIONS)[number]
+/** Apparences de la bombe : orbe d'énergie, bombe chibi, parchemin explosif. */
+export const BOMB_STYLES = ['orb', 'chibi', 'talisman'] as const
+export type BombStyle = (typeof BOMB_STYLES)[number]
+
+/** Réglages d'un salon, choisis par l'hôte avant la partie. */
+export interface RoomSettings {
+  lives: number
+  /** La mèche ne brûle jamais moins de … secondes. */
+  minFuse: MinFuse
+  /** Après une explosion : la même syllabe pour le joueur suivant (sinon, une nouvelle). */
+  keepSyllable: boolean
+  style: BombStyle
+}
+
+export const DEFAULT_SETTINGS: RoomSettings = { lives: LIVES, minFuse: 10, keepSyllable: false, style: 'orb' }
 export const MIN_PLAYERS = 2
 export const MAX_PLAYERS = 8
 /**
@@ -51,6 +71,15 @@ export function fuseMs(progress: number, random: () => number): number {
   const min = 12_000 - shrink * 6_000
   const max = 18_000 - shrink * 8_000
   return Math.round((min + random() * (max - min)) * timing.fuseScale)
+}
+
+/**
+ * Mèche d'un salon : jamais moins que le minimum choisi par l'hôte, et jusqu'à 8 s de plus
+ * en début de partie (4 s quand elle s'emballe).
+ */
+export function roomFuseMs(progress: number, minSeconds: number, random: () => number): number {
+  const spread = 8_000 - Math.min(1, progress / 25) * 4_000
+  return Math.round((minSeconds * 1000 + random() * spread) * timing.fuseScale)
 }
 
 /** Syllabe suivante : de la difficulté voulue, jamais une des dernières jouées. */

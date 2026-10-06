@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { bombApi, type BombMode, type BombOverview, type BombReward, type BombRoomView, type SoloView } from '../services/bombApi'
+import { BOMB_STYLES, bombApi, type BombMode, type BombOverview, type BombReward, type BombRoomView, type BombStyle, type SoloView } from '../services/bombApi'
 import { useDleStore } from './useDleStore'
 import { useGuestStardustStore } from './useGuestStardustStore'
 
@@ -12,6 +12,17 @@ import { useGuestStardustStore } from './useGuestStardustStore'
 type Screen = 'home' | 'solo' | 'room'
 const MODE_KEY = 'bookshelf.bomb.mode'
 
+const STYLE_KEY = 'bookshelf.bomb.style'
+
+const savedStyle = (): BombStyle => {
+  try {
+    const value = localStorage.getItem(STYLE_KEY)
+    return BOMB_STYLES.find((style) => style === value) ?? 'orb'
+  } catch {
+    return 'orb'
+  }
+}
+
 const savedMode = (): BombMode => {
   try {
     return localStorage.getItem(MODE_KEY) === 'manga' ? 'manga' : 'classic'
@@ -23,6 +34,8 @@ const savedMode = (): BombMode => {
 interface BombState {
   screen: Screen
   mode: BombMode
+  /** Apparence de la bombe en solo (et proposée à la création d'un salon). */
+  style: BombStyle
   overview: BombOverview | null
   solo: SoloView | null
   room: BombRoomView | null
@@ -35,6 +48,7 @@ interface BombState {
 
   loadOverview: () => Promise<void>
   setMode: (mode: BombMode) => void
+  setStyle: (style: BombStyle) => void
   startSolo: () => Promise<void>
   setSolo: (view: SoloView, receivedAt?: number) => void
   createRoom: () => Promise<void>
@@ -52,6 +66,7 @@ interface BombState {
 export const useBombStore = create<BombState>()((set, get) => ({
   screen: 'home',
   mode: savedMode(),
+  style: savedStyle(),
   overview: null,
   solo: null,
   room: null,
@@ -70,6 +85,15 @@ export const useBombStore = create<BombState>()((set, get) => ({
     set({ mode })
   },
 
+  setStyle: (style) => {
+    try {
+      localStorage.setItem(STYLE_KEY, style)
+    } catch {
+      // Stockage indisponible : le choix vaut pour la session.
+    }
+    set({ style })
+  },
+
   startSolo: async () => {
     const sentAt = Date.now()
     const view = await bombApi.startSolo(get().mode)
@@ -80,7 +104,7 @@ export const useBombStore = create<BombState>()((set, get) => ({
   setSolo: (view, receivedAt = Date.now()) => set({ solo: view, offset: view.serverTime - receivedAt }),
 
   createRoom: async () => {
-    const view = await bombApi.createRoom(get().mode)
+    const view = await bombApi.createRoom(get().mode, get().style)
     get().setRoom(view)
     set({ screen: 'room', typing: null })
   },

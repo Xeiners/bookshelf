@@ -6,7 +6,7 @@ import { BOMB_GRADIENT } from '../../lib/bomb'
 import { parseRoomCode } from '../../lib/dle'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { BOMB_MODES } from '../../services/bombApi'
+import { BOMB_MODES, BOMB_STYLES } from '../../services/bombApi'
 import { useBombStore } from '../../store/useBombStore'
 import { useUiStore } from '../../store/useUiStore'
 import { Bomb } from './Bomb'
@@ -18,6 +18,8 @@ export function BombHome() {
   const rootRef = useRef<HTMLDivElement>(null)
   const mode = useBombStore((state) => state.mode)
   const setMode = useBombStore((state) => state.setMode)
+  const style = useBombStore((state) => state.style)
+  const setStyle = useBombStore((state) => state.setStyle)
   const overview = useBombStore((state) => state.overview)
   const startSolo = useBombStore((state) => state.startSolo)
   const createRoom = useBombStore((state) => state.createRoom)
@@ -64,7 +66,7 @@ export function BombHome() {
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <header data-bomb-in className="flex flex-col items-center gap-1 text-center">
           <div data-bomb-fx style={{ animation: 'bomb-float 3.2s ease-in-out infinite' }}>
-            <Bomb syllable={mode === 'classic' ? 'par' : 'lu'} endsAt={null} totalMs={1} size={176} />
+            <Bomb syllable={mode === 'classic' ? 'par' : 'lu'} endsAt={null} totalMs={1} variant={style} size={176} />
           </div>
           <h2 className="-mt-2 font-display text-[2.6rem] leading-none" style={{ backgroundImage: BOMB_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
             {t.bomb.title}
@@ -106,6 +108,29 @@ export function BombHome() {
               </button>
             )
           })}
+        </div>
+
+        {/* Style de la bombe (solo, et proposé à la création d'un salon). */}
+        <div data-bomb-in>
+          <p className="mb-2 text-xs text-mist">{t.bomb.settings.style}</p>
+          <div role="radiogroup" aria-label={t.bomb.settings.style} className="grid grid-cols-3 gap-2">
+            {BOMB_STYLES.map((entry) => (
+              <button
+                key={entry}
+                type="button"
+                role="radio"
+                aria-checked={style === entry}
+                onClick={() => {
+                  vibrate(6)
+                  setStyle(entry)
+                }}
+                className={`flex flex-col items-center gap-0.5 rounded-2xl border px-1 pt-1 pb-2 transition-colors ${style === entry ? 'border-glow/70 bg-glow/15' : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
+              >
+                <Bomb syllable={null} endsAt={null} totalMs={1} variant={entry} size={64} />
+                <span className={`text-[11px] ${style === entry ? 'font-semibold text-cream' : 'text-cream/70'}`}>{t.bomb.styles[entry]}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Jouer. */}

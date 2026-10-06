@@ -308,6 +308,17 @@
   }
 }
 
+@keyframes bomb-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes bomb-caret {
   0%,
   100% {

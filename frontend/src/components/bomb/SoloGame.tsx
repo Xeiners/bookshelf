@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Crown, Loader2, RotateCcw, Sparkle } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { gsap } from '../../lib/gsap'
@@ -10,9 +9,9 @@ import { useBombStore } from '../../store/useBombStore'
 import { hlSound } from '../../store/useHigherLowerStore'
 import { useUiStore } from '../../store/useUiStore'
 import { DleBar } from '../dle/DleBar'
-import { STARDUST_GRADIENT } from '../dle/dleStyle'
 import { SoundToggle } from '../higherlower/SoundToggle'
 import { Bomb } from './Bomb'
+import { SoloOver } from './SoloOver'
 import { Lives, WordInput } from './BombParts'
 import { Explosion } from './Explosion'
 
@@ -30,6 +29,7 @@ export function SoloGame({ solo }: { solo: SoloView }) {
   const goHome = useBombStore((state) => state.goHome)
   const collect = useBombStore((state) => state.collect)
   const offset = useBombStore((state) => state.offset)
+  const style = useBombStore((state) => state.style)
   const notify = useUiStore((state) => state.notify)
   const stageRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -186,7 +186,7 @@ export function SoloGame({ solo }: { solo: SoloView }) {
               </span>
             )}
           </div>
-          <Bomb syllable={solo.syllable} endsAt={endsAt} totalMs={solo.fuseMs} audible={!solo.over} shakeRef={stageRef} onZero={onZero} />
+          <Bomb syllable={solo.syllable} endsAt={endsAt} totalMs={solo.fuseMs} variant={style} audible={!solo.over} shakeRef={stageRef} onZero={onZero} />
           <div className="h-10 text-center">
             {solo.missed && !solo.over && solo.missed.example && (
               <p className="text-xs text-mist">
@@ -219,42 +219,7 @@ export function SoloGame({ solo }: { solo: SoloView }) {
 
       <Explosion burst={burst} label={t.bomb.boom} />
 
-      {solo.over && (
-        <div className="fixed inset-0 z-[120] grid place-items-center bg-black/70 px-6 backdrop-blur-sm">
-          <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-[1.75rem] border border-white/10 bg-[#0d0b18] p-6 text-center">
-            <p className="text-[11px] tracking-[0.2em] text-mist uppercase">{t.bomb.over.title}</p>
-            <p className="font-display text-6xl text-cream tabular-nums">{solo.over.words}</p>
-            <p className="-mt-3 text-sm text-mist">{t.bomb.over.words(solo.over.words)}</p>
-            {solo.over.record && solo.over.words > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
-                <Crown size={13} aria-hidden />
-                {t.bomb.over.record}
-              </span>
-            )}
-            {solo.over.reward > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-bold text-[#1a0b1f]" style={{ background: STARDUST_GRADIENT }}>
-                <Sparkle size={15} className="fill-current" aria-hidden />+{solo.over.reward}
-              </span>
-            )}
-            {solo.over.capped && <p className="text-[11px] text-mist">{t.bomb.over.capped}</p>}
-            <p className="text-xs text-mist">{t.bomb.over.best(solo.over.best)}</p>
-            <div className="mt-1 flex w-full gap-2">
-              <button type="button" onClick={goHome} className="flex-1 rounded-full border border-white/15 py-3 text-sm text-cream/85">
-                {t.bomb.over.home}
-              </button>
-              <button
-                type="button"
-                onClick={() => void replay()}
-                disabled={restarting}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-cream py-3 text-sm font-semibold text-void disabled:opacity-60"
-              >
-                {restarting ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <RotateCcw size={15} aria-hidden />}
-                {t.bomb.over.again}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {solo.over && <SoloOver over={solo.over} restarting={restarting} onHome={goHome} onReplay={() => void replay()} />}
     </div>
   )
 }
