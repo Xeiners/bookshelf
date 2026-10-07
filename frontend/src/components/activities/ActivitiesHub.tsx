@@ -117,28 +117,13 @@ export function ActivitiesHub() {
 
 /* ---- Cadre d'artefact ---------------------------------------------------------- */
 
-/**
- * Surface d'un artefact, façon widget : deux teintes de l'activité naissent de coins opposés
- * et se mêlent en diagonale sur l'encre de la carte ; liseré uni, teinté de la première.
- */
-const surface = ([tint, accent]: readonly [string, string], from = '0% 0%'): CSSProperties => ({
-  background: [
-    `radial-gradient(110% 130% at ${from}, ${tint}4d 0%, ${tint}1f 38%, transparent 70%)`,
-    `radial-gradient(90% 110% at 100% 100%, ${accent}38 0%, ${accent}12 40%, transparent 72%)`,
-    'linear-gradient(160deg, #15151f, #0c0c13)',
-  ].join(', '),
-  borderColor: `${tint}3d`,
+/** Surface d'un artefact : une carte sombre et unie ; seul le liseré prend la couleur de l'activité. */
+const surface = (tint: string): CSSProperties => ({
+  backgroundColor: '#101017',
+  borderColor: `${tint}38`,
 })
 
-const TINT = {
-  booster: ['#ffc46b', '#ff5ec4'],
-  oracle: ['#9d7bff', '#4c6bff'],
-  collection: ['#e0a82e', '#ff7a3d'],
-  market: ['#3fe0a0', '#4cc9f0'],
-  bomb: ['#b46cff', '#ff5e9c'],
-  dle: ['#ff5ec4', '#9d7bff'],
-  hl: ['#4cc9f0', '#3fe0a0'],
-} as const
+const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0' } as const
 
 /**
  * Lueur incandescente autour d'un artefact « chargé ». Fixe : une grande ombre
@@ -211,7 +196,7 @@ function BoosterAltar() {
   const progress = boosters.unlimited || boosters.available > 0 ? 1 : boosters.progress
 
   return (
-    <section data-artefact aria-label={t.activities.booster.title} className={`${ARTEFACT_CLASS} overflow-hidden`} style={surface(TINT.booster, '20% 100%')}>
+    <section data-artefact aria-label={t.activities.booster.title} className={`${ARTEFACT_CLASS} overflow-hidden`} style={surface(TINT.booster)}>
       {lit && <Incandescence />}
       <div ref={ref} className="flex flex-col items-center gap-5 p-5 md:flex-row md:items-center md:gap-8 md:p-7">
         {/* Piédestal : cercle doré lumineux, ombre portée, paquet isométrique. */}
@@ -450,7 +435,7 @@ function MarketArtefact() {
       data-artefact
       onClick={() => openActivity('market')}
       className={`${ARTEFACT_CLASS} w-full`}
-      style={unread > 0 ? { ...surface(TINT.market), borderColor: `${TINT.market[0]}80` } : surface(TINT.market)}
+      style={unread > 0 ? { ...surface(TINT.market), borderColor: `${TINT.market}80` } : surface(TINT.market)}
     >
       <span className="flex items-center gap-5 p-5">
         <span
@@ -564,7 +549,7 @@ function DleArtefact() {
       data-artefact
       onClick={() => openActivity('dle')}
       className={`${ARTEFACT_CLASS} w-full overflow-hidden`}
-      style={lit ? { ...surface(TINT.dle), borderColor: `${TINT.dle[0]}80` } : surface(TINT.dle)}
+      style={lit ? { ...surface(TINT.dle), borderColor: `${TINT.dle}80` } : surface(TINT.dle)}
     >
       <span className="flex items-center gap-5 p-5">
         <DleEmblem />
