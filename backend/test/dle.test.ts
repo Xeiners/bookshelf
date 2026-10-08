@@ -20,13 +20,19 @@ const PORTRAIT_PNG = await sharp({ create: { width: 60, height: 80, channels: 3,
 const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki", 'Son, Gokuu', 'Vegeta', 'Freeza', 'Midoriya, Izuku', 'Bakugou, Katsuki', 'Yagi, Toshinori']
 mockedHosts.add('api.jikan.moe')
 mockedHosts.add('cdn.myanimelist.net')
-for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'dragonball.fandom.com', 'myheroacademia.fandom.com', 'kitsu.app']) mockedHosts.add(host)
+for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'dragonball.fandom.com', 'myheroacademia.fandom.com', 'kitsu.app', 'graphql.anilist.co']) mockedHosts.add(host)
 extraMocks.push((url) => {
   // Kitsu : aucun personnage (les portraits des tests viennent du Jikan simulé).
   if (url.hostname === 'kitsu.app') return new Response(JSON.stringify({ data: [], included: [], links: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  // AniList : aucun personnage (les portraits des tests viennent du Jikan simulé).
+  if (url.hostname === 'graphql.anilist.co') return new Response(JSON.stringify({ data: { Character: null } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
   // Wikis Fandom : aucune fiche (les portraits des tests viennent du Jikan simulé).
   if (url.hostname.endsWith('.fandom.com')) return new Response(JSON.stringify({ query: { pages: {} } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
   if (url.hostname === 'api.jikan.moe') {
+    // Recherche par nom : seul « Gogeta » (absent des listes d'anime simulées) y est trouvé.
+    if (url.pathname === '/v4/characters' && url.searchParams.get('q') === 'Gogeta') {
+      return new Response(JSON.stringify({ data: [{ mal_id: 4242, name: 'Gogeta', images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/characters/1/3242.jpg' } } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
     // Galerie d'un personnage : son portrait (jamais repris pour l'énigme) et deux autres images.
     const pictures = /\/characters\/(\d+)\/pictures/.exec(url.pathname)
     if (pictures) {
@@ -860,6 +866,25 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
   })
 })
 
+
+describe('dle — images d’énigme', () => {
+  it('un personnage absent de la liste de l’anime : fiche MyAnimeList retrouvée par recherche, énigme ≠ vignette', async () => {
+    const { portraitSource } = await import('../src/modules/dle/dle.jikan.js')
+    const source = portraitSource('Test', [1], [], 'dragonball.fandom.com', [{ id: 'gogeta', name: 'Gogeta' }])
+    const character = { id: 'gogeta', name: 'Gogeta' }
+    assert.ok((await source.charactersWithPortrait()).has('gogeta'))
+    const thumbnail = (await source.portraitImage(character)).body.toString('latin1')
+    assert.ok(thumbnail.endsWith('/images/characters/1/3242.jpg'))
+    // Les images d'énigme se chargent en tâche de fond : la galerie de la fiche 4242.
+    let puzzle = thumbnail
+    for (let tries = 0; tries < 40 && puzzle === thumbnail; tries += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      puzzle = (await source.puzzleImage(character, 'graine')).body.toString('latin1')
+    }
+    assert.notEqual(puzzle, thumbnail, 'l’énigme ne reprend plus la vignette')
+    assert.match(puzzle, /\/images\/characters\/2\/3242[ab]\.jpg$/)
+  })
+})
 
 describe('dle — Chiffon (nettoyeur d’écran)', () => {
   it('logique : part nettoyée, pénalité des erreurs, prime, classement', () => {

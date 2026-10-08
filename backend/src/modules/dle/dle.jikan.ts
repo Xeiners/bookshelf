@@ -1,13 +1,17 @@
+import { config } from '../../config.js'
 import { TtlCache } from '../../lib/cache.js'
 import { notFound } from '../../lib/errors.js'
 import type { CachedImage } from '../manga/manga.routes.js'
 
 /*
- * Portraits des personnages (Naruto, One Piece, JoJo, Jujutsu Kaisen) : la photo
- * officielle de MyAnimeList, via l'API publique Jikan ; à défaut (Jikan tombe
- * souvent en panne quand MyAnimeList le refuse), celle de Kitsu (mêmes portraits,
- * sur fond), puis l'image de la fiche du personnage sur le wiki Fandom de l'univers
- * (souvent un détourage sur fond transparent). Lu une fois par jour, chaque image relayée et gardée en
+ * Portraits des personnages (Naruto, One Piece, JoJo, Jujutsu Kaisen, Dragon Ball,
+ * My Hero Academia) : la photo officielle de MyAnimeList, via l'API publique Jikan ; à
+ * défaut (Jikan tombe souvent en panne quand MyAnimeList le refuse), celle de Kitsu (mêmes
+ * portraits, sur fond), l'image de la fiche du personnage sur le wiki Fandom de l'univers
+ * (souvent un détourage sur fond transparent), puis AniList. Les images d'énigme viennent de
+ * la galerie MyAnimeList du personnage (sa fiche est retrouvée par recherche si son nom ne
+ * figure pas tel quel dans la liste de l'anime), du wiki et d'AniList : jamais la vignette.
+ * Lu une fois par jour, chaque image relayée et gardée en
  * cache : les joueurs ne voient jamais l'adresse d'origine (le format Portrait
  * ne doit pas trahir le nom).
  */
@@ -16,6 +20,10 @@ const JIKAN = 'https://api.jikan.moe/v4'
 const MAL_HOST = 'cdn.myanimelist.net'
 const KITSU = 'https://kitsu.app/api/edge'
 const KITSU_HOST = 'media.kitsu.app'
+const ANILIST = 'https://graphql.anilist.co'
+const ANILIST_HOST = 's4.anilist.co'
+/** Écart entre deux recherches par nom (Jikan, AniList limitent le débit) ; nul en test. */
+const SEARCH_GAP_MS = config.env === 'test' ? 0 : 450
 const FANDOM_HOST = 'static.wikia.nocookie.net'
 /** Les images des wikis Fandom ne se servent qu'à un navigateur venu du wiki. */
 const BROWSER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
@@ -114,6 +122,38 @@ export async function searchPortrait(character: PortraitCharacter): Promise<{ ur
     const hit = (body.data ?? []).find((entry) => entry.name && keys.has(nameKey(entry.name)) && portraitOf(entry.images))
     const url = hit ? portraitOf(hit.images) : null
     return url ? { url, malId: hit?.mal_id ?? null } : null
+  } catch {
+    return undefined
+  }
+}
+
+interface AniListCharacter {
+  data?: { Character?: { name?: { full?: string; native?: string; alternative?: string[] }; image?: { large?: string } } | null }
+}
+
+/**
+ * Le portrait AniList d'un personnage (autre dessin que MyAnimeList, souvent plus grand),
+ * s'il porte bien l'un de ses noms. `undefined` : AniList n'a pas répondu.
+ */
+export async function aniListPortrait(character: PortraitCharacter): Promise<string | null | undefined> {
+  const keys = new Set(namesOf(character).map(nameKey))
+  try {
+    const response = await fetch(ANILIST, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        query: 'query ($search: String) { Character(search: $search) { name { full alternative } image { large } } }',
+        variables: { search: character.name },
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (response.status === 404) return null
+    if (!response.ok) return undefined
+    const found = ((await response.json()) as AniListCharacter).data?.Character
+    const url = found?.image?.large
+    const names = [found?.name?.full, ...(found?.name?.alternative ?? [])].filter((name): name is string => Boolean(name))
+    if (!url || url.includes('/default.') || new URL(url).hostname !== ANILIST_HOST) return null
+    return names.some((name) => keys.has(nameKey(name))) ? url : null
   } catch {
     return undefined
   }
@@ -322,14 +362,24 @@ export function portraitSource(
       if (!wiki) complete = false
       for (const [id, url] of wiki ?? []) portraits.set(id, url)
     }
-    for (const character of characters.filter((entry) => !portraits.has(entry.id))) {
-      await pause(450)
+    // Recherche par nom sur MyAnimeList : le portrait de ceux qui n'en ont pas, et, pour
+    // tous les autres, leur fiche MyAnimeList (sa galerie donne les images d'énigme ; sans
+    // elle, l'énigme reprendrait la vignette de la saisie).
+    for (const character of characters.filter((entry) => !portraits.has(entry.id) || !malIds.has(entry.id))) {
+      await pause(SEARCH_GAP_MS)
       const found = await searchPortrait(character)
       if (found === undefined) complete = false
       else if (found) {
-        portraits.set(character.id, found.url)
+        if (!portraits.has(character.id)) portraits.set(character.id, found.url)
         if (found.malId) malIds.set(character.id, found.malId)
       }
+    }
+    // Toujours rien : AniList.
+    for (const character of characters.filter((entry) => !portraits.has(entry.id))) {
+      await pause(SEARCH_GAP_MS)
+      const url = await aniListPortrait(character)
+      if (url === undefined) complete = false
+      else if (url) portraits.set(character.id, url)
     }
     console.log(`[dle] portraits ${label} : ${portraits.size}/${characters.length}${complete ? '' : ' (incomplet, nouvel essai dans 10 min)'}`)
     return { portraits, malIds, complete }
@@ -354,11 +404,16 @@ export function portraitSource(
     for (const [id, url] of wiki ?? []) add(id, url)
     for (const character of characters) {
       const malId = from.malIds.get(character.id)
-      if (!malId) continue
-      await pause(450)
-      const pictures = await serial(() => jikanPictures(malId))
-      if (pictures === undefined) complete = false
-      for (const url of pictures ?? []) add(character.id, url)
+      if (malId) {
+        await pause(SEARCH_GAP_MS)
+        const pictures = await serial(() => jikanPictures(malId))
+        if (pictures === undefined) complete = false
+        for (const url of pictures ?? []) add(character.id, url)
+      }
+      // Le dessin AniList : une image d'énigme de plus, différente de la vignette.
+      await pause(SEARCH_GAP_MS)
+      const aniList = await aniListPortrait(character)
+      if (aniList) add(character.id, aniList)
     }
     // Un chargement raté ne remplace jamais une liste plus fournie.
     if (!alternates || complete || found.size >= alternates.size) alternates = found
@@ -393,10 +448,15 @@ export function portraitSource(
   /** Les octets d'une image relayée (hôtes connus seulement : jamais un relais ouvert). */
   const fetchImage = async (url: string): Promise<CachedImage> => {
     const host = new URL(url).hostname
-    if (host !== MAL_HOST && host !== KITSU_HOST && host !== FANDOM_HOST) throw notFound('Portrait indisponible.')
+    if (host !== MAL_HOST && host !== KITSU_HOST && host !== FANDOM_HOST && host !== ANILIST_HOST) throw notFound('Portrait indisponible.')
     // Fandom : l'image ne se sert qu'avec un navigateur venu du wiki.
     const headers: Record<string, string> = host === FANDOM_HOST ? { 'User-Agent': BROWSER_AGENT, Referer: `https://${wikiHost}/` } : {}
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000), headers }).catch(() => null)
+    // Un hoquet du CDN (MyAnimeList sature vite) : un second essai, plutôt qu'une image cassée.
+    let response = await fetch(url, { signal: AbortSignal.timeout(10_000), headers }).catch(() => null)
+    if (!response?.ok) {
+      await pause(config.env === 'test' ? 0 : 800)
+      response = await fetch(url, { signal: AbortSignal.timeout(10_000), headers }).catch(() => null)
+    }
     if (!response?.ok) throw notFound('Portrait indisponible.')
     return { body: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get('content-type') ?? 'image/jpeg' }
   }

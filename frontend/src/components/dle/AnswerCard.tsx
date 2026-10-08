@@ -1,6 +1,7 @@
 import type { WorkSummary } from '../../services/dleApi'
 import { CollectibleCard } from '../cards/CollectibleCard'
 import { accentOf } from './dleStyle'
+import { PortraitImage } from '../ui/PortraitImage'
 
 /**
  * La réponse révélée : la carte de collection d'une œuvre (inclinable, cadre de
@@ -18,7 +19,7 @@ export function AnswerCard({ work, width }: { work: WorkSummary; width: number }
           className="relative overflow-hidden rounded-2xl border-[3px] bg-ink"
           style={{ width, height: Math.round(width * 1.4), borderColor: color, boxShadow: `0 0 0 3px rgba(11,9,24,1), 0 0 30px -6px ${color}` }}
         >
-          <img src={work.imageUrl} alt={work.name} decoding="async" className="h-full w-full object-cover object-top" />
+          <PortraitImage src={work.imageUrl} name={work.name} alt={work.name} loading="eager" initialClassName="text-6xl" className="h-full w-full object-cover object-top" />
           <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-2 pt-6 pb-2 text-center text-sm font-bold text-white">{work.name}</span>
         </div>
       )}

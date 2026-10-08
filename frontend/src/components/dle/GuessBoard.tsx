@@ -6,6 +6,7 @@ import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { playDleTile } from '../../lib/sfx'
 import { CATEGORY_ATTRIBUTES, type Attribute, type AttributeFeedback, type AttributeValues, type DleCategory, type GuessResult, type Verdict } from '../../services/dleApi'
 import { VERDICT_STYLE, verdictDot } from './dleStyle'
+import { PortraitImage } from '../ui/PortraitImage'
 
 // Largeur fixe, hauteur au moins carrée : une valeur longue s'étale sur plusieurs lignes
 // et toute la ligne grandit avec elle (les tuiles d'une ligne s'étirent ensemble).
@@ -106,7 +107,7 @@ export function ClassicBoard({ guesses, category, renderAuthor }: BoardProps) {
               className={`${TILE} relative shrink-0 self-stretch overflow-hidden rounded-xl border-[3px] bg-ink`}
               style={{ borderColor: guess.correct ? VERDICT_STYLE.exact.solid : 'rgba(255,255,255,0.16)' }}
             >
-              <img src={guess.work.imageUrl} alt="" loading="lazy" decoding="async" className={`absolute inset-0 h-full w-full object-cover ${category !== 'manga' ? 'object-top' : ''}`} />
+              <PortraitImage src={guess.work.imageUrl} name={guess.work.name} initialClassName="text-2xl" className={`absolute inset-0 h-full w-full object-cover ${category !== 'manga' ? 'object-top' : ''}`} />
               <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/90 to-transparent px-1 pt-3 pb-0.5 text-[9px] leading-tight font-semibold text-white">{guess.work.name}</span>
             </div>
             {guess.feedback && guess.values &&
@@ -265,7 +266,7 @@ export function WrongGuesses({ guesses, renderAuthor }: { guesses: GuessResult[]
             className="flex items-center gap-3 rounded-xl border px-2 py-1.5"
             style={{ background: 'rgba(207,59,74,0.12)', borderColor: 'rgba(207,59,74,0.45)' }}
           >
-            <img src={guess.work.imageUrl} alt="" loading="lazy" decoding="async" className="h-10 w-7 shrink-0 rounded bg-ink object-cover" />
+            <PortraitImage src={guess.work.imageUrl} name={guess.work.name} className="h-10 w-7 shrink-0 rounded bg-ink object-cover" />
             <span className="min-w-0 flex-1 truncate text-sm text-cream">{guess.work.name}</span>
             {renderAuthor?.(guess)}
             <span data-cross aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full text-white" style={{ background: VERDICT_STYLE.wrong.solid }}>

@@ -4,6 +4,7 @@ import { useT } from '../../i18n'
 import { RARITY_STYLE } from '../../lib/boosters'
 import { searchWorks } from '../../lib/dle'
 import type { DleWorkOption } from '../../services/dleApi'
+import { PortraitImage } from '../ui/PortraitImage'
 
 interface GuessInputProps {
   works: DleWorkOption[] | null
@@ -169,7 +170,7 @@ export function GuessInput({ works, excluded, disabled = false, characters = fal
                   onMouseEnter={() => setActive(index)}
                   className={`flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors ${index === active ? 'bg-white/[0.08]' : ''}`}
                 >
-                  <img src={work.imageUrl} alt="" loading="lazy" decoding="async" className="h-11 w-8 shrink-0 rounded-md bg-ink object-cover object-top" />
+                  <PortraitImage src={work.imageUrl} name={work.name} className="h-11 w-8 shrink-0 rounded-md bg-ink object-cover object-top" />
                   <span className="min-w-0 flex-1 truncate text-sm text-cream">{work.name}</span>
                   {work.rarity && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: RARITY_STYLE[work.rarity].color }} />}
                 </button>
