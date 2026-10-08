@@ -114,6 +114,7 @@ export const fr = {
     },
     booster: {
       eyebrow: 'L’autel des boosters',
+      newSeries: 'Nouveau',
       title: 'Ouvrir un booster',
       body: '4 cartes à collectionner. Un booster toutes les 3 h, 2 en réserve au plus.',
       open: 'Ouvrir',

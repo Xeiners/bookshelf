@@ -107,6 +107,7 @@ export const en: Dictionary = {
     },
     booster: {
       eyebrow: 'The booster altar',
+      newSeries: 'New',
       title: 'Open a booster',
       body: '4 cards to collect. One booster every 3 hours, up to 2 in reserve.',
       open: 'Open',

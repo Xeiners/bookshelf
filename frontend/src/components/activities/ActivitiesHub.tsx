@@ -214,12 +214,18 @@ function BoosterAltar() {
           <div data-altar-shadow aria-hidden className="absolute bottom-6 h-5 w-28 rounded-[50%]" style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,0.85), transparent)', willChange: 'transform' }} />
           <div data-altar-pack className="relative mb-6" style={{ willChange: 'transform' }}>
             {/* Vue isométrique : perspective et rotations dans un seul transform, sous-arbre aplati. */}
-            {/* Les deux séries en éventail : la 2 en retrait, la 1 devant. */}
-            <div className="absolute top-2 left-10" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(-24deg) rotateZ(9deg)', opacity: 0.9 }}>
-              <BoosterPackArt width={112} series={2} lit={lit} dim={!lit} />
+            {/* Les trois séries en éventail : la 1 et la 2 en retrait, la nouvelle (3) devant, au centre. */}
+            <div className="absolute top-5 -left-14" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(18deg) rotateZ(-14deg)', opacity: 0.85 }}>
+              <BoosterPackArt width={100} series={1} lit={lit} dim={!lit} />
             </div>
-            <div className="relative -left-6" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(-24deg) rotateZ(-5deg)' }}>
-              <BoosterPackArt width={122} series={1} lit={lit} dim={!lit} halo={lit ? 'LEGENDARY' : null} />
+            <div className="absolute top-5 -right-14" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(-18deg) rotateZ(14deg)', opacity: 0.85 }}>
+              <BoosterPackArt width={100} series={2} lit={lit} dim={!lit} />
+            </div>
+            <div className="relative" style={{ transform: 'perspective(700px) rotateX(10deg) rotateZ(-2deg)' }}>
+              <BoosterPackArt width={124} series={3} lit={lit} dim={!lit} halo={lit ? 'LEGENDARY' : null} />
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full px-2.5 py-0.5 text-[9px] font-bold tracking-[0.18em] whitespace-nowrap text-[#2a1a02] uppercase shadow-[0_4px_14px_-4px_rgba(255,90,110,0.8)]" style={{ background: '#ffb347' }}>
+                {t.activities.booster.newSeries}
+              </span>
             </div>
           </div>
         </div>
