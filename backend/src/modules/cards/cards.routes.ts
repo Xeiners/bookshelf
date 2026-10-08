@@ -39,7 +39,9 @@ boostersRouter.post('/guest/open', guestLimiter, async (req, res) => {
 
 /** Les séries et leurs couvertures (illustration des boosters). Public. */
 boostersRouter.get('/series', async (_req, res) => {
-  res.set('Cache-Control', 'public, max-age=600')
+  // Revalidé à chaque ouverture : une série qui vient d'être prête (la 3, chargée en
+  // arrière-plan) doit apparaître tout de suite. Le serveur garde, lui, son propre cache.
+  res.set('Cache-Control', 'no-cache')
   res.json({ series: await seriesShowcase() })
 })
 
