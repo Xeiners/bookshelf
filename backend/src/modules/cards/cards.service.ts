@@ -30,6 +30,7 @@ import {
 } from './boosters.logic.js'
 import { GUEST_BOOSTERS, readGuestPacks, signGuestPack, type GuestPack } from './guestPacks.js'
 import { SERIES_2, seedSeries2 } from './series2.seed.js'
+import { SERIES_3_SIZE, ensureSeries3 } from './series3.seed.js'
 
 /*
  * Collection de cartes et boosters. Le serveur est l'unique horloge : le
@@ -194,6 +195,10 @@ export async function ensureCardSet(): Promise<{ id: string; rarity: string; ser
       }
     }
   }
+  // Série 3 (personnages) : chargée en arrière-plan, sans jamais faire attendre un booster.
+  if (series1Count >= SET_SIZE && (await prisma.card.count({ where: { series: SERIES_2 } })) >= SET_SIZE) {
+    if ((await prisma.card.count({ where: { series: 3, mangaTitle: { not: '' } } })) < SERIES_3_SIZE) ensureSeries3()
+  }
   return prisma.card.findMany({ select: { id: true, rarity: true, series: true } })
 }
 
@@ -219,7 +224,8 @@ let showcase: { at: number; value: SeriesShowcase[] } | null = null
 
 /** Les séries prêtes et de quoi illustrer leurs boosters (mis en cache 10 min). */
 export async function seriesShowcase(now = Date.now()): Promise<SeriesShowcase[]> {
-  if (showcase && now - showcase.at < 10 * 60 * 1000) return showcase.value
+  // Une série encore en préparation (la 3, en arrière-plan) : on revérifie vite.
+  if (showcase && now - showcase.at < (showcase.value.length === CARD_SERIES.length ? 10 * 60 * 1000 : 30 * 1000)) return showcase.value
   const cards = await prisma.card.findMany({ select: { series: true, rarity: true, imageUrl: true, number: true }, orderBy: { number: 'asc' } })
   const rank = (rarity: string) => (isRarity(rarity) ? RARITIES.indexOf(rarity) : -1)
   const value = CARD_SERIES.flatMap((series) => {
@@ -415,7 +421,8 @@ export const toCardDto = (card: { id: string; number: number; series: number; na
   number: card.number,
   series: card.series,
   name: card.name || card.title,
-  mangaTitle: card.mangaTitle || card.title,
+  // Personnage dont l'œuvre n'est pas encore connue : pas d'œuvre plutôt que son propre nom.
+  mangaTitle: card.mangaTitle || (card.characterName ? '' : card.title),
   title: card.title,
   character: card.characterName,
   characterName: card.characterName,

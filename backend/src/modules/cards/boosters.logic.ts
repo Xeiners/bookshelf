@@ -181,9 +181,9 @@ export function drawPack<C extends { id: string; rarity: string }>(
 /* ---- Séries ------------------------------------------------------------------------- */
 
 /** Les séries du set : chaque booster appartient à l'une d'elles. */
-export const CARD_SERIES = [1, 2] as const
+export const CARD_SERIES = [1, 2, 3] as const
 export type CardSeries = (typeof CARD_SERIES)[number]
-/** Série demandée à l'ouverture : l'une des deux, ou la roulette. */
+/** Série demandée à l'ouverture : l'une d'elles, ou la roulette. */
 export type SeriesChoice = CardSeries | 'random'
 
 /**

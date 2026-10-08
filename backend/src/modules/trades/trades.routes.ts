@@ -20,7 +20,7 @@ const OfferId = z.string().min(1).max(40)
 /** Filtres du marché ; une valeur inconnue est ignorée plutôt que refusée. */
 const MarketQuery = z.object({
   rarity: z.enum(RARITIES).optional().catch(undefined),
-  series: z.coerce.number().pipe(z.union([z.literal(1), z.literal(2)])).optional().catch(undefined),
+  series: z.coerce.number().pipe(z.union([z.literal(1), z.literal(2), z.literal(3)])).optional().catch(undefined),
   fillable: z
     .enum(['1', 'true', '0', 'false'])
     .transform((value) => value === '1' || value === 'true')

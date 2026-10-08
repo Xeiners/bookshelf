@@ -14,6 +14,7 @@
     "db:migrate": "prisma migrate dev && prisma generate && node scripts/prisma-postgres.mjs",
     "db:studio": "prisma studio",
     "cards:seed-series-2": "node --import tsx scripts/seed-series-2.ts",
+    "cards:seed-series-3": "node --import tsx scripts/seed-series-3.ts",
     "tachiyomi": "node --import tsx src/extensions/tachiyomi.cli.ts",
     "test": "node scripts/prisma-postgres.mjs --check && node --import tsx --test --test-reporter=spec test/*.test.ts",
     "db:generate:all": "prisma generate --schema prisma/schema.prisma && prisma generate --schema prisma/postgres/schema.prisma",

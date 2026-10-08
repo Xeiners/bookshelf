@@ -60,7 +60,7 @@ export interface TradeOfferDto {
 
 export interface MarketFilter {
   rarity?: Rarity
-  series?: 1 | 2
+  series?: 1 | 2 | 3
   /** Seulement les offres que le compte peut remplir. */
   fillable?: boolean
 }

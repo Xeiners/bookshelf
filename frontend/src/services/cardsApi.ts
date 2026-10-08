@@ -18,7 +18,7 @@ export interface Collection {
 }
 
 /** Les séries du set : chaque booster appartient à l'une d'elles. */
-export const CARD_SERIES = [1, 2] as const
+export const CARD_SERIES = [1, 2, 3] as const
 export type CardSeries = (typeof CARD_SERIES)[number]
 /** À l'ouverture : une série, ou la roulette. */
 export type SeriesChoice = CardSeries | 'random'

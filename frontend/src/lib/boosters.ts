@@ -118,7 +118,7 @@ export function observedRate(tally: DropTally, rarity: Rarity): number {
 export interface CollectionCard {
   id: string
   number: number
-  series: 1 | 2
+  series: 1 | 2 | 3
   name: string
   mangaTitle: string
   title: string
@@ -136,7 +136,9 @@ export interface CollectionCard {
 }
 
 export type Ownership = 'all' | 'owned' | 'missing'
-export type CardSeries = 1 | 2
+export type CardSeries = 1 | 2 | 3
+/** Série 3 (personnages) : numéros 601 à 1800, dans l'ordre du classement des plus aimés. */
+export const SERIES_3_FIRST_NUMBER = 601
 
 export interface CollectionFilter {
   rarity: Rarity | 'all'

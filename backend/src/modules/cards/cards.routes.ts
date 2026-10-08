@@ -5,6 +5,7 @@ import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
 import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
+import { characterArt } from './cards.art.js'
 
 /*
  * Boosters et collection de cartes. Le stock d'un compte vit côté serveur
@@ -16,8 +17,8 @@ import { GUEST_BOOSTERS } from './guestPacks.js'
 
 /** Reçus d'essai présentés par un invité. */
 const GuestBody = z.object({ receipts: z.array(z.string().max(1024)).max(GUEST_BOOSTERS * 2).default([]) })
-/** Série du booster : 1, 2, ou la roulette (par défaut). */
-const Series = z.union([z.literal(1), z.literal(2), z.literal('random')]).default('random')
+/** Série du booster : 1, 2, 3, ou la roulette (par défaut). */
+const Series = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal('random')]).default('random')
 const OpenBody = z.object({ series: Series })
 
 /** Monté sous `/api/boosters`. */
@@ -71,6 +72,13 @@ const guestAlbumLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 })
 cardsRouter.post('/guest/collection', guestAlbumLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store')
   res.json(await guestCollection(GuestBody.parse(req.body ?? {}).receipts))
+})
+
+/** Portrait d'une carte de personnage (Série 3), agrandi : public, comme les couvertures. */
+cardsRouter.get('/art/:malId', async (req, res) => {
+  const image = await characterArt(z.coerce.number().int().positive().parse(req.params.malId))
+  res.set('Cache-Control', 'public, max-age=604800, immutable')
+  res.type(image.contentType).send(image.body)
 })
 
 cardsRouter.use(requireAuth)

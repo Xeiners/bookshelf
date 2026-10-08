@@ -3,7 +3,7 @@ import { BookOpen, Heart, X } from 'lucide-react'
 import { useCollection } from '../../hooks/useCollection'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useLanguage, useT } from '../../i18n'
-import { RARITY_STYLE } from '../../lib/boosters'
+import { RARITY_STYLE, SERIES_3_FIRST_NUMBER } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { fetchBooks, fetchSynopsis } from '../../services/catalog'
@@ -54,8 +54,12 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  /** Carte de personnage (Série 3) : pas d'œuvre MangaDex, donc ni résumé ni fiche. */
+  const character = Boolean(card.characterName)
+
   // Résumé de l'œuvre (mis en cache par le service : rouvrir la carte est instantané).
   useEffect(() => {
+    if (character) return
     const controller = new AbortController()
     fetchSynopsis(card.mangaId, language, controller.signal)
       .then((text) => setSynopsis({ status: 'ready', text }))
@@ -63,7 +67,7 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
         if (!controller.signal.aborted) setSynopsis({ status: 'error' })
       })
     return () => controller.abort()
-  }, [card.mangaId, language])
+  }, [card.mangaId, language, character])
 
   useGSAP(
     () => {
@@ -122,21 +126,29 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
           <h2 className="font-display text-3xl leading-tight text-cream">{card.title}</h2>
           {date && <p className="text-xs text-mist">{t.cards.obtained(date)}</p>}
 
-          {/* Résumé de l'œuvre. */}
-          <section aria-label={t.cards.synopsis} className="rounded-2xl border border-cream/10 bg-ink/90 p-4">
-            <p className="text-[10px] tracking-[0.24em] text-mist uppercase">{t.cards.synopsis}</p>
-            {synopsis.status === 'loading' ? (
-              <div aria-hidden className="mt-3 flex flex-col gap-2">
-                {[92, 100, 84, 60].map((line) => (
-                  <span key={line} className="h-3 rounded-full bg-cream/10" style={{ width: `${line}%` }} />
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 max-h-[38vh] overflow-y-auto pr-1 text-sm leading-relaxed whitespace-pre-line text-cream/85">
-                {synopsis.status === 'ready' && synopsis.text ? synopsis.text : t.cards.noSynopsis}
-              </p>
-            )}
-          </section>
+          {/* Personnage : son œuvre et son rang au classement des plus aimés. */}
+          {character ? (
+            <section aria-label={t.cards.character.section} className="rounded-2xl border border-cream/10 bg-ink/90 p-4">
+              <p className="text-[10px] tracking-[0.24em] text-mist uppercase">{t.cards.character.section}</p>
+              <p className="mt-2 text-sm leading-relaxed text-cream/85">{card.mangaTitle ? t.cards.character.from(card.mangaTitle) : t.cards.character.workSoon}</p>
+              <p className="mt-1 text-xs text-mist">{t.cards.character.rank(card.number - SERIES_3_FIRST_NUMBER + 1)}</p>
+            </section>
+          ) : (
+            <section aria-label={t.cards.synopsis} className="rounded-2xl border border-cream/10 bg-ink/90 p-4">
+              <p className="text-[10px] tracking-[0.24em] text-mist uppercase">{t.cards.synopsis}</p>
+              {synopsis.status === 'loading' ? (
+                <div aria-hidden className="mt-3 flex flex-col gap-2">
+                  {[92, 100, 84, 60].map((line) => (
+                    <span key={line} className="h-3 rounded-full bg-cream/10" style={{ width: `${line}%` }} />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 max-h-[38vh] overflow-y-auto pr-1 text-sm leading-relaxed whitespace-pre-line text-cream/85">
+                  {synopsis.status === 'ready' && synopsis.text ? synopsis.text : t.cards.noSynopsis}
+                </p>
+              )}
+            </section>
+          )}
 
           <div className="flex gap-2 pt-1">
             {owned && signedIn && (
@@ -153,15 +165,17 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
                 <Heart size={18} className={owned.isFavorite ? 'fill-nope' : ''} />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => void viewWork()}
-              disabled={opening}
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-cream/10 px-5 text-sm font-semibold text-cream disabled:opacity-50"
-            >
-              <BookOpen size={16} />
-              {t.cards.viewWork}
-            </button>
+            {!character && (
+              <button
+                type="button"
+                onClick={() => void viewWork()}
+                disabled={opening}
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-cream/10 px-5 text-sm font-semibold text-cream disabled:opacity-50"
+              >
+                <BookOpen size={16} />
+                {t.cards.viewWork}
+              </button>
+            )}
           </div>
         </div>
       </div>

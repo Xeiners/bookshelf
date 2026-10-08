@@ -538,7 +538,11 @@ describe('boosters — séries 1 et 2', () => {
     assert.equal(rolled.status, 200)
     assert.ok([1, 2].includes(rolled.body.series))
     assert.ok(rolled.body.cards.every((pulled: { card: { series: number } }) => pulled.card.series === rolled.body.series))
-    assert.equal((await account.request('POST', '/boosters/open', { series: 3 })).status, 400)
+    // Série 3 (personnages) pas encore chargée ici : la demande retombe sur une série prête.
+    const third = await account.request('POST', '/boosters/open', { series: 3 })
+    assert.equal(third.status, 200)
+    assert.ok([1, 2].includes(third.body.series))
+    assert.equal((await account.request('POST', '/boosters/open', { series: 9 })).status, 400)
   })
 
   it('vitrine : chaque série et ses couvertures, les plus rares d’abord', async () => {

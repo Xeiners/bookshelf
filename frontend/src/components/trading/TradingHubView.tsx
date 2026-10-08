@@ -250,6 +250,7 @@ export function TradingHubView() {
               { value: 'all', label: t.cards.filters.all },
               { value: 1, label: t.cards.filters.seriesName(1) },
               { value: 2, label: t.cards.filters.seriesName(2) },
+              { value: 3, label: t.cards.filters.seriesName(3) },
             ]}
             onChange={(series) => setQuery({ series })}
           />

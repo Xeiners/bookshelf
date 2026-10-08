@@ -36,6 +36,14 @@ const SERIES_STYLE: Record<CardSeries, { foil: string; ink: string; gild: string
     glow: 'rgba(76,201,240,0.55)',
     title: 'linear-gradient(180deg, #f2fdff, #8fe3ff 45%, #ff8ad8)',
   },
+  // Personnages : feuille d'encre rouge sang et or, l'or des cartes pleine image.
+  3: {
+    foil: 'linear-gradient(160deg, #1a0510 0%, #7a0f2e 30%, #e2384d 58%, #ffb347 100%)',
+    ink: '#14040b',
+    gild: '#ffd98a',
+    glow: 'rgba(255,90,90,0.55)',
+    title: 'linear-gradient(180deg, #fff3dc, #ffb347 45%, #ff5a6e)',
+  },
 }
 
 const GENERIC_FOIL = 'linear-gradient(160deg, #1d1440 0%, #5b3fd0 30%, #c0368f 62%, #e8a23c 100%)'

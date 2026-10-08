@@ -209,11 +209,13 @@ model Card {
   description   String   @default("")
   /// Valeur de collection dérivée de la rareté et du prestige de l'œuvre.
   power         Int      @default(0)
-  /// Couverture, servie par le relais `/api/covers`.
+  /// Couverture, servie par le relais `/api/covers` (Série 3 : portrait, par `/api/cards/art`).
   imageUrl      String
+  /// Série 3 (personnages) : image d'origine sur MyAnimeList, relayée et agrandie.
+  artUrl        String?
   /// COMMON | RARE | EPIC | LEGENDARY | MYTHIC
   rarity        String
-  /// UUID MangaDex de l'œuvre.
+  /// UUID MangaDex de l'œuvre ; Série 3 : `mal-character-<id>` (pas d'œuvre MangaDex).
   mangaId       String   @unique
   createdAt     DateTime @default(now())
 

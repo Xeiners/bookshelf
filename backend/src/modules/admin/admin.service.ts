@@ -326,6 +326,7 @@ export async function searchCards(q: string): Promise<CardDto[]> {
             { name: { contains: query } },
             { title: { contains: query } },
             { mangaTitle: { contains: query } },
+            { characterName: { contains: query } },
             { name: { contains: query.charAt(0).toUpperCase() + query.slice(1) } },
             ...(/^\d+$/.test(query) ? [{ number: Number(query) }] : []),
           ],

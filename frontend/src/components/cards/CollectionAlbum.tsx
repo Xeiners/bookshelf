@@ -149,7 +149,7 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null }: Col
           />
         </label>
         <div className="glass flex self-start rounded-full p-1" role="radiogroup" aria-label={t.cards.filters.series}>
-          {(['all', 1, 2] as const).map((series) => (
+          {(['all', 1, 2, 3] as const).map((series) => (
             <button
               key={series}
               type="button"
