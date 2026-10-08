@@ -2,15 +2,14 @@ import { prisma } from '../../db.js'
 import { TtlCache } from '../../lib/cache.js'
 import { notFound } from '../../lib/errors.js'
 import type { CachedImage } from '../manga/manga.routes.js'
-import { series3CardId } from './series3.seed.js'
+import { ART_HOSTS } from './series3.seed.js'
 
 /*
- * Portraits des cartes de la Série 3, relayés depuis MyAnimeList : agrandis (×2, Lanczos,
+ * Portraits des cartes de la Série 3, relayés depuis MyAnimeList (ou AniList) : agrandis (×2, Lanczos,
  * léger renforcement) pour rester nets sur un écran Retina, puis en WebP. Une carte pleine
  * image s'affiche bien plus grand qu'une vignette de 225 px de large.
  */
 
-const MAL_HOST = 'cdn.myanimelist.net'
 /** Largeur servie : deux fois la largeur d'origine des portraits MyAnimeList. */
 const ART_WIDTH = 450
 
@@ -36,11 +35,15 @@ export async function enhanceArt(image: CachedImage): Promise<CachedImage> {
   }
 }
 
-export async function characterArt(malId: number): Promise<CachedImage> {
-  return cache.getOrLoad(String(malId), async () => {
-    const card = await prisma.card.findUnique({ where: { id: series3CardId(malId) }, select: { artUrl: true } })
+/** Id d'une carte de personnage : `s3_<id MyAnimeList>` ou `s3a_<id AniList>`. */
+export const CHARACTER_CARD_ID = /^s3a?_\d{1,9}$/
+
+export async function characterArt(cardId: string): Promise<CachedImage> {
+  if (!CHARACTER_CARD_ID.test(cardId)) throw notFound('Portrait indisponible.')
+  return cache.getOrLoad(cardId, async () => {
+    const card = await prisma.card.findUnique({ where: { id: cardId }, select: { artUrl: true } })
     const url = card?.artUrl
-    if (!url || new URL(url).hostname !== MAL_HOST) throw notFound('Portrait indisponible.')
+    if (!url || !ART_HOSTS.has(new URL(url).hostname)) throw notFound('Portrait indisponible.')
     const response = await fetch(url, { signal: AbortSignal.timeout(10_000) }).catch(() => null)
     if (!response?.ok) throw notFound('Portrait indisponible.')
     return enhanceArt({ body: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get('content-type') ?? 'image/jpeg' })

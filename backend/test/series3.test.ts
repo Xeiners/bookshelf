@@ -11,12 +11,22 @@ prepareEnvironment('series3')
 installMangadexMock()
 
 const PORTRAIT = await sharp({ create: { width: 225, height: 350, channels: 3, background: { r: 30, g: 120, b: 220 } } }).jpeg().toBuffer()
-const calls = { pages: 0, full: 0 }
+const calls = { pages: 0, full: 0, anilist: 0 }
+/** Pannes simulées : le « top » de Jikan, puis tout Jikan. */
+const outage = { top: false, jikan: false }
 mockedHosts.add('api.jikan.moe')
 mockedHosts.add('cdn.myanimelist.net')
-extraMocks.push((url) => {
+mockedHosts.add('graphql.anilist.co')
+extraMocks.push((url, init) => {
   const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })
-  if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/top/characters') {
+  if (url.hostname === 'api.jikan.moe' && (outage.jikan || (outage.top && url.pathname === '/v4/top/characters'))) return new Response('{}', { status: 500 })
+  if (url.hostname === 'graphql.anilist.co') {
+    calls.anilist += 1
+    const page = Number((JSON.parse(String(init?.body ?? '{}')) as { variables?: { page?: number } }).variables?.page ?? 1)
+    const characters = Array.from({ length: 50 }, (_, index) => ({ id: 9000 + (page - 1) * 50 + index, name: { full: `Ani ${(page - 1) * 50 + index}` }, image: { large: `https://s4.anilist.co/file/character/large/b${9000 + (page - 1) * 50 + index}.png` }, media: { nodes: [{ title: { english: 'Frieren', romaji: 'Sousou no Frieren' } }] } }))
+    return json({ data: { Page: { pageInfo: { hasNextPage: true }, characters } } })
+  }
+  if (url.hostname === 'api.jikan.moe' && (url.pathname === '/v4/top/characters' || url.pathname === '/v4/characters')) {
     calls.pages += 1
     const page = Number(url.searchParams.get('page'))
     // 25 personnages par page ; le 7e de chaque page n'a pas de portrait (« questionmark »).
@@ -70,7 +80,7 @@ describe('série 3 — personnages', () => {
     assert.equal(cards[0]!.name, 'Prénom1 Nom1')
     assert.equal(cards[0]!.characterName, 'Prénom1 Nom1')
     assert.equal(cards[0]!.rarity, 'MYTHIC')
-    assert.equal(cards[0]!.imageUrl, '/api/cards/art/1')
+    assert.equal(cards[0]!.imageUrl, '/api/cards/art/s3_1')
     assert.equal(cards[0]!.mangaId, 'mal-character-1')
     assert.ok(!cards.some((card) => card.mangaId === 'mal-character-7'), 'sans portrait : écarté')
     for (const rarity of logic.RARITIES) assert.equal(cards.filter((card) => card.rarity === rarity).length, series3.SERIES_3_LAYOUT[rarity], rarity)
@@ -88,11 +98,40 @@ describe('série 3 — personnages', () => {
   })
 
   it('relaie le portrait, agrandi et en WebP ; 404 pour un personnage inconnu', async () => {
-    const response = await fetch(`${base}/cards/art/1`)
+    const response = await fetch(`${base}/cards/art/s3_1`)
     assert.equal(response.status, 200)
     assert.equal(response.headers.get('content-type'), 'image/webp')
     const { width } = await sharp(Buffer.from(await response.arrayBuffer())).metadata()
     assert.equal(width, 450)
-    assert.equal((await fetch(`${base}/cards/art/999999`)).status, 404)
+    assert.equal((await fetch(`${base}/cards/art/s3_999999`)).status, 404)
+    assert.equal((await fetch(`${base}/cards/art/x`)).status, 404)
+  })
+
+  it('« top » de Jikan refusé : la recherche par favoris prend le relais (même ordre)', async () => {
+    series3.resetSeries3Schedule()
+    outage.top = true
+    try {
+      const ranked = await series3.topCharacters(60, 0)
+      assert.equal(ranked.length, 60)
+      assert.equal(ranked[0]!.source, 'mal')
+      assert.equal(ranked[0]!.name, 'Prénom1 Nom1')
+    } finally {
+      outage.top = false
+    }
+  })
+
+  it('Jikan refusé dès la première page : classement AniList, œuvre comprise', async () => {
+    series3.resetSeries3Schedule()
+    outage.jikan = true
+    try {
+      const ranked = await series3.topCharacters(60, 0)
+      assert.equal(ranked.length, 60)
+      assert.deepEqual(ranked[0], { source: 'anilist', id: 9000, name: 'Ani 0', art: 'https://s4.anilist.co/file/character/large/b9000.png', work: 'Frieren' })
+      assert.ok(calls.anilist >= 2)
+      assert.equal(series3.series3CardId('anilist', 9000), 's3a_9000')
+    } finally {
+      outage.jikan = false
+      series3.resetSeries3Schedule()
+    }
   })
 })

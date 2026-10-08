@@ -75,8 +75,8 @@ cardsRouter.post('/guest/collection', guestAlbumLimiter, async (req, res) => {
 })
 
 /** Portrait d'une carte de personnage (Série 3), agrandi : public, comme les couvertures. */
-cardsRouter.get('/art/:malId', async (req, res) => {
-  const image = await characterArt(z.coerce.number().int().positive().parse(req.params.malId))
+cardsRouter.get('/art/:cardId', async (req, res) => {
+  const image = await characterArt(z.string().max(20).parse(req.params.cardId))
   res.set('Cache-Control', 'public, max-age=604800, immutable')
   res.type(image.contentType).send(image.body)
 })

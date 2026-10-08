@@ -6,7 +6,8 @@ import { SET_SIZE, type Rarity } from './boosters.logic.js'
 /*
  * Série 3 — « Personnages » : les 1 200 personnages d'anime et de manga les plus aimés,
  * tous univers confondus, d'après le classement des favoris de MyAnimeList (API publique
- * Jikan). Le rang fait la rareté : les 40 premiers sont Mythiques, puis Légendaires…
+ * Jikan ; AniList en secours si Jikan refuse le classement). Le rang fait la rareté : les
+ * 40 premiers sont Mythiques, puis Légendaires…
  *
  * La liste se charge en arrière-plan (48 pages, une par seconde : Jikan limite le débit) ;
  * la série n'ouvre qu'une fois complète. L'œuvre de chaque personnage (son anime
@@ -14,7 +15,11 @@ import { SET_SIZE, type Rarity } from './boosters.logic.js'
  */
 
 const JIKAN = 'https://api.jikan.moe/v4'
+const ANILIST = 'https://graphql.anilist.co'
 const MAL_HOST = 'cdn.myanimelist.net'
+
+/** D'où vient le classement : MyAnimeList (Jikan), ou AniList en secours. */
+export type CharacterSource = 'mal' | 'anilist'
 
 export const SERIES_3 = 3
 export const SERIES_3_LAYOUT: Record<Rarity, number> = {
@@ -31,11 +36,13 @@ export const SERIES_3_START_NUMBER = SET_SIZE * 2 + 1
 const POWER_BASE: Record<Rarity, number> = { COMMON: 20, RARE: 40, EPIC: 60, LEGENDARY: 80, MYTHIC: 100 }
 const RAREST_FIRST: Rarity[] = ['MYTHIC', 'LEGENDARY', 'EPIC', 'RARE', 'COMMON']
 
-export const series3CardId = (malId: number): string => `s3_${malId}`
-/** Une carte de personnage n'a pas d'œuvre MangaDex : clé unique propre. */
-export const characterKey = (malId: number): string => `mal-character-${malId}`
+/** Une carte de personnage n'a pas d'œuvre MangaDex : clé unique propre, selon la source. */
+export const characterKey = (source: CharacterSource, id: number): string => `${source}-character-${id}`
+export const series3CardId = (source: CharacterSource, id: number): string => (source === 'mal' ? `s3_${id}` : `s3a_${id}`)
 /** Portrait relayé (agrandi, en WebP) : jamais l'adresse d'origine côté navigateur. */
-export const characterArtPath = (malId: number): string => `/api/cards/art/${malId}`
+export const characterArtPath = (cardId: string): string => `/api/cards/art/${cardId}`
+/** Hôtes des portraits relayés. */
+export const ART_HOSTS = new Set(['cdn.myanimelist.net', 's4.anilist.co'])
 
 /** Rareté du personnage classé `rank` (0 = le plus aimé). */
 export function rarityForRank(rank: number, layout: Record<Rarity, number> = SERIES_3_LAYOUT): Rarity {
@@ -84,15 +91,20 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  * surtout au démarrage quand le BookshelfDLE charge aussi ses portraits). `null` : rien
  * après six essais (environ une minute).
  */
+/** Dernière réponse ratée de Jikan (code HTTP ou erreur réseau) : pour les journaux. */
+let lastFailure = ''
+
 async function jikan<T>(path: string, attempts = 6): Promise<T | null> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (attempt > 0) await pause(Math.min(30_000, 2000 * 2 ** (attempt - 1)))
     try {
       const response = await serial(() => fetch(`${JIKAN}${path}`, { signal: AbortSignal.timeout(15_000) }))
       if (response.ok) return (await response.json()) as T
+      lastFailure = `HTTP ${response.status} sur ${path}`
       if (response.status < 500 && response.status !== 429) return null
-    } catch {
+    } catch (error) {
       // Réseau : nouvel essai.
+      lastFailure = `${error instanceof Error ? error.message : 'erreur réseau'} sur ${path}`
     }
   }
   return null
@@ -103,35 +115,120 @@ const portraitOf = (images: JikanImages | undefined) => {
   return url && !url.includes('questionmark') && new URL(url).hostname === MAL_HOST ? url : null
 }
 
-/** Pages du classement déjà lues : une tentative interrompue reprend où elle s'est arrêtée. */
-const fetchedPages = new Map<number, TopPage>()
+/** Un personnage classé, quelle que soit la source. */
+export interface RankedCharacter {
+  source: CharacterSource
+  id: number
+  name: string
+  art: string
+  /** Œuvre principale, quand la source la donne d'emblée (AniList). */
+  work: string | null
+}
+
+/** Pages déjà lues, par source : une tentative interrompue reprend où elle s'est arrêtée. */
+const fetchedPages = new Map<string, { characters: RankedCharacter[]; hasNext: boolean }>()
 
 /**
- * Les `count` personnages les plus mis en favoris, avec un portrait (une petite marge
- * remplace ceux qui n'en ont pas). Jette si Jikan ne répond pas : la série attendra, et
- * la prochaine tentative repartira de la première page manquante.
+ * Une page du classement MyAnimeList : le « top » des personnages, ou, s'il est refusé,
+ * la recherche triée par favoris (même ordre). `null` : Jikan n'a rien donné.
  */
-export async function topCharacters(count: number, pageDelayMs = 1100): Promise<(TopCharacter & { art: string })[]> {
-  const found = new Map<number, TopCharacter & { art: string }>()
-  const lastPage = Math.ceil(count / 25) + 6
+async function malPage(page: number): Promise<{ characters: RankedCharacter[]; hasNext: boolean } | null> {
+  for (const path of [`/top/characters?page=${page}&limit=25`, `/characters?order_by=favorites&sort=desc&page=${page}&limit=25`]) {
+    const body = await jikan<TopPage>(path, 3)
+    if (!body?.data) continue
+    const characters = body.data.flatMap((character) => {
+      const art = portraitOf(character.images)
+      return art && character.name ? [{ source: 'mal' as const, id: character.mal_id, name: displayName(character.name), art, work: null }] : []
+    })
+    return { characters, hasNext: body.pagination?.has_next_page !== false }
+  }
+  return null
+}
+
+interface AniListPage {
+  data?: {
+    Page?: {
+      pageInfo?: { hasNextPage?: boolean }
+      characters?: { id: number; name?: { full?: string }; image?: { large?: string }; media?: { nodes?: { title?: { english?: string | null; romaji?: string | null } }[] } }[]
+    }
+  }
+}
+
+const ANILIST_QUERY = `query ($page: Int) { Page(page: $page, perPage: 50) { pageInfo { hasNextPage }
+  characters(sort: FAVOURITES_DESC) { id name { full } image { large }
+    media(sort: POPULARITY_DESC, perPage: 1) { nodes { title { english romaji } } } } } }`
+
+/** Une page du classement AniList (50 personnages, avec leur œuvre). `null` : rien après trois essais. */
+async function aniListPage(page: number): Promise<{ characters: RankedCharacter[]; hasNext: boolean } | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await pause(3000 * attempt)
+    try {
+      const response = await fetch(ANILIST, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query: ANILIST_QUERY, variables: { page } }),
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!response.ok) {
+        lastFailure = `HTTP ${response.status} sur AniList (page ${page})`
+        if (response.status < 500 && response.status !== 429) return null
+        continue
+      }
+      const body = (await response.json()) as AniListPage
+      const characters = (body.data?.Page?.characters ?? []).flatMap((character) => {
+        const art = character.image?.large
+        const name = character.name?.full
+        if (!art || !name || art.includes('/default.') || !ART_HOSTS.has(new URL(art).hostname)) return []
+        const title = character.media?.nodes?.[0]?.title
+        return [{ source: 'anilist' as const, id: character.id, name, art, work: title?.english || title?.romaji || null }]
+      })
+      return { characters, hasNext: body.data?.Page?.pageInfo?.hasNextPage !== false }
+    } catch (error) {
+      lastFailure = `${error instanceof Error ? error.message : 'erreur réseau'} sur AniList (page ${page})`
+    }
+  }
+  return null
+}
+
+/** Lit le classement d'une source jusqu'à `count` personnages ; jette si une page manque (progression gardée). */
+async function readRanking(source: CharacterSource, count: number, pageDelayMs: number): Promise<RankedCharacter[]> {
+  const found = new Map<number, RankedCharacter>()
+  const perPage = source === 'mal' ? 25 : 50
+  const lastPage = Math.ceil(count / perPage) + 6
   for (let page = 1; found.size < count && page <= lastPage; page += 1) {
-    let body = fetchedPages.get(page)
+    const cacheKey = `${source}:${page}`
+    let body = fetchedPages.get(cacheKey)
     if (!body) {
       if (page > 1) await pause(pageDelayMs)
-      const fetched = await jikan<TopPage>(`/top/characters?page=${page}&limit=25`)
-      if (!fetched?.data) throw new Error(`Jikan n’a pas répondu (page ${page} du classement des personnages, ${found.size}/${count} déjà lus).`)
-      fetchedPages.set(page, fetched)
+      const fetched = source === 'mal' ? await malPage(page) : await aniListPage(page)
+      if (!fetched) throw new Error(`${source === 'mal' ? 'Jikan' : 'AniList'} n’a pas répondu (page ${page}, ${found.size}/${count} déjà lus) — ${lastFailure || 'aucune réponse'}.`)
+      fetchedPages.set(cacheKey, fetched)
       body = fetched
-      if (page % 10 === 0) console.log(`[cartes] Série 3 : classement lu jusqu’à la page ${page} (${found.size + (body.data?.length ?? 0)}/${count}).`)
+      if (page % 10 === 0) console.log(`[cartes] Série 3 : classement ${source === 'mal' ? 'MyAnimeList' : 'AniList'} lu jusqu’à la page ${page}.`)
     }
-    for (const character of body.data ?? []) {
-      const art = portraitOf(character.images)
-      if (art && character.name && !found.has(character.mal_id)) found.set(character.mal_id, { ...character, art })
-    }
-    if (body.pagination?.has_next_page === false) break
+    for (const character of body.characters) if (!found.has(character.id)) found.set(character.id, character)
+    if (!body.hasNext) break
   }
   if (found.size < count) throw new Error(`Classement incomplet : ${found.size}/${count} personnages illustrés.`)
   return [...found.values()].slice(0, count)
+}
+
+/**
+ * Les `count` personnages les plus aimés : MyAnimeList d'abord ; si Jikan refuse dès la
+ * première page, AniList (même idée : classement par favoris). Une source entamée est
+ * gardée jusqu'au bout, pour ne jamais mélanger deux classements.
+ */
+export async function topCharacters(count: number, pageDelayMs = 1100): Promise<RankedCharacter[]> {
+  const started = [...fetchedPages.keys()].find((key) => key.endsWith(':1'))?.split(':')[0] as CharacterSource | undefined
+  if (started) return readRanking(started, count, pageDelayMs)
+  try {
+    return await readRanking('mal', count, pageDelayMs)
+  } catch (error) {
+    // Jikan refuse le classement dès le début : AniList prend le relais.
+    if (fetchedPages.has('mal:1')) throw error
+    console.warn(`[cartes] Série 3 : MyAnimeList indisponible (${lastFailure}), classement AniList à la place.`)
+    return readRanking('anilist', count, Math.max(pageDelayMs, 800))
+  }
 }
 
 export interface Series3SeedResult {
@@ -149,23 +246,24 @@ export async function seedSeries3(options: { pageDelayMs?: number } = {}): Promi
   const ranked = await topCharacters(SERIES_3_SIZE, options.pageDelayMs)
   const rows = ranked.map((character, rank) => {
     const rarity = rarityForRank(rank)
-    const name = displayName(character.name)
+    const name = character.name
+    const id = series3CardId(character.source, character.id)
     return {
-      id: series3CardId(character.mal_id),
+      id,
       number: SERIES_3_START_NUMBER + rank,
       series: SERIES_3,
       name,
-      // L'œuvre arrive ensuite (cf. `enrichSeries3`).
-      mangaTitle: '',
+      // MyAnimeList : l'œuvre arrive ensuite (cf. `enrichSeries3`) ; AniList la donne d'emblée.
+      mangaTitle: character.work ?? '',
       title: name,
       characterName: name,
       description: '',
       // Au sein d'une rareté, les plus aimés pèsent un peu plus.
       power: POWER_BASE[rarity] + Math.max(0, 9 - Math.floor((rank / SERIES_3_SIZE) * 10)),
-      imageUrl: characterArtPath(character.mal_id),
+      imageUrl: characterArtPath(id),
       artUrl: character.art,
       rarity,
-      mangaId: characterKey(character.mal_id),
+      mangaId: characterKey(character.source, character.id),
     }
   })
   const taken = new Set((await prisma.card.findMany({ where: { series: SERIES_3 }, select: { mangaId: true } })).map((card) => card.mangaId))
@@ -189,7 +287,7 @@ export function mainWork(full: CharacterFull['data']): string | null {
 /** Complète l'œuvre des cartes qui n'en ont pas encore, une fiche à la fois. */
 export async function enrichSeries3(options: { delayMs?: number; limit?: number } = {}): Promise<number> {
   const pending = await prisma.card.findMany({
-    where: { series: SERIES_3, mangaTitle: '' },
+    where: { series: SERIES_3, mangaTitle: '', mangaId: { startsWith: 'mal-character-' } },
     select: { id: true, mangaId: true },
     orderBy: { number: 'asc' },
     take: options.limit ?? SERIES_3_SIZE,
