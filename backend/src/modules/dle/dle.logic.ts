@@ -20,8 +20,8 @@ export const isDleMode = (value: string): value is DleMode => (DLE_MODES as read
 /** Formats à image (zoom, pixels) : on devine d'après la couverture ou le portrait, pas d'après les attributs. */
 export const isImageMode = (mode: DleMode) => mode !== 'classic'
 
-/** Catégories : les mangas et manhwas célèbres, les univers de Naruto, One Piece, JoJo et Jujutsu Kaisen. */
-export const DLE_CATEGORIES = ['manga', 'naruto', 'onepiece', 'jojo', 'jjk'] as const
+/** Catégories : les mangas et manhwas célèbres, les univers de Naruto, One Piece, JoJo, Jujutsu Kaisen, Dragon Ball et My Hero Academia. */
+export const DLE_CATEGORIES = ['manga', 'naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha'] as const
 export type DleCategory = (typeof DLE_CATEGORIES)[number]
 
 /** Une œuvre jouable : une carte du set et ce que le catalogue en sait. */

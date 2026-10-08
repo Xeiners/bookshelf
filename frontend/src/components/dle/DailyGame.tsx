@@ -150,7 +150,7 @@ export function DailyGame({ mode }: { mode: DleMode }) {
                 <NextPuzzle category={category} mode={mode} fresh={victory !== null} />
               </>
             ) : (
-              <GuessInput works={works} excluded={excluded} onGuess={onGuess} />
+              <GuessInput works={works} excluded={excluded} characters={category !== 'manga'} onGuess={onGuess} />
             )}
 
             {mode === 'classic' ? (

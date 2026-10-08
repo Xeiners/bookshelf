@@ -22,12 +22,14 @@ const FACES: Record<CharacterCategory, string[]> = {
   onepiece: ['luffy', 'zoro', 'sanji'],
   jojo: ['jotaro', 'giorno', 'dio'],
   jjk: ['yuji', 'gojo', 'sukuna'],
+  dragonball: ['vegeta', 'goku', 'frieza'],
+  mha: ['bakugo', 'deku', 'all_might'],
 }
 
 /**
  * Entrée du BookshelfDLE : une grille Bento des catégories. Une grande carte pour
  * les mangas et manhwas (éventail de couvertures), une par univers de personnages
- * (Naruto, One Piece, JoJo, Jujutsu Kaisen : portraits), et des univers à venir, verrouillés. Chaque carte dit s'il reste une énigme du jour.
+ * (Naruto, One Piece, JoJo, Jujutsu Kaisen, Dragon Ball, My Hero Academia : portraits), et des univers à venir, verrouillés. Chaque carte dit s'il reste une énigme du jour.
  */
 export function BentoHome({ overview }: { overview: DleOverview }) {
   const t = useT()
@@ -46,6 +48,8 @@ export function BentoHome({ overview }: { overview: DleOverview }) {
     void loadWorks('onepiece')
     void loadWorks('jojo')
     void loadWorks('jjk')
+    void loadWorks('dragonball')
+    void loadWorks('mha')
   }, [loadWorks])
 
   useGSAP(
@@ -103,7 +107,7 @@ export function BentoHome({ overview }: { overview: DleOverview }) {
             </span>
           </BentoCard>
 
-          {(['naruto', 'onepiece', 'jojo', 'jjk'] as const).map((category) => (
+          {(['naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha'] as const).map((category) => (
             <BentoCard key={category} category={category} overview={overview} showStatus={signedIn} className="col-span-1 h-44 sm:h-56" onOpen={() => openCategory(category)}>
               <span aria-hidden className="absolute -top-1 -right-4 flex items-start sm:-right-3">
                 {facesOf(category).map((work, index) => (

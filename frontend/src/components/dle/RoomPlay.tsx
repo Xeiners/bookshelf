@@ -230,7 +230,7 @@ export function RoomPlay({ room }: { room: RoomView }) {
                 {me?.gaveUp ? t.dle.room.gaveUp : t.dle.room.outOfGuesses}
               </Banner>
             ) : (
-              <GuessInput works={works} excluded={excluded} disabled={!canGuess} onGuess={onGuess} />
+              <GuessInput works={works} excluded={excluded} disabled={!canGuess} characters={room.category !== 'manga'} onGuess={onGuess} />
             )}
 
             {room.mode === 'classic' ? (

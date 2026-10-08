@@ -65,7 +65,7 @@ function grain(context: CanvasRenderingContext2D, random: () => number, count: n
   }
 }
 
-/** Peint la saleté d'un univers : buée, fumée, sable, peinture ou énergie occulte. */
+/** Peint la saleté d'un univers : buée, fumée, sable, peinture, énergie occulte, nuage magique ou gravats. */
 function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): void {
   const random = seeded(category.length * 7919 + category.charCodeAt(0))
   const W = SWEEP_WIDTH
@@ -164,11 +164,120 @@ function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): vo
       grain(context, random, 500, ['rgba(190,160,255,0.85)', 'rgba(120,200,255,0.8)'], [1, 2.5])
       break
     }
+    case 'dragonball': {
+      // Nuage magique : le Kinto-un, doré et moelleux, et quelques Dragon Balls perdues dedans.
+      base([[0, '#fff1a8'], [0.5, '#ffd257'], [1, '#f5a524']])
+      // Une boule de nuage : cœur crème, bord qui s'efface dans sa propre couleur (jamais vers le gris).
+      const puff = (x: number, y: number, radius: number, [r, g, b]: [number, number, number], alpha: number) => {
+        const gradient = context.createRadialGradient(x - radius * 0.25, y - radius * 0.3, radius * 0.1, x, y, radius)
+        gradient.addColorStop(0, `rgba(255,252,235,${alpha})`)
+        gradient.addColorStop(0.55, `rgba(${r},${g},${b},${alpha * 0.85})`)
+        gradient.addColorStop(1, `rgba(${r},${g},${b},0)`)
+        context.fillStyle = gradient
+        context.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+      }
+      for (let index = 0; index < 60; index += 1) {
+        const x = random() * W
+        const y = random() * H
+        const warm: [number, number, number] = random() > 0.5 ? [255, 214, 92] : [255, 236, 160]
+        // Une bouffée : quatre ou cinq boules qui se chevauchent, en grappe.
+        for (let ball = 0; ball < 4 + Math.floor(random() * 2); ball += 1) {
+          puff(x + (random() - 0.5) * 90, y + (random() - 0.5) * 45, 32 + random() * 48, warm, 0.55 + random() * 0.35)
+        }
+      }
+      grain(context, random, 1200, ['rgba(255,255,240,0.55)', 'rgba(240,160,40,0.25)'], [1, 2])
+      for (let ball = 0; ball < 7; ball += 1) {
+        const x = 40 + random() * (W - 80)
+        const y = 40 + random() * (H - 80)
+        const r = 9 + random() * 7
+        const sphere = context.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r)
+        sphere.addColorStop(0, '#fff3c4')
+        sphere.addColorStop(0.45, '#ffad2a')
+        sphere.addColorStop(1, '#d86a0b')
+        context.fillStyle = sphere
+        context.beginPath()
+        context.arc(x, y, r, 0, Math.PI * 2)
+        context.fill()
+        // Les étoiles rouges de la boule (une seule, pour rester lisible à cette taille).
+        context.fillStyle = '#d4231b'
+        context.beginPath()
+        for (let point = 0; point < 10; point += 1) {
+          const angle = -Math.PI / 2 + (point * Math.PI) / 5
+          const radius = point % 2 === 0 ? r * 0.42 : r * 0.18
+          context.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius)
+        }
+        context.closePath()
+        context.fill()
+      }
+      break
+    }
+    case 'mha': {
+      // Gravats : béton éventré après un combat, poussière, et les éclairs verts de One For All.
+      base([[0, '#9a978f'], [0.5, '#77746d'], [1, '#55524c']])
+      for (let index = 0; index < 40; index += 1) blob(context, random() * W, random() * H, 40 + random() * 110, `rgba(${random() > 0.5 ? '230,225,215' : '60,58,54'},${0.12 + random() * 0.18})`)
+      // Éclats de béton : polygones irréguliers, ombrés.
+      for (let index = 0; index < 90; index += 1) {
+        const x = random() * W
+        const y = random() * H
+        const size = 6 + random() * 26
+        const tone = 95 + Math.floor(random() * 90)
+        context.fillStyle = `rgb(${tone},${tone - 3},${tone - 8})`
+        context.beginPath()
+        const corners = 4 + Math.floor(random() * 3)
+        for (let corner = 0; corner < corners; corner += 1) {
+          const angle = (corner / corners) * Math.PI * 2 + random() * 0.6
+          const radius = size * (0.55 + random() * 0.45)
+          context.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius)
+        }
+        context.closePath()
+        context.fill()
+        context.strokeStyle = 'rgba(30,28,25,0.35)'
+        context.lineWidth = 1.5
+        context.stroke()
+      }
+      // Fissures.
+      context.strokeStyle = 'rgba(25,23,20,0.55)'
+      context.lineCap = 'round'
+      for (let index = 0; index < 9; index += 1) {
+        let x = random() * W
+        let y = random() * H
+        context.lineWidth = 1.5 + random() * 2.5
+        context.beginPath()
+        context.moveTo(x, y)
+        for (let step = 0; step < 7; step += 1) {
+          x += (random() - 0.5) * 90
+          y += (random() - 0.5) * 90
+          context.lineTo(x, y)
+        }
+        context.stroke()
+      }
+      // Éclairs verts de One For All.
+      context.strokeStyle = 'rgba(120,255,150,0.85)'
+      context.shadowColor = 'rgba(80,255,130,0.9)'
+      context.shadowBlur = 10
+      for (let index = 0; index < 6; index += 1) {
+        let x = random() * W
+        let y = random() * H
+        context.lineWidth = 1.5 + random() * 1.5
+        context.beginPath()
+        context.moveTo(x, y)
+        for (let step = 0; step < 5; step += 1) {
+          x += (random() - 0.5) * 60
+          y += (random() - 0.5) * 60
+          context.lineTo(x, y)
+        }
+        context.stroke()
+      }
+      context.shadowBlur = 0
+      context.shadowColor = 'transparent'
+      grain(context, random, 3000, ['rgba(40,38,34,0.35)', 'rgba(235,230,220,0.3)'], [1, 2.2])
+      break
+    }
   }
 }
 
 /** Matière de chaque univers : couleur du chiffon et des étincelles. */
-const SPARK_COLOR: Record<DleCategory, string> = { manga: '#ffffff', naruto: '#ffb86b', onepiece: '#fff4c8', jojo: '#ffd23f', jjk: '#b69bff' }
+const SPARK_COLOR: Record<DleCategory, string> = { manga: '#ffffff', naruto: '#ffb86b', onepiece: '#fff4c8', jojo: '#ffd23f', jjk: '#b69bff', dragonball: '#ffe27a', mha: '#86ff9e' }
 
 /* ---- Le cadre ------------------------------------------------------------------------- */
 

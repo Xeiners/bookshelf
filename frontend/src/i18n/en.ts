@@ -1598,7 +1598,7 @@ export const en: Dictionary = {
       aria: 'Glass to clean: rub with your finger or mouse to reveal the picture',
       solved: 'Screen cleaned!',
       opponent: (percent: number) => `${percent}%`,
-      material: { manga: 'Steam', naruto: 'Smoke', onepiece: 'Sand', jojo: 'Paint', jjk: 'Cursed energy' } as Record<string, string>,
+      material: { manga: 'Steam', naruto: 'Smoke', onepiece: 'Sand', jojo: 'Paint', jjk: 'Cursed energy', dragonball: 'Flying Nimbus', mha: 'Rubble' } as Record<string, string>,
     },
     categories: {
       manga: { title: 'Manga & Manhwa', hint: 'The great classics' },
@@ -1606,10 +1606,55 @@ export const en: Dictionary = {
       onepiece: { title: 'One Piece', hint: 'Pirates, Marines and Devil Fruits' },
       jojo: { title: 'JoJo', hint: 'Stands, Hamon and the Joestar bloodline' },
       jjk: { title: 'Jujutsu Kaisen', hint: 'Sorcerers, curses and domain expansions' },
+      dragonball: { title: 'Dragon Ball', hint: 'Saiyans, gods and Dragon Balls' },
+      mha: { title: 'My Hero Academia', hint: 'Heroes, villains and Quirks' },
       soon: 'Coming soon',
       locked: 'Locked',
     },
     portrait: 'Portrait',
+    dragonball: {
+      attributes: { work: 'Character', race: 'Race', affiliation: 'Affiliation', forms: 'Forms', role: 'Role', gender: 'Gender', debut: 'Saga' },
+      race: {
+        saiyan: 'Saiyan', half_saiyan: 'Half-Saiyan', human: 'Human', namekian: 'Namekian', frieza_clan: 'Frieza Race', android: 'Android',
+        majin: 'Majin', god: 'Deity', angel: 'Angel', alien: 'Alien', animal: 'Animal',
+      } as Record<string, string>,
+      affiliation: {
+        z_fighters: 'Z Fighters', kame: 'Turtle School', crane: 'Crane School', capsule_corp: 'Capsule Corp', red_ribbon: 'Red Ribbon',
+        pilaf: 'Pilaf Gang', frieza_force: 'Frieza Force', saiyan_army: 'Saiyans', gods: 'Gods', babidi: 'Babidi’s army',
+        universe6: 'Universe 6', pride_troopers: 'Pride Troopers', galactic_patrol: 'Galactic Patrol', heeters: 'Heeters', other: 'Other',
+      } as Record<string, string>,
+      forms: {
+        oozaru: 'Great Ape', kaioken: 'Kaioken', ssj: 'Super Saiyan', ssj2: 'SSJ 2', ssj3: 'SSJ 3', god: 'SSJ God', blue: 'SSJ Blue',
+        ultra_instinct: 'Ultra Instinct', ultra_ego: 'Ultra Ego', rose: 'Rosé', legendary: 'Legendary', beast: 'Beast', golden: 'Golden',
+        giant: 'Giant', orange: 'Orange',
+      } as Record<string, string>,
+      role: { hero: 'Hero', antihero: 'Antihero', villain: 'Villain', neutral: 'Neutral' } as Record<string, string>,
+      gender: { male: 'Male', female: 'Female' } as Record<string, string>,
+      arc: {
+        origins: 'Beginnings', red_ribbon: 'Red Ribbon', tournament: 'Tenkaichi', piccolo: 'Piccolo', saiyan: 'Saiyans', namek: 'Namek',
+        androids: 'Androids', buu: 'Buu', gods: 'Gods', universe6: 'Universe 6', future_trunks: 'Future Trunks', power: 'Tournament of Power',
+        broly: 'Broly', moro: 'Moro', super_hero: 'Super Hero',
+      } as Record<string, string>,
+      none: 'None',
+    },
+    mha: {
+      attributes: { work: 'Character', affiliation: 'Affiliation', quirk: 'Quirk', role: 'Role', gender: 'Gender', status: 'Status', debut: 'Arc' },
+      affiliation: {
+        class_1a: 'Class 1-A', class_1b: 'Class 1-B', ua: 'U.A.', heroes: 'Pro heroes', hpsc: 'Hero Commission', shiketsu: 'Shiketsu',
+        league: 'League of Villains', liberation: 'Liberation Front', hassaikai: 'Shie Hassaikai', other: 'Other',
+      } as Record<string, string>,
+      quirk: { emitter: 'Emitter', transformation: 'Transformation', mutant: 'Mutant' } as Record<string, string>,
+      role: { student: 'Student', hero: 'Hero', villain: 'Villain', civilian: 'Civilian' } as Record<string, string>,
+      gender: { male: 'Male', female: 'Female' } as Record<string, string>,
+      status: { alive: 'Alive', dead: 'Deceased' } as Record<string, string>,
+      arc: {
+        origin: 'Beginnings', usj: 'U.S.J.', sports_festival: 'Sports Festival', hero_killer: 'Hero Killer', final_exams: 'Final Exams', kamino: 'Kamino',
+        license: 'Provisional License', overhaul: 'Overhaul', school_festival: 'School Festival', pro_hero: 'Pro Hero',
+        joint_training: 'Joint Training', meta_liberation: 'Meta Liberation', endeavor_agency: 'Endeavor Agency', war: 'War',
+        dark_hero: 'Dark Hero', final_war: 'Final War',
+      } as Record<string, string>,
+      none: '—',
+    },
     jjk: {
       attributes: { work: 'Character', affiliation: 'Affiliation', grade: 'Grade', species: 'Nature', gender: 'Gender', status: 'Status', debut: 'Debut' },
       affiliation: {
@@ -1699,6 +1744,8 @@ export const en: Dictionary = {
       placeholder: 'Which work?',
       searchAria: 'Guess a work',
       noMatch: 'No work matches.',
+      /** Character universes (Naruto, Dragon Ball…). */
+      character: { placeholder: 'Which character?', searchAria: 'Guess a character', noMatch: 'No character matches.' },
       attempts: (count: number) => `${count} guess${plural(count, '', 'es')}`,
       attemptsOf: (count: number, max: number) => `${count}/${max} guesses`,
       solvedTitle: 'Found it!',

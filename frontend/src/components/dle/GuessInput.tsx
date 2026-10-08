@@ -10,6 +10,8 @@ interface GuessInputProps {
   /** Œuvres déjà proposées : jamais suggérées deux fois. */
   excluded: ReadonlySet<string>
   disabled?: boolean
+  /** Univers de personnages : « Quel personnage ? » plutôt que « Quelle œuvre ? ». */
+  characters?: boolean
   onGuess: (cardId: string) => Promise<void>
 }
 
@@ -18,8 +20,9 @@ interface GuessInputProps {
  * titres dans d'autres langues), au clavier (↑ ↓ Entrée) comme au doigt. Une
  * proposition part au choix d'une suggestion ; le champ se vide et garde le focus.
  */
-export function GuessInput({ works, excluded, disabled = false, onGuess }: GuessInputProps) {
+export function GuessInput({ works, excluded, disabled = false, characters = false, onGuess }: GuessInputProps) {
   const t = useT()
+  const wording = characters ? t.dle.game.character : t.dle.game
   const listId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -119,13 +122,13 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
           aria-expanded={showList}
           aria-controls={listId}
           aria-autocomplete="list"
-          aria-label={t.dle.game.searchAria}
+          aria-label={wording.searchAria}
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="go"
           disabled={disabled || works === null}
           value={query}
-          placeholder={t.dle.game.placeholder}
+          placeholder={wording.placeholder}
           onChange={(event) => {
             setQuery(event.target.value)
             setActive(0)
@@ -152,7 +155,7 @@ export function GuessInput({ works, excluded, disabled = false, onGuess }: Guess
           className={`absolute inset-x-0 ${placement.up ? 'bottom-full mb-2' : 'top-full mt-2'} overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#101019] p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.95)]`}
         >
           {suggestions.length === 0 ? (
-            <li className="px-3 py-3 text-sm text-mist">{t.dle.game.noMatch}</li>
+            <li className="px-3 py-3 text-sm text-mist">{wording.noMatch}</li>
           ) : (
             suggestions.map((work, index) => (
               <li key={work.id} role="option" data-option={index} aria-selected={index === active}>

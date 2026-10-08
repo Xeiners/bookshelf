@@ -1613,7 +1613,7 @@ export const fr = {
       aria: 'Vitre à nettoyer : frotte avec le doigt ou la souris pour dévoiler l’image',
       solved: 'Écran nettoyé !',
       opponent: (percent: number) => `${percent} %`,
-      material: { manga: 'Buée', naruto: 'Fumée', onepiece: 'Sable', jojo: 'Peinture', jjk: 'Énergie occulte' } as Record<string, string>,
+      material: { manga: 'Buée', naruto: 'Fumée', onepiece: 'Sable', jojo: 'Peinture', jjk: 'Énergie occulte', dragonball: 'Nuage magique', mha: 'Gravats' } as Record<string, string>,
     },
     categories: {
       manga: { title: 'Manga & Manhwa', hint: 'Les grands classiques' },
@@ -1621,10 +1621,55 @@ export const fr = {
       onepiece: { title: 'One Piece', hint: 'Pirates, Marine et fruits du démon' },
       jojo: { title: 'JoJo', hint: 'Stands, Hamon et lignée des Joestar' },
       jjk: { title: 'Jujutsu Kaisen', hint: 'Exorcistes, fléaux et extensions du territoire' },
+      dragonball: { title: 'Dragon Ball', hint: 'Saiyans, dieux et Dragon Balls' },
+      mha: { title: 'My Hero Academia', hint: 'Héros, vilains et Alters' },
       soon: 'Prochainement',
       locked: 'Verrouillé',
     },
     portrait: 'Portrait',
+    dragonball: {
+      attributes: { work: 'Perso', race: 'Race', affiliation: 'Affiliation', forms: 'Transformations', role: 'Rôle', gender: 'Genre', debut: 'Saga' },
+      race: {
+        saiyan: 'Saiyan', half_saiyan: 'Demi-Saiyan', human: 'Humain', namekian: 'Namek', frieza_clan: 'Clan de Freezer', android: 'Cyborg',
+        majin: 'Majin', god: 'Divinité', angel: 'Ange', alien: 'Extraterrestre', animal: 'Animal',
+      } as Record<string, string>,
+      affiliation: {
+        z_fighters: 'Guerriers Z', kame: 'École de la Tortue', crane: 'École de la Grue', capsule_corp: 'Capsule Corp', red_ribbon: 'Ruban Rouge',
+        pilaf: 'Bande à Pilaf', frieza_force: 'Armée de Freezer', saiyan_army: 'Saiyans', gods: 'Dieux', babidi: 'Clan de Babidi',
+        universe6: 'Univers 6', pride_troopers: 'Troupes de l’Orgueil', galactic_patrol: 'Patrouille galactique', heeters: 'Heeters', other: 'Autre',
+      } as Record<string, string>,
+      forms: {
+        oozaru: 'Oozaru', kaioken: 'Kaioken', ssj: 'Super Saiyan', ssj2: 'SSJ 2', ssj3: 'SSJ 3', god: 'SSJ God', blue: 'SSJ Blue',
+        ultra_instinct: 'Ultra Instinct', ultra_ego: 'Ultra Ego', rose: 'Rosé', legendary: 'Légendaire', beast: 'Beast', golden: 'Golden',
+        giant: 'Géant', orange: 'Orange',
+      } as Record<string, string>,
+      role: { hero: 'Héros', antihero: 'Anti-héros', villain: 'Méchant', neutral: 'Neutre' } as Record<string, string>,
+      gender: { male: 'Homme', female: 'Femme' } as Record<string, string>,
+      arc: {
+        origins: 'Débuts', red_ribbon: 'Ruban Rouge', tournament: 'Tenkaichi', piccolo: 'Piccolo', saiyan: 'Saiyans', namek: 'Namek',
+        androids: 'Cyborgs', buu: 'Buu', gods: 'Dieux', universe6: 'Univers 6', future_trunks: 'Trunks du futur', power: 'Tournoi du Pouvoir',
+        broly: 'Broly', moro: 'Moro', super_hero: 'Super Hero',
+      } as Record<string, string>,
+      none: 'Aucune',
+    },
+    mha: {
+      attributes: { work: 'Perso', affiliation: 'Affiliation', quirk: 'Alter', role: 'Rôle', gender: 'Genre', status: 'Statut', debut: 'Arc' },
+      affiliation: {
+        class_1a: 'Seconde A', class_1b: 'Seconde B', ua: 'Yuei', heroes: 'Héros pros', hpsc: 'Commission des héros', shiketsu: 'Shiketsu',
+        league: 'Ligue des Vilains', liberation: 'Front de Libération', hassaikai: 'Shie Hassaikai', other: 'Autre',
+      } as Record<string, string>,
+      quirk: { emitter: 'Émetteur', transformation: 'Transformation', mutant: 'Mutant' } as Record<string, string>,
+      role: { student: 'Élève', hero: 'Héros', villain: 'Vilain', civilian: 'Civil' } as Record<string, string>,
+      gender: { male: 'Homme', female: 'Femme' } as Record<string, string>,
+      status: { alive: 'Vivant', dead: 'Décédé' } as Record<string, string>,
+      arc: {
+        origin: 'Débuts', usj: 'USJ', sports_festival: 'Festival sportif', hero_killer: 'Tueur de héros', final_exams: 'Examens', kamino: 'Kamino',
+        license: 'Licence provisoire', overhaul: 'Overhaul', school_festival: 'Festival de Yuei', pro_hero: 'Héros pros',
+        joint_training: 'Entraînement commun', meta_liberation: 'Méta-Libération', endeavor_agency: 'Agence d’Endeavor', war: 'Guerre',
+        dark_hero: 'Héros sombre', final_war: 'Ultime combat',
+      } as Record<string, string>,
+      none: '—',
+    },
     jjk: {
       attributes: { work: 'Perso', affiliation: 'Affiliation', grade: 'Grade', species: 'Nature', gender: 'Genre', status: 'Statut', debut: 'Apparition' },
       affiliation: {
@@ -1714,6 +1759,8 @@ export const fr = {
       placeholder: 'Quelle œuvre ?',
       searchAria: 'Proposer une œuvre',
       noMatch: 'Aucune œuvre ne correspond.',
+      /** Univers de personnages (Naruto, Dragon Ball…). */
+      character: { placeholder: 'Quel personnage ?', searchAria: 'Proposer un personnage', noMatch: 'Aucun personnage ne correspond.' },
       attempts: (count: number) => `${count} essai${plural(count, '', 's')}`,
       attemptsOf: (count: number, max: number) => `${count}/${max} essais`,
       solvedTitle: 'Trouvé !',

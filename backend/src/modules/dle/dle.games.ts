@@ -9,6 +9,8 @@ import { ATTRIBUTES, compareWorks, isImageMode, valuesOf, type AttributeFeedback
 import { dleWorks } from './dle.works.js'
 import { NARUTO_ATTRIBUTES, NARUTO_CHARACTERS, characterValues, compareCharacters } from './naruto.characters.js'
 import { JJK_ATTRIBUTES, JJK_CHARACTERS, compareJjk, jjkValues } from './jjk.characters.js'
+import { DRAGONBALL_ATTRIBUTES, DRAGONBALL_CHARACTERS, compareDragonBall, dragonBallValues } from './dragonball.characters.js'
+import { MHA_ATTRIBUTES, MHA_CHARACTERS, compareMha, mhaValues } from './mha.characters.js'
 import { JOJO_ATTRIBUTES, JOJO_CHARACTERS, compareJojo, jojoValues } from './jojo.characters.js'
 import { ONEPIECE_ATTRIBUTES, ONEPIECE_CHARACTERS, compareOnePiece, onePieceValues } from './onepiece.characters.js'
 
@@ -161,6 +163,10 @@ export const onePiecePortraits = portraitSource('One Piece', [21], [12], 'onepie
 export const jojoPortraits = portraitSource('JoJo', [14719, 20899, 26055, 31933, 37991, 48661], [7158, 8063, 8739, 11459, 41410, 44294], 'jojo.fandom.com', JOJO_CHARACTERS)
 /** Jujutsu Kaisen : les deux saisons de l'anime et le film Jujutsu Kaisen 0. */
 export const jjkPortraits = portraitSource('Jujutsu Kaisen', [40748, 51009, 48561], [42765, 45857, 44212], 'jujutsu-kaisen.fandom.com', JJK_CHARACTERS)
+/** Dragon Ball : Dragon Ball, Z et Super (le film Broly) ; Kitsu à part, le wiki et la recherche par nom en secours. */
+export const dragonBallPortraits = portraitSource('Dragon Ball', [813, 223, 30694, 36946], [], 'dragonball.fandom.com', DRAGONBALL_CHARACTERS)
+/** My Hero Academia : les saisons de l'anime, de la première à la septième. */
+export const mhaPortraits = portraitSource('My Hero Academia', [31964, 33486, 36456, 38408, 41587, 49918, 54789], [], 'myheroacademia.fandom.com', MHA_CHARACTERS)
 
 const narutoGame = characterGame({
   category: 'naruto',
@@ -198,7 +204,25 @@ const jjkGame = characterGame({
   portraits: jjkPortraits,
 })
 
-const CHARACTER_GAMES = { naruto: narutoGame, onepiece: onePieceGame, jojo: jojoGame, jjk: jjkGame } satisfies Record<Exclude<DleCategory, 'manga'>, unknown>
+const dragonBallGame = characterGame({
+  category: 'dragonball',
+  attributes: DRAGONBALL_ATTRIBUTES,
+  characters: DRAGONBALL_CHARACTERS,
+  compare: compareDragonBall,
+  values: dragonBallValues,
+  portraits: dragonBallPortraits,
+})
+
+const mhaGame = characterGame({
+  category: 'mha',
+  attributes: MHA_ATTRIBUTES,
+  characters: MHA_CHARACTERS,
+  compare: compareMha,
+  values: mhaValues,
+  portraits: mhaPortraits,
+})
+
+const CHARACTER_GAMES = { naruto: narutoGame, onepiece: onePieceGame, jojo: jojoGame, jjk: jjkGame, dragonball: dragonBallGame, mha: mhaGame } satisfies Record<Exclude<DleCategory, 'manga'>, unknown>
 
 /** Un personnage d'une catégorie de personnages, et son portrait ; `undefined` sinon. */
 export function characterOf(category: DleCategory, id: string): { character: PortraitCharacter; image: () => Promise<CachedImage> } | undefined {

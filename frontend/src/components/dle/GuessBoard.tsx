@@ -78,16 +78,7 @@ export function ClassicBoard({ guesses, category, renderAuthor }: BoardProps) {
 
   if (!shown) return null
   const attributes = CATEGORY_ATTRIBUTES[category]
-  const labels: Record<string, string> =
-    category === 'naruto'
-      ? t.dle.naruto.attributes
-      : category === 'onepiece'
-        ? t.dle.onepiece.attributes
-        : category === 'jojo'
-          ? t.dle.jojo.attributes
-          : category === 'jjk'
-            ? t.dle.jjk.attributes
-            : t.dle.attributes
+  const labels: Record<string, string> = category === 'manga' ? t.dle.attributes : t.dle[category].attributes
 
   return (
     <div ref={rootRef} className="no-scrollbar -mx-5 overflow-x-auto px-5 pb-2">
@@ -210,24 +201,18 @@ function ValueList({ values, label, empty }: { values: string[]; label: (value: 
   )
 }
 
-/** Valeur d'un personnage (Naruto, One Piece) : listes, mots traduits, prime en format compact. */
+/** Valeur d'un personnage (Naruto, One Piece, JoJo, JJK, Dragon Ball, My Hero Academia) : listes, mots traduits, prime en format compact. */
 function CharacterValue({ category, attribute, value }: { category: DleCategory; attribute: string; value: unknown }) {
   const t = useT()
   const language = useLanguage()
   const text = `text-xs leading-tight font-bold sm:text-[13px] ${WRAP}`
   const naruto = t.dle.naruto
-  const onepiece = t.dle.onepiece
   const jojo = t.dle.jojo
-  const jjk = t.dle.jjk
-  const dictionaries: Record<string, Record<string, string>> =
-    category === 'onepiece'
-      ? { affiliation: onepiece.affiliation, fruit: onepiece.fruit, haki: onepiece.haki, origin: onepiece.origin, debut: onepiece.arc }
-      : category === 'jojo'
-        ? { power: jojo.power, stand: jojo.stand, role: jojo.role, nationality: jojo.nationality, status: jojo.status }
-        : category === 'jjk'
-          ? { affiliation: jjk.affiliation, grade: jjk.grade, species: jjk.species, gender: jjk.gender, status: jjk.status, debut: jjk.arc }
-          : { affiliation: naruto.affiliation, nature: naruto.nature, role: naruto.role, gender: naruto.gender, status: naruto.status, debut: naruto.arc }
-  const empty = category === 'onepiece' ? onepiece.none : category === 'jojo' ? jojo.none : category === 'jjk' ? jjk.none : naruto.none
+  const universe = category === 'manga' ? naruto : t.dle[category]
+  // Chaque univers traduit ses valeurs (affiliations, grades, arcs…) ; la première apparition passe par `arc`.
+  const translated = universe as unknown as Record<string, Record<string, string> | undefined>
+  const dictionaries: Record<string, Record<string, string>> = { ...(translated as Record<string, Record<string, string>>), debut: translated.arc ?? {} }
+  const empty = universe.none
   // JoJo : la partie de la première apparition.
   if (category === 'jojo' && attribute === 'debut' && typeof value === 'number') return <span className={text}>{jojo.part(value)}</span>
   if (attribute === 'bounty') {

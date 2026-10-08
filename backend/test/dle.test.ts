@@ -17,10 +17,10 @@ const { default: sharp } = await import('sharp')
 const PORTRAIT_PNG = await sharp({ create: { width: 60, height: 80, channels: 3, background: { r: 200, g: 40, b: 90 } } }).png().toBuffer()
 
 // Jikan simulé : quelques personnages de Naruto (romanisations de MyAnimeList) et leurs portraits.
-const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki"]
+const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki", 'Son, Gokuu', 'Vegeta', 'Freeza', 'Midoriya, Izuku', 'Bakugou, Katsuki', 'Yagi, Toshinori']
 mockedHosts.add('api.jikan.moe')
 mockedHosts.add('cdn.myanimelist.net')
-for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'kitsu.app']) mockedHosts.add(host)
+for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'dragonball.fandom.com', 'myheroacademia.fandom.com', 'kitsu.app']) mockedHosts.add(host)
 extraMocks.push((url) => {
   // Kitsu : aucun personnage (les portraits des tests viennent du Jikan simulé).
   if (url.hostname === 'kitsu.app') return new Response(JSON.stringify({ data: [], included: [], links: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -806,6 +806,57 @@ describe('dle — Jujutsu Kaisen', () => {
     assert.ok(['yuji', 'gojo', 'maki'].includes(puzzle!.cardId), puzzle!.cardId)
     assert.equal((await chloe.send('GET', '/dle/characters/jjk/gojo/image')).status, 200)
     assert.ok('jjk' in (await chloe.request('GET', '/dle')).body.daily)
+  })
+})
+
+
+describe('dle — Dragon Ball et My Hero Academia', () => {
+  it('logique Dragon Ball : transformations et affiliations par ensembles, sagas ordonnées avec sens', async () => {
+    const { DRAGONBALL_CHARACTERS, DRAGONBALL_SAGAS, compareDragonBall } = await import('../src/modules/dle/dragonball.characters.js')
+    const { nameKey } = await import('../src/modules/dle/dle.jikan.js')
+    const find = (id: string) => DRAGONBALL_CHARACTERS.find((character) => character.id === id)!
+    const feedback = compareDragonBall(find('vegeta'), find('goku'))
+    assert.equal(feedback.race.verdict, 'exact')
+    assert.equal(feedback.forms.verdict, 'partial', 'Super Saiyan en commun, pas l’Ultra Instinct')
+    assert.equal(feedback.affiliation.verdict, 'partial')
+    assert.deepEqual(feedback.debut, { verdict: 'wrong', direction: 'lower' })
+    assert.deepEqual(compareDragonBall(find('krillin'), find('tao')).debut, { verdict: 'partial', direction: 'higher' })
+    assert.deepEqual(compareDragonBall(find('krillin'), find('tien')).debut, { verdict: 'wrong', direction: 'higher' })
+    assert.equal(compareDragonBall(find('krillin'), find('yamcha')).forms.verdict, 'exact', 'aucune transformation, ni l’un ni l’autre')
+    assert.equal(new Set(DRAGONBALL_CHARACTERS.map((character) => character.id)).size, DRAGONBALL_CHARACTERS.length)
+    assert.ok(DRAGONBALL_CHARACTERS.length >= 60)
+    assert.ok(DRAGONBALL_CHARACTERS.every((character) => (DRAGONBALL_SAGAS as readonly string[]).includes(character.debut)))
+    assert.equal(nameKey('Son, Gokuu'), nameKey('Son Goku'))
+  })
+
+  it('logique My Hero Academia : type d’Alter, statut, arcs ordonnés avec sens', async () => {
+    const { MHA_CHARACTERS, MHA_ARCS, compareMha } = await import('../src/modules/dle/mha.characters.js')
+    const { nameKey } = await import('../src/modules/dle/dle.jikan.js')
+    const find = (id: string) => MHA_CHARACTERS.find((character) => character.id === id)!
+    const feedback = compareMha(find('bakugo'), find('deku'))
+    assert.equal(feedback.affiliation.verdict, 'exact')
+    assert.equal(feedback.quirk.verdict, 'exact')
+    assert.equal(feedback.debut.verdict, 'exact')
+    const villain = compareMha(find('toga'), find('shigaraki'))
+    assert.equal(villain.quirk.verdict, 'wrong')
+    assert.equal(villain.status.verdict, 'exact')
+    assert.deepEqual(villain.debut, { verdict: 'wrong', direction: 'lower' })
+    assert.equal(compareMha(find('all_might'), find('aizawa')).affiliation.verdict, 'exact', 'héros pros et professeurs de Yuei')
+    assert.equal(new Set(MHA_CHARACTERS.map((character) => character.id)).size, MHA_CHARACTERS.length)
+    assert.ok(MHA_CHARACTERS.length >= 60)
+    assert.ok(MHA_CHARACTERS.every((character) => (MHA_ARCS as readonly string[]).includes(character.debut)))
+    assert.equal(nameKey('Bakugou, Katsuki'), nameKey('Katsuki Bakugo'))
+  })
+
+  it('énigmes du jour et portraits des deux univers', async () => {
+    for (const category of ['dragonball', 'mha'] as const) {
+      const classic = await chloe.request('GET', `/dle/daily/${category}/classic`)
+      assert.equal(classic.status, 200, JSON.stringify(classic.body))
+      assert.ok(category in (await chloe.request('GET', '/dle')).body.daily)
+    }
+    const works = await chloe.request('GET', '/dle/works?category=mha')
+    assert.ok(works.body.works.some((entry: { name: string }) => entry.name === 'Izuku Midoriya'))
+    assert.equal((await chloe.send('GET', '/dle/characters/mha/all_might/image')).status, 200)
   })
 })
 

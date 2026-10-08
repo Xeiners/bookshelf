@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { gunzipSync } from 'node:zlib'
 import { HL_WORKS } from '../higherlower/hl.data.js'
 import { JJK_CHARACTERS } from '../dle/jjk.characters.js'
+import { DRAGONBALL_CHARACTERS } from '../dle/dragonball.characters.js'
+import { MHA_CHARACTERS } from '../dle/mha.characters.js'
 import { JOJO_CHARACTERS } from '../dle/jojo.characters.js'
 import { NARUTO_CHARACTERS } from '../dle/naruto.characters.js'
 import { ONEPIECE_CHARACTERS } from '../dle/onepiece.characters.js'
@@ -129,7 +131,7 @@ interface NamedEntry {
 }
 
 function mangaEntries(): NamedEntry[] {
-  const characters = [...NARUTO_CHARACTERS, ...ONEPIECE_CHARACTERS, ...JOJO_CHARACTERS, ...JJK_CHARACTERS].map((character) => ({
+  const characters = [...NARUTO_CHARACTERS, ...ONEPIECE_CHARACTERS, ...JOJO_CHARACTERS, ...JJK_CHARACTERS, ...DRAGONBALL_CHARACTERS, ...MHA_CHARACTERS].map((character) => ({
     display: character.name,
     names: [character.name, ...(character.aliases ?? [])],
   }))

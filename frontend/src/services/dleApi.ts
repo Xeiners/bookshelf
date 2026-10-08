@@ -7,8 +7,8 @@ import type { TitleId } from './profileApi'
 export const DLE_MODES = ['classic', 'zoom', 'pixel', 'sweep'] as const
 export type DleMode = (typeof DLE_MODES)[number]
 
-/** Catégories : mangas et manhwas célèbres, univers de Naruto, One Piece, JoJo et Jujutsu Kaisen. */
-export const DLE_CATEGORIES = ['manga', 'naruto', 'onepiece', 'jojo', 'jjk'] as const
+/** Catégories : mangas et manhwas célèbres, univers de Naruto, One Piece, JoJo, Jujutsu Kaisen, Dragon Ball et My Hero Academia. */
+export const DLE_CATEGORIES = ['manga', 'naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha'] as const
 export type DleCategory = (typeof DLE_CATEGORIES)[number]
 export type Verdict = 'exact' | 'partial' | 'wrong'
 export type Direction = 'higher' | 'lower'
@@ -29,6 +29,12 @@ export const JOJO_ATTRIBUTES = ['power', 'stand', 'role', 'nationality', 'status
 /** Colonnes du mode classique pour les personnages de Jujutsu Kaisen. */
 export const JJK_ATTRIBUTES = ['affiliation', 'grade', 'species', 'gender', 'status', 'debut'] as const
 
+/** Colonnes du mode classique pour les personnages de Dragon Ball. */
+export const DRAGONBALL_ATTRIBUTES = ['race', 'affiliation', 'forms', 'role', 'gender', 'debut'] as const
+
+/** Colonnes du mode classique pour les personnages de My Hero Academia. */
+export const MHA_ATTRIBUTES = ['affiliation', 'quirk', 'role', 'gender', 'status', 'debut'] as const
+
 /** Colonnes du mode classique de chaque catégorie, dans l'ordre. */
 export const CATEGORY_ATTRIBUTES: Record<DleCategory, readonly string[]> = {
   manga: ATTRIBUTES,
@@ -36,6 +42,8 @@ export const CATEGORY_ATTRIBUTES: Record<DleCategory, readonly string[]> = {
   onepiece: ONEPIECE_ATTRIBUTES,
   jojo: JOJO_ATTRIBUTES,
   jjk: JJK_ATTRIBUTES,
+  dragonball: DRAGONBALL_ATTRIBUTES,
+  mha: MHA_ATTRIBUTES,
 }
 
 export interface AttributeFeedback {

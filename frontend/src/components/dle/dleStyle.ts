@@ -35,6 +35,10 @@ export const CATEGORY_STYLE: Record<DleCategory, { gradient: string; glow: strin
   onepiece: { gradient: 'linear-gradient(135deg, #ffe08a, #f4b400 40%, #d62839)', glow: 'rgba(214,40,57,0.55)', ink: '#ffe3a3', accent: '#d62839' },
   jojo: { gradient: 'linear-gradient(135deg, #ffd86b, #e05bff 45%, #6a2bd9)', glow: 'rgba(224,91,255,0.5)', ink: '#f2c9ff', accent: '#e05bff' },
   jjk: { gradient: 'linear-gradient(135deg, #8fe3ff, #3a5bff 45%, #9b1cff)', glow: 'rgba(58,91,255,0.55)', ink: '#c9d6ff', accent: '#3a5bff' },
+  // Le gi orange et bleu de Goku, l'or des Dragon Balls.
+  dragonball: { gradient: 'linear-gradient(135deg, #ffe066, #ff8a1a 45%, #1f4fd8)', glow: 'rgba(255,138,26,0.55)', ink: '#ffd9a8', accent: '#ff8a1a' },
+  // Le vert de Deku, le rouge et le bleu d'All Might.
+  mha: { gradient: 'linear-gradient(135deg, #b8ff6b, #22c55e 45%, #1d4ed8)', glow: 'rgba(34,197,94,0.5)', ink: '#c8f7d6', accent: '#22c55e' },
 }
 
 /** Nom d'un format : « Classique », et « Couverture » (mangas) ou « Portrait » (personnages). */
