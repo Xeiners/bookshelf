@@ -156,6 +156,8 @@ export const en: Dictionary = {
       hint: 'Pick your series, or let the roulette decide.',
       pick: (series: number) => `Open a Series ${series} booster`,
       roulette: 'Roulette',
+      soon: 'Coming soon',
+      preparing: (series: number) => `Series ${series}: coming soon`,
       rouletteHint: 'Series 1, 2 or 3: chance decides',
       spinning: 'The roulette is spinning…',
       landed: (series: number) => `Series ${series}!`,

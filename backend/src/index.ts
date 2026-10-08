@@ -3,6 +3,7 @@ import { config } from './config.js'
 import { prisma } from './db.js'
 import { dragonBallPortraits, jjkPortraits, jojoPortraits, mhaPortraits, narutoPortraits, onePiecePortraits } from './modules/dle/dle.games.js'
 import { refreshWorkCovers } from './modules/higherlower/hl.covers.js'
+import { ensureSeries3 } from './modules/cards/series3.seed.js'
 import { startCatalogSync } from './services/catalog.service.js'
 
 const app = createApp()
@@ -14,6 +15,10 @@ if (config.env !== 'test') {
   for (const source of [narutoPortraits, onePiecePortraits, jojoPortraits, jjkPortraits, dragonBallPortraits, mhaPortraits]) void source.charactersWithPortrait().catch(() => undefined)
   // Couvertures du Higher or Lower (catalogue, puis recherche MangaDex).
   void refreshWorkCovers()
+  // Série 3 des cartes (personnages, Jikan) : dès le démarrage, puis toutes les cinq minutes
+  // tant qu'elle n'est pas complète (chaque passage reprend où le précédent s'est arrêté).
+  ensureSeries3()
+  setInterval(() => ensureSeries3(), 5 * 60 * 1000).unref()
 }
 // Mode recette oublié en production : il doit se voir dans les journaux.
 if (config.cards.unlimited) console.warn('[cartes] BOOSTER_UNLIMITED_MODE actif : boosters illimités (recette). À couper en production.')

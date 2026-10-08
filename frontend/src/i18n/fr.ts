@@ -164,6 +164,8 @@ export const fr = {
       hint: 'Choisis ta série, ou laisse la roulette décider.',
       pick: (series: number) => `Ouvrir un booster Série ${series}`,
       roulette: 'Roulette',
+      soon: 'En préparation',
+      preparing: (series: number) => `Série ${series} : en préparation`,
       rouletteHint: 'Série 1, 2 ou 3 : le hasard choisit',
       spinning: 'La roulette tourne…',
       landed: (series: number) => `Série ${series} !`,

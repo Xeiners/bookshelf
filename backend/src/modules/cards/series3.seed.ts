@@ -79,10 +79,14 @@ interface CharacterFull {
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-/** Un appel Jikan, réessayé sur 429 / 5xx (Jikan sature souvent). `null` : rien après trois essais. */
-async function jikan<T>(path: string): Promise<T | null> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    if (attempt > 0) await pause(2000 * attempt)
+/**
+ * Un appel Jikan, réessayé sur 429 / 5xx avec une attente qui double (Jikan sature souvent,
+ * surtout au démarrage quand le BookshelfDLE charge aussi ses portraits). `null` : rien
+ * après six essais (environ une minute).
+ */
+async function jikan<T>(path: string, attempts = 6): Promise<T | null> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (attempt > 0) await pause(Math.min(30_000, 2000 * 2 ** (attempt - 1)))
     try {
       const response = await serial(() => fetch(`${JIKAN}${path}`, { signal: AbortSignal.timeout(15_000) }))
       if (response.ok) return (await response.json()) as T
@@ -99,17 +103,28 @@ const portraitOf = (images: JikanImages | undefined) => {
   return url && !url.includes('questionmark') && new URL(url).hostname === MAL_HOST ? url : null
 }
 
+/** Pages du classement déjà lues : une tentative interrompue reprend où elle s'est arrêtée. */
+const fetchedPages = new Map<number, TopPage>()
+
 /**
  * Les `count` personnages les plus mis en favoris, avec un portrait (une petite marge
- * remplace ceux qui n'en ont pas). Jette si Jikan ne répond pas : la série attendra.
+ * remplace ceux qui n'en ont pas). Jette si Jikan ne répond pas : la série attendra, et
+ * la prochaine tentative repartira de la première page manquante.
  */
 export async function topCharacters(count: number, pageDelayMs = 1100): Promise<(TopCharacter & { art: string })[]> {
   const found = new Map<number, TopCharacter & { art: string }>()
-  for (let page = 1; found.size < count && page <= Math.ceil(count / 25) + 6; page += 1) {
-    if (page > 1) await pause(pageDelayMs)
-    const body = await jikan<TopPage>(`/top/characters?page=${page}&limit=25`)
-    if (!body?.data) throw new Error(`Jikan n’a pas répondu (page ${page} du classement des personnages).`)
-    for (const character of body.data) {
+  const lastPage = Math.ceil(count / 25) + 6
+  for (let page = 1; found.size < count && page <= lastPage; page += 1) {
+    let body = fetchedPages.get(page)
+    if (!body) {
+      if (page > 1) await pause(pageDelayMs)
+      const fetched = await jikan<TopPage>(`/top/characters?page=${page}&limit=25`)
+      if (!fetched?.data) throw new Error(`Jikan n’a pas répondu (page ${page} du classement des personnages, ${found.size}/${count} déjà lus).`)
+      fetchedPages.set(page, fetched)
+      body = fetched
+      if (page % 10 === 0) console.log(`[cartes] Série 3 : classement lu jusqu’à la page ${page} (${found.size + (body.data?.length ?? 0)}/${count}).`)
+    }
+    for (const character of body.data ?? []) {
       const art = portraitOf(character.images)
       if (art && character.name && !found.has(character.mal_id)) found.set(character.mal_id, { ...character, art })
     }
@@ -197,20 +212,25 @@ export async function enrichSeries3(options: { delayMs?: number; limit?: number 
 /* ---- Lancement en arrière-plan ---------------------------------------------------- */
 
 let running: Promise<void> | null = null
-/** Dernier passage terminé (réussi ou non) : au plus un passage toutes les dix minutes. */
+/** Dernier passage terminé (réussi ou non). */
 let lastRun = 0
+/** Série encore incomplète : nouvel essai deux minutes après un échec. */
+const RETRY_INCOMPLETE_MS = 2 * 60 * 1000
+/** Série complète : les œuvres manquantes sont reprises toutes les dix minutes. */
 const RETRY_MS = 10 * 60 * 1000
+let complete = false
 
 /**
  * Lance (sans l'attendre) la création de la série puis l'ajout des œuvres, si besoin.
- * Au plus un passage toutes les dix minutes : un échec (Jikan en panne) ou des œuvres
- * encore manquantes sont repris au prochain booster après ce délai.
+ * Lancée au démarrage du serveur, puis à chaque booster : un échec (Jikan saturé) est
+ * retenté deux minutes plus tard ; les œuvres encore manquantes, toutes les dix minutes.
  */
 export function ensureSeries3(now = Date.now()): void {
   // Tests : jamais d'appel réseau en arrière-plan (la série se crée à la main, cf. `series3.test.ts`).
-  if (config.env === 'test' || running || now - lastRun < RETRY_MS) return
+  if (config.env === 'test' || running || now - lastRun < (complete ? RETRY_MS : RETRY_INCOMPLETE_MS)) return
   running = (async () => {
     const result = await seedSeries3()
+    complete = result.total >= SERIES_3_SIZE
     if (result.inserted > 0) console.log(`[cartes] Série 3 : ${result.inserted} personnages ajoutés (${result.total}/${SERIES_3_SIZE}).`)
     const enriched = await enrichSeries3()
     if (enriched > 0) console.log(`[cartes] Série 3 : œuvre ajoutée à ${enriched} personnages.`)
@@ -228,4 +248,5 @@ export function ensureSeries3(now = Date.now()): void {
 export const series3Task = () => running
 export const resetSeries3Schedule = () => {
   lastRun = 0
+  fetchedPages.clear()
 }

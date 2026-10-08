@@ -267,7 +267,7 @@ export function BoosterPackModal() {
         data-shake
         className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-y-auto' : 'overflow-visible'}`}
       >
-        {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round(viewport.width * 0.38))} onPick={pick} />}
+        {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round((viewport.width - 32) / CARD_SERIES.length) - 14)} onPick={pick} />}
 
         {stage === 'roulette' && (
           <Roulette width={Math.min(150, Math.round(viewport.width * 0.38))} result={series} onLanded={() => setStage('intro')} />
@@ -348,6 +348,13 @@ export function BoosterPackModal() {
 function SeriesPicker({ width, onPick }: { width: number; onPick: (choice: SeriesChoice) => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
+  const showcase = useBoosterStore((state) => state.showcase)
+  const loadShowcase = useBoosterStore((state) => state.loadShowcase)
+  // Les séries prêtes, relues à chaque ouverture : la Série 3 se prépare en arrière-plan sur le serveur.
+  useEffect(() => {
+    void loadShowcase()
+  }, [loadShowcase])
+  const ready = (series: CardSeries) => showcase === null || showcase.some((entry) => entry.series === series)
   useGSAP(
     () => {
       gsap.fromTo('[data-pick]', { y: 40, autoAlpha: 0, rotation: (index) => (index === 0 ? -8 : 8) }, { y: 0, autoAlpha: 1, rotation: 0, duration: 0.7, stagger: 0.1, ease: EASE.glide })
@@ -364,20 +371,24 @@ function SeriesPicker({ width, onPick }: { width: number; onPick: (choice: Serie
         <h2 className="font-display text-3xl text-cream">{t.boosters.choose.title}</h2>
         <p className="mt-1.5 text-xs text-cream/60">{t.boosters.choose.hint}</p>
       </div>
-      <div className="flex items-end gap-5">
+      <div className="flex items-end gap-3">
         {CARD_SERIES.map((series) => (
           <button
             key={series}
             type="button"
             data-pick
+            disabled={!ready(series)}
             onClick={() => onPick(series)}
-            aria-label={t.boosters.choose.pick(series)}
-            className="flex flex-col items-center gap-3 transition-transform active:scale-95"
+            aria-label={ready(series) ? t.boosters.choose.pick(series) : t.boosters.choose.preparing(series)}
+            className="flex flex-col items-center gap-3 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:active:scale-100"
           >
-            <span data-pick-float className="block will-change-transform">
-              <BoosterPackArt width={width} series={series} lit />
+            <span data-pick-float className={`block will-change-transform ${ready(series) ? '' : 'opacity-40 grayscale'}`}>
+              <BoosterPackArt width={width} series={series} lit={ready(series)} />
             </span>
-            <span className="text-sm font-semibold tracking-[0.12em] text-cream uppercase">{t.boosters.seriesName(series)}</span>
+            <span className="flex flex-col items-center gap-0.5">
+              <span className="text-sm font-semibold tracking-[0.12em] text-cream uppercase">{t.boosters.seriesName(series)}</span>
+              {!ready(series) && <span className="text-[10px] tracking-[0.1em] text-mist uppercase">{t.boosters.choose.soon}</span>}
+            </span>
           </button>
         ))}
       </div>
