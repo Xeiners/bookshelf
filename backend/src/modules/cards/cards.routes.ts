@@ -6,6 +6,7 @@ import { rateLimit } from '../../middleware/rateLimit.js'
 import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
 import { characterArt } from './cards.art.js'
+import { GIFT_MESSAGE_MAX, giftCardToMember } from '../trades/trades.service.js'
 
 /*
  * Boosters et collection de cartes. Le stock d'un compte vit côté serveur
@@ -92,6 +93,15 @@ cardsRouter.get('/collection', async (req, res) => {
 })
 
 const FavoriteBody = z.object({ isFavorite: z.boolean() })
+const GiftBody = z.object({ toUserId: z.string().min(1).max(40), message: z.string().max(GIFT_MESSAGE_MAX * 2).nullish() })
+const giftLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 20 })
+
+/** Offre un exemplaire à un autre membre : il le reçoit, avec une notification surprise. */
+cardsRouter.post('/:cardId/gift', giftLimiter, async (req, res) => {
+  const { toUserId, message } = GiftBody.parse(req.body)
+  const cardId = z.string().min(1).max(40).parse(req.params.cardId)
+  res.json(await giftCardToMember(currentUserId(req), cardId, toUserId, message ?? null))
+})
 
 cardsRouter.patch('/:cardId/favorite', async (req, res) => {
   const { isFavorite } = FavoriteBody.parse(req.body)

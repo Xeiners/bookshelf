@@ -120,7 +120,7 @@ export function notificationCopy(item: AppNotification, t: Dictionary): Notifica
       }
     case 'card_gift':
       return {
-        title: t.notifications.cardGift.title(item.data.card.name),
+        title: item.data.from ? t.notifications.cardGift.fromMember(partyName(item.data.from, t.trades.anonymous), item.data.card.name) : t.notifications.cardGift.title(item.data.card.name),
         body: t.notifications.cardGift.body(item.data.count, item.data.message),
         visual: { kind: 'card', card: item.data.card, count: item.data.count },
       }

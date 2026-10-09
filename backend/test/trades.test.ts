@@ -324,3 +324,47 @@ describe('marché — annuler, suivre ses échanges', () => {
     assert.deepEqual(accepted.map((entry) => [entry.id, entry.mine]), [[done, false]])
   })
 })
+
+describe('cadeau de carte à un membre', () => {
+  it('un exemplaire passe de mon album au sien, avec une notification signée', async () => {
+    const [ana, bob] = [await signedUp(), await signedUp()]
+    await give(ana, 'common-a', 2)
+    const before = await totals()
+    const gift = await ana.request('POST', '/cards/common-a/gift', { toUserId: bob.userId, message: '  Pour ta collection !  ' })
+    assert.equal(gift.status, 200, JSON.stringify(gift.body))
+    assert.equal(gift.body.remaining, 1)
+    assert.equal(gift.body.to.id, bob.userId)
+    assert.equal(await copies(ana, 'common-a'), 1)
+    assert.equal(await copies(bob, 'common-a'), 1)
+    assert.deepEqual(await totals(), before, 'un cadeau ne crée ni ne détruit de carte')
+    const { body } = await bob.request('GET', '/notifications')
+    const notification = body.notifications.find((item: { type: string }) => item.type === 'card_gift')
+    assert.ok(notification, JSON.stringify(body))
+    assert.equal(notification.data.card.id, 'common-a')
+    assert.equal(notification.data.message, 'Pour ta collection !')
+    assert.equal(notification.data.from.id, ana.userId)
+  })
+
+  it('le dernier exemplaire quitte l’album ; ni à soi-même, ni une carte qu’on n’a pas', async () => {
+    const [ana, bob] = [await signedUp(), await signedUp()]
+    await give(ana, 'rare-a', 1)
+    assert.equal((await ana.request('POST', '/cards/rare-a/gift', { toUserId: ana.userId })).status, 400)
+    const last = await ana.request('POST', '/cards/rare-a/gift', { toUserId: bob.userId })
+    assert.equal(last.status, 200)
+    assert.equal(last.body.remaining, 0)
+    assert.equal(await prisma.userCard.count({ where: { userId: ana.userId, cardId: 'rare-a' } }), 0)
+    const again = await ana.request('POST', '/cards/rare-a/gift', { toUserId: bob.userId })
+    assert.equal(again.status, 409)
+    assert.equal(again.body.code ?? again.body.error?.code ?? 'gift_unavailable', 'gift_unavailable')
+    assert.equal((await ana.request('POST', '/cards/common-a/gift', { toUserId: 'inconnu' })).status, 404)
+  })
+
+  it('un exemplaire réservé par une offre ouverte au Marché ne peut pas partir', async () => {
+    const [ana, bob] = [await signedUp(), await signedUp()]
+    await give(ana, 'common-a', 2)
+    assert.equal((await offer(ana, 'common-a', 'common-b')).status, 201)
+    // Deux exemplaires, une offre ouverte : il en faut trois pour pouvoir en céder un.
+    assert.equal((await ana.request('POST', '/cards/common-a/gift', { toUserId: bob.userId })).status, 409)
+    assert.equal(await copies(ana, 'common-a'), 2)
+  })
+})

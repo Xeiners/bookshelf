@@ -111,7 +111,7 @@ export function SoloGame({ solo }: { solo: SoloView }) {
       notify(apiErrorMessage(error, t), 'nope')
     } finally {
       setBusy(false)
-      inputRef.current?.focus()
+      if (document.activeElement !== inputRef.current) inputRef.current?.focus({ preventScroll: true })
     }
   }
 

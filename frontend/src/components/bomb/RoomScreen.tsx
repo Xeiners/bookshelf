@@ -354,14 +354,23 @@ function Table({ room, me }: { room: BombRoomView; me: string }) {
     else if (event.kind === 'leave') hlSound(playLeave)
   }
 
-  // La bombe arrive entre mes mains : un signal, le champ vide et prêt.
+  // La bombe arrive entre mes mains : un signal, et le champ prêt. Un mot préparé pendant le
+  // tour des autres est gardé, et montré aux autres tout de suite.
+  const wasMyTurn = useRef(false)
   useEffect(() => {
-    if (!myTurn) return
-    setInput('')
+    if (!myTurn) {
+      // Mon tour vient de finir (bombe passée ou explosée) : le champ repart vide.
+      if (wasMyTurn.current) setInput('')
+      wasMyTurn.current = false
+      return
+    }
+    wasMyTurn.current = true
     hlSound(playBombTurn)
     vibrate(30)
-    inputRef.current?.focus()
-  }, [myTurn, room.fuseEndsAt])
+    inputRef.current?.focus({ preventScroll: true })
+    const prepared = inputRef.current?.value ?? ''
+    if (prepared) void bombApi.typing(room.code, prepared).catch(() => undefined)
+  }, [myTurn, room.fuseEndsAt, room.code])
 
   // Décompte de départ : 3, 2, 1… GO.
   const [count, setCount] = useState<number | null>(null)
@@ -433,7 +442,8 @@ function Table({ room, me }: { room: BombRoomView; me: string }) {
       notify(apiErrorMessage(error, t), 'nope')
     } finally {
       setBusy(false)
-      inputRef.current?.focus()
+      // Le champ n'a jamais perdu le focus (il reste actif) : rien à rouvrir, sauf s'il l'a perdu.
+      if (document.activeElement !== inputRef.current) inputRef.current?.focus({ preventScroll: true })
     }
   }
 

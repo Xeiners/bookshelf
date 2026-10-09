@@ -45,11 +45,13 @@ export interface BoosterGiftData {
   message: string | null
 }
 
-/** Carte offerte par l'équipe (administration). */
+/** Carte offerte par l'équipe (administration), ou par un autre membre (`from`). */
 export interface CardGiftData {
   card: CardDto
   count: number
   message: string | null
+  /** Membre qui l'offre ; absent : cadeau de l'équipe. */
+  from?: NotificationParty | null
 }
 
 interface DataOf {

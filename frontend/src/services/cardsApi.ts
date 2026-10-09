@@ -37,6 +37,12 @@ export const cardsApi = {
   /** Les séries et leurs couvertures (illustration des boosters). */
   series: () => api<{ series: SeriesShowcase[] }>('/boosters/series'),
   collection: (signal?: AbortSignal) => api<Collection>('/cards/collection', { signal }),
+  /** Offre un exemplaire à un membre ; 409 `gift_unavailable` si réservé au Marché ou plus possédé. */
+  gift: (cardId: string, toUserId: string, message: string | null) =>
+    api<{ card: PulledCard['card']; remaining: number; to: { id: string; displayName: string | null } }>(`/cards/${encodeURIComponent(cardId)}/gift`, {
+      method: 'POST',
+      body: { toUserId, message },
+    }),
   /** Booster d'essai : cartes tirées et leur reçu signé. 409 une fois l'essai épuisé. */
   guestOpen: (receipts: string[], series: SeriesChoice) =>
     api<{ cards: PulledCard[]; receipt: string; remaining: number; series: CardSeries }>('/boosters/guest/open', { method: 'POST', body: { receipts, series } }),

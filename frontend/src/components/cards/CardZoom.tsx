@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Heart, X } from 'lucide-react'
+import { BookOpen, Gift, Heart, X } from 'lucide-react'
 import { useCollection } from '../../hooks/useCollection'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useLanguage, useT } from '../../i18n'
@@ -10,6 +10,7 @@ import { fetchBooks, fetchSynopsis } from '../../services/catalog'
 import { useCollectionStore } from '../../store/useCollectionStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CollectibleCard, type CardFace } from './CollectibleCard'
+import { GiftCardSheet } from './GiftCardSheet'
 
 /** Carte à afficher : sa face, et ce que l'on sait déjà de l'exemplaire (album ou booster). */
 export interface ZoomCard extends CardFace {
@@ -42,6 +43,7 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const [opening, setOpening] = useState(false)
+  const [gifting, setGifting] = useState(false)
   const [synopsis, setSynopsis] = useState<Synopsis>({ status: 'loading' })
   const width = Math.min(260, Math.round(window.innerWidth * 0.5))
 
@@ -176,9 +178,28 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
                 {t.cards.viewWork}
               </button>
             )}
+            {owned && signedIn && (
+              <button
+                type="button"
+                onClick={() => setGifting(true)}
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-gold/15 px-5 text-sm font-semibold text-gold transition-colors hover:bg-gold/25"
+              >
+                <Gift size={16} aria-hidden />
+                {t.cards.gift.open}
+              </button>
+            )}
           </div>
         </div>
       </div>
+      {gifting && owned && (
+        <GiftCardSheet
+          card={{ id: card.id, title: card.title }}
+          copies={owned.count}
+          onClose={() => setGifting(false)}
+          // Dernier exemplaire offert : la carte n'est plus à moi, la vue agrandie se ferme.
+          onSent={(remaining) => remaining === 0 && onClose()}
+        />
+      )}
     </div>
   )
 }

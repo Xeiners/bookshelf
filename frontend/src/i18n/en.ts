@@ -206,6 +206,19 @@ export const en: Dictionary = {
     viewWork: 'View the title',
     synopsis: 'Synopsis',
     noSynopsis: 'No synopsis available for this title.',
+    gift: {
+      open: 'Gift',
+      title: 'Gift this card',
+      subtitle: (card: string) => `One copy of ${card} leaves your album for another member’s.`,
+      search: 'Search a member',
+      none: 'No member found.',
+      message: 'A short note (optional)',
+      lastCopy: 'This is your last copy: the card will leave your album.',
+      send: (who: string) => `Gift to ${who}`,
+      pick: 'Pick a member',
+      sent: (who: string) => `Card sent to ${who}! They’ll discover it on their next visit.`,
+      unavailable: 'This copy is reserved by one of your Market offers.',
+    },
     character: {
       section: 'Character',
       from: (work: string) => `Character from ${work}`,
@@ -305,8 +318,18 @@ export const en: Dictionary = {
       title: (count: number) => `The team gave you ${count} ${plural(count, 'booster', 'boosters')}!`,
       body: (message: string | null) => message ?? 'They’re waiting for you in Activities.',
     },
+    giftReveal: {
+      eyebrow: 'A surprise awaits',
+      fromMember: (who: string) => `${who} sent you a card!`,
+      fromTeam: 'The team sent you a card!',
+      tap: 'Tap the card to flip it',
+      thanks: 'Thanks!',
+      album: 'Open my album',
+      next: (count: number) => `Next (${count})`,
+    },
     cardGift: {
       title: (card: string) => `The team gave you ${card}`,
+      fromMember: (who: string, card: string) => `${who} gave you ${card}`,
       body: (count: number, message: string | null) =>
         message ?? (count > 1 ? `${count} copies join your album.` : 'It joins your album.'),
     },

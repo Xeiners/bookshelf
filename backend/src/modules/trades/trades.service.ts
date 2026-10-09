@@ -311,3 +311,43 @@ export async function cancelOffer(offerId: string, userId: string): Promise<Trad
   if (count === 0) throw offerClosed()
   return toDto(row, userId, await holdingsOf(prisma, userId))
 }
+
+/* ---- Cadeau à un autre membre ------------------------------------------------------------------ */
+
+/** Mot joint à un cadeau : court, comme une carte de vœux. */
+export const GIFT_MESSAGE_MAX = 140
+
+export interface GiftResult {
+  card: CardDto
+  /** Exemplaires qu'il me reste (0 : la carte a quitté mon album). */
+  remaining: number
+  to: TradeParty
+}
+
+/**
+ * Offre un exemplaire d'une carte à un autre membre : il quitte mon album (sans toucher aux
+ * exemplaires réservés par mes offres ouvertes au Marché), entre dans le sien, et une
+ * notification l'attend — une carte « surprise » à sa prochaine visite.
+ */
+export async function giftCardToMember(senderId: string, cardId: string, recipientId: string, message: string | null, now = new Date()): Promise<GiftResult> {
+  if (senderId === recipientId) throw badRequest('Tu ne peux pas t’offrir une carte à toi-même.', 'gift_self')
+  const recipient = await prisma.user.findUnique({ where: { id: recipientId }, select: { id: true, displayName: true, suspendedAt: true } })
+  if (!recipient || recipient.suspendedAt) throw notFound('Ce membre est introuvable.')
+  const note = message?.trim().slice(0, GIFT_MESSAGE_MAX) || null
+  return prisma.$transaction(async (tx) => {
+    const holdings = await holdingsOf(tx, senderId)
+    const required = requiredToGive(holdings.reserved.get(cardId) ?? 0)
+    // Décrément conditionnel : deux cadeaux simultanés ne peuvent pas céder le même exemplaire.
+    const taken = await tx.userCard.updateMany({ where: { userId: senderId, cardId, count: { gte: required } }, data: { count: { decrement: 1 } } })
+    if (taken.count !== 1) {
+      throw conflict(holdings.owned.has(cardId) ? 'Cet exemplaire est réservé par une de tes offres au Marché.' : 'Tu ne possèdes pas cette carte.', 'gift_unavailable')
+    }
+    const left = await tx.userCard.findUnique({ where: { userId_cardId: { userId: senderId, cardId } }, select: { count: true } })
+    await removeIfEmpty(tx, senderId, cardId)
+    await receive(tx, recipientId, cardId, now)
+    const card = toCardDto(await tx.card.findUniqueOrThrow({ where: { id: cardId } }))
+    const sender = await tx.user.findUnique({ where: { id: senderId }, select: { id: true, displayName: true } })
+    await createNotification(tx, recipientId, 'card_gift', { card, count: 1, message: note, from: party(sender) })
+    return { card, remaining: Math.max(0, left?.count ?? 0), to: { id: recipient.id, displayName: recipient.displayName } }
+  })
+}

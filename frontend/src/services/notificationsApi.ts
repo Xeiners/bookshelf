@@ -31,7 +31,8 @@ export interface BoosterGiftNotification extends NotificationBase {
 /** L'équipe a offert une carte (administration). */
 export interface CardGiftNotification extends NotificationBase {
   type: 'card_gift'
-  data: { card: TradeCard; count: number; message: string | null }
+  /** `from` : un membre l'offre ; absent, c'est l'équipe. */
+  data: { card: TradeCard; count: number; message: string | null; from?: { id: string; displayName: string | null } | null }
 }
 
 export type AppNotification = TradeAcceptedNotification | TradeMatchNotification | BoosterGiftNotification | CardGiftNotification

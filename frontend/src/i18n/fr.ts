@@ -214,6 +214,19 @@ export const fr = {
     viewWork: 'Voir l’œuvre',
     synopsis: 'Résumé',
     noSynopsis: 'Pas de résumé disponible pour cette œuvre.',
+    gift: {
+      open: 'Offrir',
+      title: 'Offrir cette carte',
+      subtitle: (card: string) => `Un exemplaire de ${card} quitte ton album pour celui d’un autre membre.`,
+      search: 'Chercher un membre',
+      none: 'Aucun membre trouvé.',
+      message: 'Un petit mot (facultatif)',
+      lastCopy: 'C’est ton dernier exemplaire : la carte quittera ton album.',
+      send: (who: string) => `Offrir à ${who}`,
+      pick: 'Choisis un membre',
+      sent: (who: string) => `Carte offerte à ${who} ! Il ou elle la découvrira à sa prochaine visite.`,
+      unavailable: 'Cet exemplaire est réservé par une de tes offres au Marché.',
+    },
     character: {
       section: 'Personnage',
       from: (work: string) => `Personnage de ${work}`,
@@ -314,8 +327,18 @@ export const fr = {
       title: (count: number) => `L’équipe t’offre ${count} booster${plural(count, '', 's')} !`,
       body: (message: string | null) => message ?? 'Ils t’attendent dans les Activités.',
     },
+    giftReveal: {
+      eyebrow: 'Une surprise t’attend',
+      fromMember: (who: string) => `${who} t’offre une carte !`,
+      fromTeam: 'L’équipe t’offre une carte !',
+      tap: 'Touche la carte pour la retourner',
+      thanks: 'Merci !',
+      album: 'Voir mon album',
+      next: (count: number) => `Suivante (${count})`,
+    },
     cardGift: {
       title: (card: string) => `L’équipe t’offre ${card}`,
+      fromMember: (who: string, card: string) => `${who} t’offre ${card}`,
       body: (count: number, message: string | null) =>
         message ?? (count > 1 ? `${count} exemplaires rejoignent ton album.` : 'Elle rejoint ton album.'),
     },
