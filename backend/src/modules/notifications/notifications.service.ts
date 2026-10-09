@@ -10,7 +10,7 @@ import type { CardDto } from '../cards/cards.service.js'
  * aucune connexion permanente à tenir derrière Caddy et Nginx.
  */
 
-export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift'] as const
+export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift', 'card_share'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
 export interface NotificationParty {
@@ -54,11 +54,19 @@ export interface CardGiftData {
   from?: NotificationParty | null
 }
 
+/** Un membre me montre des cartes qu'il vient d'obtenir (elles restent les siennes). */
+export interface CardShareData {
+  cards: CardDto[]
+  by: NotificationParty
+  message: string | null
+}
+
 interface DataOf {
   trade_accepted: TradeAcceptedData
   trade_match: TradeMatchData
   booster_gift: BoosterGiftData
   card_gift: CardGiftData
+  card_share: CardShareData
 }
 
 export type NotificationDto = {

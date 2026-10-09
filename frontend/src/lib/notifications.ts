@@ -6,7 +6,7 @@
 import type { Dictionary } from '../i18n/fr'
 import type { AppNotification } from '../services/notificationsApi'
 import type { TradeCard } from '../services/tradesApi'
-import { RARITY_STYLE } from './boosters'
+import { RARITY_STYLE, rarityRank } from './boosters'
 import { partyName } from './trades'
 
 /** Liste gardée en mémoire, au plus (l'API en renvoie 50). */
@@ -49,11 +49,14 @@ export type NotificationTarget =
   | { kind: 'market' }
   | { kind: 'boosters' }
   | { kind: 'collection' }
+  | { kind: 'showcase' }
 
 export function targetOf(item: AppNotification): NotificationTarget {
   if (item.type === 'trade_accepted') return { kind: 'my-trades' }
   if (item.type === 'booster_gift') return { kind: 'boosters' }
   if (item.type === 'card_gift') return { kind: 'collection' }
+  // Cartes montrées par un membre : on rejoue leur présentation.
+  if (item.type === 'card_share') return { kind: 'showcase' }
   // Offre partie entre-temps : le marché reste la meilleure destination.
   return item.active ? { kind: 'offer', offerId: item.data.offerId } : { kind: 'market' }
 }
@@ -124,6 +127,15 @@ export function notificationCopy(item: AppNotification, t: Dictionary): Notifica
         body: t.notifications.cardGift.body(item.data.count, item.data.message),
         visual: { kind: 'card', card: item.data.card, count: item.data.count },
       }
+    case 'card_share': {
+      // La plus rare devant, la suivante derrière.
+      const [card, behind] = [...item.data.cards].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity))
+      return {
+        title: t.notifications.cardShare.title(partyName(item.data.by, t.trades.anonymous), item.data.cards.length),
+        body: t.notifications.cardShare.body(item.data.cards.map((shown) => shown.name), item.data.message),
+        visual: behind ? { kind: 'trade', card: card!, behind } : { kind: 'card', card: card!, count: 1 },
+      }
+    }
     case 'trade_accepted':
       return {
         title: t.notifications.tradeAccepted.title(partyName(item.data.by, t.trades.anonymous)),

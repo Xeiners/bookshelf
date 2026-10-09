@@ -6,6 +6,7 @@ import type { AppNotification } from '../services/notificationsApi'
 import { useAuthStore } from '../store/useAuthStore'
 import { setArrivalHandler, useNotificationStore } from '../store/useNotificationStore'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { useShowcaseStore } from '../store/useShowcaseStore'
 import { useTradeStore } from '../store/useTradeStore'
 import { useUiStore } from '../store/useUiStore'
 
@@ -73,6 +74,10 @@ export function openNotification(item: AppNotification) {
   ui.closeNotifications()
   ui.closeDetail()
   const target = targetOf(item)
+  if (target.kind === 'showcase') {
+    useShowcaseStore.getState().replay(item.id)
+    return
+  }
   // Cadeaux : l'autel des boosters (le hub), ou l'album.
   if (target.kind === 'boosters' || target.kind === 'collection') {
     ui.openActivity(target.kind === 'boosters' ? 'hub' : 'collection')

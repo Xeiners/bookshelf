@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
+import { Check } from 'lucide-react'
 import { useT } from '../../i18n'
 import { RARITY_STYLE, rarityRank, type Rarity } from '../../lib/boosters'
 import { gsap, useGSAP } from '../../lib/gsap'
@@ -46,6 +47,8 @@ interface CardRevealProps {
   onInspect: (pulled: PulledCard) => void
   /** Contenu de la zone sous les cartes une fois tout révélé (boutons de fin). */
   footer?: ReactNode
+  /** Mode « Informer » : toucher une carte la coche ou la décoche (index dans le tirage). */
+  selection?: { picked: ReadonlySet<number>; toggle: (index: number) => void } | null
 }
 
 /**
@@ -57,7 +60,7 @@ interface CardRevealProps {
  *   traverse la carte, onde de choc et explosion de particules — plus ample
  *   à chaque rang.
  */
-export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onInspect, footer }: CardRevealProps) {
+export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onInspect, footer, selection }: CardRevealProps) {
   const { columns, width, gap } = layout
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -195,19 +198,36 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
         {cards.map((pulled, index) => {
           const style = RARITY_STYLE[pulled.card.rarity]
           const shown = revealed[index]
+          const picked = selection?.picked.has(index) ?? false
           return (
             <button
               key={`${pulled.card.id}-${index}`}
               type="button"
               data-reveal-card={index}
-              // Face cachée : la retourner ; déjà retournée : son résumé.
-              onClick={() => (shown ? onInspect(pulled) : reveal(index))}
-              aria-label={shown ? t.boosters.inspect(pulled.card.title) : t.boosters.cardBack(index + 1)}
+              // Face cachée : la retourner ; déjà retournée : son résumé (ou, pour « Informer », la cocher).
+              onClick={() => (!shown ? reveal(index) : selection ? selection.toggle(index) : onInspect(pulled))}
+              aria-label={shown ? (selection ? pulled.card.title : t.boosters.inspect(pulled.card.title)) : t.boosters.cardBack(index + 1)}
+              aria-pressed={selection ? picked : undefined}
               className="relative rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-gold/70"
               style={{ width, height, willChange: 'transform' }}
             >
+              {selection && (
+                <span
+                  aria-hidden
+                  className={`pointer-events-none absolute -inset-1 z-[3] rounded-[11%/8%] transition-[box-shadow,opacity] duration-200 ${picked ? 'opacity-100' : 'opacity-0'}`}
+                  style={{ boxShadow: `0 0 0 3px #fff4c8, 0 0 26px ${style.color}` }}
+                >
+                  <span className="absolute -top-2 -right-2 grid size-7 place-items-center rounded-full bg-[#fff4c8] text-void shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+                    <Check size={16} strokeWidth={3} />
+                  </span>
+                </span>
+              )}
               {/* `will-change` : chaque carte a son calque ; flotter ne la repeint pas. */}
-              <div data-bob className="relative h-full w-full" style={{ willChange: 'transform' }}>
+              <div
+                data-bob
+                className="relative h-full w-full transition-[opacity,filter] duration-200"
+                style={{ willChange: 'transform', ...(selection && !picked ? { opacity: 0.55, filter: 'saturate(0.6)' } : null) }}
+              >
                 {/* Halo de rareté, derrière la carte. */}
                 <span
                   data-halo

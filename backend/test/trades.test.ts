@@ -368,3 +368,32 @@ describe('cadeau de carte à un membre', () => {
     assert.equal(await copies(ana, 'common-a'), 2)
   })
 })
+
+describe('informer des membres d’un tirage', () => {
+  it('chaque membre choisi reçoit les cartes montrées ; rien ne change de main', async () => {
+    const [ana, bob, cleo] = [await signedUp(), await signedUp(), await signedUp()]
+    await give(ana, 'common-a', 1)
+    await give(ana, 'rare-a', 1)
+    const before = await totals()
+    const shared = await ana.request('POST', '/cards/share', { cardIds: ['rare-a', 'common-a'], toUserIds: [bob.userId, cleo.userId, ana.userId], message: 'Regarde ça !' })
+    assert.equal(shared.status, 200, JSON.stringify(shared.body))
+    assert.equal(shared.body.notified, 2, 'soi-même n’est pas prévenu')
+    assert.deepEqual(await totals(), before)
+    for (const member of [bob, cleo]) {
+      const { body } = await member.request('GET', '/notifications')
+      const note = body.notifications.find((item: { type: string }) => item.type === 'card_share')
+      assert.ok(note)
+      assert.deepEqual(note.data.cards.map((card: { id: string }) => card.id), ['rare-a', 'common-a'])
+      assert.equal(note.data.by.id, ana.userId)
+      assert.equal(note.data.message, 'Regarde ça !')
+    }
+  })
+
+  it('seulement des cartes possédées, et au moins un membre', async () => {
+    const [ana, bob] = [await signedUp(), await signedUp()]
+    await give(ana, 'common-a', 1)
+    assert.equal((await ana.request('POST', '/cards/share', { cardIds: ['rare-b'], toUserIds: [bob.userId] })).status, 400)
+    assert.equal((await ana.request('POST', '/cards/share', { cardIds: ['common-a'], toUserIds: [] })).status, 400)
+    assert.equal((await ana.request('POST', '/cards/share', { cardIds: ['common-a'], toUserIds: [ana.userId] })).status, 400)
+  })
+})

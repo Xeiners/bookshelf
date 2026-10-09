@@ -35,7 +35,13 @@ export interface CardGiftNotification extends NotificationBase {
   data: { card: TradeCard; count: number; message: string | null; from?: { id: string; displayName: string | null } | null }
 }
 
-export type AppNotification = TradeAcceptedNotification | TradeMatchNotification | BoosterGiftNotification | CardGiftNotification
+/** Un membre montre des cartes de son tirage (« Informer ») : rien ne change de main. */
+export interface CardShareNotification extends NotificationBase {
+  type: 'card_share'
+  data: { cards: TradeCard[]; by: { id: string; displayName: string | null }; message: string | null }
+}
+
+export type AppNotification = TradeAcceptedNotification | TradeMatchNotification | BoosterGiftNotification | CardGiftNotification | CardShareNotification
 
 export interface NotificationList {
   notifications: AppNotification[]

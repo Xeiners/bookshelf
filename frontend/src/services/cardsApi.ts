@@ -43,6 +43,9 @@ export const cardsApi = {
       method: 'POST',
       body: { toUserId, message },
     }),
+  /** « Informer » : montre des cartes possédées à des membres, prévenus à leur prochaine visite. */
+  share: (cardIds: string[], toUserIds: string[], message: string | null) =>
+    api<{ notified: number }>('/cards/share', { method: 'POST', body: { cardIds, toUserIds, message } }),
   /** Booster d'essai : cartes tirées et leur reçu signé. 409 une fois l'essai épuisé. */
   guestOpen: (receipts: string[], series: SeriesChoice) =>
     api<{ cards: PulledCard[]; receipt: string; remaining: number; series: CardSeries }>('/boosters/guest/open', { method: 'POST', body: { receipts, series } }),

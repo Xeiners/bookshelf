@@ -351,3 +351,30 @@ export async function giftCardToMember(senderId: string, cardId: string, recipie
     return { card, remaining: Math.max(0, left?.count ?? 0), to: { id: recipient.id, displayName: recipient.displayName } }
   })
 }
+
+/* ---- Montrer ses cartes ------------------------------------------------------------------------ */
+
+export const SHARE_MAX_CARDS = 8
+export const SHARE_MAX_RECIPIENTS = 20
+
+/**
+ * « Informer » : je montre à des membres des cartes que je possède (celles d'un booster
+ * tout juste ouvert, en général). Rien ne change de main : chacun reçoit une notification,
+ * et découvre les cartes à sa prochaine visite. Renvoie le nombre de membres prévenus.
+ */
+export async function shareCards(senderId: string, cardIds: readonly string[], recipientIds: readonly string[], message: string | null, now = new Date()): Promise<number> {
+  const cards = [...new Set(cardIds)].slice(0, SHARE_MAX_CARDS)
+  const recipients = [...new Set(recipientIds)].filter((id) => id !== senderId).slice(0, SHARE_MAX_RECIPIENTS)
+  if (cards.length === 0) throw badRequest('Choisis au moins une carte.', 'share_no_card')
+  if (recipients.length === 0) throw badRequest('Choisis au moins un membre.', 'share_no_member')
+  const owned = await prisma.userCard.findMany({ where: { userId: senderId, cardId: { in: cards } }, include: { card: true } })
+  if (owned.length !== cards.length) throw badRequest('Tu ne peux montrer que des cartes que tu possèdes.', 'card_not_owned')
+  const members = await prisma.user.findMany({ where: { id: { in: recipients }, suspendedAt: null }, select: { id: true } })
+  if (members.length === 0) throw notFound('Aucun de ces membres n’existe.')
+  const sender = await prisma.user.findUnique({ where: { id: senderId }, select: { id: true, displayName: true } })
+  // Dans l'ordre choisi par l'expéditeur.
+  const byId = new Map(owned.map((row) => [row.cardId, toCardDto(row.card)]))
+  const payload = { cards: cards.map((id) => byId.get(id)!).filter(Boolean), by: party(sender)!, message: message?.trim().slice(0, GIFT_MESSAGE_MAX) || null }
+  await prisma.notification.createMany({ data: members.map((member) => ({ userId: member.id, type: 'card_share', data: JSON.stringify(payload), createdAt: now })) })
+  return members.length
+}

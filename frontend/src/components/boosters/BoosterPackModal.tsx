@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dices, FlaskConical, Gift, X, Zap } from 'lucide-react'
+import { Dices, FlaskConical, Gift, Megaphone, Users, X, Zap } from 'lucide-react'
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
@@ -18,6 +18,7 @@ import { BoosterOpeningAnimation } from './BoosterOpeningAnimation'
 import { BoosterPackArt } from './BoosterPackArt'
 import { CardReveal } from './CardReveal'
 import { ParticleBurst, type Burst } from './ParticleBurst'
+import { ShareCardsSheet } from './ShareCardsSheet'
 
 /**
  * `choose` : Série 1, Série 2 ou la roulette ; `roulette` : elle tourne pendant que le
@@ -66,6 +67,9 @@ export function BoosterPackModal() {
   /** Carte révélée affichée en grand, avec son résumé. */
   const [inspected, setInspected] = useState<PulledCard | null>(null)
   const [viewport, setViewport] = useState(readViewport)
+  /** « Informer » : cartes cochées (index dans le tirage), `null` hors de ce mode. */
+  const [sharing, setSharing] = useState<ReadonlySet<number> | null>(null)
+  const [pickingMembers, setPickingMembers] = useState(false)
 
   useEffect(() => {
     const onResize = () => setViewport(readViewport())
@@ -80,13 +84,16 @@ export function BoosterPackModal() {
   const busy = stage === 'tearing'
   useEffect(() => {
     // Carte ouverte en grand : Échap la ferme elle seule (elle a son propre écouteur).
-    if (inspected) return
+    // La feuille « Informer » aussi ; en mode sélection, Échap n'en sort que.
+    if (inspected || pickingMembers) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) close()
+      if (event.key !== 'Escape' || busy) return
+      if (sharing) setSharing(null)
+      else close()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [busy, close, inspected])
+  }, [busy, close, inspected, pickingMembers, sharing])
 
   const messageFor = useCallback(
     (reason: unknown) => {
@@ -185,6 +192,7 @@ export function BoosterPackModal() {
 
   // Booster suivant : on rechoisit sa série (ou la roulette).
   const again = () => {
+    setSharing(null)
     setCards([])
     setBait(null)
     setError(null)
@@ -193,6 +201,17 @@ export function BoosterPackModal() {
     setSeries(null)
     setStage('choose')
     setRound((value) => value + 1)
+  }
+
+  const toggleShared = (index: number) => {
+    vibrate(8)
+    setSharing((current) => {
+      if (!current) return current
+      const next = new Set(current)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
   }
 
   const toAlbum = () => {
@@ -301,7 +320,21 @@ export function BoosterPackModal() {
             onBurst={setBurst}
             onShake={shake}
             onInspect={setInspected}
-            footer={stage === 'done' ? <DoneActions canAgain={canAgain} onAgain={again} onAlbum={toAlbum} onSignUp={signUp} /> : null}
+            selection={sharing && { picked: sharing, toggle: toggleShared }}
+            footer={
+              stage !== 'done' ? null : sharing ? (
+                <ShareActions count={sharing.size} onCancel={() => setSharing(null)} onPick={() => setPickingMembers(true)} />
+              ) : (
+                <DoneActions
+                  canAgain={canAgain}
+                  onAgain={again}
+                  onAlbum={toAlbum}
+                  onSignUp={signUp}
+                  // Seul un compte peut prévenir ses amis (l'invité n'a pas d'album côté serveur).
+                  onShare={boosters.signedIn ? () => setSharing(new Set()) : undefined}
+                />
+              )
+            }
           />
         )}
 
@@ -327,6 +360,13 @@ export function BoosterPackModal() {
         )}
       </div>
 
+      {pickingMembers && sharing && (
+        <ShareCardsSheet
+          cardIds={[...new Set([...sharing].sort((a, b) => a - b).map((index) => cards[index]!.card.id))]}
+          onClose={() => setPickingMembers(false)}
+          onSent={() => setSharing(null)}
+        />
+      )}
       {inspected && <CardZoom card={{ ...inspected.card, count: inspected.count }} onClose={() => setInspected(null)} />}
 
       {boosters.unlimited && tally.packs > 0 && (
@@ -502,7 +542,52 @@ function SandboxChip() {
   )
 }
 
-function DoneActions({ canAgain, onAgain, onAlbum, onSignUp }: { canAgain: boolean; onAgain: () => void; onAlbum: () => void; onSignUp?: () => void }) {
+/** Mode « Informer » : on coche des cartes, puis on choisit qui prévenir. */
+function ShareActions({ count, onCancel, onPick }: { count: number; onCancel: () => void; onPick: () => void }) {
+  const t = useT()
+  const ref = useRef<HTMLDivElement>(null)
+  useGSAP(
+    () => {
+      gsap.fromTo(ref.current, { y: 12, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: EASE.glide })
+    },
+    { scope: ref },
+  )
+  return (
+    <div ref={ref} className="flex flex-col items-center gap-3">
+      <p className="text-xs tracking-[0.2em] text-cream/60 uppercase" aria-live="polite">
+        {t.boosters.share.hint}
+      </p>
+      <div className="flex flex-wrap justify-center gap-3">
+        <button type="button" onClick={onCancel} className="rounded-full border border-[#ffe39a]/30 bg-black/40 px-6 py-3 text-sm font-semibold text-[#fff4c8]">
+          {t.boosters.share.cancel}
+        </button>
+        <button
+          type="button"
+          onClick={onPick}
+          disabled={count === 0}
+          className="inline-flex items-center gap-2 rounded-full bg-cream px-6 py-3 text-sm font-semibold text-void transition-opacity disabled:opacity-40"
+        >
+          <Users size={15} />
+          {t.boosters.share.pick(count)}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DoneActions({
+  canAgain,
+  onAgain,
+  onAlbum,
+  onSignUp,
+  onShare,
+}: {
+  canAgain: boolean
+  onAgain: () => void
+  onAlbum: () => void
+  onSignUp?: () => void
+  onShare?: () => void
+}) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   useGSAP(
@@ -537,6 +622,16 @@ function DoneActions({ canAgain, onAgain, onAlbum, onSignUp }: { canAgain: boole
         >
           <Zap size={15} className="fill-[#2a1a02]" />
           {t.boosters.again}
+        </button>
+      )}
+      {onShare && (
+        <button
+          type="button"
+          onClick={onShare}
+          className="inline-flex items-center gap-2 rounded-full border border-[#ffe39a]/30 bg-black/40 px-6 py-3 text-sm font-semibold text-[#fff4c8]"
+        >
+          <Megaphone size={15} />
+          {t.boosters.share.open}
         </button>
       )}
       <button type="button" onClick={onAlbum} className="rounded-full border border-[#ffe39a]/30 bg-black/40 px-6 py-3 text-sm font-semibold text-[#fff4c8]">

@@ -6,7 +6,7 @@ import { rateLimit } from '../../middleware/rateLimit.js'
 import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
 import { characterArt } from './cards.art.js'
-import { GIFT_MESSAGE_MAX, giftCardToMember } from '../trades/trades.service.js'
+import { GIFT_MESSAGE_MAX, SHARE_MAX_CARDS, SHARE_MAX_RECIPIENTS, giftCardToMember, shareCards } from '../trades/trades.service.js'
 
 /*
  * Boosters et collection de cartes. Le stock d'un compte vit côté serveur
@@ -95,6 +95,18 @@ cardsRouter.get('/collection', async (req, res) => {
 const FavoriteBody = z.object({ isFavorite: z.boolean() })
 const GiftBody = z.object({ toUserId: z.string().min(1).max(40), message: z.string().max(GIFT_MESSAGE_MAX * 2).nullish() })
 const giftLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 20 })
+
+const ShareBody = z.object({
+  cardIds: z.array(z.string().min(1).max(40)).min(1).max(SHARE_MAX_CARDS),
+  toUserIds: z.array(z.string().min(1).max(40)).min(1).max(SHARE_MAX_RECIPIENTS),
+  message: z.string().max(GIFT_MESSAGE_MAX * 2).nullish(),
+})
+
+/** « Informer » : montrer des cartes possédées à des membres (rien ne change de main). */
+cardsRouter.post('/share', giftLimiter, async (req, res) => {
+  const { cardIds, toUserIds, message } = ShareBody.parse(req.body)
+  res.json({ notified: await shareCards(currentUserId(req), cardIds, toUserIds, message ?? null) })
+})
 
 /** Offre un exemplaire à un autre membre : il le reçoit, avec une notification surprise. */
 cardsRouter.post('/:cardId/gift', giftLimiter, async (req, res) => {
