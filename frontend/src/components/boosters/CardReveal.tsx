@@ -4,7 +4,7 @@ import { useT } from '../../i18n'
 import { RARITY_STYLE, rarityRank, type Rarity } from '../../lib/boosters'
 import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { playFlip, playReveal, playRiser } from '../../lib/sfx'
+import { playDeal, playFlip, playReveal, playRiser } from '../../lib/sfx'
 import type { PulledCard } from '../../services/cardsApi'
 import { CardBack } from '../cards/CardBack'
 import { IRIDESCENT } from '../cards/cardFrames'
@@ -66,31 +66,64 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
   const rootRef = useRef<HTMLDivElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
   const [revealed, setRevealed] = useState<boolean[]>(() => cards.map(() => false))
+  /** Distribution en cours : les cartes ne se retournent qu'une fois posées. */
+  const [dealing, setDealing] = useState(true)
   const busy = useRef<Set<number>>(new Set())
   /** Cartes retournées, lues par les minuteurs de « Tout révéler » (l'état React y serait périmé). */
   const done = useRef<Set<number>>(new Set())
   const height = Math.round(width * CARD_RATIO)
   const { contextSafe } = useGSAP({ scope: rootRef })
 
-  // Jaillissement en arc : du centre (l'ouverture du booster) vers la place de chaque carte.
+  // Le paquet sort du booster en pile, puis la carte du dessus est distribuée à sa place,
+  // une par une : chacune glisse, s'envole un peu et se pose, légèrement penchée.
   useGSAP(
     () => {
       const row = rowRef.current?.getBoundingClientRect()
       const nodes = gsap.utils.toArray<HTMLElement>('[data-reveal-card]')
-      const center = row ? row.left + row.width / 2 : 0
+      const count = nodes.length
+      const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const bob = (node: HTMLElement, index: number) =>
+        gsap.to(node.querySelector('[data-bob]'), { y: -7, duration: 1.5 + index * 0.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      if (!row || still) {
+        gsap.fromTo(nodes, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.12, onComplete: () => setDealing(false) })
+        return
+      }
+      const centerX = row.left + row.width / 2
+      const centerY = row.top + row.height / 2
+      const perRow = Math.min(columns, count)
+      const timeline = gsap.timeline({ onComplete: () => setDealing(false) })
+      /** Pile : la première carte distribuée est sur le dessus. */
+      const DEAL_AT = 0.95
+      const STEP = 0.42
+
       nodes.forEach((node, index) => {
         const box = node.getBoundingClientRect()
-        const fromX = center - (box.left + box.width / 2)
-        // Éventail par rangée : en grille 2 × 2, chaque colonne penche de son côté.
-        const perRow = Math.min(columns, nodes.length)
+        const depth = count - 1 - index
+        const stack = {
+          x: centerX - (box.left + box.width / 2) + depth * 1.5,
+          y: centerY - (box.top + box.height / 2) + depth * 5,
+          rotation: ((index * 37) % 9) - 4,
+          scale: 0.86,
+          zIndex: 10 + count - index,
+        }
         const tilt = ((index % perRow) - (perRow - 1) / 2) * (perRow <= 2 ? 5 : 4)
-        gsap
-          .timeline({ delay: index * 0.14 })
-          .fromTo(node, { x: fromX, scale: 0.3, rotation: tilt * 7, autoAlpha: 0 }, { x: 0, scale: 1, rotation: tilt, autoAlpha: 1, duration: 1, ease: 'power1.out' })
-          .fromTo(node, { y: 120 }, { keyframes: [{ y: -170, duration: 0.5, ease: 'power2.out' }, { y: 0, duration: 0.55, ease: 'power2.inOut' }] }, 0)
-          // Puis elles flottent, chacune à son rythme, en attendant d'être retournées.
-          .to(node.querySelector('[data-bob]'), { y: -7, duration: 1.5 + index * 0.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
+        // Montée du paquet entier, de la carte du dessous à celle du dessus.
+        timeline.fromTo(node, { ...stack, y: stack.y + 220, autoAlpha: 0 }, { ...stack, autoAlpha: 1, duration: 0.6, ease: 'back.out(1.4)' }, depth * 0.05)
+        // Distribution : un petit soulèvement, puis la carte file vers sa place.
+        const at = DEAL_AT + index * STEP
+        timeline
+          .add(() => playDeal(index), at)
+          .to(node, { y: stack.y - 26, scale: 0.92, rotation: stack.rotation - 6, duration: 0.14, ease: 'power2.out' }, at)
+          .to(node, { x: 0, rotation: tilt, scale: 1, duration: 0.55, ease: 'power3.out' }, at + 0.14)
+          .to(node, { keyframes: [{ y: Math.min(stack.y, 0) - 40, duration: 0.2, ease: 'power2.out' }, { y: 0, duration: 0.35, ease: 'power2.in' }] }, at + 0.14)
+          // Posée : elle cesse d'être au-dessus de la pile et se met à flotter.
+          .set(node, { zIndex: 1 }, at + 0.69)
+          .add(() => {
+            bob(node, index)
+          }, at + 0.69)
       })
+      // Le flottement est lancé hors de la frise (elle se termine) : on l'arrête au démontage.
+      return () => nodes.forEach((node) => gsap.killTweensOf(node.querySelector('[data-bob]')))
     },
     { scope: rootRef },
   )
@@ -183,6 +216,7 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
     })()
 
   const revealAll = () => {
+    if (dealing) return
     cards.forEach((_, index) => window.setTimeout(() => reveal(index), index * 320))
   }
 
@@ -205,7 +239,7 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
               type="button"
               data-reveal-card={index}
               // Face cachée : la retourner ; déjà retournée : son résumé (ou, pour « Informer », la cocher).
-              onClick={() => (!shown ? reveal(index) : selection ? selection.toggle(index) : onInspect(pulled))}
+              onClick={() => (dealing ? undefined : !shown ? reveal(index) : selection ? selection.toggle(index) : onInspect(pulled))}
               aria-label={shown ? (selection ? pulled.card.title : t.boosters.inspect(pulled.card.title)) : t.boosters.cardBack(index + 1)}
               aria-pressed={selection ? picked : undefined}
               className="relative rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-gold/70"
@@ -306,7 +340,7 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
               type="button"
               onClick={revealAll}
               // Masqué mais présent : sa place reste réservée.
-              className={`rounded-full border border-[#ffe39a]/30 px-4 py-2 text-xs text-[#fff4c8] hover:bg-[#ffe39a]/10 ${remaining > 1 ? '' : 'invisible'}`}
+              className={`rounded-full border border-[#ffe39a]/30 px-4 py-2 text-xs text-[#fff4c8] hover:bg-[#ffe39a]/10 ${remaining > 1 && !dealing ? '' : 'invisible'}`}
             >
               {t.boosters.revealAll}
             </button>

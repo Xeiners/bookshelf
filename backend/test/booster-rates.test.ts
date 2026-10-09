@@ -26,12 +26,14 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       Object.fromEntries(RARITIES.map((rarity) => [rarity, 0])) as Record<Rarity, number>,
     )
     let mythicPacks = 0
+    let legendaryPacks = 0
     const bySeries = { 1: 0, 2: 0 }
     const packs = 10_000
 
     for (let pack = 0; pack < packs; pack += 1) {
       const cards = drawPack(SET, random)
       if (cards.some((card) => card.rarity === 'MYTHIC')) mythicPacks += 1
+      if (cards.some((card) => card.rarity === 'LEGENDARY')) legendaryPacks += 1
       cards.forEach((card, slot) => {
         counts[slot]![card.rarity as Rarity] += 1
         bySeries[card.series as 1 | 2] += 1
@@ -46,13 +48,17 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       }
     })
 
-    // Probabilité exacte sans pity : 1 - (0,99 × 0,95) = 5,95 %.
-    assert.ok(mythicPacks / packs > 0.05 && mythicPacks / packs < 0.07, `boosters mythiques : ${mythicPacks}`)
+    // Probabilités exactes sans pity : Mythique ≈ 0,03 %, Légendaire ≈ 0,05 % par booster.
+    const mythic = 1 - (1 - 0.00005) * (1 - 0.00025)
+    const legendary = 1 - (1 - 0.0001) * (1 - 0.0004)
+    assert.ok(mythic < 0.00059 && legendary < 0.00059 && mythic < legendary)
+    assert.ok(mythicPacks / packs < 0.002, `boosters mythiques : ${mythicPacks}`)
+    assert.ok(legendaryPacks / packs < 0.002, `boosters légendaires : ${legendaryPacks}`)
     assert.ok(Math.abs(bySeries[1] / (packs * CARDS_PER_PACK) - 0.5) < 0.015, `Série 1 : ${bySeries[1]}`)
     assert.ok(Math.abs(bySeries[2] / (packs * CARDS_PER_PACK) - 0.5) < 0.015, `Série 2 : ${bySeries[2]}`)
   })
 
-  it('force le dernier slot du 30e booster sec et réinitialise le compteur', () => {
+  it('force le dernier slot du 400e booster sec et réinitialise le compteur', () => {
     assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 2), false)
     assert.equal(hasReachedHardPity(HARD_PITY_PACKS - 1), true)
 

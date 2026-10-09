@@ -10,8 +10,8 @@ export const MAX_BOOSTERS = 2
 export const BOOSTER_INTERVAL_MS = 3 * 60 * 60 * 1000
 /** Cartes par booster : deux de base, une wildcard Rare+, une Épique+ garantie. */
 export const CARDS_PER_PACK = 4
-/** Le 30e booster consécutif sans Mythique en garantit une sur son dernier slot. */
-export const HARD_PITY_PACKS = 30
+/** Le 400e booster consécutif sans Mythique en garantit une sur son dernier slot. */
+export const HARD_PITY_PACKS = 400
 
 export const RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] as const
 export type Rarity = (typeof RARITIES)[number]
@@ -27,22 +27,25 @@ export const BASE_SLOT_RATES: Record<Rarity, number> = {
   MYTHIC: 0,
 }
 
-/** Avant-dernier slot (3) : wildcard Rare+. */
+/**
+ * Avant-dernier slot (3) : wildcard Rare+. Légendaires et Mythiques sont
+ * rarissimes : sur un booster, ≈ 0,05 % de Légendaire et ≈ 0,03 % de Mythique.
+ */
 export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
-  RARE: 0.65,
+  RARE: 0.74985,
   EPIC: 0.25,
-  LEGENDARY: 0.09,
-  MYTHIC: 0.01,
+  LEGENDARY: 0.0001,
+  MYTHIC: 0.00005,
 }
 
-/** Dernier slot (4) : haute rareté garantie. */
+/** Dernier slot (4) : Épique+ garantie. */
 export const HIGH_RARITY_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
-  EPIC: 0.7,
-  LEGENDARY: 0.25,
-  MYTHIC: 0.05,
+  EPIC: 0.99935,
+  LEGENDARY: 0.0004,
+  MYTHIC: 0.00025,
 }
 
 const MYTHIC_ONLY_RATES: Record<Rarity, number> = {
@@ -197,7 +200,7 @@ export function chooseSeries(available: readonly number[], choice: SeriesChoice,
   return ready[Math.min(ready.length - 1, Math.floor(random() * ready.length))] ?? null
 }
 
-/** Le prochain booster est le 30e de la série sèche : son dernier slot est forcé. */
+/** Le prochain booster est le 400e de la série sèche : son dernier slot est forcé. */
 export const hasReachedHardPity = (boostersSinceLastMythic: number): boolean =>
   boostersSinceLastMythic >= HARD_PITY_PACKS - 1
 

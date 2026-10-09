@@ -242,6 +242,16 @@ export function playFlip(): void {
   noiseBurst(e, { at: at + 0.2, duration: 0.05, from: 1400, to: 700, q: 1.6, gain: 0.14, send: 0.05, type: 'lowpass' })
 }
 
+/** Distribution : une carte glisse du paquet et claque sur la table, un peu plus haut à chaque carte. */
+export function playDeal(index: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const pan = ((index % 4) / 3) * 1.2 - 0.6
+  noiseBurst(e, { at, duration: 0.16, from: 1400 + index * 180, to: 4200, q: 1, gain: 0.09, send: 0.12, pan })
+  noiseBurst(e, { at: at + 0.15, duration: 0.04, from: 1800, to: 900, q: 1.8, gain: 0.12, send: 0.04, type: 'lowpass', pan })
+}
+
 /** Suspense (Épique et au-delà) : une montée — souffle qui s'ouvre, et un sinus qui grimpe. */
 export function playRiser(seconds: number): void {
   const e = start()
