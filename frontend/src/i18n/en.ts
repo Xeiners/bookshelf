@@ -168,6 +168,11 @@ export const en: Dictionary = {
     tapToReveal: 'Tap each card to flip it, then again for its synopsis',
     inspect: (title: string) => `${title}: view the synopsis`,
     revealAll: 'Reveal all',
+    deck: {
+      swipe: 'Swipe the card for the next one',
+      counter: (current: number, total: number) => `${current} / ${total}`,
+      skip: 'Skip to recap',
+    },
     cardBack: (index: number) => `Card ${index}, face down: tap to reveal`,
     isNew: 'New',
     copies: (count: number) => `×${count}`,

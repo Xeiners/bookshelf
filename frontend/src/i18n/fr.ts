@@ -176,6 +176,11 @@ export const fr = {
     tapToReveal: 'Touche chaque carte pour la retourner, puis encore pour son résumé',
     inspect: (title: string) => `${title} : voir le résumé`,
     revealAll: 'Tout révéler',
+    deck: {
+      swipe: 'Glisse la carte pour la suivante',
+      counter: (current: number, total: number) => `${current} / ${total}`,
+      skip: 'Passer au récap',
+    },
     cardBack: (index: number) => `Carte ${index}, face cachée : toucher pour révéler`,
     isNew: 'Nouvelle',
     copies: (count: number) => `×${count}`,
