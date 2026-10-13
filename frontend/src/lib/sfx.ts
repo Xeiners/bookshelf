@@ -594,3 +594,56 @@ export function playBombExplosion(): void {
     noiseBurst(e, { at: at + 0.25 + index * 0.09 + Math.random() * 0.05, duration: 0.05, from: 4200, to: 2600, q: 4, gain: 0.08, pan: Math.random() * 1.6 - 0.8, send: 0.4 })
   }
 }
+
+/* ---- Manga Runner 3D ---------------------------------------------------------------- */
+
+/** ✦ ramassée : une goutte de verre, un demi-ton plus haut à chaque ✦ d'une même série. */
+export function playRunnerStar(combo: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const steps = [0, 2, 4, 7, 9, 12, 14, 16]
+  blip(e, 1318.5 * 2 ** (steps[combo % steps.length]! / 12), at, 0.09, 0.03, 'sine', 0, 0.25)
+}
+
+/** Saut : un souffle qui monte. */
+export function playRunnerJump(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.18, from: 700, to: 2600, q: 1.2, gain: 0.09, send: 0.08 })
+}
+
+/** Glissade : un frottement qui descend. */
+export function playRunnerSlide(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.3, from: 2400, to: 500, q: 0.8, gain: 0.08, send: 0.05 })
+}
+
+/** Choc : un coup sourd et un craquement de papier. */
+export function playRunnerHit(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 150, 45, 0.45, 0.45)
+  noiseBurst(e, { at, duration: 0.22, from: 3200, to: 800, q: 1.1, gain: 0.2, grain: 60, send: 0.1 })
+}
+
+/** Bonus (aimant, nuage, bouclier) : un arpège lumineux. */
+export function playRunnerPower(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[784, 988, 1175, 1568].forEach((frequency, index) => bell(e, frequency, at + index * 0.06, 0.5, 0.05, index % 2 ? 0.3 : -0.3))
+}
+
+/** Mauvaise réponse au quiz : deux notes qui descendent. */
+export function playRunnerWrong(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 392, at, 0.16, 0.05, 'triangle')
+  blip(e, 311, at + 0.14, 0.24, 0.05, 'triangle')
+}

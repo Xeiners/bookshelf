@@ -16,6 +16,8 @@ const DleView = lazy(() => import('../dle/DleView').then((module) => ({ default:
 const HigherLowerView = lazy(() => import('../higherlower/HigherLowerView').then((module) => ({ default: module.HigherLowerView })))
 // Anime Bomb Party : idem.
 const BombView = lazy(() => import('../bomb/BombView').then((module) => ({ default: module.BombView })))
+// Manga Runner 3D : Three.js n'est chargé qu'à l'ouverture du Runner.
+const RunnerView = lazy(() => import('../runner/RunnerView').then((module) => ({ default: module.RunnerView })))
 
 /**
  * Onglet « Activités » : le hub, ou un de ses modules (l'Oracle, la
@@ -41,7 +43,7 @@ export function ActivitiesView() {
       <SanctumBackdrop />
       {activity === 'hub' ? (
         <ActivitiesHub />
-      ) : activity === 'dle' || activity === 'higherlower' || activity === 'bomb' ? (
+      ) : activity === 'dle' || activity === 'higherlower' || activity === 'bomb' || activity === 'runner' ? (
         <Suspense
           fallback={
             <div className="grid flex-1 place-items-center">
@@ -49,7 +51,7 @@ export function ActivitiesView() {
             </div>
           }
         >
-          {activity === 'dle' ? <DleView /> : activity === 'bomb' ? <BombView /> : <HigherLowerView />}
+          {activity === 'dle' ? <DleView /> : activity === 'bomb' ? <BombView /> : activity === 'runner' ? <RunnerView /> : <HigherLowerView />}
         </Suspense>
       ) : (
         <>

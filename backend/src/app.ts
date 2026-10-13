@@ -23,6 +23,7 @@ import { dleRouter } from './modules/dle/dle.routes.js'
 import { stardustRouter } from './modules/stardust/stardust.routes.js'
 import { higherLowerRouter } from './modules/higherlower/hl.routes.js'
 import { bombRouter, warmBombDictionary } from './modules/bomb/bomb.routes.js'
+import { runnerRouter } from './modules/runner/runner.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -63,6 +64,7 @@ export function createApp() {
   app.use('/api/stardust', stardustRouter)
   app.use('/api/higher-lower', higherLowerRouter)
   app.use('/api/bomb', bombRouter)
+  app.use('/api/runner', runnerRouter)
   warmBombDictionary()
   app.use('/api/profile', profileRouter)
   app.use('/api/users', publicProfileRouter)

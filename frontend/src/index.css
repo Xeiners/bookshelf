@@ -374,3 +374,24 @@
     animation: none !important;
   }
 }
+
+/* Manga Runner 3D : éclair du choc, chiffres du compte à rebours. */
+@keyframes runner-hit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes runner-count {
+  from {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

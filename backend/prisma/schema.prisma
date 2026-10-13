@@ -82,6 +82,7 @@ model User {
   dleStats       DleStats?
   higherLowerStats HigherLowerStats?
   bombStats        BombStats?
+  runnerStats      RunnerStats?
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -530,4 +531,23 @@ model BombStats {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Manga Runner 3D : meilleur score et plus longue course (départage par date), parties,
+/// distance cumulée et Poussières gagnées dans la journée (plafonnées).
+model RunnerStats {
+  userId        String    @id
+  best          Int       @default(0)
+  bestDistance  Int       @default(0)
+  bestAt        DateTime?
+  games         Int       @default(0)
+  totalDistance Int       @default(0)
+  /// Jour (heure de Paris) auquel se rapporte `dayEarned`.
+  day           String?
+  dayEarned     Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([best])
 }

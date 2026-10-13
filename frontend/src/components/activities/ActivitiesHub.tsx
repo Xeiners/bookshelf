@@ -109,6 +109,7 @@ export function ActivitiesHub() {
         <DleArtefact />
         <HigherLowerArtefact />
       </div>
+      <RunnerArtefact />
       <BombArtefact />
       <MarketArtefact />
     </div>
@@ -123,7 +124,7 @@ const surface = (tint: string): CSSProperties => ({
   borderColor: `${tint}38`,
 })
 
-const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0' } as const
+const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5' } as const
 
 /**
  * Lueur incandescente autour d'un artefact « chargé ». Fixe : une grande ombre
@@ -467,6 +468,61 @@ function MarketArtefact() {
           </span>
           <span className="mt-1 block text-sm text-cream/60">{t.trades.body}</span>
           {openOffers !== null && <span className="mt-1.5 block text-[11px] text-gold/80">{t.trades.hubOpen(openOffers)}</span>}
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
+      </span>
+    </button>
+  )
+}
+
+/* ---- Manga Runner 3D ------------------------------------------------------------------------- */
+
+const RUNNER_GRADIENT = 'linear-gradient(135deg, #ffd35c, #ff6fb5 55%, #c58bff)'
+
+/**
+ * Le Manga Runner 3D : trois voies, des tomes géants, le Manga Express. Sur l'artefact,
+ * le petit coureur sautille au-dessus de ses trois voies qui défilent.
+ */
+function RunnerArtefact() {
+  const t = useT()
+  const ref = useRef<HTMLButtonElement>(null)
+  const openActivity = useUiStore((state) => state.openActivity)
+  const covered = useUiStore((state) => state.boosterOpen)
+
+  useGSAP(
+    () => {
+      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      gsap.to('[data-runner-hop]', { y: -7, duration: 0.32, ease: 'power1.out', repeat: -1, yoyo: true })
+      gsap.fromTo('[data-runner-lanes]', { backgroundPositionY: '0px' }, { backgroundPositionY: '24px', duration: 0.5, ease: 'none', repeat: -1 })
+    },
+    { scope: ref, dependencies: [covered], revertOnUpdate: true },
+  )
+
+  return (
+    <button ref={ref} type="button" data-artefact onClick={() => openActivity('runner')} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={surface(TINT.runner)}>
+      <span className="flex items-center gap-5 p-5">
+        <span aria-hidden className="relative grid size-16 shrink-0 place-items-center overflow-hidden rounded-[1.35rem]" style={{ background: RUNNER_GRADIENT, boxShadow: '0 0 26px -6px rgba(255,111,181,0.75)' }}>
+          <span
+            data-runner-lanes
+            className="absolute inset-[2.5px] rounded-[1.2rem]"
+            style={{
+              backgroundColor: '#1d0f40',
+              backgroundImage: 'linear-gradient(90deg, transparent 31%, #ff6fb5 31%, #ff6fb5 35%, transparent 35%, transparent 65%, #ff6fb5 65%, #ff6fb5 69%, transparent 69%), linear-gradient(0deg, rgba(255,255,255,0.08) 50%, transparent 50%)',
+              backgroundSize: '100% 100%, 100% 24px',
+            }}
+          />
+          <span data-runner-hop className="relative text-3xl will-change-transform">
+            🏃
+          </span>
+        </span>
+        <span className="block min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-2xl" style={inkText(RUNNER_GRADIENT)}>
+              {t.runner.title}
+            </span>
+            <span className="rounded-full bg-[#ff6fb5]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#ff9ccf] uppercase">{t.runner.hub.eyebrow}</span>
+          </span>
+          <span className="mt-1.5 block text-xs leading-relaxed text-cream/65">{t.runner.hub.body}</span>
         </span>
         <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
       </span>

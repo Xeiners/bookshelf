@@ -17,20 +17,20 @@ export const ATTRIBUTES = ['origin', 'demographic', 'genres', 'themes', 'status'
 export type Attribute = (typeof ATTRIBUTES)[number]
 
 /** Colonnes du mode classique pour les personnages de Naruto. */
-export const NARUTO_ATTRIBUTES = ['affiliation', 'nature', 'role', 'gender', 'status', 'debut'] as const
+export const NARUTO_ATTRIBUTES = ['affiliation', 'nature', 'role', 'gender', 'hair', 'status', 'debut'] as const
 export type NarutoAttribute = (typeof NARUTO_ATTRIBUTES)[number]
 
 /** Colonnes du mode classique pour les personnages de One Piece. */
-export const ONEPIECE_ATTRIBUTES = ['affiliation', 'fruit', 'haki', 'bounty', 'origin', 'debut'] as const
+export const ONEPIECE_ATTRIBUTES = ['affiliation', 'fruit', 'haki', 'bounty', 'hair', 'origin', 'debut'] as const
 
 /** Colonnes du mode classique pour les personnages de JoJo's Bizarre Adventure. */
-export const JOJO_ATTRIBUTES = ['power', 'stand', 'role', 'nationality', 'status', 'debut'] as const
+export const JOJO_ATTRIBUTES = ['power', 'stand', 'role', 'nationality', 'hair', 'status', 'debut'] as const
 
 /** Colonnes du mode classique pour les personnages de Jujutsu Kaisen. */
-export const JJK_ATTRIBUTES = ['affiliation', 'grade', 'species', 'gender', 'status', 'debut'] as const
+export const JJK_ATTRIBUTES = ['affiliation', 'grade', 'species', 'gender', 'hair', 'status', 'debut'] as const
 
 /** Colonnes du mode classique pour les personnages de Dragon Ball. */
-export const DRAGONBALL_ATTRIBUTES = ['race', 'affiliation', 'forms', 'role', 'gender', 'debut'] as const
+export const DRAGONBALL_ATTRIBUTES = ['race', 'affiliation', 'forms', 'role', 'gender', 'hair', 'debut'] as const
 
 /** Colonnes du mode classique pour les personnages de My Hero Academia. */
 export const MHA_ATTRIBUTES = ['affiliation', 'quirk', 'role', 'gender', 'hair', 'height', 'status', 'debut'] as const
@@ -248,7 +248,7 @@ export interface RoomView {
   results: { standings: Standing[]; answer: WorkSummary; receipt: string | null; overall: OverallStanding[] | null } | null
 }
 
-export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'booster_purchase' | 'guest_claim'
+export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'booster_purchase' | 'guest_claim'
 
 export interface StardustWallet {
   balance: number

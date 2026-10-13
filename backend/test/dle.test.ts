@@ -478,7 +478,7 @@ describe('dle — Naruto', () => {
     assert.ok(puzzle)
     const wrong = ['naruto', 'sasuke'].find((id) => id !== puzzle.cardId) as string
     const miss = await alice.request('POST', '/dle/daily/naruto/classic/guess', { cardId: wrong })
-    assert.deepEqual(Object.keys(miss.body.view.guesses[0].feedback), ['affiliation', 'nature', 'role', 'gender', 'status', 'debut'])
+    assert.deepEqual(Object.keys(miss.body.view.guesses[0].feedback), ['affiliation', 'nature', 'role', 'gender', 'hair', 'status', 'debut'])
     assert.ok(Array.isArray(miss.body.view.guesses[0].values.affiliation))
     assert.equal((await alice.request('POST', '/dle/daily/naruto/classic/guess', { cardId: 'card-0' })).body.error.code, 'unknown_work')
 
@@ -564,7 +564,7 @@ describe('dle — One Piece', () => {
     const puzzle = await prisma.dlePuzzle.findUnique({ where: { day_category_mode: { day, category: 'onepiece', mode: 'classic' } } })
     const wrong = ['luffy', 'zoro'].find((id) => id !== puzzle!.cardId) as string
     const miss = await chloe.request('POST', '/dle/daily/onepiece/classic/guess', { cardId: wrong })
-    assert.deepEqual(Object.keys(miss.body.view.guesses[0].feedback), ['affiliation', 'fruit', 'haki', 'bounty', 'origin', 'debut'])
+    assert.deepEqual(Object.keys(miss.body.view.guesses[0].feedback), ['affiliation', 'fruit', 'haki', 'bounty', 'hair', 'origin', 'debut'])
     assert.equal(typeof miss.body.view.guesses[0].values.bounty, 'number')
 
     const portrait = await chloe.request('GET', '/dle/daily/onepiece/zoom')
@@ -867,6 +867,33 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
       const verdicts = MHA_CHARACTERS.filter((other) => other.id !== character.id && MHA_ATTRIBUTES.every((attribute) => compareMha(other, character)[attribute].verdict === 'exact'))
       assert.deepEqual(verdicts.map((other) => other.id), [], `même profil que ${character.id}`)
     }
+  })
+
+  it('cheveux dans chaque univers : deux personnages n’ont jamais le même profil (hors jumeaux recensés)', async () => {
+    const { gameOf } = await import('../src/modules/dle/dle.games.js')
+    // Fiches identiques jusque dans la couleur des cheveux, faute d'un attribut qui les sépare.
+    const twins = new Set(['naruto:kiba|shino', 'jjk:hanami|jogo', 'dragonball:gamma1|gamma2'])
+    const found: string[] = []
+    for (const category of ['naruto', 'onepiece', 'jjk', 'jojo', 'dragonball', 'mha'] as const) {
+      const game = gameOf(category)
+      assert.ok(game.attributes.includes('hair'), `${category} : colonne cheveux`)
+      const { list } = await game.pool()
+      for (const [index, answer] of list.entries()) {
+        for (const guess of list.slice(index + 1)) {
+          const feedback = game.compare(guess, answer)
+          if (game.attributes.every((attribute) => feedback[attribute].verdict === 'exact')) found.push(`${category}:${[guess.id, answer.id].sort().join('|')}`)
+        }
+      }
+    }
+    assert.deepEqual(found.filter((pair) => !twins.has(pair)), [], 'un essai tout vert doit être la bonne réponse')
+    // Le Commando Ginyu, Dabura le démon et le mode Dieu de la Destruction de Toppo départagent les anciens jumeaux.
+    const dragonBall = gameOf('dragonball')
+    const { byId } = await dragonBall.pool()
+    assert.equal(dragonBall.compare(byId.get('ginyu')!, byId.get('dodoria')!).affiliation.verdict, 'partial')
+    assert.equal(dragonBall.compare(byId.get('goku')!, byId.get('vegeta')!).hair.verdict, 'exact')
+    const jojo = gameOf('jojo')
+    const jojoPool = await jojo.pool()
+    assert.equal(jojo.compare(jojoPool.byId.get('diavolo')!, jojoPool.byId.get('trish')!).hair.verdict, 'partial', 'cheveux roses tachetés de vert')
   })
 
   it('énigmes du jour et portraits des deux univers', async () => {
