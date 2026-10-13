@@ -5,6 +5,7 @@ import type { RunState } from '../../lib/runner/engine'
 import { Batch } from './batch'
 import { monsterOf } from './biomes'
 import { PALETTE, canvasTexture, paletteColor, toonMaterial } from './toon'
+import { plaqueTexture, shimenawaGeometry, toriiGeometry } from './torii'
 
 /*
  * Les parties de la scène du Manga Runner, en Three.js pur : chacune construit ses objets
@@ -24,18 +25,6 @@ export interface ScenePart {
 const box = () => new THREE.BoxGeometry(1, 1, 1)
 const rounded = (width: number, height: number, depth: number, radius: number, segments = 3) => new RoundedBoxGeometry(width, height, depth, segments, radius)
 
-/** Linteau de torii (kasagi) : une poutre dont les extrémités se relèvent. */
-function kasagiGeometry(): THREE.BufferGeometry {
-  const geometry = new THREE.BoxGeometry(3.1, 0.24, 0.5, 24, 1, 1)
-  const position = geometry.attributes.position!
-  for (let index = 0; index < position.count; index += 1) {
-    const x = position.getX(index) / 1.55
-    position.setY(index, position.getY(index) + 0.22 * x ** 4 + (position.getY(index) > 0 ? 0.03 * x * x : 0))
-  }
-  geometry.computeVertexNormals()
-  return geometry
-}
-
 /** Longueurs des wagons tirées par la piste (12, 16 ou 20 m) : une géométrie arrondie par longueur. */
 const TRAIN_LENGTHS = [12, 16, 20] as const
 
@@ -54,13 +43,10 @@ export class ObstaclesPart implements ScenePart {
   private readonly tome = new Batch(rounded(0.62, 3, 1.5, 0.07), toonMaterial(), 96, 0.03)
   private readonly bands = new Batch(rounded(0.64, 0.07, 0.06, 0.02, 2), toonMaterial('#ffd35c', '#ffb000', 0.3), 200)
   private readonly label = new Batch(rounded(0.42, 0.34, 0.04, 0.03, 2), toonMaterial('#fff4dc', '#fff4dc', 0.2), 96)
-  // Torii : piliers ronds sur socles noirs, linteau relevé, bannière.
-  private readonly pillar = new Batch(new THREE.CylinderGeometry(0.15, 0.18, 3.9, 16), toonMaterial('#ff4d5e'), 48, 0.025)
-  private readonly socle = new Batch(new THREE.CylinderGeometry(0.22, 0.24, 0.32, 16), toonMaterial('#24164a'), 48)
-  private readonly kasagi = new Batch(kasagiGeometry(), toonMaterial('#2a1030'), 24, 0.03)
-  private readonly nuki = new Batch(rounded(2.6, 0.2, 0.26, 0.06), toonMaterial('#ff4d5e'), 48, 0.025)
-  private readonly banner = new Batch(rounded(1.7, 1.5, 0.06, 0.03, 2), toonMaterial(), 24)
-  private readonly emblem = new Batch(new THREE.CircleGeometry(0.34, 24), toonMaterial('#fff4dc', '#fff4dc', 0.25), 24)
+  // Torii (cf. `torii.ts`) : la structure, la corde sacrée qui se balance, la plaque.
+  private readonly torii = new Batch(toriiGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), 24)
+  private readonly rope = new Batch(shimenawaGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 24)
+  private readonly plaque = new Batch(new THREE.PlaneGeometry(0.42, 0.63), new THREE.MeshLambertMaterial({ map: plaqueTexture(), emissive: '#ffffff', emissiveIntensity: 0.12 }), 24)
   // Manga Express : wagon arrondi, bandeau, vitres, pare-brise, phares, roues, couvertures sur les flancs.
   private readonly wagons = TRAIN_LENGTHS.map((length) => new Batch(rounded(2.1, 3.1, length, 0.32, 4), toonMaterial(), 8, 0.03))
   private readonly stripes = TRAIN_LENGTHS.map((length) => new Batch(rounded(2.14, 0.22, length - 0.4, 0.08), toonMaterial('#fbf7ff'), 8))
@@ -79,12 +65,9 @@ export class ObstaclesPart implements ScenePart {
       this.tome,
       this.bands,
       this.label,
-      this.pillar,
-      this.socle,
-      this.kasagi,
-      this.nuki,
-      this.banner,
-      this.emblem,
+      this.torii,
+      this.rope,
+      this.plaque,
       ...this.wagons,
       ...this.stripes,
       ...this.windows,
@@ -123,15 +106,13 @@ export class ObstaclesPart implements ScenePart {
           this.label.push(bx, height * 0.62, front + 0.01, 1, 1, 1)
         }
       } else if (object.kind === 'gate') {
-        for (const side of [-1, 1]) {
-          this.pillar.push(x + side * 1.02, 1.95, z, 1, 1, 1)
-          this.socle.push(x + side * 1.02, 0.16, z, 1, 1, 1)
-        }
-        this.kasagi.push(x, 3.95, z, 1, 1, 1)
-        this.nuki.push(x, 3.3, z, 1, 1, 1)
-        const wave = Math.sin(run.t * 2.6 + object.id) * 0.1
-        this.banner.push(x, 2.3, z + 0.02, 1, 1, 1, color, wave)
-        this.emblem.push(x, 2.35, z + 0.06, 1, 1, 1, undefined, wave)
+        // Deux torii voisins sur une même rangée : décalés en profondeur, leurs linteaux ne se mêlent pas.
+        const tz = z + object.lane * 0.45
+        this.torii.push(x, 0, tz, 1, 1, 1)
+        this.plaque.push(x, 3.36, tz + 0.1, 1, 1, 1, undefined, -0.08)
+        // La corde se balance au vent, chaque torii à son rythme.
+        const swing = Math.sin(run.t * 1.9 + object.id) * 0.09 + Math.sin(run.t * 3.3 + object.id * 2) * 0.03
+        this.rope.push(x, 1.58, tz, 1, 1, 1, undefined, swing)
       } else {
         const size = TRAIN_LENGTHS.indexOf(object.length as (typeof TRAIN_LENGTHS)[number])
         const index = size < 0 ? 0 : size
