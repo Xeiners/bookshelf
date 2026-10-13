@@ -6,8 +6,8 @@
   meshopt via `frontend/scripts/runner-vrm.mjs`.
 - **Mouvements de l'aventurier** (`human-anims.glb`) : Universal Animation Library de
   Quaternius — https://quaternius.com — licence **CC0 1.0** ; reciblés au chargement.
-- **Figurines, squelettes et accessoires** : packs **KayKit** de Kay Lousberg
-  (Adventurers, Skeletons, Halloween Bits) — https://kaylousberg.com — licence **CC0 1.0**.
+- **Squelettes et accessoires** : packs **KayKit** de Kay Lousberg
+  (Skeletons, Halloween Bits) — https://kaylousberg.com — licence **CC0 1.0**.
 
 Optimisés pour le web par `frontend/scripts/runner-assets.mjs` (textures WebP, maillages
 compressés meshopt, clips d'animation inutilisés retirés).

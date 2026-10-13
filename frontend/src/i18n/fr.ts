@@ -1479,7 +1479,7 @@ export const fr = {
       quizRight: 'Bonne réponse : bouclier !',
       quizWrong: 'Raté…',
     },
-    looks: { adventurer: 'Aventurier', rogue_hooded: 'Ninja encapuchonné', rogue: 'Voleuse', knight: 'Chevalier', barbarian: 'Barbare', mage: 'Mage', ninja: 'Ninja chibi' } as Record<string, string>,
+    looks: { adventurer: 'Aventurier', ninja: 'Ninja chibi' } as Record<string, string>,
     revive: {
       title: 'Encore une chance ?',
       body: 'Repars d’ici, invincible un instant : la piste devant toi est dégagée.',

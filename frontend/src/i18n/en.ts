@@ -1464,7 +1464,7 @@ export const en: Dictionary = {
       quizRight: 'Correct: shield up!',
       quizWrong: 'Missed…',
     },
-    looks: { adventurer: 'Adventurer', rogue_hooded: 'Hooded ninja', rogue: 'Rogue', knight: 'Knight', barbarian: 'Barbarian', mage: 'Mage', ninja: 'Chibi ninja' } as Record<string, string>,
+    looks: { adventurer: 'Adventurer', ninja: 'Chibi ninja' } as Record<string, string>,
     revive: {
       title: 'One more chance?',
       body: 'Pick up right here, briefly invincible: the track ahead is cleared.',

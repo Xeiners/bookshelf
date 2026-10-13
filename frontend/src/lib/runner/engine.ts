@@ -30,6 +30,9 @@ import {
   SHIELD_TIME,
   SLIDE_HEIGHT,
   SLIDE_TIME,
+  STUMBLE_RECOVERY,
+  STUMBLE_SLOWDOWN,
+  STUN_TIME,
   VIEW_AHEAD,
   scoreFor,
   speedAt,
@@ -73,6 +76,7 @@ export type RunEvent =
   | 'jump'
   | 'slide'
   | 'lane'
+  | 'stumble'
   | 'hit'
   | 'magnet'
   | 'cloud'
@@ -107,11 +111,19 @@ export interface RunState {
   distance: number
   speed: number
   lane: Lane
-  /** Position latérale réelle (m), qui rejoint la voie. */
+  /** Position latérale réelle (m), qui rejoint la voie, et sa vitesse (m/s). */
   x: number
-  /** Départ du changement de voie en cours : position et instant. */
+  vx: number
+  /** Départ du changement de voie en cours : position, vitesse latérale, instant, voie quittée. */
   laneFrom: number
+  laneSpeed: number
   laneAt: number
+  laneBefore: Lane
+  /** Dernier trébuchement (temps de course) ; sonné jusqu'à `stunnedUntil`. */
+  stumbleAt: number
+  stunnedUntil: number
+  /** Frôlements ignorés jusque-là (le temps de rebondir hors de l'obstacle). */
+  graceUntil: number
   /** Résurrections déjà utilisées pendant la course. */
   revives: number
   y: number
@@ -151,8 +163,14 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
     speed: speedAt(0),
     lane: 0,
     x: 0,
+    vx: 0,
     laneFrom: 0,
+    laneSpeed: 0,
     laneAt: -1,
+    laneBefore: 0,
+    stumbleAt: -10,
+    stunnedUntil: 0,
+    graceUntil: 0,
     revives: 0,
     y: 0,
     vy: 0,
@@ -181,6 +199,7 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
 export const isSliding = (state: RunState) => state.slideUntil > state.t
 export const isFlying = (state: RunState) => state.cloudUntil > state.t
 export const isShielded = (state: RunState) => state.shieldUntil > state.t
+export const isStunned = (state: RunState) => state.stunnedUntil > state.t
 export const scoreOf = (state: RunState) => scoreFor(state.distance, state.stardust, state.quizRight)
 
 /**
@@ -192,6 +211,7 @@ export function revive(state: RunState): void {
   state.over = false
   state.lives = 1
   state.revives += 1
+  state.stunnedUntil = 0
   state.invulnerableUntil = state.t + REVIVE_INVULNERABILITY
   for (const object of state.objects) {
     if (isObstacle(object.kind) && object.s + object.length > state.distance - 2 && object.s < state.distance + REVIVE_CLEARANCE) object.done = true
@@ -205,9 +225,7 @@ export function act(state: RunState, action: RunAction): void {
   if (action === 'left' || action === 'right') {
     const next = Math.max(-1, Math.min(1, state.lane + (action === 'left' ? -1 : 1))) as Lane
     if (next !== state.lane) {
-      state.lane = next
-      state.laneFrom = state.x
-      state.laneAt = state.t
+      steer(state, next)
       state.events.push('lane')
     }
     return
@@ -232,6 +250,15 @@ export function act(state: RunState, action: RunAction): void {
   state.events.push('slide')
 }
 
+/** Part vers une voie, depuis la position et la vitesse latérale du moment. */
+function steer(state: RunState, lane: Lane): void {
+  state.laneBefore = state.lane
+  state.lane = lane
+  state.laneFrom = state.x
+  state.laneSpeed = state.vx
+  state.laneAt = state.t
+}
+
 /**
  * Avance la course de `dt` secondes. `ask` fournit une question quand on ramasse un jeton
  * de quiz (`null` : pas de question disponible, le jeton vaut alors quelques ✦).
@@ -239,15 +266,25 @@ export function act(state: RunState, action: RunAction): void {
 export function step(state: RunState, dt: number, ask: () => QuizQuestion | null): void {
   if (state.over) return
   const t = (state.t += dt)
-  state.speed = speedAt(t)
+  // Après un trébuchement, on repart moins vite, puis on retrouve son allure.
+  const recovering = Math.max(0, 1 - (t - state.stumbleAt) / STUMBLE_RECOVERY)
+  state.speed = speedAt(t) * (1 - STUMBLE_SLOWDOWN * recovering)
   const from = state.distance
   state.distance += state.speed * dt
 
-  // Latéral : la position rejoint la voie en courbe douce (cubique : vif au départ, posé à l'arrivée).
+  // Latéral : courbe d'Hermite de (position, vitesse) au départ jusqu'à la voie, à l'arrêt.
   const target = state.lane * LANE_WIDTH
-  const progress = Math.min(1, (t - state.laneAt) / LANE_TIME)
-  const eased = 1 - (1 - progress) ** 3
-  state.x = progress >= 1 ? target : state.laneFrom + (target - state.laneFrom) * eased
+  const p = Math.min(1, (t - state.laneAt) / LANE_TIME)
+  if (p >= 1) {
+    state.x = target
+    state.vx = 0
+  } else {
+    const p2 = p * p
+    const p3 = p2 * p
+    const v0 = state.laneSpeed * LANE_TIME
+    state.x = (2 * p3 - 3 * p2 + 1) * state.laneFrom + (p3 - 2 * p2 + p) * v0 + (3 * p2 - 2 * p3) * target
+    state.vx = ((6 * p2 - 6 * p) * state.laneFrom + (3 * p2 - 4 * p + 1) * v0 + (6 * p - 6 * p2) * target) / LANE_TIME
+  }
 
   // Vertical : vol sur le nuage, sinon saut et gravité.
   if (isFlying(state)) {
@@ -321,8 +358,17 @@ function collide(state: RunState, from: number, ask: () => QuizQuestion | null):
       if (sideways > 1.0 + PLAYER_HALF_WIDTH) continue
       const [low, high] = OBSTACLE_SPAN[object.kind]
       if (top <= low || bottom >= high) continue
-      object.done = true
-      hit(state)
+      // De face (on vient d'atteindre l'obstacle, bien dans sa voie) : le choc.
+      const headOn = object.s >= from + PLAYER_HALF_DEPTH - 0.05 && sideways < 0.9
+      if (headOn) {
+        object.done = true
+        hit(state)
+        if (state.over) return
+        continue
+      }
+      // Par le côté : on trébuche (une fois par frôlement).
+      if (state.graceUntil > t) continue
+      stumble(state, object)
       if (state.over) return
       continue
     }
@@ -335,6 +381,29 @@ function collide(state: RunState, from: number, ask: () => QuizQuestion | null):
     object.done = true
     pickUp(state, object.kind, ask)
   }
+}
+
+/**
+ * Un frôlement : si l'on entrait dans la voie de l'obstacle, on rebondit dans celle d'où
+ * l'on venait ; on est sonné et ralenti. Déjà sonné : c'est la chute.
+ */
+function stumble(state: RunState, object: TrackObject): void {
+  const t = state.t
+  if (isStunned(state)) {
+    object.done = true
+    hit(state)
+    return
+  }
+  state.graceUntil = t + 0.45
+  if (object.lane === state.lane && state.laneBefore !== state.lane) {
+    const back = state.laneBefore
+    steer(state, back)
+    state.laneSpeed = -state.laneSpeed * 0.3
+    state.laneBefore = back
+  }
+  state.stumbleAt = t
+  state.stunnedUntil = t + STUN_TIME
+  state.events.push('stumble')
 }
 
 function hit(state: RunState): void {

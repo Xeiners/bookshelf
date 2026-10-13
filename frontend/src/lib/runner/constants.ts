@@ -10,8 +10,11 @@ export const MAX_SPEED = 30
 
 /** Écart entre deux voies (m) ; voie -1 : gauche, 0 : centre, 1 : droite. */
 export const LANE_WIDTH = 2.4
-/** Durée d'un changement de voie (s), en courbe douce (rapide au départ, posée à l'arrivée). */
-export const LANE_TIME = 0.17
+/**
+ * Durée d'un changement de voie (s) : courbe douce qui part de la vitesse latérale du
+ * moment (deux gestes enchaînés ne cassent pas le mouvement) et se pose sans à-coup.
+ */
+export const LANE_TIME = 0.21
 
 export const GRAVITY = 42
 export const JUMP_VELOCITY = 13.5
@@ -33,6 +36,15 @@ export const SHIELD_TIME = 6
 export const MAGNET_TIME = 8
 export const CLOUD_TIME = 5
 export const QUIZ_TIME = 5
+
+/**
+ * Frôler un obstacle par le côté (changement de voie contre un train, coin d'un mur) : on
+ * trébuche, on rebondit dans sa voie, sonné un instant et ralenti. Un second frôlement
+ * pendant qu'on est sonné est fatal ; seul un choc de face l'est d'emblée.
+ */
+export const STUN_TIME = 2.6
+export const STUMBLE_SLOWDOWN = 0.3
+export const STUMBLE_RECOVERY = 1.1
 
 /** Une seule vie : un choc termine la course, sauf résurrection payée en Poussières. */
 export const LIVES = 1

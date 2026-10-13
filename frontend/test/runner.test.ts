@@ -69,6 +69,58 @@ describe('Manga Runner — simulation', () => {
     assert.equal(state.lives, 2)
   })
 
+  it('changement de voie fluide : pas de saut de position ni de vitesse, même enchaîné', () => {
+    const state = emptyRun()
+    act(state, 'left')
+    let last = state.x
+    let lastSpeed = 0
+    for (let frame = 0; frame < 30; frame += 1) {
+      if (frame === 6) act(state, 'right')
+      step(state, 1 / 60, noQuiz)
+      assert.ok(Math.abs(state.x - last) < 0.35, 'pas de téléportation')
+      assert.ok(Math.abs(state.vx - lastSpeed) < 9, 'pas d’à-coup de vitesse')
+      last = state.x
+      lastSpeed = state.vx
+    }
+    assert.equal(state.lane, 0)
+    assert.equal(state.x, 0)
+    assert.equal(state.vx, 0)
+  })
+
+  it('frôler par le côté : on trébuche et on rebondit ; sonné, un second frôlement est fatal', () => {
+    const state = emptyRun(1)
+    // Un train sur la voie de gauche, déjà à notre hauteur : on s'y jette par le côté.
+    place(state, 'train', -1, state.distance - 2, 20)
+    act(state, 'left')
+    run(state, 0.4)
+    assert.equal(state.over, false, 'frôlement : pas de chute')
+    assert.ok(state.events.includes('stumble'))
+    assert.equal(state.lane, 0, 'rebond dans sa voie')
+    assert.ok(state.stunnedUntil > state.t, 'sonné')
+    assert.ok(state.speed < speedAt(state.t), 'ralenti')
+    state.events.length = 0
+    act(state, 'left')
+    run(state, 0.4)
+    assert.equal(state.over, true, 'second frôlement pendant qu’on est sonné')
+  })
+
+  it('de face, un mur ou une barrière basse non franchie est fatal ; sonné puis remis : un frôlement redevient bénin', () => {
+    const wall = emptyRun(1)
+    place(wall, 'low', 0, 4)
+    run(wall, 0.5)
+    assert.equal(wall.over, true, 'barrière prise de face sans sauter')
+    const state = emptyRun(1)
+    place(state, 'train', 1, state.distance - 2, 40)
+    act(state, 'right')
+    run(state, 0.4)
+    assert.ok(state.events.includes('stumble'))
+    run(state, 3)
+    assert.ok(state.stunnedUntil <= state.t, 'remis')
+    act(state, 'right')
+    run(state, 0.4)
+    assert.equal(state.over, false)
+  })
+
   it('mode une vie : le premier choc termine la course', () => {
     const state = emptyRun(1)
     place(state, 'train', 0, 3, 12)

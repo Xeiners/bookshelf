@@ -631,6 +631,16 @@ export function playRunnerHit(): void {
   noiseBurst(e, { at, duration: 0.22, from: 3200, to: 800, q: 1.1, gain: 0.2, grain: 60, send: 0.1 })
 }
 
+/** Trébuchement : un petit choc mat et un « boïng » qui retombe, étourdi. */
+export function playRunnerStumble(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 120, 60, 0.18, 0.25)
+  blip(e, 880, at + 0.05, 0.12, 0.035, 'triangle')
+  blip(e, 660, at + 0.15, 0.16, 0.03, 'triangle')
+}
+
 /** Bonus (aimant, nuage, bouclier) : un arpège lumineux. */
 export function playRunnerPower(): void {
   const e = start()

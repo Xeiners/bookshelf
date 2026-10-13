@@ -3,13 +3,11 @@
  * Animation Library de Quaternius, licence CC0).
  *
  * Sources (git, dossier `SRC`) :
- *   KayKit-Character-Pack-Adventures-1.0, KayKit-Character-Pack-Skeletons-1.0,
+ *   KayKit-Character-Pack-Skeletons-1.0,
  *   KayKit-Halloween-Bits-1.0 (github.com/KayKit-Game-Assets) ;
  *   ual/UAL1.glb (Universal Animation Library, Unreal-Godot, sans déplacement racine).
  *
- * Sorties (frontend/public/runner/) : un fichier par héros (sans animations, une arme
- * légère gardée), `hero-anims.glb` (les clips du héros, communs à tous : même squelette),
- * un fichier par squelette monstre, `skeleton-anims.glb`, et `props.glb` (décor : arbres,
+ * Sorties (frontend/public/runner/) : un fichier par squelette monstre, `skeleton-anims.glb`, et `props.glb` (décor : arbres,
  * tombes, lanternes… un nœud par accessoire). Textures réduites (WebP), maillages
  * compressés (meshopt) : quelques centaines de Ko par fichier. `human-anims.glb` : les
  * mouvements captés de l'UAL (course, saut, roulade…), rotations seules, reciblés au
@@ -36,20 +34,9 @@ await MeshoptEncoder.ready
 await MeshoptDecoder.ready
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder })
 
-const ADVENTURERS = `${SRC}/KayKit-Character-Pack-Adventures-1.0/addons/kaykit_character_pack_adventures/Characters/gltf`
 const SKELETONS = `${SRC}/KayKit-Character-Pack-Skeletons-1.0/addons/kaykit_character_pack_skeletons`
 const HALLOWEEN = `${SRC}/hw/addons/kaykit_halloween_bits/Assets/gltf`
 
-/** Héros : ce qu'on garde de leur équipement (le reste est retiré). */
-const HEROES = {
-  Rogue_Hooded: ['Knife'],
-  Rogue: ['Knife'],
-  Knight: ['1H_Sword'],
-  Barbarian: ['1H_Axe'],
-  Mage: ['1H_Wand'],
-}
-const HERO_ACCESSORIES = ['Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Knife', 'Throwable', '1H_Sword_Offhand', 'Badge_Shield', 'Rectangle_Shield', 'Round_Shield', 'Spike_Shield', '1H_Sword', '2H_Sword', '1H_Axe_Offhand', 'Barbarian_Round_Shield', '1H_Axe', '2H_Axe', 'Mug', 'Spellbook', 'Spellbook_open', '1H_Wand', '2H_Staff']
-const HERO_CLIPS = ['Idle', 'Running_A', 'Running_B', 'Jump_Start', 'Jump_Idle', 'Jump_Land', 'Dodge_Forward', 'Dodge_Left', 'Dodge_Right', 'Death_A', 'Cheer', 'Hit_A', 'Lie_StandUp']
 /** Mouvements humains (UAL) ; `A_TPose` sert de pose de référence au reciblage. */
 const HUMAN_CLIPS = ['A_TPose', 'Idle_LookAround_Loop', 'Sprint_Loop', 'Jump_Start', 'Jump_Loop', 'Jump_Land', 'Roll', 'Death01', 'Celebration', 'Hit_Chest']
 const SKELETON_CLIPS = ['Idle_Combat', 'Idle_B', 'Taunt', 'Taunt_Longer', '1H_Melee_Attack_Chop', '2H_Melee_Attack_Spin', 'Skeletons_Inactive_Floor_Pose', 'Skeletons_Awaken_Floor', 'Lie_Idle', 'Cheer', 'Blocking']
@@ -77,11 +64,6 @@ const PROPS = [
   'skull_candle',
   'bone_A',
 ]
-
-/** Retire des nœuds par nom (et ce qui n'est plus utilisé, au `prune`). */
-function dropNodes(document, names) {
-  for (const node of document.getRoot().listNodes()) if (names.includes(node.getName())) node.dispose()
-}
 
 function keepClips(document, clips) {
   for (const animation of document.getRoot().listAnimations()) {
@@ -142,13 +124,6 @@ if (ONLY === 'human') {
   process.exit(0)
 }
 
-for (const [hero, keep] of Object.entries(HEROES)) {
-  const document = await io.read(`${ADVENTURERS}/${hero}.glb`)
-  keepClips(document, [])
-  dropNodes(document, HERO_ACCESSORIES.filter((name) => !keep.includes(name)))
-  await finish(document, `${hero.toLowerCase()}.glb`)
-}
-await animationsOnly(`${ADVENTURERS}/Rogue_Hooded.glb`, HERO_CLIPS, 'hero-anims.glb')
 await animationsOnly(`${SRC}/ual/UAL1.glb`, HUMAN_CLIPS, 'human-anims.glb', { rotationsOnly: true, rootBone: 'pelvis' })
 
 for (const skeleton of ['Skeleton_Warrior', 'Skeleton_Minion', 'Skeleton_Mage', 'Skeleton_Rogue']) {

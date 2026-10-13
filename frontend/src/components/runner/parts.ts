@@ -266,7 +266,8 @@ export class CameraFollow {
 
   update(camera: THREE.Camera, run: RunState, delta: number): void {
     const ease = 1 - Math.exp(-Math.min(delta, 0.05) * 7)
-    const shake = run.invulnerableUntil - run.t > 1.25 ? 0.18 : 0
+    // Secousse : forte au choc, légère au trébuchement.
+    const shake = run.invulnerableUntil - run.t > 1.25 ? 0.18 : run.t - run.stumbleAt < 0.22 ? 0.09 : 0
     camera.position.x += (run.x * 0.55 - camera.position.x) * ease + (Math.random() - 0.5) * shake
     camera.position.y += (3.4 + run.y * 0.85 - camera.position.y) * ease + (Math.random() - 0.5) * shake
     camera.position.z = 6.8

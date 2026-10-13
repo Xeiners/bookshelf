@@ -208,7 +208,7 @@ export class VrmLife {
   }
 
   /** `windward` : direction (monde) où l'air pousse les mèches ; `strength` de 0 à 1. */
-  update(delta: number, options: { strength: number; windward: THREE.Vector3; mood?: 'happy' | 'hurt' | null }): void {
+  update(delta: number, options: { strength: number; windward: THREE.Vector3; mood?: 'happy' | 'hurt' | 'stunned' | null }): void {
     this.time += delta
     const { expressionManager, springBoneManager } = this.vrm
     if (expressionManager) {
@@ -217,6 +217,7 @@ export class VrmLife {
       const blink = this.time > this.nextBlink ? Math.sin(((this.time - this.nextBlink) / 0.16) * Math.PI) : 0
       expressionManager.setValue('blink', options.mood === 'hurt' ? 1 : blink)
       expressionManager.setValue('happy', options.mood === 'happy' ? 0.8 : 0)
+      expressionManager.setValue('surprised', options.mood === 'stunned' ? 0.7 : 0)
     }
     if (springBoneManager) {
       let index = 0

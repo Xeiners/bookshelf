@@ -6,7 +6,7 @@ import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, multiplierFor, reviveC
 import { act, createRun, revive, scoreOf, type ActiveQuiz, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
-import { playChime, playRunnerHit, playRunnerJump, playRunnerPower, playRunnerSlide, playRunnerStar, playRunnerWrong } from '../../lib/sfx'
+import { playChime, playRunnerHit, playRunnerJump, playRunnerPower, playRunnerSlide, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
 import type { RunnerAssets } from './assets'
 import type { HeroLookId } from './looks'
 import { RunnerScene } from './RunnerScene'
@@ -270,6 +270,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
             break
           case 'lane':
             vibrate(4)
+            break
+          case 'stumble':
+            playRunnerStumble()
+            vibrate([20, 25, 20])
             break
           case 'hit':
             playRunnerHit()

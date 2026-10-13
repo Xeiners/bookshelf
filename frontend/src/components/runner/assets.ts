@@ -5,17 +5,15 @@ import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm'
 import { retargetHuman } from './vrm'
 
 /*
- * Modèles 3D du Manga Runner : personnages, monstres et accessoires des packs KayKit de
- * Kay Lousberg (licence CC0), préparés par `scripts/runner-assets.mjs` (textures WebP,
- * maillages compressés meshopt) et servis depuis `public/runner/`. Chargés une seule
- * fois, à l'ouverture du Runner ; les clips d'animation sont communs à tous les
- * personnages d'un même squelette. Les coureurs VRM (`scripts/runner-vrm.mjs`) sont
+ * Modèles 3D du Manga Runner : monstres et accessoires des packs KayKit de Kay Lousberg
+ * (licence CC0), préparés par `scripts/runner-assets.mjs` (textures WebP, maillages
+ * compressés meshopt) et servis depuis `public/runner/`. Chargés une seule fois, à
+ * l'ouverture du Runner ; les clips d'animation sont communs à tous les monstres d'un
+ * même squelette. Les coureurs VRM (`scripts/runner-vrm.mjs`) sont
  * instanciés deux fois (la vitrine de l'accueil et la course ont chacune le leur) et
  * bougent avec les captures de mouvement de `human-anims.glb`, reciblées au chargement.
  */
 
-export const HERO_MODELS = ['rogue_hooded', 'rogue', 'knight', 'barbarian', 'mage'] as const
-export type HeroModel = (typeof HERO_MODELS)[number]
 export const SKELETON_MODELS = ['skeleton_warrior', 'skeleton_minion', 'skeleton_mage', 'skeleton_rogue'] as const
 export type SkeletonModel = (typeof SKELETON_MODELS)[number]
 export const VRM_MODELS = ['adventurer'] as const
@@ -29,8 +27,6 @@ export interface VrmHero {
 }
 
 export interface RunnerAssets {
-  heroes: Record<HeroModel, GLTF>
-  heroClips: THREE.AnimationClip[]
   skeletons: Record<SkeletonModel, GLTF>
   skeletonClips: THREE.AnimationClip[]
   /** Accessoires du décor (un groupe par accessoire, à sa taille d'origine). */
@@ -52,7 +48,7 @@ function loader(): GLTFLoader {
 export function loadRunnerAssets(onProgress?: (share: number) => void): Promise<RunnerAssets> {
   if (pending) return pending
   const gltf = loader()
-  const files = [...HERO_MODELS, 'hero-anims', 'human-anims', ...SKELETON_MODELS, 'skeleton-anims', 'props']
+  const files = ['human-anims', ...SKELETON_MODELS, 'skeleton-anims', 'props']
   let done = 0
   const total = files.length + VRM_MODELS.length * 2
   const tick = () => {
@@ -78,8 +74,6 @@ export function loadRunnerAssets(onProgress?: (share: number) => void): Promise<
       const props = new Map<string, THREE.Object3D>()
       for (const child of byName.get('props')!.scene.children) props.set(child.name, child)
       return {
-        heroes: Object.fromEntries(HERO_MODELS.map((name) => [name, byName.get(name)!])) as Record<HeroModel, GLTF>,
-        heroClips: byName.get('hero-anims')!.animations,
         skeletons: Object.fromEntries(SKELETON_MODELS.map((name) => [name, byName.get(name)!])) as Record<SkeletonModel, GLTF>,
         skeletonClips: byName.get('skeleton-anims')!.animations,
         props,
