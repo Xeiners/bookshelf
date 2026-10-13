@@ -1,17 +1,22 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { step, type QuizQuestion, type RunState } from '../../lib/runner/engine'
+import type { RunnerAssets } from './assets'
+import { BIOME_STYLE } from './biomes'
 import { HeroPart } from './hero'
-import type { HeroLookId } from './looks'
-import { GroundPart, HORIZON, PetalsPart, SceneryPart, SkyPart } from './japan'
+import { HeroModelPart } from './heroModel'
+import { EnvironmentPart, GroundPart, PetalsPart, SceneryPart, SkyPart } from './japan'
+import { modelOf, type HeroLookId } from './looks'
+import { MonstersPart } from './monsters'
 import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
 
 /*
  * La scène du Manga Runner. Une seule boucle (`useFrame`, priorité −1) fait avancer la
- * simulation ; chaque partie de la scène (`parts.ts`) relit ensuite l'état et met à jour
- * ses instances. Pas d'ombres portées (une tache sous le coureur suffit), du brouillard
- * pour cacher l'horizon où naît la piste, une résolution plafonnée : 60 images/s visées
- * sur téléphone.
+ * simulation ; chaque partie de la scène relit ensuite l'état et se met à jour : décor
+ * du biome traversé (`japan.ts`, `biomes.ts`), obstacles et monstres, objets à ramasser,
+ * coureur animé. Pas d'ombres portées (une tache sous les personnages suffit), de la
+ * brume pour cacher l'horizon où naît la piste, une résolution plafonnée : 60 images/s
+ * visées sur téléphone.
  */
 
 export interface RunnerSceneProps {
@@ -20,12 +25,14 @@ export interface RunnerSceneProps {
   ask: () => QuizQuestion | null
   /** Après chaque pas de simulation : l'interface lit l'état (HUD, sons, fin). */
   onTick: (state: RunState) => void
-  /** Rendu allégé (résolution, pétales, lissage) : téléphones modestes. */
+  /** Rendu allégé (résolution, particules, lissage) : téléphones modestes. */
   lite: boolean
   look: HeroLookId
+  assets: RunnerAssets
 }
 
-export function RunnerScene({ state, paused, ask, onTick, lite, look }: RunnerSceneProps) {
+export function RunnerScene({ state, paused, ask, onTick, lite, look, assets }: RunnerSceneProps) {
+  const model = modelOf(look)
   return (
     <Canvas
       dpr={lite ? [1, 1.25] : [1, 1.75]}
@@ -33,17 +40,17 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look }: RunnerSc
       camera={{ fov: 62, near: 0.1, far: 240, position: [0, 3.4, 6.8] }}
       style={{ touchAction: 'none' }}
     >
-      <color attach="background" args={[HORIZON]} />
-      <fog attach="fog" args={[HORIZON, 50, 175]} />
-      <hemisphereLight args={['#fff1f6', '#b98bb4', 1.35]} />
-      <directionalLight position={[6, 12, 6]} intensity={1.65} color="#ffe6cc" />
+      <color attach="background" args={[BIOME_STYLE.sakura.horizon]} />
+      <fog attach="fog" args={[BIOME_STYLE.sakura.horizon, 50, 175]} />
       <Simulation state={state} paused={paused} ask={ask} onTick={onTick} />
+      <Environment state={state} />
       <Part state={state} make={() => new SkyPart()} />
       <Part state={state} make={() => new GroundPart()} />
-      <Part state={state} make={() => new SceneryPart()} />
+      <Part state={state} make={() => new SceneryPart(assets)} />
       <Part state={state} make={() => new ObstaclesPart()} />
+      <Part state={state} make={() => new MonstersPart(assets)} />
       <Part state={state} make={() => new PickupsPart()} />
-      <Part state={state} make={() => new HeroPart({ look })} />
+      <Part state={state} make={() => (model ? new HeroModelPart(assets, model) : new HeroPart())} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} />
     </Canvas>
@@ -75,6 +82,17 @@ function Part({ state, make }: { state: RefObject<RunState>; make: () => ScenePa
     if (run) part.update(run, clock.elapsedTime, delta)
   })
   return <primitive object={part.object} />
+}
+
+/** Lumières, brume et fond : ils suivent le biome où court le joueur. */
+function Environment({ state }: { state: RefObject<RunState> }) {
+  const [environment] = useState(() => new EnvironmentPart())
+  useEffect(() => () => environment.dispose(), [environment])
+  useFrame(({ scene }) => {
+    const run = state.current
+    if (run) environment.update(run, scene)
+  })
+  return <primitive object={environment.object} />
 }
 
 function Camera({ state }: { state: RefObject<RunState> }) {

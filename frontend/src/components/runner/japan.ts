@@ -3,6 +3,8 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { LANE_WIDTH } from '../../lib/runner/constants'
 import type { RunState } from '../../lib/runner/engine'
 import { Batch } from './batch'
+import { BIOMES, BIOME_STYLE, biomeAt, biomeBlend, mixColor, type Biome } from './biomes'
+import { PropBatch, type RunnerAssets } from './assets'
 import type { ScenePart } from './parts'
 import { canvasTexture, toonMaterial } from './toon'
 
@@ -36,11 +38,38 @@ function disposeTree(root: THREE.Object3D): void {
 
 /* ---- Ciel ---------------------------------------------------------------------------- */
 
-export class SkyPart implements ScenePart {
-  readonly object: THREE.Mesh
+/** Montagnes et Fuji, d'une couleur donnée (neige comprise). */
+function drawMountains(context: CanvasRenderingContext2D, far: string, fuji: string, snow: string): void {
+  context.fillStyle = far
+  context.beginPath()
+  context.moveTo(0, 470)
+  for (let x = 0; x <= 1024; x += 64) context.lineTo(x, 430 + Math.sin(x * 0.013) * 22 + Math.cos(x * 0.031) * 12)
+  context.lineTo(1024, 512)
+  context.lineTo(0, 512)
+  context.fill()
+  context.fillStyle = fuji
+  context.beginPath()
+  context.moveTo(180, 512)
+  context.lineTo(380, 300)
+  context.quadraticCurveTo(410, 286, 440, 300)
+  context.lineTo(650, 512)
+  context.fill()
+  context.fillStyle = snow
+  context.beginPath()
+  context.moveTo(380, 300)
+  context.quadraticCurveTo(410, 286, 440, 300)
+  context.lineTo(468, 330)
+  context.lineTo(446, 322)
+  context.lineTo(430, 338)
+  context.lineTo(414, 324)
+  context.lineTo(396, 340)
+  context.lineTo(380, 324)
+  context.lineTo(352, 330)
+  context.fill()
+}
 
-  constructor() {
-    const texture = canvasTexture(1024, 512, (context) => {
+const SKIES: Record<Biome, (context: CanvasRenderingContext2D) => void> = {
+  sakura: (context) => {
       const sky = context.createLinearGradient(0, 0, 0, 512)
       sky.addColorStop(0, '#6d4fb6')
       sky.addColorStop(0.35, '#c784cf')
@@ -99,12 +128,93 @@ export class SkyPart implements ScenePart {
       context.lineTo(380, 324)
       context.lineTo(352, 330)
       context.fill()
-    })
-    this.object = new THREE.Mesh(new THREE.PlaneGeometry(680, 220), new THREE.MeshBasicMaterial({ map: texture, fog: false, depthWrite: false }))
-    this.object.position.set(0, 52, -225)
+  },
+  autumn: (context) => {
+    const sky = context.createLinearGradient(0, 0, 0, 512)
+    sky.addColorStop(0, '#5f8fd6')
+    sky.addColorStop(0.45, '#a9c3e8')
+    sky.addColorStop(0.75, '#f7d9a8')
+    sky.addColorStop(1, BIOME_STYLE.autumn.horizon)
+    context.fillStyle = sky
+    context.fillRect(0, 0, 1024, 512)
+    const glow = context.createRadialGradient(760, 250, 10, 760, 250, 200)
+    glow.addColorStop(0, 'rgba(255,245,215,0.95)')
+    glow.addColorStop(1, 'rgba(255,220,170,0)')
+    context.fillStyle = glow
+    context.fillRect(540, 40, 440, 420)
+    context.fillStyle = 'rgba(255,255,255,0.55)'
+    for (const [x, y, w, h] of [
+      [180, 120, 300, 26],
+      [520, 170, 260, 20],
+      [880, 110, 220, 18],
+      [330, 230, 200, 14],
+    ] as const) {
+      context.beginPath()
+      context.ellipse(x, y, w / 2, h, 0, 0, Math.PI * 2)
+      context.fill()
+    }
+    drawMountains(context, '#d29a6a', '#b77d63', '#fff4e8')
+  },
+  haunted: (context) => {
+    const sky = context.createLinearGradient(0, 0, 0, 512)
+    sky.addColorStop(0, '#070b24')
+    sky.addColorStop(0.55, '#1b1d4d')
+    sky.addColorStop(1, BIOME_STYLE.haunted.horizon)
+    context.fillStyle = sky
+    context.fillRect(0, 0, 1024, 512)
+    for (let index = 0; index < 220; index += 1) {
+      context.fillStyle = `rgba(255,255,255,${0.35 + hash(index + 700) * 0.65})`
+      const size = hash(index + 900) < 0.1 ? 2.2 : 1.2
+      context.fillRect(hash(index + 300) * 1024, hash(index + 500) * 380, size, size)
+    }
+    const halo = context.createRadialGradient(300, 170, 30, 300, 170, 170)
+    halo.addColorStop(0, 'rgba(210,225,255,0.55)')
+    halo.addColorStop(1, 'rgba(160,170,255,0)')
+    context.fillStyle = halo
+    context.fillRect(120, 0, 360, 360)
+    context.fillStyle = '#f1f3ff'
+    context.beginPath()
+    context.arc(300, 170, 58, 0, Math.PI * 2)
+    context.fill()
+    context.fillStyle = 'rgba(190,198,235,0.6)'
+    for (const [x, y, r] of [
+      [285, 155, 12],
+      [320, 190, 9],
+      [300, 205, 6],
+    ] as const) {
+      context.beginPath()
+      context.arc(x, y, r, 0, Math.PI * 2)
+      context.fill()
+    }
+    drawMountains(context, '#1f1f45', '#2a2a5a', '#9aa3d8')
+  },
+}
+
+/** Les trois ciels, en fondu de l'un à l'autre selon l'endroit de la course. */
+export class SkyPart implements ScenePart {
+  readonly object = new THREE.Group()
+  private readonly skies = new Map<Biome, THREE.Mesh>()
+
+  constructor() {
+    for (const biome of BIOMES) {
+      const texture = canvasTexture(1024, 512, SKIES[biome])
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(680, 220), new THREE.MeshBasicMaterial({ map: texture, fog: false, depthWrite: false, transparent: true }))
+      mesh.position.set(0, 52, -225)
+      this.skies.set(biome, mesh)
+      this.object.add(mesh)
+    }
   }
 
-  update(): void {}
+  update(run: RunState): void {
+    const { from, to, weight } = biomeBlend(run.distance)
+    for (const [biome, mesh] of this.skies) {
+      // Le ciel suivant se dessine par-dessus le courant, de plus en plus opaque.
+      const opacity = biome === to && weight > 0 ? weight : biome === from ? 1 : 0
+      mesh.visible = opacity > 0.001
+      mesh.renderOrder = biome === to && biome !== from ? 1 : 0
+      ;(mesh.material as THREE.MeshBasicMaterial).opacity = biome === from ? 1 : opacity
+    }
+  }
 
   dispose(): void {
     disposeTree(this.object)
@@ -122,6 +232,8 @@ const TILE = 8
 export class GroundPart implements ScenePart {
   readonly object = new THREE.Group()
   private readonly textures: THREE.CanvasTexture[] = []
+  /** Matériaux de la piste, de l'allée et de l'herbe : teintés selon le biome. */
+  private readonly materials: THREE.MeshBasicMaterial[] = []
 
   constructor() {
     const laneU = (x: number) => (0.5 + x / TRACK_WIDTH) * 512
@@ -194,7 +306,9 @@ export class GroundPart implements ScenePart {
     stone.repeat.set(4, LENGTH / TILE)
     grass.repeat.set(30, LENGTH / TILE)
     const plane = (width: number, texture: THREE.Texture, y: number) => {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, LENGTH), new THREE.MeshBasicMaterial({ map: texture }))
+      const material = new THREE.MeshBasicMaterial({ map: texture })
+      this.materials.push(material)
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, LENGTH), material)
       mesh.rotation.x = -Math.PI / 2
       mesh.position.set(0, y, 20 - LENGTH / 2)
       this.object.add(mesh)
@@ -207,6 +321,11 @@ export class GroundPart implements ScenePart {
   update(run: RunState): void {
     const offset = (run.distance / TILE) % 1
     for (const texture of this.textures) texture.offset.y = offset
+    const { from, to, weight } = biomeBlend(run.distance)
+    const [track, path, grass] = this.materials
+    mixColor(track!.color, BIOME_STYLE[from].track, BIOME_STYLE[to].track, weight)
+    mixColor(path!.color, BIOME_STYLE[from].path, BIOME_STYLE[to].path, weight)
+    mixColor(grass!.color, BIOME_STYLE[from].grass, BIOME_STYLE[to].grass, weight)
   }
 
   dispose(): void {
@@ -267,8 +386,22 @@ export class SceneryPart implements ScenePart {
   private readonly toro = new Batch(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), toonMaterial('#b8aeb6'), 64, 0.02)
   private readonly toroLight = new Batch(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: '#ffd28a', toneMapped: false }), 16)
   private readonly batches: Batch[]
+  /** Accessoires KayKit des autres biomes : forêt d'automne, sanctuaire hanté. */
+  private readonly props = new Map<string, { batch: PropBatch; height: number }>()
 
-  constructor() {
+  constructor(assets: RunnerAssets) {
+    const prop = (name: string, max: number) => {
+      const template = assets.props.get(name)
+      const height = template ? new THREE.Box3().setFromObject(template).getSize(new THREE.Vector3()).y : 1
+      const entry = { batch: new PropBatch(template, max), height: Math.max(0.05, height) }
+      this.props.set(name, entry)
+      this.object.add(entry.batch.group)
+    }
+    for (const name of ['tree_pine_orange_large', 'tree_pine_orange_medium', 'tree_pine_yellow_large', 'tree_pine_yellow_medium', 'tree_dead_large', 'tree_dead_medium']) prop(name, 50)
+    for (const name of ['crypt', 'shrine_candles', 'grave_A', 'grave_B', 'gravestone', 'gravemarker_A', 'candle_triple', 'skull_candle', 'pumpkin_orange_jackolantern', 'pumpkin_yellow', 'bone_A']) prop(name, 24)
+    for (const name of ['post_lantern', 'lantern_standing']) prop(name, 24)
+    prop('fence', 60)
+    prop('fence_pillar', 60)
     this.trees = []
     // Deux rangées de cerisiers : près de l'allée, puis plus loin.
     for (let index = 0; index < 50; index += 1) {
@@ -317,15 +450,33 @@ export class SceneryPart implements ScenePart {
     for (const batch of this.batches) this.object.add(batch.group)
   }
 
+  /** Pose un accessoire KayKit, mis à la hauteur voulue (m). */
+  private place(name: string, x: number, z: number, height: number, yaw = 0, y = 0): void {
+    const entry = this.props.get(name)
+    if (entry) entry.batch.push(x, y, z, height / entry.height, yaw)
+  }
+
   update(run: RunState, time: number): void {
     const distance = run.distance
     // Place dans la boucle : de +14 m (derrière la caméra) à −166 m (dans la brume).
     const zOf = (base: number) => 14 - ((((base - distance) % LOOP) + LOOP) % LOOP)
     for (const batch of this.batches) batch.begin()
+    for (const { batch } of this.props.values()) batch.begin()
 
-    for (const tree of this.trees) {
+    for (const [index, tree] of this.trees.entries()) {
       const z = zOf(tree.base)
       const s = tree.scale
+      // Chaque arbre prend le biome de l'endroit où il pousse.
+      const biome = biomeAt(distance - z)
+      if (biome === 'autumn') {
+        const name = `tree_pine_${index % 3 === 0 ? 'yellow' : 'orange'}_${index % 2 ? 'medium' : 'large'}`
+        this.place(name, tree.x, z, (index % 2 ? 5.5 : 7.5) * s, tree.lean * 8)
+        continue
+      }
+      if (biome === 'haunted') {
+        this.place(index % 2 ? 'tree_dead_medium' : 'tree_dead_large', tree.x, z, (index % 2 ? 4.8 : 6.5) * s, index * 1.3)
+        continue
+      }
       const sway = Math.sin(time * 0.9 + tree.base) * 0.03
       this.trunk.push(tree.x, 1.6 * s, z, s, 3.2 * s, s, undefined, 0, 0, tree.lean)
       this.branch.push(tree.x + 0.45 * s, 2.6 * s, z, s, 1.4 * s, s, undefined, 0, 0, -0.75 + tree.lean)
@@ -335,8 +486,20 @@ export class SceneryPart implements ScenePart {
       }
     }
 
-    for (const house of this.houses) {
+    for (const [index, house] of this.houses.entries()) {
       const z = zOf(house.base)
+      if (biomeAt(distance - z) === 'haunted') {
+        // Sanctuaire hanté : cryptes, autels à bougies, tombes.
+        const kind = index % 3
+        if (kind === 0) this.place('crypt', house.x, z, 4.2, house.side > 0 ? -Math.PI / 2 : Math.PI / 2)
+        else if (kind === 1) {
+          this.place('shrine_candles', house.x, z, 2.6, house.side > 0 ? -Math.PI / 2 : Math.PI / 2)
+          this.place('candle_triple', house.x - house.side * 1.6, z + 1.2, 0.7)
+        } else {
+          for (let grave = 0; grave < 3; grave += 1) this.place(grave % 2 ? 'grave_A' : 'grave_B', house.x + (grave - 1) * 1.3, z + (grave - 1) * 1.5, 1.4, house.side > 0 ? -Math.PI / 2 : Math.PI / 2)
+        }
+        continue
+      }
       const depth = 5
       const face = house.x - (house.side * house.width) / 2
       this.wall.push(house.x, house.height / 2, z, house.width, house.height, depth, house.wall)
@@ -371,6 +534,10 @@ export class SceneryPart implements ScenePart {
       const side = index % 2 ? 1 : -1
       const z = zOf((Math.floor(index / 2) / 10) * LOOP + 3)
       const x = side * (TRACK_WIDTH / 2 + 1.1)
+      if (biomeAt(distance - z) === 'haunted') {
+        this.place('post_lantern', x, z, 3, side > 0 ? Math.PI : 0)
+        continue
+      }
       const swing = Math.sin(time * 2 + index) * 0.06
       this.pole.push(x, 1.5, z, 1, 3, 1)
       this.cap.push(x - side * 0.3, 2.95, z, 0.75, 0.07, 0.1)
@@ -384,6 +551,17 @@ export class SceneryPart implements ScenePart {
       const side = index % 2 ? 1 : -1
       const z = zOf((Math.floor(index / 2) / 4) * LOOP + 25)
       const x = side * (TRACK_WIDTH / 2 + 2.6)
+      const biome = biomeAt(distance - z)
+      if (biome === 'haunted') {
+        this.place(index % 2 ? 'gravestone' : 'gravemarker_A', x, z, 1.3, side > 0 ? -Math.PI / 2 : Math.PI / 2)
+        this.place('skull_candle', x + side * 0.9, z + 0.8, 0.55)
+        this.place('bone_A', x - side * 0.4, z - 1.1, 0.25, index)
+        continue
+      }
+      if (biome === 'autumn') {
+        this.place('pumpkin_orange_jackolantern', x + side * 1.1, z + 1, 0.75, index)
+        this.place('pumpkin_yellow', x + side * 1.6, z - 0.6, 0.6, index * 2)
+      }
       this.toro.push(x, 0.15, z, 0.9, 0.3, 0.9)
       this.toro.push(x, 0.7, z, 0.35, 0.9, 0.35)
       this.toro.push(x, 1.3, z, 0.8, 0.25, 0.8)
@@ -392,11 +570,23 @@ export class SceneryPart implements ScenePart {
       this.toro.push(x, 2.3, z, 0.25, 0.25, 0.25)
     }
 
+    // Clôtures du cimetière, le long de l'allée, la nuit seulement.
+    for (let index = 0; index < 48; index += 1) {
+      const side = index % 2 ? 1 : -1
+      const z = zOf((Math.floor(index / 2) / 24) * LOOP)
+      if (biomeAt(distance - z) !== 'haunted') continue
+      const x = side * (TRACK_WIDTH / 2 + 3.6)
+      this.place('fence', x, z, 1.3, Math.PI / 2)
+      if (index % 4 < 2) this.place('fence_pillar', x, z + 3.7, 1.7)
+    }
+
     for (const batch of this.batches) batch.end()
+    for (const { batch } of this.props.values()) batch.end()
   }
 
   dispose(): void {
     for (const batch of this.batches) batch.dispose()
+    for (const { batch } of this.props.values()) batch.dispose()
   }
 }
 
@@ -439,6 +629,13 @@ export class PetalsPart implements ScenePart {
     const dt = Math.min(delta, 0.05)
     const speed = run.over ? 0 : run.speed
     const positions = this.positions
+    // Pétales roses, feuilles mortes orangées, puis feux follets bleutés la nuit.
+    const { from, to, weight } = biomeBlend(run.distance)
+    const material = this.object.material as THREE.PointsMaterial
+    mixColor(material.color, BIOME_STYLE[from].particles, BIOME_STYLE[to].particles, weight)
+    const night = (from === 'haunted' ? 1 - weight : 0) + (to === 'haunted' ? weight : 0)
+    material.blending = night > 0.5 ? THREE.AdditiveBlending : THREE.NormalBlending
+    material.size = 0.42 - night * 0.18
     for (let index = 0; index < this.count; index += 1) {
       const at = index * 3
       positions[at] = positions[at]! + Math.sin(time * 1.3 + index) * dt * 0.9
@@ -455,5 +652,44 @@ export class PetalsPart implements ScenePart {
 
   dispose(): void {
     disposeTree(this.object)
+  }
+}
+
+/* ---- Lumière et brume ---------------------------------------------------------------- */
+
+/** Lumières de la scène, brume et fond : ils suivent le biome où court le joueur. */
+export class EnvironmentPart {
+  readonly object = new THREE.Group()
+  private readonly hemisphere = new THREE.HemisphereLight('#ffffff', '#ffffff', 1)
+  private readonly sun = new THREE.DirectionalLight('#ffffff', 1)
+  private readonly color = new THREE.Color()
+
+  constructor() {
+    this.sun.position.set(6, 12, 6)
+    this.object.add(this.hemisphere, this.sun)
+  }
+
+  update(run: RunState, scene: THREE.Scene): void {
+    const { from, to, weight } = biomeBlend(run.distance)
+    const a = BIOME_STYLE[from]
+    const b = BIOME_STYLE[to]
+    mixColor(this.hemisphere.color, a.hemiSky, b.hemiSky, weight)
+    mixColor(this.hemisphere.groundColor, a.hemiGround, b.hemiGround, weight)
+    this.hemisphere.intensity = a.hemiIntensity + (b.hemiIntensity - a.hemiIntensity) * weight
+    mixColor(this.sun.color, a.sun, b.sun, weight)
+    this.sun.intensity = a.sunIntensity + (b.sunIntensity - a.sunIntensity) * weight
+    mixColor(this.color, a.horizon, b.horizon, weight)
+    if (scene.background instanceof THREE.Color) scene.background.copy(this.color)
+    else scene.background = this.color.clone()
+    if (scene.fog instanceof THREE.Fog) {
+      scene.fog.color.copy(this.color)
+      scene.fog.near = a.fogNear + (b.fogNear - a.fogNear) * weight
+      scene.fog.far = a.fogFar + (b.fogFar - a.fogFar) * weight
+    }
+  }
+
+  dispose(): void {
+    this.hemisphere.dispose()
+    this.sun.dispose()
   }
 }

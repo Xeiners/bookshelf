@@ -1455,7 +1455,9 @@ export const fr = {
       empty: 'Personne n’a encore couru. À toi !',
       you: 'toi',
       character: 'Ton coureur',
-      moreLooks: 'D’autres tenues bientôt',
+      pick: 'Choisis ton coureur',
+      loading: (percent: number) => `Chargement des personnages… ${percent} %`,
+      loadFailed: 'Personnages indisponibles : réessaie plus tard',
       guest: 'En invité : tes ✦ sont gardées sur cet appareil et rejoignent ton compte à l’inscription.',
     },
     hud: {
@@ -1476,7 +1478,7 @@ export const fr = {
       quizRight: 'Bonne réponse : bouclier !',
       quizWrong: 'Raté…',
     },
-    looks: { ninja: 'Ninja orange' } as Record<string, string>,
+    looks: { rogue_hooded: 'Ninja encapuchonné', rogue: 'Voleuse', knight: 'Chevalier', barbarian: 'Barbare', mage: 'Mage', ninja: 'Ninja chibi' } as Record<string, string>,
     revive: {
       title: 'Encore une chance ?',
       body: 'Repars d’ici, invincible un instant : la piste devant toi est dégagée.',

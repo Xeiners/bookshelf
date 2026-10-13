@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { LANE_WIDTH, MAX_SPEED, START_SPEED } from '../../lib/runner/constants'
 import type { RunState } from '../../lib/runner/engine'
 import { Batch } from './batch'
+import { monsterOf } from './biomes'
 import { PALETTE, canvasTexture, paletteColor, toonMaterial } from './toon'
 
 /*
@@ -99,6 +100,8 @@ export class ObstaclesPart implements ScenePart {
     for (const batch of this.batches) batch.begin()
     for (const object of run.objects) {
       if (object.kind !== 'low' && object.kind !== 'wall' && object.kind !== 'gate' && object.kind !== 'train') continue
+      // Un monstre tient lieu de cet obstacle (cf. `monsters.ts`).
+      if (monsterOf(object)) continue
       const x = object.lane * LANE_WIDTH
       // `near` : la face tournée vers le coureur ; `z` : le centre de l'objet.
       const near = -(object.s - run.distance)

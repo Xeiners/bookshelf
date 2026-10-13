@@ -1440,7 +1440,9 @@ export const en: Dictionary = {
       empty: 'Nobody has run yet. Your turn!',
       you: 'you',
       character: 'Your runner',
-      moreLooks: 'More outfits soon',
+      pick: 'Pick your runner',
+      loading: (percent: number) => `Loading characters… ${percent}%`,
+      loadFailed: 'Characters unavailable: try again later',
       guest: 'As a guest: your ✦ stay on this device and join your account when you sign up.',
     },
     hud: {
@@ -1461,7 +1463,7 @@ export const en: Dictionary = {
       quizRight: 'Correct: shield up!',
       quizWrong: 'Missed…',
     },
-    looks: { ninja: 'Orange ninja' } as Record<string, string>,
+    looks: { rogue_hooded: 'Hooded ninja', rogue: 'Rogue', knight: 'Knight', barbarian: 'Barbarian', mage: 'Mage', ninja: 'Chibi ninja' } as Record<string, string>,
     revive: {
       title: 'One more chance?',
       body: 'Pick up right here, briefly invincible: the track ahead is cleared.',

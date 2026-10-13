@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { MAX_SPEED, START_SPEED } from '../../lib/runner/constants'
 import { isFlying, isShielded, isSliding, type RunState } from '../../lib/runner/engine'
-import { HERO_LOOKS, type HeroLook, type HeroLookId } from './looks'
+import { CHIBI } from './looks'
 import type { ScenePart } from './parts'
 import { outlineMaterial, toonMaterial } from './toon'
 
@@ -41,7 +41,6 @@ const POSE_KEYS: (keyof Pose)[] = ['hipL', 'hipR', 'kneeL', 'kneeR', 'shoulderL'
 const PELVIS = 0.56
 
 export interface HeroOptions {
-  look?: HeroLookId
   /** Aperçu (accueil) : le héros attend, de face, et se balance doucement. */
   preview?: boolean
 }
@@ -73,7 +72,7 @@ export class HeroPart implements ScenePart {
   private time = 0
 
   constructor(options: HeroOptions = {}) {
-    const look: HeroLook = HERO_LOOKS[options.look ?? 'ninja']
+    const look = CHIBI
     this.preview = options.preview ?? false
     const m = {
       skin: toonMaterial(look.skin),

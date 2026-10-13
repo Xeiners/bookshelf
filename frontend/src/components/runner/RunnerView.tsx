@@ -19,6 +19,7 @@ import { useUiStore } from '../../store/useUiStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
+import { loadRunnerAssets, type RunnerAssets } from './assets'
 import { HeroPreview } from './HeroPreview'
 import { DEFAULT_LOOK, HERO_LOOKS, type HeroLookId } from './looks'
 import { RunnerGame, type RunnerOutcome } from './RunnerGame'
@@ -35,7 +36,7 @@ interface RunnerPrefs {
 const modestDevice = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency ?? 8) <= 4
 
 /** Tenue gardée sur l'appareil, si elle existe encore (sinon celle par défaut). */
-const knownLook = (look: string): HeroLookId => (look in HERO_LOOKS ? (look as HeroLookId) : DEFAULT_LOOK)
+const knownLook = (look: string): HeroLookId => ((HERO_LOOKS as readonly string[]).includes(look) ? (look as HeroLookId) : DEFAULT_LOOK)
 
 const useRunnerPrefs = create<RunnerPrefs>()(
   persist(
@@ -78,6 +79,19 @@ export function RunnerView() {
   const [overview, setOverview] = useState<RunnerOverview | null>(null)
   const [universes, setUniverses] = useState<QuizUniverse[]>([])
   const [session, setSession] = useState<Session | null>(null)
+  /** Modèles 3D (personnages, monstres, décor) : chargés à l'ouverture du Runner. */
+  const [assets, setAssets] = useState<RunnerAssets | null>(null)
+  const [loading, setLoading] = useState(0)
+  const [assetsFailed, setAssetsFailed] = useState(false)
+  useEffect(() => {
+    let alive = true
+    loadRunnerAssets((share) => alive && setLoading(share))
+      .then((loaded) => alive && setAssets(loaded))
+      .catch(() => alive && setAssetsFailed(true))
+    return () => {
+      alive = false
+    }
+  }, [])
   const [starting, setStarting] = useState(false)
   const [settled, setSettled] = useState<Settled | null>(null)
 
@@ -187,7 +201,7 @@ export function RunnerView() {
         <StardustBadge balance={stardust} />
       </DleBar>
       {ready ? (
-        <RunnerHome overview={overview} starting={starting} onStart={() => void start()} />
+        <RunnerHome overview={overview} starting={starting} onStart={() => void start()} assets={assets} loading={assetsFailed ? null : loading} />
       ) : (
         <div className="grid flex-1 place-items-center pb-16">
           <Loader2 size={26} className="animate-spin text-glow" aria-hidden />
@@ -195,12 +209,14 @@ export function RunnerView() {
       )}
 
       {session &&
+        assets &&
         createPortal(
           <>
             <RunnerGame
               key={session.key}
               seed={session.seed}
               look={knownLook(prefs.look)}
+              assets={assets}
               buttons={prefs.buttons}
               lite={prefs.lite}
               universes={universes}
@@ -216,7 +232,20 @@ export function RunnerView() {
   )
 }
 
-function RunnerHome({ overview, starting, onStart }: { overview: RunnerOverview | null; starting: boolean; onStart: () => void }) {
+function RunnerHome({
+  overview,
+  starting,
+  onStart,
+  assets,
+  loading,
+}: {
+  overview: RunnerOverview | null
+  starting: boolean
+  onStart: () => void
+  assets: RunnerAssets | null
+  /** Part des modèles chargés (0 à 1) ; `null` : échec du chargement. */
+  loading: number | null
+}) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   const prefs = useRunnerPrefs()
@@ -237,11 +266,28 @@ function RunnerHome({ overview, starting, onStart }: { overview: RunnerOverview 
         {/* Le coureur, en 3D, sous un ciel de sakura : la future vitrine des tenues. */}
         <div className="relative -mx-5 -mt-5 mb-4 h-56 overflow-hidden" style={{ background: 'linear-gradient(180deg, #8d6fd0 0%, #e7a0d0 55%, #ffd2c2 100%)' }}>
           <div aria-hidden className="absolute inset-x-0 bottom-0 h-16" style={{ background: 'linear-gradient(180deg, transparent, rgba(20,10,46,0.9))' }} />
-          <HeroPreview look={knownLook(prefs.look)} className="absolute inset-0" />
+          <HeroPreview look={knownLook(prefs.look)} assets={assets} className="absolute inset-0" />
           <span className="absolute bottom-3 left-4 rounded-full bg-black/35 px-3 py-1 text-xs font-semibold text-cream backdrop-blur-sm">
             {t.runner.home.character} · {t.runner.looks[knownLook(prefs.look)]}
           </span>
-          <span className="absolute top-3 right-3 rounded-full bg-black/25 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-cream/90 uppercase backdrop-blur-sm">{t.runner.home.moreLooks}</span>
+        </div>
+        {/* Choix du coureur. */}
+        <div className="relative -mx-5 mb-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label={t.runner.home.pick}>
+          {HERO_LOOKS.map((look) => {
+            const active = knownLook(prefs.look) === look
+            return (
+              <button
+                key={look}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => prefs.set({ look })}
+                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${active ? 'border-[#ff6fb5] bg-[#ff6fb5]/20 text-cream' : 'border-white/12 text-cream/60 hover:text-cream'}`}
+              >
+                {t.runner.looks[look]}
+              </button>
+            )
+          })}
         </div>
         <div className="relative min-w-0">
           <h2 className="font-display text-3xl leading-tight text-cream">{t.runner.title}</h2>
@@ -259,12 +305,12 @@ function RunnerHome({ overview, starting, onStart }: { overview: RunnerOverview 
         <button
           type="button"
           onClick={onStart}
-          disabled={starting}
+          disabled={starting || !assets}
           className="relative mt-4 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full text-base font-bold text-void shadow-[0_0_30px_rgba(255,111,181,0.45)] transition-transform active:scale-[0.98] disabled:opacity-60"
           style={{ background: 'linear-gradient(135deg, #ffd35c, #ff6fb5 60%, #c58bff)' }}
         >
-          {starting ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <Play size={20} className="fill-void" aria-hidden />}
-          {t.runner.home.play}
+          {starting || !assets ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <Play size={20} className="fill-void" aria-hidden />}
+          {assets ? t.runner.home.play : loading === null ? t.runner.home.loadFailed : t.runner.home.loading(Math.round(loading * 100))}
         </button>
         {!signedIn && <p className="relative mt-3 text-[11px] leading-relaxed text-cream/55">{t.runner.home.guest}</p>}
       </section>
