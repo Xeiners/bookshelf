@@ -1,6 +1,6 @@
-import { useEffect, useState, type RefObject } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { MathUtils, PerspectiveCamera } from 'three'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { MathUtils, Mesh, PerspectiveCamera, Texture } from 'three'
 import { step, type QuizQuestion, type RunState } from '../../lib/runner/engine'
 import type { RunnerAssets } from './assets'
 import { BIOME_STYLE } from './biomes'
@@ -34,7 +34,7 @@ export interface RunnerSceneProps {
 export function RunnerScene({ state, paused, ask, onTick, lite, look, assets }: RunnerSceneProps) {
   return (
     <Canvas
-      dpr={lite ? [1, 1.25] : [1, 1.75]}
+      dpr={lite ? [1, 1.1] : [1, MAX_DPR]}
       gl={{ antialias: !lite, powerPreference: 'high-performance', alpha: false, stencil: false }}
       camera={{ fov: 62, near: 0.2, far: 900, position: [0, 3.4, 6.8] }}
       style={{ touchAction: 'none' }}
@@ -57,8 +57,62 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets }: 
       <Part state={state} make={() => createHero(look, assets)!} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} />
+      <Warmup />
+      <AdaptiveResolution max={lite ? 1.1 : MAX_DPR} />
     </Canvas>
   )
+}
+
+/** Résolution maximale (rapport de pixels) hors mode allégé ; abaissée si l'appareil peine. */
+const MAX_DPR = 1.5
+
+/**
+ * Prépare tout avant la course : programmes des matériaux compilés et textures envoyées à
+ * la carte graphique, y compris ce qui n'apparaîtra que plus loin (arbres d'automne, pins
+ * de la nuit…). Sans cela, leur première apparition, en pleine vitesse, ferait un à-coup.
+ */
+function Warmup() {
+  const gl = useThree((three) => three.gl)
+  const scene = useThree((three) => three.scene)
+  const camera = useThree((three) => three.camera)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      gl.compile(scene, camera)
+      scene.traverse((node) => {
+        if (!(node instanceof Mesh)) return
+        for (const material of [node.material].flat()) {
+          for (const value of Object.values(material)) if (value instanceof Texture) gl.initTexture(value)
+        }
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [gl, scene, camera])
+  return null
+}
+
+/**
+ * Résolution adaptative : si les images tardent (moins de ~45 par seconde en moyenne sur
+ * une seconde), on baisse la définition par paliers, jusqu'à 1. La fluidité d'abord.
+ */
+function AdaptiveResolution({ max }: { max: number }) {
+  const setDpr = useThree((three) => three.setDpr)
+  const sample = useRef({ time: 0, frames: 0, dpr: max })
+  useFrame((_, delta) => {
+    const current = sample.current
+    // On ignore les pauses et les retours au premier plan (une image très longue).
+    if (delta > 0.25) return
+    current.time += delta
+    current.frames += 1
+    if (current.time < 1) return
+    const fps = current.frames / current.time
+    current.time = 0
+    current.frames = 0
+    if (fps < 45 && current.dpr > 1) {
+      current.dpr = Math.max(1, current.dpr - 0.2)
+      setDpr(current.dpr)
+    }
+  })
+  return null
 }
 
 /** La boucle : pas de simulation borné (un onglet revenu au premier plan ne téléporte pas le coureur). */

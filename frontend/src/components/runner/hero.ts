@@ -4,6 +4,7 @@ import { MAX_SPEED, START_SPEED } from '../../lib/runner/constants'
 import { isFlying, isShielded, isSliding, type RunState } from '../../lib/runner/engine'
 import { CHIBI } from './looks'
 import type { ScenePart } from './parts'
+import { TalismanAura } from './talismans'
 import { outlineMaterial, toonMaterial } from './toon'
 
 /*
@@ -57,7 +58,7 @@ export class HeroPart implements ScenePart {
   private readonly elbows: THREE.Group[] = []
   private readonly tails: THREE.Group[] = []
   private readonly cloud = new THREE.Group()
-  private readonly shield: THREE.Mesh
+  private readonly talismans = new TalismanAura()
   private readonly shadow: THREE.Mesh
   private readonly ink = outlineMaterial(0.018)
   private readonly pose: Pose = { hipL: 0, hipR: 0, kneeL: 0, kneeR: 0, shoulderL: 0, shoulderR: 0, armOutL: 0, armOutR: 0, elbowL: 0, elbowR: 0, lean: 0, pelvisY: PELVIS, head: 0 }
@@ -278,13 +279,7 @@ export class HeroPart implements ScenePart {
     }
     this.cloud.visible = false
     this.root.add(this.cloud)
-    this.shield = new THREE.Mesh(
-      new THREE.SphereGeometry(1.2, 28, 20),
-      new THREE.MeshBasicMaterial({ color: '#7fd8ff', transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    this.shield.position.y = 1
-    this.shield.visible = false
-    this.root.add(this.shield)
+    this.root.add(this.talismans.object)
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.45, 24), new THREE.MeshBasicMaterial({ color: '#5a2f55', transparent: true, opacity: 0.35, depthWrite: false }))
     this.shadow.rotation.x = -Math.PI / 2
     this.object.add(this.root, this.shadow)
@@ -436,11 +431,7 @@ export class HeroPart implements ScenePart {
     this.cloud.visible = isFlying(run)
     if (this.cloud.visible) this.cloud.rotation.y += dt * 0.8
     this.root.visible = run.over || run.invulnerableUntil <= run.t || isShielded(run) || Math.floor(run.t * 12) % 2 === 0
-    this.shield.visible = isShielded(run)
-    if (this.shield.visible) {
-      this.shield.scale.setScalar(1 + Math.sin(run.t * 8) * 0.04)
-      ;(this.shield.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(run.t * 6) * 0.05
-    }
+    this.talismans.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
   }
 
   dispose(): void {

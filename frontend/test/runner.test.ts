@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { LANE_WIDTH, MAX_SPEED, SLIDE_TIME, START_SPEED, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
-import { OBSTACLE_SPAN, TrackGenerator, act, createRun, isSliding, revive, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
+import { OBSTACLE_SPAN, TrackGenerator, act, answerQuiz, createRun, isSliding, revive, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
 import { makeQuiz } from '../src/lib/runner/quiz'
 import { seededRandom } from '../src/lib/runner/random'
 
@@ -170,14 +170,21 @@ describe('Manga Runner — simulation', () => {
     assert.equal(state.lives, 3, 'en vol, les obstacles passent dessous')
   })
 
-  it('quiz : la voie où l’on court à l’échéance est la réponse ; bonne réponse = bouclier', () => {
+  it('quiz : on touche sa réponse ; bonne réponse = talismans ; sans réponse, c’est raté', () => {
     const question: QuizQuestion = { prompt: '?', options: [{ label: 'a' }, { label: 'b' }, { label: 'c' }], answer: 2 }
+    const late = emptyRun()
+    place(late, 'quiz', 0, 3)
+    run(late, 0.4, () => question)
+    assert.ok(late.quiz)
+    run(late, 5)
+    assert.equal(late.quiz, null)
+    assert.equal(late.quizRight, 0)
+    assert.ok(late.events.includes('quizWrong'))
     const state = emptyRun()
     place(state, 'quiz', 0, 3)
     run(state, 0.4, () => question)
     assert.ok(state.quiz)
-    act(state, 'right')
-    run(state, 5)
+    answerQuiz(state, 2)
     assert.equal(state.quiz, null)
     assert.equal(state.quizRight, 1)
     assert.ok(state.shieldUntil > state.t)

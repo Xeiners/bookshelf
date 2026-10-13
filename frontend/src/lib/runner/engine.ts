@@ -260,6 +260,23 @@ function steer(state: RunState, lane: Lane): void {
 }
 
 /**
+ * Répondre au quiz en cours (on touche une des trois réponses) ; `null` : temps écoulé.
+ * Bonne réponse : les talismans protègent le coureur un moment.
+ */
+export function answerQuiz(state: RunState, choice: 0 | 1 | 2 | null): void {
+  const quiz = state.quiz
+  if (!quiz || state.over) return
+  if (choice === quiz.question.answer) {
+    state.quizRight += 1
+    state.shieldUntil = state.t + SHIELD_TIME
+    state.events.push('quizRight')
+  } else {
+    state.events.push('quizWrong')
+  }
+  state.quiz = null
+}
+
+/**
  * Avance la course de `dt` secondes. `ask` fournit une question quand on ramasse un jeton
  * de quiz (`null` : pas de question disponible, le jeton vaut alors quelques ✦).
  */
@@ -308,18 +325,8 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
     }
   }
 
-  // Quiz : à l'échéance, la voie où l'on court est la réponse.
-  if (state.quiz && t >= state.quiz.deadline) {
-    const chosen = state.lane + 1
-    if (chosen === state.quiz.question.answer) {
-      state.quizRight += 1
-      state.shieldUntil = t + SHIELD_TIME
-      state.events.push('quizRight')
-    } else {
-      state.events.push('quizWrong')
-    }
-    state.quiz = null
-  }
+  // Quiz : sans réponse à l'échéance, c'est raté.
+  if (state.quiz && t >= state.quiz.deadline) answerQuiz(state, null)
 
   collide(state, from, ask)
 

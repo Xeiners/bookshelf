@@ -3,6 +3,14 @@ import { outlineMaterial } from './toon'
 
 const dummy = new THREE.Object3D()
 
+/** Marque à envoyer les `length` premières valeurs d'un tampon d'instances (rien s'il est vide). */
+export function uploadUsed(attribute: THREE.BufferAttribute, length: number): void {
+  attribute.clearUpdateRanges()
+  if (length <= 0) return
+  attribute.addUpdateRange(0, length)
+  attribute.needsUpdate = true
+}
+
 /**
  * Un lot d'instances : un seul appel de dessin pour tous les objets d'un même type (et un
  * de plus pour leur contour). Chaque image, on le remplit (`begin`, `push`…, `end`) : rien
@@ -54,8 +62,9 @@ export class Batch {
 
   end(): void {
     this.mesh.count = this.count
-    this.mesh.instanceMatrix.needsUpdate = true
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
+    // Seules les instances posées partent vers la carte graphique (pas tout le tampon).
+    uploadUsed(this.mesh.instanceMatrix, this.count * 16)
+    if (this.mesh.instanceColor) uploadUsed(this.mesh.instanceColor, this.count * 3)
     if (this.outline) this.outline.count = this.count
   }
 

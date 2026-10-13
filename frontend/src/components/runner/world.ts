@@ -3,7 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { LANE_WIDTH } from '../../lib/runner/constants'
 import type { RunState } from '../../lib/runner/engine'
 import { PropBatch, type RunnerAssets } from './assets'
-import { BIOME_STYLE, biomeAt, biomeBlend, mixColor, type Biome, type BiomeStyle } from './biomes'
+import { uploadUsed } from './batch'
+import { BIOME_LENGTH, BIOME_STYLE, biomeAt, biomeBlend, mixColor, type Biome, type BiomeStyle } from './biomes'
 import type { ScenePart } from './parts'
 import { canvasTexture } from './toon'
 
@@ -373,23 +374,74 @@ const COLUMNS = (() => {
 const ROW = 2
 const ROWS = Math.ceil((AHEAD + BEHIND) / ROW) + 2
 
-/** Prés et collines de part et d'autre de la voie, recalculés à chaque pas de 2 m. */
+// i18n-ignore (code GLSL)
+const TERRAIN_COMMON = /* glsl */ `
+  uniform float uDistance;
+  uniform float uBoundary;
+  uniform float uUvOffset;
+  uniform vec3 uGrassA;
+  uniform vec3 uDryA;
+  uniform vec3 uDirtA;
+  uniform vec3 uGrassB;
+  uniform vec3 uDryB;
+  uniform vec3 uDirtB;
+  varying vec3 vTerrain;
+  // Même relief que groundHeight() (végétation) : à garder identiques.
+  float groundH(float x, float s) {
+    float side = abs(x);
+    float wave = sin(s * 0.021 + x * 0.043) + 1.4 * sin(s * 0.0083 - x * 0.017 + 1.7) + 0.35 * sin(s * 0.047 + x * 0.11 + 0.6);
+    return -0.42 + smoothstep(6.5, 24.0, side) * (0.9 + wave * 0.75) + smoothstep(32.0, 95.0, side) * (7.0 + wave * 5.5);
+  }
+`
+// i18n-ignore (code GLSL)
+const TERRAIN_NORMAL = /* glsl */ `
+  #include <beginnormal_vertex>
+  float terrainS = uDistance - position.z;
+  float slopeX = groundH(position.x + 0.5, terrainS) - groundH(position.x - 0.5, terrainS);
+  float slopeS = groundH(position.x, terrainS + 0.5) - groundH(position.x, terrainS - 0.5);
+  objectNormal = normalize(vec3(-slopeX, 1.0, slopeS));
+`
+// i18n-ignore (code GLSL)
+const TERRAIN_POSITION = /* glsl */ `
+  vec3 transformed = vec3(position.x, groundH(position.x, terrainS), position.z);
+  // Herbe grasse dans les creux, sèche sur les bosses ; terre le long du talus ; fondu de biome.
+  float into = smoothstep(uBoundary - 90.0, uBoundary, terrainS);
+  vec3 grass = mix(uGrassA, uGrassB, into);
+  vec3 dry = mix(uDryA, uDryB, into);
+  vec3 dirt = mix(uDirtA, uDirtB, into);
+  float patchy = 0.5 + 0.5 * sin(terrainS * 0.09 + position.x * 0.21) * sin(terrainS * 0.033 - position.x * 0.07);
+  vec3 ground = mix(grass, dry, clamp(patchy * 0.7 + (transformed.y + 0.4) * 0.05, 0.0, 1.0));
+  vTerrain = mix(ground, dirt, 1.0 - smoothstep(5.4, 6.6, abs(position.x)));
+`
+
+/**
+ * Prés et collines de part et d'autre de la voie. La grille ne bouge pas : la carte
+ * graphique y lit le relief et les couleurs à la distance courante (rien n'est recalculé
+ * par le processeur, quelle que soit la vitesse).
+ */
 export class TerrainPart implements ScenePart {
   readonly object: THREE.Mesh
-  private readonly geometry = new THREE.BufferGeometry()
   private readonly texture: THREE.CanvasTexture
-  private base = Number.NaN
-  private readonly color = new THREE.Color()
-  private readonly grass = new THREE.Color()
-  private readonly dry = new THREE.Color()
-  private readonly dirt = new THREE.Color()
+  private readonly uniforms = {
+    uDistance: { value: 0 },
+    uBoundary: { value: BIOME_LENGTH },
+    uUvOffset: { value: 0 },
+    uGrassA: { value: new THREE.Color() },
+    uDryA: { value: new THREE.Color() },
+    uDirtA: { value: new THREE.Color() },
+    uGrassB: { value: new THREE.Color() },
+    uDryB: { value: new THREE.Color() },
+    uDirtB: { value: new THREE.Color() },
+  }
+  private biome = -1
 
   constructor() {
-    const count = ROWS * COLUMNS.length
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
-    this.geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
-    this.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
-    this.geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2))
+    const geometry = new THREE.BufferGeometry()
+    const positions: number[] = []
+    for (let row = 0; row < ROWS; row += 1) for (const x of COLUMNS) positions.push(x, 0, BEHIND - row * ROW)
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3))
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((positions.length / 3) * 2), 2))
     const indices: number[] = []
     const half = COLUMNS.length / 2
     for (let row = 0; row < ROWS - 1; row += 1) {
@@ -401,7 +453,7 @@ export class TerrainPart implements ScenePart {
         indices.push(a, a + 1, b, a + 1, b + 1, b)
       }
     }
-    this.geometry.setIndex(indices)
+    geometry.setIndex(indices)
     this.texture = canvasTexture(256, 256, (context) => {
       // Herbe en gris clair (teintée par le sol) : touffes, brins, petites taches.
       context.fillStyle = '#d8d8d8'
@@ -409,9 +461,7 @@ export class TerrainPart implements ScenePart {
       for (let index = 0; index < 2600; index += 1) {
         const shade = 150 + Math.floor(hash(index, 1) * 105)
         context.fillStyle = `rgb(${shade},${shade},${shade})`
-        const x = hash(index, 2) * 256
-        const y = hash(index, 3) * 256
-        context.fillRect(x, y, 1.5, 3 + hash(index, 4) * 5)
+        context.fillRect(hash(index, 2) * 256, hash(index, 3) * 256, 1.5, 3 + hash(index, 4) * 5)
       }
       for (let index = 0; index < 60; index += 1) {
         context.fillStyle = `rgba(255,255,255,${0.15 + hash(index, 6) * 0.2})`
@@ -421,53 +471,42 @@ export class TerrainPart implements ScenePart {
       }
     })
     this.texture.wrapS = this.texture.wrapT = THREE.RepeatWrapping
-    this.object = new THREE.Mesh(this.geometry, new THREE.MeshLambertMaterial({ vertexColors: true, map: this.texture }))
+    const material = new THREE.MeshLambertMaterial({ map: this.texture })
+    material.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, this.uniforms)
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${TERRAIN_COMMON}`)
+        .replace('#include <beginnormal_vertex>', TERRAIN_NORMAL)
+        .replace('#include <begin_vertex>', TERRAIN_POSITION)
+        .replace('#include <uv_vertex>', '#include <uv_vertex>\nvMapUv = vec2(position.x * 0.22, -position.z * 0.22 + uUvOffset);')
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vTerrain;') // i18n-ignore (code GLSL)
+        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vTerrain;')
+    }
+    material.customProgramCacheKey = () => 'runner-terrain'
+    this.object = new THREE.Mesh(geometry, material)
     this.object.frustumCulled = false
   }
 
-  /** Recalcule le sol pour une distance multiple de `ROW`. */
-  private build(base: number): void {
-    const position = this.geometry.attributes.position as THREE.BufferAttribute
-    const normal = this.geometry.attributes.normal as THREE.BufferAttribute
-    const color = this.geometry.attributes.color as THREE.BufferAttribute
-    const uv = this.geometry.attributes.uv as THREE.BufferAttribute
-    for (let row = 0; row < ROWS; row += 1) {
-      const z = BEHIND - row * ROW
-      const s = base - z
-      const { from, to, weight } = biomeBlend(s)
-      mixColor(this.grass, BIOME_STYLE[from].grass, BIOME_STYLE[to].grass, weight)
-      mixColor(this.dry, BIOME_STYLE[from].grassDry, BIOME_STYLE[to].grassDry, weight)
-      mixColor(this.dirt, BIOME_STYLE[from].dirt, BIOME_STYLE[to].dirt, weight)
-      for (let column = 0; column < COLUMNS.length; column += 1) {
-        const x = COLUMNS[column]!
-        const index = row * COLUMNS.length + column
-        const y = groundHeight(x, s)
-        position.setXYZ(index, x, y, z)
-        const dx = (groundHeight(x + 0.5, s) - groundHeight(x - 0.5, s)) / 1
-        const ds = (groundHeight(x, s + 0.5) - groundHeight(x, s - 0.5)) / 1
-        const length = Math.hypot(dx, 1, ds)
-        normal.setXYZ(index, -dx / length, 1 / length, ds / length)
-        // Herbe grasse dans les creux, sèche sur les bosses ; terre le long du talus.
-        const patch = 0.5 + 0.5 * Math.sin(s * 0.09 + x * 0.21) * Math.sin(s * 0.033 - x * 0.07)
-        this.color.copy(this.grass).lerp(this.dry, clamp(patch * 0.7 + (y + 0.4) * 0.05, 0, 1))
-        this.color.lerp(this.dirt, 1 - smoothstep(5.4, 6.6, Math.abs(x)))
-        color.setXYZ(index, this.color.r, this.color.g, this.color.b)
-        uv.setXY(index, x * 0.22, s * 0.22)
-      }
-    }
-    position.needsUpdate = true
-    normal.needsUpdate = true
-    color.needsUpdate = true
-    uv.needsUpdate = true
-  }
-
   update(run: RunState): void {
-    const base = Math.floor(run.distance / ROW) * ROW
-    if (base !== this.base) {
-      this.base = base
-      this.build(base)
+    const distance = run.distance
+    const uniforms = this.uniforms
+    uniforms.uDistance.value = distance
+    uniforms.uUvOffset.value = (distance * 0.22) % 1
+    // Couleurs du biome courant et du suivant, fondues avant la frontière.
+    const index = Math.floor(Math.max(0, distance) / BIOME_LENGTH)
+    if (index !== this.biome) {
+      this.biome = index
+      const from = BIOME_STYLE[biomeAt(index * BIOME_LENGTH)]
+      const to = BIOME_STYLE[biomeAt((index + 1) * BIOME_LENGTH)]
+      uniforms.uBoundary.value = (index + 1) * BIOME_LENGTH
+      uniforms.uGrassA.value.set(from.grass)
+      uniforms.uDryA.value.set(from.grassDry)
+      uniforms.uDirtA.value.set(from.dirt)
+      uniforms.uGrassB.value.set(to.grass)
+      uniforms.uDryB.value.set(to.grassDry)
+      uniforms.uDirtB.value.set(to.dirt)
     }
-    this.object.position.z = run.distance - base
   }
 
   dispose(): void {
@@ -834,7 +873,7 @@ export class NaturePart implements ScenePart {
     }
     for (const batch of this.batches.values()) batch.end()
     this.shadows.count = this.shadowCount
-    this.shadows.instanceMatrix.needsUpdate = true
+    uploadUsed(this.shadows.instanceMatrix, this.shadowCount * 16)
   }
 
   dispose(): void {

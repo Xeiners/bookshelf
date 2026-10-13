@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Loader2, Magnet, Pause, Play, Shield, Sparkles, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Loader2, Magnet, Pause, Play, ScrollText, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
 import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, multiplierFor, reviveCost } from '../../lib/runner/constants'
-import { act, createRun, revive, scoreOf, type ActiveQuiz, type RunAction, type RunState } from '../../lib/runner/engine'
+import { act, answerQuiz, createRun, revive, scoreOf, type ActiveQuiz, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
 import { playChime, playRunnerHit, playRunnerJump, playRunnerPower, playRunnerSlide, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
@@ -69,7 +69,6 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const [offer, setOffer] = useState<{ cost: number; paying: boolean } | null>(null)
   const [offerLeft, setOfferLeft] = useState(0)
   const [quiz, setQuiz] = useState<ActiveQuiz | null>(null)
-  const [lane, setLane] = useState(0)
   const [verdict, setVerdict] = useState<'right' | 'wrong' | null>(null)
   const [hitFlash, setHitFlash] = useState(0)
 
@@ -82,7 +81,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const registerGauge = useCallback((name: 'magnet' | 'cloud' | 'shield', node: HTMLDivElement | null) => {
     powerRefs.current[name] = node
   }, [])
-  const shown = useRef({ distance: -1, score: -1, stars: -1, multiplier: -1, lane: 0 })
+  const shown = useRef({ distance: -1, score: -1, stars: -1, multiplier: -1 })
   const combo = useRef({ count: 0, at: 0 })
   const finished = useRef(false)
   const onOverRef = useRef(onOver)
@@ -186,6 +185,12 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
     act(state.current, action)
   }, [])
 
+  /** Une réponse touchée au quiz : jugée tout de suite (le verdict suit, via les événements). */
+  const answer = useCallback((choice: 0 | 1 | 2) => {
+    if (paused.current) return
+    answerQuiz(state.current, choice)
+  }, [])
+
   // Clavier : flèches, ZQSD / WASD, espace ; Échap met en pause.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -232,10 +237,6 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       if (run.stardust !== last.stars && starsRef.current) starsRef.current.textContent = String(run.stardust)
       if (multiplier !== last.multiplier && multiplierRef.current) multiplierRef.current.textContent = `×${multiplier.toFixed(1)}`
       Object.assign(last, { distance, score, stars: run.stardust, multiplier })
-      if (run.lane !== last.lane) {
-        last.lane = run.lane
-        setLane(run.lane)
-      }
       // Jauges des bonus et du quiz.
       const gauges: [keyof typeof powerRefs.current, number, number][] = [
         ['magnet', run.magnetUntil, MAGNET_TIME],
@@ -353,7 +354,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
           <div className="flex flex-col gap-1">
             <PowerGauge register={registerGauge} name="magnet" label={t.runner.hud.magnet} icon={<Magnet size={13} aria-hidden />} color="#ff4d5e" />
             <PowerGauge register={registerGauge} name="cloud" label={t.runner.hud.cloud} icon={<Cloud size={13} aria-hidden />} color="#bfe9ff" />
-            <PowerGauge register={registerGauge} name="shield" label={t.runner.hud.shield} icon={<Shield size={13} aria-hidden />} color="#3fd0ff" />
+            <PowerGauge register={registerGauge} name="shield" label={t.runner.hud.shield} icon={<ScrollText size={13} aria-hidden />} color="#ffd36b" />
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -380,7 +381,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         </div>
       </div>
 
-      {/* Quiz : la question en haut, une réponse par voie, en bas. */}
+      {/* Quiz : la question en haut, les trois réponses à toucher, en bas. */}
       {quiz && (
         <div className="pointer-events-none absolute inset-x-0 top-[28%] flex flex-col items-center gap-3 px-4">
           <div className="flex max-w-md items-center gap-3 rounded-2xl border border-gold/40 bg-[#1d0f40]/85 px-4 py-3 shadow-[0_0_24px_rgba(255,196,107,0.35)] backdrop-blur">
@@ -396,21 +397,21 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         </div>
       )}
       {quiz && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[max(6.5rem,calc(env(safe-area-inset-bottom)+6rem))] grid grid-cols-3 gap-2 px-3">
-          {quiz.question.options.map((option, index) => {
-            const here = lane + 1 === index
-            return (
-              <div
-                key={index}
-                className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-2 text-center transition-all duration-150 ${
-                  here ? 'scale-105 border-gold bg-gold/25 shadow-[0_0_20px_rgba(255,196,107,0.55)]' : 'border-white/20 bg-black/45'
-                }`}
-              >
-                {option.image && <img src={option.image} alt="" className="size-9 rounded-lg object-cover object-top" />}
-                <span className="line-clamp-2 text-xs leading-tight font-bold text-white">{option.label}</span>
-              </div>
-            )
-          })}
+        <div
+          className="absolute inset-x-0 bottom-[max(6.5rem,calc(env(safe-area-inset-bottom)+6rem))] grid grid-cols-3 gap-2 px-3"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {quiz.question.options.map((option, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => answer(index as 0 | 1 | 2)}
+              className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border border-white/25 bg-black/50 px-2 py-2 text-center backdrop-blur-sm transition-all duration-150 active:scale-95 active:border-gold active:bg-gold/30 active:shadow-[0_0_20px_rgba(255,196,107,0.55)]"
+            >
+              {option.image && <img src={option.image} alt="" className="size-9 rounded-lg object-cover object-top" />}
+              <span className="line-clamp-2 text-xs leading-tight font-bold text-white">{option.label}</span>
+            </button>
+          ))}
         </div>
       )}
       {verdict && (

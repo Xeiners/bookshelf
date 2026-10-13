@@ -6,6 +6,7 @@ import { HeroPart } from './hero'
 import type { HeroLookId } from './looks'
 import { sourceOf } from './looks'
 import type { ScenePart } from './parts'
+import { TalismanAura } from './talismans'
 import { outlineMaterial, toonMaterial } from './toon'
 import { VrmLife } from './vrm'
 
@@ -61,7 +62,7 @@ export class HeroModelPart implements ScenePart {
   private current: THREE.AnimationAction | null = null
   private currentName: Clip | null = null
   private readonly cloud = new THREE.Group()
-  private readonly shield: THREE.Mesh
+  private readonly talismans = new TalismanAura()
   private readonly shadow: THREE.Mesh
   private readonly preview: boolean
   private readonly life: VrmLife | undefined
@@ -124,13 +125,7 @@ export class HeroModelPart implements ScenePart {
     }
     this.cloud.visible = false
     this.root.add(this.cloud)
-    this.shield = new THREE.Mesh(
-      new THREE.SphereGeometry(1.25, 28, 20),
-      new THREE.MeshBasicMaterial({ color: '#7fd8ff', transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    this.shield.position.y = 1
-    this.shield.visible = false
-    this.root.add(this.shield)
+    this.root.add(this.talismans.object)
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: '#2a1838', transparent: true, opacity: 0.35, depthWrite: false }))
     this.shadow.rotation.x = -Math.PI / 2
     // Étoiles de l'étourdissement, en couronne au-dessus de la tête.
@@ -269,20 +264,17 @@ export class HeroModelPart implements ScenePart {
     if (this.cloud.visible) this.cloud.rotation.y += dt * 0.8
     // Clignote après un choc ou une résurrection.
     this.root.visible = run.over || run.invulnerableUntil <= run.t || isShielded(run) || Math.floor(run.t * 12) % 2 === 0
-    this.shield.visible = isShielded(run)
-    if (this.shield.visible) {
-      this.shield.scale.setScalar(1 + Math.sin(run.t * 8) * 0.04)
-      ;(this.shield.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(run.t * 6) * 0.05
-    }
+    this.talismans.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
   }
 
   dispose(): void {
     // Sans `uncacheRoot` : React (mode strict) peut remonter la même partie après ce nettoyage.
     this.mixer.stopAllAction()
+    this.talismans.dispose()
     this.current = null
     this.currentName = null
     // Les maillages du modèle sont partagés avec l'original chargé : seuls nos ajouts sont libérés.
-    for (const owned of [this.cloud, this.shield, this.shadow, this.stars]) {
+    for (const owned of [this.cloud, this.shadow, this.stars]) {
       owned.traverse((node) => {
         if (node instanceof THREE.Mesh) {
           node.geometry.dispose()

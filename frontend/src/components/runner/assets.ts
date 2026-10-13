@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm'
+import { uploadUsed } from './batch'
 import { retargetHuman } from './vrm'
 
 /*
@@ -172,8 +173,8 @@ export class PropBatch {
   end(): void {
     for (const part of this.parts) {
       part.mesh.count = this.count
-      part.mesh.instanceMatrix.needsUpdate = true
-      if (part.mesh.instanceColor) part.mesh.instanceColor.needsUpdate = true
+      uploadUsed(part.mesh.instanceMatrix, this.count * 16)
+      if (part.mesh.instanceColor) uploadUsed(part.mesh.instanceColor, this.count * 3)
     }
   }
 
