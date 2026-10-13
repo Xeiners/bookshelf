@@ -29,8 +29,10 @@ export interface VrmHero {
 export interface RunnerAssets {
   skeletons: Record<SkeletonModel, GLTF>
   skeletonClips: THREE.AnimationClip[]
-  /** Accessoires du décor (un groupe par accessoire, à sa taille d'origine). */
+  /** Armes des monstres (un groupe par accessoire, à sa taille d'origine). */
   props: Map<string, THREE.Object3D>
+  /** Paysage (Stylized Nature MegaKit) : arbres, buissons, fleurs, herbes, rochers, par nom. */
+  nature: Map<string, THREE.Object3D>
   vrm: Record<VrmModel, VrmHero>
 }
 
@@ -48,7 +50,7 @@ function loader(): GLTFLoader {
 export function loadRunnerAssets(onProgress?: (share: number) => void): Promise<RunnerAssets> {
   if (pending) return pending
   const gltf = loader()
-  const files = ['human-anims', ...SKELETON_MODELS, 'skeleton-anims', 'props']
+  const files = ['human-anims', ...SKELETON_MODELS, 'skeleton-anims', 'props', 'nature']
   let done = 0
   const total = files.length + VRM_MODELS.length * 2
   const tick = () => {
@@ -73,7 +75,10 @@ export function loadRunnerAssets(onProgress?: (share: number) => void): Promise<
       const byName = new Map<string, GLTF>(entries)
       const props = new Map<string, THREE.Object3D>()
       for (const child of byName.get('props')!.scene.children) props.set(child.name, child)
+      const nature = new Map<string, THREE.Object3D>()
+      for (const child of byName.get('nature')!.scene.children) nature.set(child.name, child)
       return {
+        nature,
         skeletons: Object.fromEntries(SKELETON_MODELS.map((name) => [name, byName.get(name)!])) as Record<SkeletonModel, GLTF>,
         skeletonClips: byName.get('skeleton-anims')!.animations,
         props,
@@ -114,23 +119,35 @@ const scale = new THREE.Vector3()
  */
 export class PropBatch {
   readonly group = new THREE.Group()
-  private readonly parts: { mesh: THREE.InstancedMesh; local: THREE.Matrix4 }[] = []
+  private readonly parts: { mesh: THREE.InstancedMesh; local: THREE.Matrix4; tinted: boolean }[] = []
   private count = 0
+  private readonly white = new THREE.Color('#ffffff')
 
   readonly max: number
 
-  constructor(template: THREE.Object3D | undefined, max: number) {
+  /**
+   * `material` remplace au besoin le matériau d'un maillage (paysage : matériaux légers,
+   * vent) ; `tinted` dit quels maillages prennent la teinte de chaque instance (feuillages).
+   */
+  constructor(
+    template: THREE.Object3D | undefined,
+    max: number,
+    options: { material?: (source: THREE.Material) => THREE.Material; tinted?: (source: THREE.Material) => boolean } = {},
+  ) {
     this.max = max
     if (!template) return
     template.updateMatrixWorld(true)
     const root = template.matrixWorld.clone().invert()
     template.traverse((node) => {
       if (!(node instanceof THREE.Mesh)) return
-      const mesh = new THREE.InstancedMesh(node.geometry, node.material, max)
+      const source = node.material as THREE.Material
+      const mesh = new THREE.InstancedMesh(node.geometry, options.material ? options.material(source) : source, max)
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
       mesh.frustumCulled = false
       mesh.count = 0
-      this.parts.push({ mesh, local: root.clone().multiply(node.matrixWorld) })
+      const tinted = options.tinted?.(source) ?? false
+      if (tinted) for (let index = 0; index < max; index += 1) mesh.setColorAt(index, this.white)
+      this.parts.push({ mesh, local: root.clone().multiply(node.matrixWorld), tinted })
       this.group.add(mesh)
     })
   }
@@ -139,13 +156,16 @@ export class PropBatch {
     this.count = 0
   }
 
-  push(x: number, y: number, z: number, size = 1, yaw = 0): void {
+  push(x: number, y: number, z: number, size = 1, yaw = 0, tint?: THREE.Color): void {
     if (this.count >= this.max) return
     position.set(x, y, z)
     rotation.setFromEuler(euler.set(0, yaw, 0))
     scale.setScalar(size)
     placement.compose(position, rotation, scale)
-    for (const part of this.parts) part.mesh.setMatrixAt(this.count, work.multiplyMatrices(placement, part.local))
+    for (const part of this.parts) {
+      part.mesh.setMatrixAt(this.count, work.multiplyMatrices(placement, part.local))
+      if (part.tinted) part.mesh.setColorAt(this.count, tint ?? this.white)
+    }
     this.count += 1
   }
 
@@ -153,6 +173,7 @@ export class PropBatch {
     for (const part of this.parts) {
       part.mesh.count = this.count
       part.mesh.instanceMatrix.needsUpdate = true
+      if (part.mesh.instanceColor) part.mesh.instanceColor.needsUpdate = true
     }
   }
 
