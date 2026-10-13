@@ -10,8 +10,8 @@ export const MAX_SPEED = 30
 
 /** Écart entre deux voies (m) ; voie -1 : gauche, 0 : centre, 1 : droite. */
 export const LANE_WIDTH = 2.4
-/** Vitesse latérale d'un changement de voie (m/s). */
-export const LANE_SPEED = 22
+/** Durée d'un changement de voie (s), en courbe douce (rapide au départ, posée à l'arrivée). */
+export const LANE_TIME = 0.17
 
 export const GRAVITY = 42
 export const JUMP_VELOCITY = 13.5
@@ -34,8 +34,15 @@ export const MAGNET_TIME = 8
 export const CLOUD_TIME = 5
 export const QUIZ_TIME = 5
 
-/** Vies au départ : 3 cœurs, ou une seule (mode intense). */
-export const LIVES = 3
+/** Une seule vie : un choc termine la course, sauf résurrection payée en Poussières. */
+export const LIVES = 1
+/** Après une résurrection : invincible un instant, et la piste proche est dégagée (m). */
+export const REVIVE_INVULNERABILITY = 2.5
+export const REVIVE_CLEARANCE = 35
+/** Revivre : 50 ✦, puis le double à chaque fois ; trois fois au plus (comme le serveur). */
+export const REVIVE_BASE_COST = 50
+export const MAX_REVIVES = 3
+export const reviveCost = (revivesSoFar: number): number | null => (revivesSoFar >= MAX_REVIVES ? null : REVIVE_BASE_COST * 2 ** revivesSoFar)
 
 /** Piste générée jusqu'à cette distance devant le coureur ; effacée derrière lui. */
 export const VIEW_AHEAD = 150

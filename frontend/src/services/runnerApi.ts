@@ -38,6 +38,8 @@ export interface RunnerResult {
 export const runnerApi = {
   overview: (signal?: AbortSignal) => api<RunnerOverview>('/runner', { signal }),
   start: () => api<{ id: string; seed: number }>('/runner/runs', { method: 'POST' }),
+  /** Revivre après un choc : 409 `not_enough_stardust` si le solde ne suffit pas. */
+  revive: (id: string) => api<{ cost: number; balance: number; revives: number; nextCost: number | null }>(`/runner/runs/${encodeURIComponent(id)}/revive`, { method: 'POST' }),
   end: (id: string, run: { distance: number; stardust: number; quiz: number }) =>
     api<RunnerResult>(`/runner/runs/${encodeURIComponent(id)}/end`, { method: 'POST', body: run }),
 }

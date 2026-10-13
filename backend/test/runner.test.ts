@@ -9,7 +9,7 @@ import { installMangadexMock, prepareEnvironment, startServer, type TestClient }
 
 prepareEnvironment('runner')
 // Le Runner est réservé aux administrateurs pour l'instant.
-process.env.ADMIN_EMAILS = 'ana-runner@example.com'
+process.env.ADMIN_EMAILS = 'ana-runner@example.com, chef-runner@example.com'
 installMangadexMock()
 const { client, close } = await startServer()
 after(close)
@@ -81,6 +81,29 @@ describe('Manga Runner — API', () => {
     assert.equal(overview.body.dailyCap, logic.RUNNER_DAILY_CAP)
     assert.ok(overview.body.leaderboard.some((row: { me: boolean }) => row.me))
     assert.equal(overview.body.myRank, 1)
+  })
+
+  it('revivre : 50 ✦, puis le double ; refusé sans solde suffisant ou après trois fois', async () => {
+    const chef = await account('Chef', 'chef-runner@example.com')
+    await prisma.user.update({ where: { id: chef.userId }, data: { stardust: 120 } })
+    const run = await chef.request('POST', '/runner/runs')
+    const first = await chef.request('POST', `/runner/runs/${run.body.id}/revive`)
+    assert.equal(first.status, 200, JSON.stringify(first.body))
+    assert.deepEqual(first.body, { cost: 50, balance: 70, revives: 1, nextCost: 100 })
+    const broke = await chef.request('POST', `/runner/runs/${run.body.id}/revive`)
+    assert.equal(broke.status, 409)
+    assert.equal(broke.body.error.code, 'not_enough_stardust')
+    await prisma.user.update({ where: { id: chef.userId }, data: { stardust: 1000 } })
+    assert.equal((await chef.request('POST', `/runner/runs/${run.body.id}/revive`)).body.cost, 100)
+    const third = await chef.request('POST', `/runner/runs/${run.body.id}/revive`)
+    assert.deepEqual([third.body.cost, third.body.nextCost], [200, null])
+    const limit = await chef.request('POST', `/runner/runs/${run.body.id}/revive`)
+    assert.equal(limit.body.error.code, 'revive_limit')
+    assert.equal((await prisma.user.findUnique({ where: { id: chef.userId } }))!.stardust, 700)
+    assert.equal(await prisma.stardustEntry.count({ where: { userId: chef.userId, reason: 'runner_revive' } }), 3)
+    // La course continue : elle se termine normalement.
+    assert.equal((await chef.request('POST', `/runner/runs/${run.body.id}/end`, { distance: 10, stardust: 0, quiz: 0 })).status, 200)
+    assert.equal((await chef.request('POST', `/runner/runs/${run.body.id}/revive`)).status, 404)
   })
 
   it('réservé aux administrateurs : un compte ordinaire et un invité ne le voient pas', async () => {

@@ -1,8 +1,9 @@
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { LANE_WIDTH, MAX_SPEED, START_SPEED } from '../../lib/runner/constants'
-import { isFlying, isShielded, isSliding, type RunState } from '../../lib/runner/engine'
+import type { RunState } from '../../lib/runner/engine'
 import { Batch } from './batch'
-import { PALETTE, canvasTexture, outlineMaterial, paletteColor, toonMaterial } from './toon'
+import { PALETTE, canvasTexture, paletteColor, toonMaterial } from './toon'
 
 /*
  * Les parties de la scène du Manga Runner, en Three.js pur : chacune construit ses objets
@@ -238,42 +239,77 @@ export class SceneryPart implements ScenePart {
 /* ---- Obstacles ----------------------------------------------------------------------- */
 
 const box = () => new THREE.BoxGeometry(1, 1, 1)
+const rounded = (width: number, height: number, depth: number, radius: number, segments = 3) => new RoundedBoxGeometry(width, height, depth, segments, radius)
 
-/** Tomes couchés, piles de tomes debout, torii à bannière, Manga Express. */
+/** Linteau de torii (kasagi) : une poutre dont les extrémités se relèvent. */
+function kasagiGeometry(): THREE.BufferGeometry {
+  const geometry = new THREE.BoxGeometry(3.1, 0.24, 0.5, 24, 1, 1)
+  const position = geometry.attributes.position!
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index) / 1.55
+    position.setY(index, position.getY(index) + 0.22 * x ** 4 + (position.getY(index) > 0 ? 0.03 * x * x : 0))
+  }
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+/** Longueurs des wagons tirées par la piste (12, 16 ou 20 m) : une géométrie arrondie par longueur. */
+const TRAIN_LENGTHS = [12, 16, 20] as const
+
+/**
+ * Tomes couchés, piles de tomes debout, torii, Manga Express. Géométries arrondies
+ * construites à leur vraie taille (l'arrondi ne se déforme pas), lisérés dorés, rivets,
+ * roues : des volumes propres sous un ombrage « cel » et un contour d'encre.
+ */
 export class ObstaclesPart implements ScenePart {
   readonly object = new THREE.Group()
-  private readonly cover = new Batch(box(), toonMaterial(), 48, 0.04)
-  private readonly pages = new Batch(box(), toonMaterial('#fff4dc'), 48)
-  private readonly tome = new Batch(box(), toonMaterial(), 96, 0.03)
-  private readonly spine = new Batch(box(), toonMaterial('#fff4dc', '#fff4dc', 0.25), 96)
-  private readonly pillar = new Batch(box(), toonMaterial('#ff4d5e'), 48, 0.03)
-  private readonly beam = new Batch(box(), toonMaterial(), 48, 0.03)
-  private readonly banner = new Batch(box(), toonMaterial(), 24)
-  private readonly wagon = new Batch(box(), toonMaterial(), 16)
-  private readonly wagonEdge = new Batch(box(), new THREE.MeshBasicMaterial({ color: '#170b2e' }), 16)
-  private readonly windows = new Batch(box(), new THREE.MeshBasicMaterial({ color: '#bfe9ff', toneMapped: false }), 16)
-  private readonly roof = new Batch(box(), toonMaterial('#f4ecff'), 16)
-  private readonly nose = new Batch(box(), toonMaterial('#24164a'), 16)
-  private readonly light = new Batch(box(), new THREE.MeshBasicMaterial({ color: '#fff3b0', toneMapped: false }), 32)
-  private readonly panel = new Batch(box(), toonMaterial('#ffffff', '#ffffff', 0.15), 200)
-  private readonly batches = [
-    this.cover,
-    this.pages,
-    this.tome,
-    this.spine,
-    this.pillar,
-    this.beam,
-    this.banner,
-    this.wagon,
-    this.wagonEdge,
-    this.windows,
-    this.roof,
-    this.nose,
-    this.light,
-    this.panel,
-  ]
+  // Tome couché : couverture, tranche de pages, titre doré.
+  private readonly cover = new Batch(rounded(2, 0.84, 1.05, 0.08), toonMaterial(), 40, 0.035)
+  private readonly pages = new Batch(rounded(1.88, 0.6, 1.1, 0.04), toonMaterial('#fff4dc'), 40)
+  private readonly title = new Batch(rounded(0.9, 0.04, 0.5, 0.02, 2), toonMaterial('#ffd35c', '#ffb000', 0.35), 40)
+  // Pile de tomes debout : dos arrondis, bandes dorées, étiquette.
+  private readonly tome = new Batch(rounded(0.62, 3, 1.5, 0.07), toonMaterial(), 96, 0.03)
+  private readonly bands = new Batch(rounded(0.64, 0.07, 0.06, 0.02, 2), toonMaterial('#ffd35c', '#ffb000', 0.3), 200)
+  private readonly label = new Batch(rounded(0.42, 0.34, 0.04, 0.03, 2), toonMaterial('#fff4dc', '#fff4dc', 0.2), 96)
+  // Torii : piliers ronds sur socles noirs, linteau relevé, bannière.
+  private readonly pillar = new Batch(new THREE.CylinderGeometry(0.15, 0.18, 3.9, 16), toonMaterial('#ff4d5e'), 48, 0.025)
+  private readonly socle = new Batch(new THREE.CylinderGeometry(0.22, 0.24, 0.32, 16), toonMaterial('#24164a'), 48)
+  private readonly kasagi = new Batch(kasagiGeometry(), toonMaterial('#2a1030'), 24, 0.03)
+  private readonly nuki = new Batch(rounded(2.6, 0.2, 0.26, 0.06), toonMaterial('#ff4d5e'), 48, 0.025)
+  private readonly banner = new Batch(rounded(1.7, 1.5, 0.06, 0.03, 2), toonMaterial(), 24)
+  private readonly emblem = new Batch(new THREE.CircleGeometry(0.34, 24), toonMaterial('#fff4dc', '#fff4dc', 0.25), 24)
+  // Manga Express : wagon arrondi, bandeau, vitres, pare-brise, phares, roues, couvertures sur les flancs.
+  private readonly wagons = TRAIN_LENGTHS.map((length) => new Batch(rounded(2.1, 3.1, length, 0.32, 4), toonMaterial(), 8, 0.03))
+  private readonly stripes = TRAIN_LENGTHS.map((length) => new Batch(rounded(2.14, 0.22, length - 0.4, 0.08), toonMaterial('#fbf7ff'), 8))
+  private readonly windows = TRAIN_LENGTHS.map((length) => new Batch(rounded(2.15, 0.62, length - 1.6, 0.2), new THREE.MeshBasicMaterial({ color: '#bfe9ff', toneMapped: false }), 8))
+  private readonly windshield = new Batch(rounded(1.7, 0.9, 0.12, 0.12), new THREE.MeshBasicMaterial({ color: '#2a3a7a' }), 16)
+  private readonly light = new Batch(new THREE.CylinderGeometry(0.17, 0.17, 0.08, 18), new THREE.MeshBasicMaterial({ color: '#fff3b0', toneMapped: false }), 32)
+  private readonly wheel = new Batch(new THREE.CylinderGeometry(0.32, 0.32, 0.18, 18), toonMaterial('#1b1233'), 160)
+  private readonly panel = new Batch(rounded(0.04, 1.25, 2.4, 0.02, 2), toonMaterial('#ffffff', '#ffffff', 0.15), 200)
+  private readonly batches: Batch[]
 
   constructor() {
+    this.batches = [
+      this.cover,
+      this.pages,
+      this.title,
+      this.tome,
+      this.bands,
+      this.label,
+      this.pillar,
+      this.socle,
+      this.kasagi,
+      this.nuki,
+      this.banner,
+      this.emblem,
+      ...this.wagons,
+      ...this.stripes,
+      ...this.windows,
+      this.windshield,
+      this.light,
+      this.wheel,
+      this.panel,
+    ]
     for (const batch of this.batches) this.object.add(batch.group)
   }
 
@@ -288,39 +324,49 @@ export class ObstaclesPart implements ScenePart {
       if (near < -170 || z > 14) continue
       const color = paletteColor(object.variant)
       if (object.kind === 'low') {
-        // Un tome géant couché en travers : couverture colorée, tranche de pages crème.
-        this.cover.push(x, 0.42, z, 2, 0.84, 1.05, color)
-        this.pages.push(x, 0.42, z, 1.82, 0.62, 1.09)
+        this.cover.push(x, 0.42, z, 1, 1, 1, color)
+        this.pages.push(x, 0.42, z, 1, 1, 1)
+        this.title.push(x - 0.35, 0.85, z, 1, 1, 1)
       } else if (object.kind === 'wall') {
-        // Trois tomes debout, de hauteurs et couleurs différentes, étiquette au dos.
         for (let book = 0; book < 3; book += 1) {
           const height = 2.7 + ((object.variant >> (book * 2)) & 3) * 0.18
           const bx = x + (book - 1) * 0.66
-          this.tome.push(bx, height / 2, z, 0.62, height, 1.5, paletteColor(object.variant + book * 3))
-          this.spine.push(bx, height * 0.72, z + 0.76, 0.42, 0.32, 0.02)
+          const front = z + 0.75
+          this.tome.push(bx, height / 2, z, 1, height / 3, 1, paletteColor(object.variant + book * 3))
+          this.bands.push(bx, height * 0.12, front, 1, 1, 1)
+          this.bands.push(bx, height * 0.9, front, 1, 1, 1)
+          this.label.push(bx, height * 0.62, front + 0.01, 1, 1, 1)
         }
       } else if (object.kind === 'gate') {
-        // Torii : piliers rouges, linteaux, bannière qui ondule.
-        this.pillar.push(x - 1.02, 1.95, z, 0.26, 3.9, 0.26)
-        this.pillar.push(x + 1.02, 1.95, z, 0.26, 3.9, 0.26)
-        this.beam.push(x, 3.85, z, 2.8, 0.3, 0.44, '#2a1030')
-        this.beam.push(x, 3.25, z, 2.3, 0.2, 0.26, '#ff4d5e')
-        this.banner.push(x, 2.25, z, 1.8, 1.6, 0.06, color, Math.sin(run.t * 3 + object.id) * 0.12)
+        for (const side of [-1, 1]) {
+          this.pillar.push(x + side * 1.02, 1.95, z, 1, 1, 1)
+          this.socle.push(x + side * 1.02, 0.16, z, 1, 1, 1)
+        }
+        this.kasagi.push(x, 3.95, z, 1, 1, 1)
+        this.nuki.push(x, 3.3, z, 1, 1, 1)
+        const wave = Math.sin(run.t * 2.6 + object.id) * 0.1
+        this.banner.push(x, 2.3, z + 0.02, 1, 1, 1, color, wave)
+        this.emblem.push(x, 2.35, z + 0.06, 1, 1, 1, undefined, wave)
       } else {
-        // Manga Express : wagon pastel, vitres lumineuses, couvertures de manga sur les flancs.
-        this.wagon.push(x, 1.7, z, 2.1, 3.2, object.length, color)
-        this.wagonEdge.push(x, 0.12, z, 2.16, 0.24, object.length + 0.04)
-        this.windows.push(x, 2.35, z, 2.16, 0.55, object.length * 0.86)
-        this.roof.push(x, 3.38, z, 1.9, 0.16, object.length * 0.98)
-        this.nose.push(x, 1.6, near + 0.04, 1.86, 2.9, 0.08)
-        this.light.push(x - 0.6, 0.75, near + 0.1, 0.38, 0.22, 0.04)
-        this.light.push(x + 0.6, 0.75, near + 0.1, 0.38, 0.22, 0.04)
+        const size = TRAIN_LENGTHS.indexOf(object.length as (typeof TRAIN_LENGTHS)[number])
+        const index = size < 0 ? 0 : size
+        this.wagons[index]!.push(x, 1.75, z, 1, 1, 1, color)
+        this.stripes[index]!.push(x, 1.2, z, 1, 1, 1)
+        this.windows[index]!.push(x, 2.35, z, 1, 1, 1)
+        this.windshield.push(x, 2.35, near + 0.02, 1, 1, 1)
+        this.light.push(x - 0.62, 0.85, near + 0.02, 1, 1, 1, undefined, Math.PI / 2)
+        this.light.push(x + 0.62, 0.85, near + 0.02, 1, 1, 1, undefined, Math.PI / 2)
+        for (let wheel = 0; wheel * 2.6 + 1.4 < object.length; wheel += 1) {
+          const wz = near - 1.4 - wheel * 2.6
+          this.wheel.push(x - 1.0, 0.3, wz, 1, 1, 1, undefined, 0, 0, Math.PI / 2)
+          this.wheel.push(x + 1.0, 0.3, wz, 1, 1, 1, undefined, 0, 0, Math.PI / 2)
+        }
         const panels = Math.floor((object.length - 1) / 3.2)
-        for (let index = 0; index < panels; index += 1) {
-          const pz = near - 1.8 - index * 3.2
-          const tint = PALETTE[(object.variant + index + 1) % PALETTE.length]
-          this.panel.push(x - 1.07, 1.35, pz, 0.03, 1.25, 2.4, tint)
-          this.panel.push(x + 1.07, 1.35, pz, 0.03, 1.25, 2.4, tint)
+        for (let panel = 0; panel < panels; panel += 1) {
+          const pz = near - 1.8 - panel * 3.2
+          const tint = PALETTE[(object.variant + panel + 1) % PALETTE.length]
+          this.panel.push(x - 1.07, 1.75, pz, 1, 1, 1, tint)
+          this.panel.push(x + 1.07, 1.75, pz, 1, 1, 1, tint)
         }
       }
     }
@@ -424,152 +470,6 @@ export class PickupsPart implements ScenePart {
 
   dispose(): void {
     for (const batch of this.batches) batch.dispose()
-  }
-}
-
-/* ---- Le coureur ---------------------------------------------------------------------- */
-
-/** Un héros d'anime en volumes simples : cheveux en pointes, bandeau, sac-livre ; nuage, bouclier, ombre. */
-export class RunnerPart implements ScenePart {
-  readonly object = new THREE.Group()
-  private readonly root = new THREE.Group()
-  private readonly body = new THREE.Group()
-  private readonly legL: THREE.Group
-  private readonly legR: THREE.Group
-  private readonly armL: THREE.Group
-  private readonly armR: THREE.Group
-  private readonly cloud = new THREE.Group()
-  private readonly shield: THREE.Mesh
-  private readonly shadow: THREE.Mesh
-  private phase = 0
-
-  constructor() {
-    const ink = outlineMaterial(0.03)
-    const part = (geometry: THREE.BufferGeometry, color: string, outline = true) => {
-      const mesh = new THREE.Mesh(geometry, toonMaterial(color))
-      if (outline) mesh.add(new THREE.Mesh(geometry, ink))
-      return mesh
-    }
-    this.root.add(this.body)
-    const torso = part(new THREE.BoxGeometry(0.62, 0.66, 0.38), '#ff8a3c')
-    torso.position.y = 1.08
-    const belt = part(new THREE.BoxGeometry(0.64, 0.1, 0.4), '#2b2d6e', false)
-    belt.position.y = 0.78
-    const head = part(new THREE.SphereGeometry(0.3, 18, 14), '#ffd9b8')
-    head.position.y = 1.62
-    const hair = new THREE.Group()
-    hair.position.y = 1.72
-    const hairMaterial = toonMaterial('#2b2d6e')
-    const spikes: [number, number, number, number, number][] = [
-      [0, 0.16, 0.05, 0, 0],
-      [-0.18, 0.1, 0.02, 0, 0.6],
-      [0.18, 0.1, 0.02, 0, -0.6],
-      [0, 0.06, 0.2, -1.2, 0],
-      [-0.14, 0.02, 0.18, -1, 0.5],
-      [0.14, 0.02, 0.18, -1, -0.5],
-      [0, 0.08, -0.16, 0.7, 0],
-    ]
-    for (const [x, y, z, rx, rz] of spikes) {
-      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.36, 6), hairMaterial)
-      spike.add(new THREE.Mesh(spike.geometry, ink))
-      spike.position.set(x, y, z)
-      spike.rotation.set(rx, 0, rz)
-      hair.add(spike)
-    }
-    const band = part(new THREE.CylinderGeometry(0.31, 0.31, 0.08, 18), '#ff4d5e', false)
-    band.position.y = 1.7
-    const tail = part(new THREE.BoxGeometry(0.08, 0.06, 0.42), '#ff4d5e', false)
-    tail.position.set(0.08, 1.68, 0.4)
-    // Sac à dos en forme de livre (Bookshelf oblige).
-    const pack = part(new THREE.BoxGeometry(0.5, 0.56, 0.18), '#7c5cff')
-    pack.position.set(0, 1.1, 0.3)
-    const pages = part(new THREE.BoxGeometry(0.44, 0.5, 0.06), '#fff4dc', false)
-    pages.position.set(0, 1.1, 0.4)
-    this.body.add(torso, belt, head, hair, band, tail, pack, pages)
-
-    const limb = (color: string, x: number, y: number, length: number, width: number) => {
-      const pivot = new THREE.Group()
-      pivot.position.set(x, y, 0)
-      const mesh = part(new THREE.BoxGeometry(width, length, width), color)
-      mesh.position.y = -length / 2
-      pivot.add(mesh)
-      return pivot
-    }
-    this.legL = limb('#2b2d6e', -0.15, 0.74, 0.72, 0.22)
-    this.legR = limb('#2b2d6e', 0.15, 0.74, 0.72, 0.22)
-    this.armL = limb('#ff8a3c', -0.4, 1.36, 0.56, 0.16)
-    this.armR = limb('#ff8a3c', 0.4, 1.36, 0.56, 0.16)
-    for (const leg of [this.legL, this.legR]) {
-      const shoe = part(new THREE.BoxGeometry(0.26, 0.14, 0.34), '#ffffff')
-      shoe.position.set(0, -0.72, -0.05)
-      leg.add(shoe)
-    }
-    this.body.add(this.legL, this.legR, this.armL, this.armR)
-
-    for (let bump = 0; bump < 5; bump += 1) {
-      const puff = part(new THREE.SphereGeometry(0.42, 12, 10), '#ffffff')
-      puff.position.set((bump - 2) * 0.32, (bump % 2) * 0.1 - 0.1, (bump % 3) * 0.12 - 0.1)
-      this.cloud.add(puff)
-    }
-    this.cloud.scale.setScalar(0.75)
-    this.cloud.position.y = 0.05
-    this.cloud.visible = false
-    this.root.add(this.cloud)
-    this.shield = new THREE.Mesh(
-      new THREE.SphereGeometry(1.25, 24, 18),
-      new THREE.MeshBasicMaterial({ color: '#3fd0ff', transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    this.shield.position.y = 0.95
-    this.shield.visible = false
-    this.root.add(this.shield)
-    this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.55, 20), new THREE.MeshBasicMaterial({ color: '#0b0420', transparent: true, opacity: 0.45, depthWrite: false }))
-    this.shadow.rotation.x = -Math.PI / 2
-    this.object.add(this.root, this.shadow)
-  }
-
-  update(run: RunState, _time: number, delta: number): void {
-    const { root, body, legL, legR, armL, armR, cloud, shield, shadow } = this
-    const flying = isFlying(run)
-    const sliding = isSliding(run)
-    root.position.set(run.x, run.y, 0)
-    shadow.position.set(run.x, 0.02, 0)
-    const shrink = Math.max(0.3, 1 - run.y * 0.15)
-    shadow.scale.set(shrink, shrink, 1)
-    // Penché dans le changement de voie.
-    root.rotation.z = (run.x - run.lane * LANE_WIDTH) * 0.12
-    if (!run.over) this.phase += delta * (6 + run.speed * 0.42)
-    const swing = Math.sin(this.phase)
-    if (sliding) {
-      body.rotation.x = -1.15
-      body.position.y = 0.32
-      legL.rotation.x = legR.rotation.x = -1.2
-      armL.rotation.x = armR.rotation.x = -2.4
-    } else if (!run.grounded || flying) {
-      body.rotation.x = flying ? 0 : -0.15
-      body.position.y = 0
-      legL.rotation.x = flying ? 0.2 : 0.9
-      legR.rotation.x = flying ? -0.2 : -0.5
-      armL.rotation.x = armR.rotation.x = flying ? -0.4 : -2.6
-    } else {
-      body.rotation.x = 0.12
-      body.position.y = Math.abs(swing) * 0.08
-      legL.rotation.x = swing * 0.95
-      legR.rotation.x = -swing * 0.95
-      armL.rotation.x = -swing * 0.85
-      armR.rotation.x = swing * 0.85
-    }
-    cloud.visible = flying
-    // Clignote pendant l'invincibilité qui suit un choc.
-    body.visible = run.over || !(run.invulnerableUntil > run.t && !isShielded(run)) || Math.floor(run.t * 14) % 2 === 0
-    shield.visible = isShielded(run)
-    if (shield.visible) {
-      shield.scale.setScalar(1 + Math.sin(run.t * 8) * 0.04)
-      ;(shield.material as THREE.MeshBasicMaterial).opacity = 0.18 + Math.sin(run.t * 6) * 0.06
-    }
-  }
-
-  dispose(): void {
-    disposeTree(this.object)
   }
 }
 

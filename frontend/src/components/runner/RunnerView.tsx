@@ -23,10 +23,9 @@ import { RunnerGame, type RunnerOutcome } from './RunnerGame'
 
 /** Réglages du Runner, gardés sur l'appareil. */
 interface RunnerPrefs {
-  lives: 1 | 3
   buttons: boolean
   lite: boolean
-  set: (patch: Partial<Pick<RunnerPrefs, 'lives' | 'buttons' | 'lite'>>) => void
+  set: (patch: Partial<Pick<RunnerPrefs, 'buttons' | 'lite'>>) => void
 }
 
 const modestDevice = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency ?? 8) <= 4
@@ -34,12 +33,11 @@ const modestDevice = typeof navigator !== 'undefined' && (navigator.hardwareConc
 const useRunnerPrefs = create<RunnerPrefs>()(
   persist(
     (set) => ({
-      lives: 3,
       buttons: false,
       lite: modestDevice,
       set: (patch) => set(patch),
     }),
-    { name: 'bookshelf:runner:v1', version: 1, partialize: ({ lives, buttons, lite }) => ({ lives, buttons, lite }) },
+    { name: 'bookshelf:runner:v1', version: 2, partialize: ({ buttons, lite }) => ({ buttons, lite }), migrate: (persisted) => persisted as RunnerPrefs },
   ),
 )
 
@@ -155,6 +153,21 @@ export function RunnerView() {
     [session, t, refresh],
   )
 
+  /** Revivre : les Poussières sont débitées sur le serveur ; le solde affiché suit. */
+  const payRevive = useCallback(
+    async (runId: string) => {
+      try {
+        const { balance } = await runnerApi.revive(runId)
+        useDleStore.getState().setStardust(balance)
+        return true
+      } catch (error) {
+        notify(apiErrorMessage(error, t), 'nope')
+        return false
+      }
+    },
+    [notify, t],
+  )
+
   const leave = () => {
     setSession(null)
     setSettled(null)
@@ -179,11 +192,11 @@ export function RunnerView() {
             <RunnerGame
               key={session.key}
               seed={session.seed}
-              lives={prefs.lives}
               buttons={prefs.buttons}
               lite={prefs.lite}
               universes={universes}
               onOver={finish}
+              revival={session.runId && signedIn ? { balance: stardust, pay: () => payRevive(session.runId!) } : null}
               onQuit={(outcome) => (outcome.distance > 1 ? finish(outcome) : leave())}
             />
             {settled && <GameOver settled={settled} replaying={starting} onReplay={() => void start()} onHome={leave} />}
@@ -245,21 +258,6 @@ function RunnerHome({ overview, starting, onStart }: { overview: RunnerOverview 
       </section>
 
       <section data-runner-in className="flex shrink-0 flex-col gap-3 rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-4">
-        <p className="text-[11px] font-semibold tracking-[0.2em] text-mist uppercase">{t.runner.home.livesLabel}</p>
-        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t.runner.home.livesLabel}>
-          {([3, 1] as const).map((lives) => (
-            <button
-              key={lives}
-              type="button"
-              role="radio"
-              aria-checked={prefs.lives === lives}
-              onClick={() => prefs.set({ lives })}
-              className={`h-11 rounded-full border text-sm font-semibold transition-colors ${prefs.lives === lives ? 'border-[#ff6fb5] bg-[#ff6fb5]/20 text-cream' : 'border-white/10 text-cream/60'}`}
-            >
-              {lives === 3 ? `❤️ ${t.runner.home.lives3}` : `🔥 ${t.runner.home.lives1}`}
-            </button>
-          ))}
-        </div>
         <Toggle label={t.runner.home.buttons} hint={t.runner.home.buttonsHint} checked={prefs.buttons} onChange={(buttons) => prefs.set({ buttons })} />
         <Toggle label={t.runner.home.lite} hint={t.runner.home.liteHint} checked={prefs.lite} onChange={(lite) => prefs.set({ lite })} />
       </section>

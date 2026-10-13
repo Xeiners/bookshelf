@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Heart, Magnet, Pause, Play, Shield, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Loader2, Magnet, Pause, Play, Shield, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
-import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, multiplierFor } from '../../lib/runner/constants'
-import { act, createRun, scoreOf, type ActiveQuiz, type RunAction, type RunState } from '../../lib/runner/engine'
+import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, multiplierFor, reviveCost } from '../../lib/runner/constants'
+import { act, createRun, revive, scoreOf, type ActiveQuiz, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
 import { playChime, playRunnerHit, playRunnerJump, playRunnerPower, playRunnerSlide, playRunnerStar, playRunnerWrong } from '../../lib/sfx'
@@ -19,11 +19,12 @@ export interface RunnerOutcome {
 interface RunnerGameProps {
   /** Graine de la piste (donnée par le serveur). */
   seed: number
-  lives: number
   buttons: boolean
   lite: boolean
   universes: readonly QuizUniverse[]
   onOver: (outcome: RunnerOutcome) => void
+  /** Résurrection possible (course enregistrée sur un compte) : le solde, et le paiement. `null` : jamais. */
+  revival: { balance: number; pay: () => Promise<boolean> } | null
   /** Abandon (depuis la pause) : la distance parcourue compte comme une fin de course. */
   onQuit: (outcome: RunnerOutcome) => void
 }
@@ -42,6 +43,9 @@ const KEYS: Record<string, RunAction> = {
   s: 'down',
 }
 
+/** Temps pour décider de revivre (s). */
+const REVIVE_SECONDS = 6
+
 /** Distance d'un glissement de doigt qui compte comme un geste (px). */
 const SWIPE = 26
 
@@ -50,14 +54,16 @@ const SWIPE = 26
  * changent à chaque image (distance, score, ✦, jauges) sont écrits directement dans le
  * DOM ; React ne se redessine que pour ce qui change rarement (vies, quiz, pause).
  */
-export function RunnerGame({ seed, lives, buttons, lite, universes, onOver, onQuit }: RunnerGameProps) {
+export function RunnerGame({ seed, buttons, lite, universes, onOver, revival, onQuit }: RunnerGameProps) {
   const t = useT()
-  const [initial] = useState(() => createRun(seed, { lives }))
+  const [initial] = useState(() => createRun(seed))
   const state = useRef<RunState>(initial)
   const paused = useRef(true)
   const [pausedView, setPausedView] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(3)
-  const [livesLeft, setLivesLeft] = useState(lives)
+  /** Choc fatal : l'offre de résurrection (prix, secondes restantes), ou `null`. */
+  const [offer, setOffer] = useState<{ cost: number; paying: boolean } | null>(null)
+  const [offerLeft, setOfferLeft] = useState(0)
   const [quiz, setQuiz] = useState<ActiveQuiz | null>(null)
   const [lane, setLane] = useState(0)
   const [verdict, setVerdict] = useState<'right' | 'wrong' | null>(null)
@@ -76,9 +82,45 @@ export function RunnerGame({ seed, lives, buttons, lite, universes, onOver, onQu
   const combo = useRef({ count: 0, at: 0 })
   const finished = useRef(false)
   const onOverRef = useRef(onOver)
+  const revivalRef = useRef(revival)
   useEffect(() => {
     onOverRef.current = onOver
-  }, [onOver])
+    revivalRef.current = revival
+  }, [onOver, revival])
+
+  /** Fin de la course : le bilan part au serveur. */
+  const end = useCallback((run: RunState) => {
+    if (finished.current) return
+    finished.current = true
+    setOffer(null)
+    onOverRef.current({ distance: run.distance, stardust: run.stardust, quiz: run.quizRight, score: scoreOf(run) })
+  }, [])
+
+  // Offre de résurrection : un compte à rebours, puis la course se termine d'elle-même.
+  const offering = offer !== null && !offer.paying
+  useEffect(() => {
+    if (!offering) return
+    if (offerLeft <= 0) {
+      end(state.current)
+      return
+    }
+    const timer = window.setTimeout(() => setOfferLeft((left) => left - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [offering, offerLeft, end])
+
+  const accept = async () => {
+    const current = revivalRef.current
+    if (!offer || offer.paying || !current) return
+    setOffer({ ...offer, paying: true })
+    const paid = await current.pay()
+    if (!paid) {
+      end(state.current)
+      return
+    }
+    revive(state.current)
+    setOffer(null)
+    paused.current = false
+  }
 
   // Questions de quiz : tirées des univers du BookshelfDLE, reproductibles avec la graine.
   const [quizRandom] = useState(() => seededRandom(seed ^ 0x9e3779b9))
@@ -100,7 +142,8 @@ export function RunnerGame({ seed, lives, buttons, lite, universes, onOver, onQu
   }, [countdown])
 
   const pause = useCallback((value: boolean) => {
-    if (finished.current) return
+    // Course finie, ou en attente d'une résurrection : la pause n'a plus de sens.
+    if (finished.current || state.current.over) return
     paused.current = value
     setPausedView(value)
   }, [])
@@ -227,7 +270,6 @@ export function RunnerGame({ seed, lives, buttons, lite, universes, onOver, onQu
           case 'hit':
             playRunnerHit()
             vibrate([40, 30, 60])
-            setLivesLeft(run.lives)
             setHitFlash((value) => value + 1)
             break
           case 'magnet':
@@ -251,16 +293,26 @@ export function RunnerGame({ seed, lives, buttons, lite, universes, onOver, onQu
             setQuiz(null)
             setVerdict('wrong')
             break
-          case 'over':
-            finished.current = true
+          case 'over': {
             setQuiz(null)
-            onOverRef.current({ distance: run.distance, stardust: run.stardust, quiz: run.quizRight, score: scoreOf(run) })
+            // Résurrection possible : la course est figée le temps de choisir.
+            const cost = revivalRef.current ? reviveCost(run.revives) : null
+            if (cost !== null) {
+              paused.current = true
+              setOffer({ cost, paying: false })
+              setOfferLeft(REVIVE_SECONDS)
+            } else end(run)
+            break
+          }
+          case 'revive':
+            playRunnerPower()
+            vibrate([20, 40, 20])
             break
         }
       }
       run.events.length = 0
     },
-    [],
+    [end],
   )
 
   // Le verdict du quiz s'efface après un instant.
@@ -284,14 +336,9 @@ export function RunnerGame({ seed, lives, buttons, lite, universes, onOver, onQu
       {/* Éclair rouge au choc. */}
       {hitFlash > 0 && <div key={hitFlash} aria-hidden className="pointer-events-none absolute inset-0 animate-[runner-hit_0.45s_ease-out_forwards] bg-nope/35" />}
 
-      {/* HUD du haut : vies, distance, score, ✦ et multiplicateur, pause. */}
+      {/* HUD du haut : distance, bonus actifs, score, ✦ et multiplicateur, pause. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-1" aria-label={t.runner.hud.lives(livesLeft)}>
-            {Array.from({ length: lives }, (_, index) => (
-              <Heart key={index} size={20} className={index < livesLeft ? 'fill-[#ff5e7a] text-[#ff5e7a] drop-shadow-[0_0_6px_rgba(255,94,122,0.8)]' : 'text-white/25'} aria-hidden />
-            ))}
-          </div>
           <span ref={distanceRef} className="font-display text-3xl leading-none text-white tabular-nums drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
             0 m
           </span>
@@ -377,6 +424,47 @@ export function RunnerGame({ seed, lives, buttons, lite, universes, onOver, onQu
             <TouchButton label={t.runner.hud.jump} onPress={() => perform('up')} icon={<ArrowUp size={26} />} />
           </div>
           <TouchButton label={t.runner.hud.right} onPress={() => perform('right')} icon={<ArrowRight size={26} />} />
+        </div>
+      )}
+
+      {offer && (
+        <div className="absolute inset-0 grid place-items-center bg-black/60 px-6 backdrop-blur-sm" onPointerDown={(event) => event.stopPropagation()}>
+          <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
+            <div className="relative grid size-24 place-items-center">
+              <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
+                <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="7" />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  fill="none"
+                  stroke="#ffd35c"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={276.5}
+                  strokeDashoffset={276.5 * (1 - offerLeft / REVIVE_SECONDS)}
+                  style={{ transition: 'stroke-dashoffset 1s linear' }}
+                />
+              </svg>
+              <span className="font-display text-4xl text-white tabular-nums">{offerLeft}</span>
+            </div>
+            <p className="font-display text-3xl text-white">{t.runner.revive.title}</p>
+            <p className="text-sm text-cream/70">{t.runner.revive.body}</p>
+            <button
+              type="button"
+              onClick={() => void accept()}
+              disabled={offer.paying || (revival?.balance ?? 0) < offer.cost}
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-full text-base font-bold text-void shadow-[0_0_28px_rgba(255,211,92,0.5)] disabled:opacity-45"
+              style={{ background: 'linear-gradient(135deg, #fff0b0, #ffd35c 45%, #ff9f43)' }}
+            >
+              {offer.paying ? <Loader2 size={19} className="animate-spin" aria-hidden /> : <Sparkles size={19} aria-hidden />}
+              {t.runner.revive.pay(offer.cost)}
+            </button>
+            <p className="text-xs text-cream/55">{(revival?.balance ?? 0) < offer.cost ? t.runner.revive.short(revival?.balance ?? 0) : t.runner.revive.balance(revival?.balance ?? 0)}</p>
+            <button type="button" onClick={() => end(state.current)} disabled={offer.paying} className="h-11 w-full rounded-full border border-white/20 bg-white/10 text-sm font-semibold text-white disabled:opacity-45">
+              {t.runner.revive.decline}
+            </button>
+          </div>
         </div>
       )}
 

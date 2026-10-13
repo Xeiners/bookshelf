@@ -4,8 +4,8 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { LANE_WIDTH, MAX_SPEED, SLIDE_TIME, START_SPEED, scoreFor, speedAt } from '../src/lib/runner/constants'
-import { OBSTACLE_SPAN, TrackGenerator, act, createRun, isSliding, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
+import { LANE_WIDTH, MAX_SPEED, SLIDE_TIME, START_SPEED, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
+import { OBSTACLE_SPAN, TrackGenerator, act, createRun, isSliding, revive, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
 import { makeQuiz } from '../src/lib/runner/quiz'
 import { seededRandom } from '../src/lib/runner/random'
 
@@ -80,6 +80,27 @@ describe('Manga Runner — simulation', () => {
     assert.equal(state.distance, distance, 'la course est figée')
   })
 
+  it('une seule vie par défaut ; revivre dégage la piste proche et rend invincible un instant', () => {
+    const state = createRun(5)
+    assert.equal(state.lives, 1)
+    state.objects.length = 0
+    state.track.fill = () => undefined
+    place(state, 'wall', 0, 3)
+    place(state, 'wall', 0, 8)
+    run(state, 0.5)
+    assert.equal(state.over, true)
+    revive(state)
+    assert.equal(state.over, false)
+    assert.equal(state.revives, 1)
+    assert.ok(state.events.includes('revive'))
+    run(state, 1)
+    assert.equal(state.over, false, 'le mur suivant a disparu')
+    place(state, 'wall', 0, state.distance + 2)
+    run(state, 0.3)
+    assert.equal(state.over, false, 'encore invincible')
+    assert.deepEqual([reviveCost(0), reviveCost(1), reviveCost(2), reviveCost(3)], [50, 100, 200, null])
+  })
+
   it('ramassage : ✦ dans sa voie, aimant sur les voies voisines, nuage au-dessus des obstacles', () => {
     const state = emptyRun()
     place(state, 'star', 0, 3, 0.6, 1)
@@ -136,7 +157,7 @@ describe('Manga Runner — piste', () => {
     const state = createRun(7)
     run(state, 120)
     assert.ok(state.over)
-    assert.ok(state.distance > 50)
+    assert.ok(state.distance > 40, String(state.distance))
   })
 })
 

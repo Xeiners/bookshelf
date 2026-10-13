@@ -1,7 +1,8 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { step, type QuizQuestion, type RunState } from '../../lib/runner/engine'
-import { CameraFollow, GroundPart, ObstaclesPart, PetalsPart, PickupsPart, RunnerPart, SceneryPart, SkyPart, type ScenePart } from './parts'
+import { HeroPart } from './hero'
+import { CameraFollow, GroundPart, ObstaclesPart, PetalsPart, PickupsPart, SceneryPart, SkyPart, type ScenePart } from './parts'
 
 /*
  * La scène du Manga Runner. Une seule boucle (`useFrame`, priorité −1) fait avancer la
@@ -39,7 +40,7 @@ export function RunnerScene({ state, paused, ask, onTick, lite }: RunnerScenePro
       <Part state={state} make={() => new SceneryPart()} />
       <Part state={state} make={() => new ObstaclesPart()} />
       <Part state={state} make={() => new PickupsPart()} />
-      <Part state={state} make={() => new RunnerPart()} />
+      <Part state={state} make={() => new HeroPart()} />
       {!lite && <Part state={state} make={() => new PetalsPart()} />}
       <Camera state={state} />
     </Canvas>

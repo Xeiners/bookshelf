@@ -17,7 +17,7 @@ import {
   HIT_INVULNERABILITY,
   JUMP_VELOCITY,
   KEEP_BEHIND,
-  LANE_SPEED,
+  LANE_TIME,
   LANE_WIDTH,
   LIVES,
   MAGNET_TIME,
@@ -25,6 +25,8 @@ import {
   PLAYER_HALF_WIDTH,
   PLAYER_HEIGHT,
   QUIZ_TIME,
+  REVIVE_CLEARANCE,
+  REVIVE_INVULNERABILITY,
   SHIELD_TIME,
   SLIDE_HEIGHT,
   SLIDE_TIME,
@@ -78,6 +80,7 @@ export type RunEvent =
   | 'quizRight'
   | 'quizWrong'
   | 'over'
+  | 'revive'
 
 /** Une question de quiz : trois réponses, une par voie (gauche, centre, droite). */
 export interface QuizQuestion {
@@ -106,6 +109,11 @@ export interface RunState {
   lane: Lane
   /** Position latérale réelle (m), qui rejoint la voie. */
   x: number
+  /** Départ du changement de voie en cours : position et instant. */
+  laneFrom: number
+  laneAt: number
+  /** Résurrections déjà utilisées pendant la course. */
+  revives: number
   y: number
   vy: number
   grounded: boolean
@@ -143,6 +151,9 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
     speed: speedAt(0),
     lane: 0,
     x: 0,
+    laneFrom: 0,
+    laneAt: -1,
+    revives: 0,
     y: 0,
     vy: 0,
     grounded: true,
@@ -172,6 +183,22 @@ export const isFlying = (state: RunState) => state.cloudUntil > state.t
 export const isShielded = (state: RunState) => state.shieldUntil > state.t
 export const scoreOf = (state: RunState) => scoreFor(state.distance, state.stardust, state.quizRight)
 
+/**
+ * Revivre après le choc fatal (payé en Poussières, cf. le serveur) : la course reprend,
+ * invincible un instant, et les obstacles tout proches disparaissent.
+ */
+export function revive(state: RunState): void {
+  if (!state.over) return
+  state.over = false
+  state.lives = 1
+  state.revives += 1
+  state.invulnerableUntil = state.t + REVIVE_INVULNERABILITY
+  for (const object of state.objects) {
+    if (isObstacle(object.kind) && object.s + object.length > state.distance - 2 && object.s < state.distance + REVIVE_CLEARANCE) object.done = true
+  }
+  state.events.push('revive')
+}
+
 /** Un geste du joueur : changer de voie, sauter, glisser (plonger s'il est en l'air). */
 export function act(state: RunState, action: RunAction): void {
   if (state.over) return
@@ -179,6 +206,8 @@ export function act(state: RunState, action: RunAction): void {
     const next = Math.max(-1, Math.min(1, state.lane + (action === 'left' ? -1 : 1))) as Lane
     if (next !== state.lane) {
       state.lane = next
+      state.laneFrom = state.x
+      state.laneAt = state.t
       state.events.push('lane')
     }
     return
@@ -214,11 +243,11 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
   const from = state.distance
   state.distance += state.speed * dt
 
-  // Latéral : la position rejoint la voie, à vitesse constante (un geste net).
+  // Latéral : la position rejoint la voie en courbe douce (cubique : vif au départ, posé à l'arrivée).
   const target = state.lane * LANE_WIDTH
-  const gap = target - state.x
-  const move = LANE_SPEED * dt
-  state.x = Math.abs(gap) <= move ? target : state.x + Math.sign(gap) * move
+  const progress = Math.min(1, (t - state.laneAt) / LANE_TIME)
+  const eased = 1 - (1 - progress) ** 3
+  state.x = progress >= 1 ? target : state.laneFrom + (target - state.laneFrom) * eased
 
   // Vertical : vol sur le nuage, sinon saut et gravité.
   if (isFlying(state)) {

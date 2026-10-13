@@ -4,7 +4,7 @@ import { config } from '../../config.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { requireAdmin } from '../admin/admin.access.js'
-import { finishRunnerRun, runnerOverview, startRunnerRun } from './runner.service.js'
+import { finishRunnerRun, reviveRunnerRun, runnerOverview, startRunnerRun } from './runner.service.js'
 
 /**
  * Manga Runner 3D (cf. `runner.service.ts`). Monté sous `/api/runner`. Pour l'instant
@@ -42,4 +42,10 @@ const EndBody = z.object({
 runnerRouter.post('/runs/:id/end', runLimiter, async (req, res) => {
   const { id } = RunParams.parse(req.params)
   res.json(await finishRunnerRun(currentUserId(req), id, EndBody.parse(req.body)))
+})
+
+/** Revivre après un choc : la course continue, contre des Poussières (prix doublé à chaque fois). */
+runnerRouter.post('/runs/:id/revive', runLimiter, async (req, res) => {
+  const { id } = RunParams.parse(req.params)
+  res.json(await reviveRunnerRun(currentUserId(req), id))
 })

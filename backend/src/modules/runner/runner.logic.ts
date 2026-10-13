@@ -17,6 +17,11 @@ export const QUIZ_REWARD = 10
 /** Points par bonne réponse à un quiz. */
 export const QUIZ_POINTS = 250
 
+/** Revivre après un choc : 50 ✦, puis le double à chaque fois ; trois fois au plus par course. */
+export const REVIVE_BASE_COST = 50
+export const MAX_REVIVES = 3
+export const reviveCost = (revivesSoFar: number): number | null => (revivesSoFar >= MAX_REVIVES ? null : REVIVE_BASE_COST * 2 ** revivesSoFar)
+
 /** Distance maximale atteignable en `seconds` (accélération puis plafond), avec une marge. */
 export function maxDistance(seconds: number): number {
   const t = Math.max(0, seconds)

@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto'
 import { prisma } from '../../db.js'
-import { notFound } from '../../lib/errors.js'
+import { HttpError, notFound } from '../../lib/errors.js'
 import { isGuestId } from '../dle/dle.guests.js'
 import { parisDay } from '../dle/dle.logic.js'
 import { receiptsFor } from '../higherlower/hl.service.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { publicAvatarUrl } from '../users/publicProfile.service.js'
-import { QUIZ_REWARD, RUNNER_DAILY_CAP, cappedReward, plausible, scoreFor, type RunClaim } from './runner.logic.js'
+import { QUIZ_REWARD, RUNNER_DAILY_CAP, cappedReward, plausible, reviveCost, scoreFor, type RunClaim } from './runner.logic.js'
 
 /*
  * Manga Runner 3D (cf. `runner.logic.ts`) : le serveur ouvre une course (identifiant et
@@ -20,6 +20,8 @@ interface Run {
   userId: string
   seed: number
   startedAt: number
+  /** Résurrections déjà payées pendant cette course. */
+  revives: number
 }
 
 const runs = new Map<string, Run>()
@@ -30,9 +32,43 @@ export interface RunnerRunStart {
 }
 
 export function startRunnerRun(userId: string, now = Date.now()): RunnerRunStart {
-  const run: Run = { id: randomBytes(9).toString('hex'), userId, seed: randomBytes(4).readUInt32BE(0), startedAt: now }
+  const run: Run = { id: randomBytes(9).toString('hex'), userId, seed: randomBytes(4).readUInt32BE(0), startedAt: now, revives: 0 }
   runs.set(userId, run)
   return { id: run.id, seed: run.seed }
+}
+
+export interface RunnerRevive {
+  /** Poussières payées pour cette résurrection, et le solde qui reste. */
+  cost: number
+  balance: number
+  revives: number
+  /** Prix de la suivante ; `null` : plus aucune possible pendant cette course. */
+  nextCost: number | null
+}
+
+/**
+ * Revivre après un choc fatal : la course continue, contre des Poussières du compte.
+ * Débit atomique (comme l'achat d'un booster) : 409 `not_enough_stardust` si le solde ne
+ * suffit pas, 409 `revive_limit` au-delà de trois résurrections. Les invités n'ont pas
+ * de solde sur le serveur : 403.
+ */
+export async function reviveRunnerRun(userId: string, runId: string): Promise<RunnerRevive> {
+  const run = runs.get(userId)
+  if (!run || run.id !== runId) throw notFound('Course introuvable.')
+  if (isGuestId(userId)) throw new HttpError(403, 'revive_account_only', 'Revivre demande un compte.')
+  const cost = reviveCost(run.revives)
+  if (cost === null) throw new HttpError(409, 'revive_limit', 'Plus de résurrection possible pendant cette course.')
+  const balance = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.user.updateMany({ where: { id: userId, stardust: { gte: cost } }, data: { stardust: { decrement: cost } } })
+    if (count === 0) {
+      const user = await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } })
+      throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', { balance: user?.stardust ?? 0, price: cost })
+    }
+    await tx.stardustEntry.create({ data: { userId, amount: -cost, reason: 'runner_revive', data: JSON.stringify({ revive: run.revives + 1 }) } })
+    return (await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } }))?.stardust ?? 0
+  })
+  run.revives += 1
+  return { cost, balance, revives: run.revives, nextCost: reviveCost(run.revives) }
 }
 
 export interface RunnerResult {
