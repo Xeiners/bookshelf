@@ -33,7 +33,7 @@ export const JJK_ATTRIBUTES = ['affiliation', 'grade', 'species', 'gender', 'sta
 export const DRAGONBALL_ATTRIBUTES = ['race', 'affiliation', 'forms', 'role', 'gender', 'debut'] as const
 
 /** Colonnes du mode classique pour les personnages de My Hero Academia. */
-export const MHA_ATTRIBUTES = ['affiliation', 'quirk', 'role', 'gender', 'status', 'debut'] as const
+export const MHA_ATTRIBUTES = ['affiliation', 'quirk', 'role', 'gender', 'hair', 'height', 'status', 'debut'] as const
 
 /** Colonnes du mode classique de chaque catégorie, dans l'ordre. */
 export const CATEGORY_ATTRIBUTES: Record<DleCategory, readonly string[]> = {

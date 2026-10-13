@@ -216,6 +216,11 @@ function CharacterValue({ category, attribute, value }: { category: DleCategory;
   const empty = universe.none
   // JoJo : la partie de la première apparition.
   if (category === 'jojo' && attribute === 'debut' && typeof value === 'number') return <span className={text}>{jojo.part(value)}</span>
+  // My Hero Academia : la taille, en centimètres (au-delà de 10 m, en mètres).
+  if (attribute === 'height' && typeof value === 'number') {
+    const height = value >= 1000 ? `${new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(value / 100)} m` : `${value} cm`
+    return <span className="text-sm font-bold tabular-nums">{height}</span>
+  }
   if (attribute === 'bounty') {
     const bounty = typeof value === 'number' ? new Intl.NumberFormat(language, { notation: 'compact', maximumFractionDigits: 1 }).format(value) : naruto.none
     return <span className="text-sm font-bold tabular-nums">{bounty}</span>

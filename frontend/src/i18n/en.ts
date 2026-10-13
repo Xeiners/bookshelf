@@ -1702,7 +1702,11 @@ export const en: Dictionary = {
       none: 'None',
     },
     mha: {
-      attributes: { work: 'Character', affiliation: 'Affiliation', quirk: 'Quirk', role: 'Role', gender: 'Gender', status: 'Status', debut: 'Arc' },
+      attributes: { work: 'Character', affiliation: 'Affiliation', quirk: 'Quirk', role: 'Role', gender: 'Gender', hair: 'Hair', height: 'Height', status: 'Status', debut: 'Arc' },
+      hair: {
+        black: 'Black', brown: 'Brown', blond: 'Blond', red: 'Red', orange: 'Orange', white: 'White', grey: 'Grey', green: 'Green', blue: 'Blue',
+        purple: 'Purple', pink: 'Pink', none: 'None',
+      } as Record<string, string>,
       affiliation: {
         class_1a: 'Class 1-A', class_1b: 'Class 1-B', ua: 'U.A.', heroes: 'Pro heroes', hpsc: 'Hero Commission', shiketsu: 'Shiketsu',
         league: 'League of Villains', liberation: 'Liberation Front', hassaikai: 'Shie Hassaikai', other: 'Other',

@@ -854,6 +854,21 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
     assert.equal(nameKey('Bakugou, Katsuki'), nameKey('Katsuki Bakugo'))
   })
 
+  it('My Hero Academia : cheveux et taille départagent ; aucun personnage n’a le même profil qu’un autre', async () => {
+    const { MHA_CHARACTERS, MHA_ATTRIBUTES, compareMha } = await import('../src/modules/dle/mha.characters.js')
+    const find = (id: string) => MHA_CHARACTERS.find((character) => character.id === id)!
+    // Tous deux blonds, en Seconde A, émetteurs : la taille les sépare (172 cm contre 168 cm).
+    const feedback = compareMha(find('aoyama'), find('bakugo'))
+    assert.equal(feedback.hair.verdict, 'exact')
+    assert.deepEqual(feedback.height, { verdict: 'partial', direction: 'higher' })
+    assert.equal(compareMha(find('kaminari'), find('aoyama')).hair.verdict, 'partial', 'mèche noire de Kaminari')
+    // Un essai tout vert est forcément la bonne réponse.
+    for (const character of MHA_CHARACTERS) {
+      const verdicts = MHA_CHARACTERS.filter((other) => other.id !== character.id && MHA_ATTRIBUTES.every((attribute) => compareMha(other, character)[attribute].verdict === 'exact'))
+      assert.deepEqual(verdicts.map((other) => other.id), [], `même profil que ${character.id}`)
+    }
+  })
+
   it('énigmes du jour et portraits des deux univers', async () => {
     for (const category of ['dragonball', 'mha'] as const) {
       const classic = await chloe.request('GET', `/dle/daily/${category}/classic`)

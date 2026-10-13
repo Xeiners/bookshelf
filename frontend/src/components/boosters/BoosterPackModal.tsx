@@ -284,7 +284,7 @@ export function BoosterPackModal() {
       {/* Pendant le suspens et la déchirure, rien ne doit rogner la bande qui s'envole ni l'éclair : pas de défilement. */}
       <div
         data-shake
-        className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-y-auto' : 'overflow-visible'}`}
+        className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-x-hidden overflow-y-auto' : 'overflow-visible'}`}
       >
         {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round((viewport.width - 32) / CARD_SERIES.length) - 14)} onPick={pick} />}
 

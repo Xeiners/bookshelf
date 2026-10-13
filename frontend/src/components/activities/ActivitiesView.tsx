@@ -1,11 +1,11 @@
 import { lazy, Suspense, useRef } from 'react'
-import { ChevronLeft, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
-import { vibrate } from '../../lib/haptics'
 import { TarotPage } from '../../pages/TarotPage'
 import { useUiStore } from '../../store/useUiStore'
 import { CollectionView } from '../cards/CollectionView'
+import { BackButton } from '../ui/BackButton'
 import { TradingHubView } from '../trading/TradingHubView'
 import { ActivitiesHub } from './ActivitiesHub'
 import { SanctumBackdrop } from './SanctumBackdrop'
@@ -53,18 +53,8 @@ export function ActivitiesView() {
         </Suspense>
       ) : (
         <>
-          <div className="shrink-0 px-5 pb-2">
-            <button
-              type="button"
-              onClick={() => {
-                vibrate(6)
-                openActivity('hub')
-              }}
-              className="inline-flex items-center gap-1 rounded-full py-1.5 pr-3 text-sm text-mist hover:text-cream"
-            >
-              <ChevronLeft size={18} aria-hidden />
-              {t.activities.back}
-            </button>
+          <div className="shrink-0 px-4 pb-2">
+            <BackButton label={t.activities.back} onBack={() => openActivity('hub')} />
           </div>
           {activity === 'oracle' ? <TarotPage /> : activity === 'market' ? <TradingHubView /> : <CollectionView />}
         </>

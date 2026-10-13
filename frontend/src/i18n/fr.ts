@@ -1717,7 +1717,11 @@ export const fr = {
       none: 'Aucune',
     },
     mha: {
-      attributes: { work: 'Perso', affiliation: 'Affiliation', quirk: 'Alter', role: 'Rôle', gender: 'Genre', status: 'Statut', debut: 'Arc' },
+      attributes: { work: 'Perso', affiliation: 'Affiliation', quirk: 'Alter', role: 'Rôle', gender: 'Genre', hair: 'Cheveux', height: 'Taille', status: 'Statut', debut: 'Arc' },
+      hair: {
+        black: 'Noirs', brown: 'Bruns', blond: 'Blonds', red: 'Roux', orange: 'Orange', white: 'Blancs', grey: 'Gris', green: 'Verts', blue: 'Bleus',
+        purple: 'Violets', pink: 'Roses', none: 'Aucun',
+      } as Record<string, string>,
       affiliation: {
         class_1a: 'Seconde A', class_1b: 'Seconde B', ua: 'Yuei', heroes: 'Héros pros', hpsc: 'Commission des héros', shiketsu: 'Shiketsu',
         league: 'Ligue des Vilains', liberation: 'Front de Libération', hassaikai: 'Shie Hassaikai', other: 'Autre',
