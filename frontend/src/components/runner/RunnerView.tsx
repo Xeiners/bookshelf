@@ -19,25 +19,33 @@ import { useUiStore } from '../../store/useUiStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
+import { HeroPreview } from './HeroPreview'
+import { DEFAULT_LOOK, HERO_LOOKS, type HeroLookId } from './looks'
 import { RunnerGame, type RunnerOutcome } from './RunnerGame'
 
 /** Réglages du Runner, gardés sur l'appareil. */
 interface RunnerPrefs {
+  /** Tenue du coureur (cf. `looks.ts`). */
+  look: HeroLookId
   buttons: boolean
   lite: boolean
-  set: (patch: Partial<Pick<RunnerPrefs, 'buttons' | 'lite'>>) => void
+  set: (patch: Partial<Pick<RunnerPrefs, 'look' | 'buttons' | 'lite'>>) => void
 }
 
 const modestDevice = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency ?? 8) <= 4
 
+/** Tenue gardée sur l'appareil, si elle existe encore (sinon celle par défaut). */
+const knownLook = (look: string): HeroLookId => (look in HERO_LOOKS ? (look as HeroLookId) : DEFAULT_LOOK)
+
 const useRunnerPrefs = create<RunnerPrefs>()(
   persist(
     (set) => ({
+      look: DEFAULT_LOOK,
       buttons: false,
       lite: modestDevice,
       set: (patch) => set(patch),
     }),
-    { name: 'bookshelf:runner:v1', version: 2, partialize: ({ buttons, lite }) => ({ buttons, lite }), migrate: (persisted) => persisted as RunnerPrefs },
+    { name: 'bookshelf:runner:v1', version: 3, partialize: ({ look, buttons, lite }) => ({ look, buttons, lite }), migrate: (persisted) => ({ look: DEFAULT_LOOK, ...(persisted as object) }) as RunnerPrefs },
   ),
 )
 
@@ -192,6 +200,7 @@ export function RunnerView() {
             <RunnerGame
               key={session.key}
               seed={session.seed}
+              look={knownLook(prefs.look)}
               buttons={prefs.buttons}
               lite={prefs.lite}
               universes={universes}
@@ -217,7 +226,6 @@ function RunnerHome({ overview, starting, onStart }: { overview: RunnerOverview 
   useGSAP(
     () => {
       gsap.fromTo('[data-runner-in]', { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, stagger: 0.06, ease: EASE.glide })
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) gsap.to('[data-runner-emblem]', { y: -6, duration: 1.6, ease: 'sine.inOut', repeat: -1, yoyo: true })
     },
     { scope: ref },
   )
@@ -226,14 +234,18 @@ function RunnerHome({ overview, starting, onStart }: { overview: RunnerOverview 
     <div ref={ref} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-28">
       <section data-runner-in className="relative shrink-0 overflow-hidden rounded-[1.75rem] border border-[#ff6fb5]/30 bg-[#140a2e] p-5">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(120% 80% at 80% 0%, rgba(255,111,181,0.28), transparent 60%)' }} />
-        <div className="relative flex items-center gap-4">
-          <span data-runner-emblem aria-hidden className="grid size-16 shrink-0 place-items-center rounded-[1.3rem] text-3xl" style={{ background: 'linear-gradient(135deg, #ff6fb5, #7c5cff 60%, #3fd0ff)' }}>
-            🏃
+        {/* Le coureur, en 3D, sous un ciel de sakura : la future vitrine des tenues. */}
+        <div className="relative -mx-5 -mt-5 mb-4 h-56 overflow-hidden" style={{ background: 'linear-gradient(180deg, #8d6fd0 0%, #e7a0d0 55%, #ffd2c2 100%)' }}>
+          <div aria-hidden className="absolute inset-x-0 bottom-0 h-16" style={{ background: 'linear-gradient(180deg, transparent, rgba(20,10,46,0.9))' }} />
+          <HeroPreview look={knownLook(prefs.look)} className="absolute inset-0" />
+          <span className="absolute bottom-3 left-4 rounded-full bg-black/35 px-3 py-1 text-xs font-semibold text-cream backdrop-blur-sm">
+            {t.runner.home.character} · {t.runner.looks[knownLook(prefs.look)]}
           </span>
-          <div className="min-w-0">
-            <h2 className="font-display text-3xl leading-tight text-cream">{t.runner.title}</h2>
-            <p className="mt-1 text-sm leading-snug text-cream/65">{t.runner.home.tagline}</p>
-          </div>
+          <span className="absolute top-3 right-3 rounded-full bg-black/25 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-cream/90 uppercase backdrop-blur-sm">{t.runner.home.moreLooks}</span>
+        </div>
+        <div className="relative min-w-0">
+          <h2 className="font-display text-3xl leading-tight text-cream">{t.runner.title}</h2>
+          <p className="mt-1 text-sm leading-snug text-cream/65">{t.runner.home.tagline}</p>
         </div>
         <div className="relative mt-4 grid grid-cols-2 gap-2">
           <Stat label={t.runner.home.best} value={me ? me.best.toLocaleString() : '—'} />

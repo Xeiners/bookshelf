@@ -1439,6 +1439,8 @@ export const en: Dictionary = {
       leaderboard: 'Top runners',
       empty: 'Nobody has run yet. Your turn!',
       you: 'you',
+      character: 'Your runner',
+      moreLooks: 'More outfits soon',
       guest: 'As a guest: your ✦ stay on this device and join your account when you sign up.',
     },
     hud: {
@@ -1459,6 +1461,7 @@ export const en: Dictionary = {
       quizRight: 'Correct: shield up!',
       quizWrong: 'Missed…',
     },
+    looks: { ninja: 'Orange ninja' } as Record<string, string>,
     revive: {
       title: 'One more chance?',
       body: 'Pick up right here, briefly invincible: the track ahead is cleared.',

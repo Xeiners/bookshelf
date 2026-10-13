@@ -2,7 +2,9 @@ import { useEffect, useState, type RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { step, type QuizQuestion, type RunState } from '../../lib/runner/engine'
 import { HeroPart } from './hero'
-import { CameraFollow, GroundPart, ObstaclesPart, PetalsPart, PickupsPart, SceneryPart, SkyPart, type ScenePart } from './parts'
+import type { HeroLookId } from './looks'
+import { GroundPart, HORIZON, PetalsPart, SceneryPart, SkyPart } from './japan'
+import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
 
 /*
  * La scène du Manga Runner. Une seule boucle (`useFrame`, priorité −1) fait avancer la
@@ -20,9 +22,10 @@ export interface RunnerSceneProps {
   onTick: (state: RunState) => void
   /** Rendu allégé (résolution, pétales, lissage) : téléphones modestes. */
   lite: boolean
+  look: HeroLookId
 }
 
-export function RunnerScene({ state, paused, ask, onTick, lite }: RunnerSceneProps) {
+export function RunnerScene({ state, paused, ask, onTick, lite, look }: RunnerSceneProps) {
   return (
     <Canvas
       dpr={lite ? [1, 1.25] : [1, 1.75]}
@@ -30,18 +33,18 @@ export function RunnerScene({ state, paused, ask, onTick, lite }: RunnerScenePro
       camera={{ fov: 62, near: 0.1, far: 240, position: [0, 3.4, 6.8] }}
       style={{ touchAction: 'none' }}
     >
-      <color attach="background" args={['#1d0f40']} />
-      <fog attach="fog" args={['#3b1c6d', 45, 165]} />
-      <hemisphereLight args={['#ffd9f6', '#40307e', 1.25]} />
-      <directionalLight position={[5, 12, 7]} intensity={1.7} color="#fff0de" />
+      <color attach="background" args={[HORIZON]} />
+      <fog attach="fog" args={[HORIZON, 50, 175]} />
+      <hemisphereLight args={['#fff1f6', '#b98bb4', 1.35]} />
+      <directionalLight position={[6, 12, 6]} intensity={1.65} color="#ffe6cc" />
       <Simulation state={state} paused={paused} ask={ask} onTick={onTick} />
       <Part state={state} make={() => new SkyPart()} />
       <Part state={state} make={() => new GroundPart()} />
       <Part state={state} make={() => new SceneryPart()} />
       <Part state={state} make={() => new ObstaclesPart()} />
       <Part state={state} make={() => new PickupsPart()} />
-      <Part state={state} make={() => new HeroPart()} />
-      {!lite && <Part state={state} make={() => new PetalsPart()} />}
+      <Part state={state} make={() => new HeroPart({ look })} />
+      <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} />
     </Canvas>
   )

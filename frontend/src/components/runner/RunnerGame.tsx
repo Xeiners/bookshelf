@@ -7,6 +7,7 @@ import { act, createRun, revive, scoreOf, type ActiveQuiz, type RunAction, type 
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
 import { playChime, playRunnerHit, playRunnerJump, playRunnerPower, playRunnerSlide, playRunnerStar, playRunnerWrong } from '../../lib/sfx'
+import type { HeroLookId } from './looks'
 import { RunnerScene } from './RunnerScene'
 
 export interface RunnerOutcome {
@@ -19,6 +20,7 @@ export interface RunnerOutcome {
 interface RunnerGameProps {
   /** Graine de la piste (donnée par le serveur). */
   seed: number
+  look: HeroLookId
   buttons: boolean
   lite: boolean
   universes: readonly QuizUniverse[]
@@ -54,7 +56,7 @@ const SWIPE = 26
  * changent à chaque image (distance, score, ✦, jauges) sont écrits directement dans le
  * DOM ; React ne se redessine que pour ce qui change rarement (vies, quiz, pause).
  */
-export function RunnerGame({ seed, buttons, lite, universes, onOver, revival, onQuit }: RunnerGameProps) {
+export function RunnerGame({ seed, look, buttons, lite, universes, onOver, revival, onQuit }: RunnerGameProps) {
   const t = useT()
   const [initial] = useState(() => createRun(seed))
   const state = useRef<RunState>(initial)
@@ -331,7 +333,7 @@ export function RunnerGame({ seed, buttons, lite, universes, onOver, revival, on
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} />
+      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} look={look} />
 
       {/* Éclair rouge au choc. */}
       {hitFlash > 0 && <div key={hitFlash} aria-hidden className="pointer-events-none absolute inset-0 animate-[runner-hit_0.45s_ease-out_forwards] bg-nope/35" />}

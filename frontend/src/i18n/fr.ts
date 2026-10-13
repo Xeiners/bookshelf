@@ -1454,6 +1454,8 @@ export const fr = {
       leaderboard: 'Meilleurs coureurs',
       empty: 'Personne n’a encore couru. À toi !',
       you: 'toi',
+      character: 'Ton coureur',
+      moreLooks: 'D’autres tenues bientôt',
       guest: 'En invité : tes ✦ sont gardées sur cet appareil et rejoignent ton compte à l’inscription.',
     },
     hud: {
@@ -1474,6 +1476,7 @@ export const fr = {
       quizRight: 'Bonne réponse : bouclier !',
       quizWrong: 'Raté…',
     },
+    looks: { ninja: 'Ninja orange' } as Record<string, string>,
     revive: {
       title: 'Encore une chance ?',
       body: 'Repars d’ici, invincible un instant : la piste devant toi est dégagée.',
