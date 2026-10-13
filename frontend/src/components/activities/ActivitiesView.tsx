@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { TarotPage } from '../../pages/TarotPage'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CollectionView } from '../cards/CollectionView'
 import { BackButton } from '../ui/BackButton'
@@ -26,7 +27,10 @@ const RunnerView = lazy(() => import('../runner/RunnerView').then((module) => ({
  */
 export function ActivitiesView() {
   const t = useT()
-  const activity = useUiStore((state) => state.activity)
+  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
+  // Manga Runner 3D : réservé aux administrateurs pour l'instant ; les autres restent sur le hub.
+  const requested = useUiStore((state) => state.activity)
+  const activity = requested === 'runner' && !isAdmin ? 'hub' : requested
   const openActivity = useUiStore((state) => state.openActivity)
   const rootRef = useRef<HTMLDivElement>(null)
 

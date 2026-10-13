@@ -8,6 +8,8 @@ import { after, describe, it } from 'node:test'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
 prepareEnvironment('runner')
+// Le Runner est réservé aux administrateurs pour l'instant.
+process.env.ADMIN_EMAILS = 'ana-runner@example.com'
 installMangadexMock()
 const { client, close } = await startServer()
 after(close)
@@ -17,9 +19,9 @@ const logic = await import('../src/modules/runner/runner.logic.js')
 
 type Account = TestClient & { userId: string }
 
-async function account(name: string): Promise<Account> {
+async function account(name: string, email = `${name.toLowerCase()}-${Date.now()}@example.com`): Promise<Account> {
   const device = client()
-  const signed = await device.signUp({ email: `${name.toLowerCase()}-${Date.now()}@example.com`, password: 'motdepasse-test', displayName: name })
+  const signed = await device.signUp({ email, password: 'motdepasse-test', displayName: name })
   assert.equal(signed.status, 201, JSON.stringify(signed.body))
   return Object.assign(device, { userId: signed.body.user.id as string })
 }
@@ -48,7 +50,7 @@ describe('Manga Runner — règles', () => {
 
 describe('Manga Runner — API', () => {
   it('une course : bilan borné, record, Poussières créditées et plafonnées, classement', async () => {
-    const ana = await account('Ana')
+    const ana = await account('Ana', 'ana-runner@example.com')
     const start = await ana.request('POST', '/runner/runs')
     assert.equal(start.status, 201)
     assert.match(start.body.id, /^[0-9a-f]{18}$/)
@@ -81,23 +83,13 @@ describe('Manga Runner — API', () => {
     assert.equal(overview.body.myRank, 1)
   })
 
-  it('invité : records en mémoire et reçus signés, à récupérer à l’inscription', async () => {
+  it('réservé aux administrateurs : un compte ordinaire et un invité ne le voient pas', async () => {
+    const bob = await account('Bob')
+    assert.equal((await bob.request('GET', '/runner')).status, 404)
+    assert.equal((await bob.request('POST', '/runner/runs')).status, 404)
     const guest = client()
     assert.equal((await guest.request('POST', '/dle/guest', { name: 'Coureur' })).status, 200)
-    const start = await guest.request('POST', '/runner/runs')
-    assert.equal(start.status, 201)
-    const end = await guest.request('POST', `/runner/runs/${start.body.id}/end`, { distance: 30, stardust: 6, quiz: 0 })
-    assert.equal(end.status, 200)
-    assert.equal(end.body.reward, 6)
-    assert.equal(end.body.receipts.length, 1)
-    const { readReceipt } = await import('../src/modules/dle/dle.guests.js')
-    assert.equal(readReceipt(end.body.receipts[0])?.a, 6)
-    const overview = await guest.request('GET', '/runner')
-    assert.equal(overview.body.me.games, 1)
-    assert.equal(overview.body.myRank, null)
-  })
-
-  it('sans compte ni pseudo : refusé', async () => {
+    assert.equal((await guest.request('POST', '/runner/runs')).status, 401)
     assert.equal((await client().request('POST', '/runner/runs')).status, 401)
   })
 })
