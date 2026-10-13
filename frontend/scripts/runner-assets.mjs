@@ -1,15 +1,19 @@
 /**
- * Prépare les modèles 3D du Manga Runner (packs KayKit de Kay Lousberg, licence CC0).
+ * Prépare les modèles 3D du Manga Runner (packs KayKit de Kay Lousberg et Universal
+ * Animation Library de Quaternius, licence CC0).
  *
  * Sources (git, dossier `SRC`) :
  *   KayKit-Character-Pack-Adventures-1.0, KayKit-Character-Pack-Skeletons-1.0,
- *   KayKit-Halloween-Bits-1.0 (github.com/KayKit-Game-Assets).
+ *   KayKit-Halloween-Bits-1.0 (github.com/KayKit-Game-Assets) ;
+ *   ual/UAL1.glb (Universal Animation Library, Unreal-Godot, sans déplacement racine).
  *
  * Sorties (frontend/public/runner/) : un fichier par héros (sans animations, une arme
  * légère gardée), `hero-anims.glb` (les clips du héros, communs à tous : même squelette),
  * un fichier par squelette monstre, `skeleton-anims.glb`, et `props.glb` (décor : arbres,
  * tombes, lanternes… un nœud par accessoire). Textures réduites (WebP), maillages
- * compressés (meshopt) : quelques centaines de Ko par fichier.
+ * compressés (meshopt) : quelques centaines de Ko par fichier. `human-anims.glb` : les
+ * mouvements captés de l'UAL (course, saut, roulade…), rotations seules, reciblés au
+ * chargement sur les coureurs VRM. `ONLY=human` ne refait que ce fichier.
  *
  *   npm i --no-save @gltf-transform/core@4 @gltf-transform/functions@4 @gltf-transform/extensions@4 meshoptimizer sharp
  *   SRC=/chemin/vers/les/packs node scripts/runner-assets.mjs
@@ -24,6 +28,7 @@ import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer'
 import sharp from 'sharp'
 
 const SRC = process.env.SRC ?? '/tmp/claude-0/kk'
+const ONLY = process.env.ONLY
 const OUT = process.env.OUT ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/runner')
 mkdirSync(OUT, { recursive: true })
 
@@ -45,6 +50,8 @@ const HEROES = {
 }
 const HERO_ACCESSORIES = ['Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Knife', 'Throwable', '1H_Sword_Offhand', 'Badge_Shield', 'Rectangle_Shield', 'Round_Shield', 'Spike_Shield', '1H_Sword', '2H_Sword', '1H_Axe_Offhand', 'Barbarian_Round_Shield', '1H_Axe', '2H_Axe', 'Mug', 'Spellbook', 'Spellbook_open', '1H_Wand', '2H_Staff']
 const HERO_CLIPS = ['Idle', 'Running_A', 'Running_B', 'Jump_Start', 'Jump_Idle', 'Jump_Land', 'Dodge_Forward', 'Dodge_Left', 'Dodge_Right', 'Death_A', 'Cheer', 'Hit_A', 'Lie_StandUp']
+/** Mouvements humains (UAL) ; `A_TPose` sert de pose de référence au reciblage. */
+const HUMAN_CLIPS = ['A_TPose', 'Idle_LookAround_Loop', 'Sprint_Loop', 'Jump_Start', 'Jump_Loop', 'Jump_Land', 'Roll', 'Death01', 'Celebration', 'Hit_Chest']
 const SKELETON_CLIPS = ['Idle_Combat', 'Idle_B', 'Taunt', 'Taunt_Longer', '1H_Melee_Attack_Chop', '2H_Melee_Attack_Spin', 'Skeletons_Inactive_Floor_Pose', 'Skeletons_Awaken_Floor', 'Lie_Idle', 'Cheer', 'Blocking']
 const PROPS = [
   'tree_dead_large',
@@ -103,10 +110,24 @@ async function finish(document, file, { textures = 512 } = {}) {
   console.log(`${file.padEnd(28)} ${(size / 1024).toFixed(0)} Ko`)
 }
 
-/** Animations seules : on garde le squelette (nœuds animés), on retire les maillages. */
-async function animationsOnly(source, clips, file) {
+/**
+ * Animations seules : on garde le squelette (nœuds animés), on retire les maillages.
+ * `rotationsOnly` : seules les rotations comptent (et le déplacement de `rootBone`).
+ */
+async function animationsOnly(source, clips, file, { rotationsOnly = false, rootBone = '' } = {}) {
   const document = await io.read(source)
   keepClips(document, clips)
+  if (rotationsOnly) {
+    for (const animation of document.getRoot().listAnimations()) {
+      for (const channel of animation.listChannels()) {
+        const keep = channel.getTargetPath() === 'rotation' || (channel.getTargetPath() === 'translation' && channel.getTargetNode()?.getName() === rootBone)
+        if (keep) continue
+        const sampler = channel.getSampler()
+        channel.dispose()
+        if (sampler && !sampler.listParents().some((parent) => parent.propertyType === 'AnimationChannel')) sampler.dispose()
+      }
+    }
+  }
   for (const node of document.getRoot().listNodes()) {
     node.setMesh(null)
     node.setSkin(null)
@@ -116,6 +137,11 @@ async function animationsOnly(source, clips, file) {
   await io.write(path.join(OUT, file), document)
 }
 
+if (ONLY === 'human') {
+  await animationsOnly(`${SRC}/ual/UAL1.glb`, HUMAN_CLIPS, 'human-anims.glb', { rotationsOnly: true, rootBone: 'pelvis' })
+  process.exit(0)
+}
+
 for (const [hero, keep] of Object.entries(HEROES)) {
   const document = await io.read(`${ADVENTURERS}/${hero}.glb`)
   keepClips(document, [])
@@ -123,6 +149,7 @@ for (const [hero, keep] of Object.entries(HEROES)) {
   await finish(document, `${hero.toLowerCase()}.glb`)
 }
 await animationsOnly(`${ADVENTURERS}/Rogue_Hooded.glb`, HERO_CLIPS, 'hero-anims.glb')
+await animationsOnly(`${SRC}/ual/UAL1.glb`, HUMAN_CLIPS, 'human-anims.glb', { rotationsOnly: true, rootBone: 'pelvis' })
 
 for (const skeleton of ['Skeleton_Warrior', 'Skeleton_Minion', 'Skeleton_Mage', 'Skeleton_Rogue']) {
   const document = await io.read(`${SKELETONS}/Characters/gltf/${skeleton}.glb`)

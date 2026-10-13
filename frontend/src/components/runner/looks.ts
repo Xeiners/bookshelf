@@ -1,16 +1,18 @@
-import type { HeroModel } from './assets'
+import type { HeroModel, VrmModel } from './assets'
 
 /**
- * Les coureurs : des personnages modélisés et animés (KayKit, CC0) et le petit ninja
- * chibi d'origine. Ajouter un coureur, c'est ajouter une entrée ; certains pourront plus
- * tard se débloquer (Poussières, records).
+ * Les coureurs : l'aventurier aux vraies proportions (VRM), des figurines modélisées et
+ * animées (KayKit, CC0) et le petit ninja chibi d'origine. Ajouter un coureur, c'est
+ * ajouter une entrée ; certains pourront plus tard se débloquer (Poussières, records).
  */
-export const HERO_LOOKS = ['rogue_hooded', 'rogue', 'knight', 'barbarian', 'mage', 'ninja'] as const
+export const HERO_LOOKS = ['adventurer', 'rogue_hooded', 'rogue', 'knight', 'barbarian', 'mage', 'ninja'] as const
 export type HeroLookId = (typeof HERO_LOOKS)[number]
-export const DEFAULT_LOOK: HeroLookId = 'rogue_hooded'
+export const DEFAULT_LOOK: HeroLookId = 'adventurer'
 
-/** Le modèle 3D d'un coureur, ou `null` pour le ninja chibi (dessiné en volumes simples). */
-export const modelOf = (look: HeroLookId): HeroModel | null => (look === 'ninja' ? null : look)
+export type HeroSource = { kind: 'vrm'; model: VrmModel } | { kind: 'kaykit'; model: HeroModel } | { kind: 'chibi' }
+
+/** De quoi est fait un coureur : un VRM, une figurine KayKit, ou le ninja chibi (volumes simples). */
+export const sourceOf = (look: HeroLookId): HeroSource => (look === 'ninja' ? { kind: 'chibi' } : look === 'adventurer' ? { kind: 'vrm', model: look } : { kind: 'kaykit', model: look })
 
 /** Couleurs du ninja chibi. */
 export interface ChibiPalette {

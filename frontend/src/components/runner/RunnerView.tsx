@@ -21,7 +21,7 @@ import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { loadRunnerAssets, type RunnerAssets } from './assets'
 import { HeroPreview } from './HeroPreview'
-import { DEFAULT_LOOK, HERO_LOOKS, type HeroLookId } from './looks'
+import { DEFAULT_LOOK, HERO_LOOKS, sourceOf, type HeroLookId } from './looks'
 import { RunnerGame, type RunnerOutcome } from './RunnerGame'
 
 /** Réglages du Runner, gardés sur l'appareil. */
@@ -46,7 +46,7 @@ const useRunnerPrefs = create<RunnerPrefs>()(
       lite: modestDevice,
       set: (patch) => set(patch),
     }),
-    { name: 'bookshelf:runner:v1', version: 3, partialize: ({ look, buttons, lite }) => ({ look, buttons, lite }), migrate: (persisted) => ({ look: DEFAULT_LOOK, ...(persisted as object) }) as RunnerPrefs },
+    { name: 'bookshelf:runner:v1', version: 4, partialize: ({ look, buttons, lite }) => ({ look, buttons, lite }), migrate: (persisted) => ({ ...(persisted as object), look: DEFAULT_LOOK }) as RunnerPrefs },
   ),
 )
 
@@ -289,6 +289,7 @@ function RunnerHome({
             )
           })}
         </div>
+        {sourceOf(knownLook(prefs.look)).kind === 'vrm' && <p className="relative -mt-2 mb-3 text-[11px] text-cream/40">{t.runner.home.modelCredit}</p>}
         <div className="relative min-w-0">
           <h2 className="font-display text-3xl leading-tight text-cream">{t.runner.title}</h2>
           <p className="mt-1 text-sm leading-snug text-cream/65">{t.runner.home.tagline}</p>

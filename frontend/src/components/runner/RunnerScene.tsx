@@ -3,10 +3,9 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { step, type QuizQuestion, type RunState } from '../../lib/runner/engine'
 import type { RunnerAssets } from './assets'
 import { BIOME_STYLE } from './biomes'
-import { HeroPart } from './hero'
-import { HeroModelPart } from './heroModel'
+import { createHero } from './heroModel'
 import { EnvironmentPart, GroundPart, PetalsPart, SceneryPart, SkyPart } from './japan'
-import { modelOf, type HeroLookId } from './looks'
+import type { HeroLookId } from './looks'
 import { MonstersPart } from './monsters'
 import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
 
@@ -32,7 +31,6 @@ export interface RunnerSceneProps {
 }
 
 export function RunnerScene({ state, paused, ask, onTick, lite, look, assets }: RunnerSceneProps) {
-  const model = modelOf(look)
   return (
     <Canvas
       dpr={lite ? [1, 1.25] : [1, 1.75]}
@@ -50,7 +48,7 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets }: 
       <Part state={state} make={() => new ObstaclesPart()} />
       <Part state={state} make={() => new MonstersPart(assets)} />
       <Part state={state} make={() => new PickupsPart()} />
-      <Part state={state} make={() => (model ? new HeroModelPart(assets, model) : new HeroPart())} />
+      <Part state={state} make={() => createHero(look, assets)!} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} />
     </Canvas>

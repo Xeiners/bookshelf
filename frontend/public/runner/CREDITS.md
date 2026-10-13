@@ -1,8 +1,13 @@
 # Modèles 3D du Manga Runner
 
-Personnages, squelettes et accessoires : packs **KayKit** de Kay Lousberg
-(Adventurers, Skeletons, Halloween Bits, Forest Nature) — https://kaylousberg.com —
-sous licence **CC0 1.0** (domaine public).
+- **Aventurier** (`adventurer.vrm`) : Seed-san, © VirtualCast, Inc. — VRM Public License 1.0
+  (https://vrm.dev/licenses/1.0/ : usage commercial, modification et redistribution
+  autorisés, crédit requis). Bras robot et sac à dos retirés ; textures WebP et géométrie
+  meshopt via `frontend/scripts/runner-vrm.mjs`.
+- **Mouvements de l'aventurier** (`human-anims.glb`) : Universal Animation Library de
+  Quaternius — https://quaternius.com — licence **CC0 1.0** ; reciblés au chargement.
+- **Figurines, squelettes et accessoires** : packs **KayKit** de Kay Lousberg
+  (Adventurers, Skeletons, Halloween Bits) — https://kaylousberg.com — licence **CC0 1.0**.
 
-Optimisés pour le web par `frontend/scripts/runner-assets.mjs` (textures WebP,
-maillages compressés meshopt, clips d'animation inutilisés retirés).
+Optimisés pour le web par `frontend/scripts/runner-assets.mjs` (textures WebP, maillages
+compressés meshopt, clips d'animation inutilisés retirés).

@@ -2,20 +2,57 @@ import * as THREE from 'three'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { MAX_SPEED, SLIDE_TIME } from '../../lib/runner/constants'
 import { isFlying, isShielded, isSliding, type RunState } from '../../lib/runner/engine'
-import type { HeroModel, RunnerAssets } from './assets'
+import type { HeroModel, RunnerAssets, VrmHero } from './assets'
+import { HeroPart } from './hero'
+import type { HeroLookId } from './looks'
+import { sourceOf } from './looks'
 import type { ScenePart } from './parts'
 import { outlineMaterial, toonMaterial } from './toon'
+import { VrmLife } from './vrm'
 
 /*
- * Le coureur, en vrai modèle animé (KayKit, squelette et 13 clips) : course, saut en trois
- * temps (élan, suspension, réception), roulade sous les obstacles, chute, joie, réveil.
- * Chaque changement d'animation est un fondu enchaîné ; la course accélère avec la
- * vitesse, le corps s'incline et pivote en changeant de voie.
+ * Le coureur, en vrai modèle animé — personnage VRM aux vraies proportions, ou figurine
+ * KayKit — avec les 13 clips KayKit : course, saut en trois temps (élan, suspension,
+ * réception), roulade sous les obstacles, chute, joie, réveil. Chaque changement
+ * d'animation est un fondu enchaîné ; la course accélère avec la vitesse, le corps
+ * s'incline et pivote en changeant de voie. Un VRM vit en plus : il cligne des yeux, ses
+ * mèches et ses vêtements suivent ses mouvements et le vent de la course.
  */
 
-/** Taille du modèle à l'écran (m) : un peu plus grand que la boîte de collision (1,75 m). */
-const HEIGHT = 1.95
 const FADE = 0.16
+/** Taille des figurines KayKit (m) : un peu plus grandes que la boîte de collision (1,75 m). */
+const KAYKIT_HEIGHT = 1.95
+/** Taille d'un coureur VRM (m) : silhouette élancée, tête à hauteur de la boîte de collision. */
+const VRM_HEIGHT = 1.8
+
+/** Ce que le coureur anime : un modèle, ses clips, sa taille, et sa « vie » s'il s'agit d'un VRM. */
+export interface HeroRig {
+  model: THREE.Object3D
+  clips: THREE.AnimationClip[]
+  height: number
+  life?: VrmLife
+}
+
+export function kaykitRig(assets: RunnerAssets, hero: HeroModel): HeroRig {
+  return { model: cloneSkinned(assets.heroes[hero].scene), clips: assets.heroClips, height: KAYKIT_HEIGHT }
+}
+
+/** Le VRM n'est pas cloné (ses ressorts et expressions n'y survivraient pas) : chaque usage a son instance. */
+export function vrmRig(hero: VrmHero, preview: boolean): HeroRig {
+  const vrm = preview ? hero.preview : hero.game
+  vrm.springBoneManager?.reset()
+  return { model: vrm.scene, clips: hero.clips, height: VRM_HEIGHT, life: new VrmLife(vrm) }
+}
+
+/** Le coureur d'une tenue : `null` tant que les modèles ne sont pas chargés (sauf le ninja chibi). */
+export function createHero(look: HeroLookId, assets: RunnerAssets | null, preview = false): ScenePart | null {
+  const source = sourceOf(look)
+  if (source.kind === 'chibi') return new HeroPart({ preview })
+  if (!assets) return null
+  return new HeroModelPart(source.kind === 'vrm' ? vrmRig(assets.vrm[source.model], preview) : kaykitRig(assets, source.model), { preview })
+}
+
+const BACKWARD = new THREE.Vector3(0, -0.15, 1).normalize()
 
 type Clip = 'Idle' | 'Running_A' | 'Running_B' | 'Jump_Start' | 'Jump_Idle' | 'Jump_Land' | 'Dodge_Forward' | 'Death_A' | 'Cheer' | 'Hit_A' | 'Lie_StandUp'
 
@@ -33,6 +70,7 @@ export class HeroModelPart implements ScenePart {
   private readonly shield: THREE.Mesh
   private readonly shadow: THREE.Mesh
   private readonly preview: boolean
+  private readonly life: VrmLife | undefined
   private wasGrounded = true
   private wasSliding = false
   private landingUntil = 0
@@ -42,22 +80,30 @@ export class HeroModelPart implements ScenePart {
   private time = 0
   private nextCheer = 4
 
-  constructor(assets: RunnerAssets, hero: HeroModel, options: { preview?: boolean } = {}) {
+  constructor(rig: HeroRig, options: { preview?: boolean } = {}) {
     this.preview = options.preview ?? false
-    this.model = cloneSkinned(assets.heroes[hero].scene)
+    this.model = rig.model
+    this.life = rig.life
     this.model.traverse((node) => {
       if (node instanceof THREE.Mesh) node.frustumCulled = false
     })
-    // À l'échelle, pieds au sol, tourné vers l'avant de la piste (−z).
-    const box = new THREE.Box3().setFromObject(this.model)
-    const size = box.getSize(new THREE.Vector3())
-    const scale = HEIGHT / Math.max(0.01, size.y)
+    // À l'échelle, pieds au sol, tourné vers l'avant de la piste (−z). Taille mesurée au
+    // repos, à l'échelle 1 (un VRM resservi garde sinon celle de la course précédente).
+    const rest = (this.model.userData.rest ??= (() => {
+      this.model.scale.setScalar(1)
+      this.model.position.set(0, 0, 0)
+      this.model.rotation.set(0, 0, 0)
+      this.model.updateMatrixWorld(true)
+      const box = new THREE.Box3().setFromObject(this.model)
+      return { height: box.max.y - box.min.y, bottom: box.min.y }
+    })()) as { height: number; bottom: number }
+    const scale = rig.height / Math.max(0.01, rest.height)
     this.model.scale.setScalar(scale)
-    this.model.position.y = -box.min.y * scale
-    this.model.rotation.y = this.preview ? 0 : Math.PI
+    this.model.position.set(0, -rest.bottom * scale, 0)
+    this.model.rotation.set(0, this.preview ? 0 : Math.PI, 0)
     this.root.add(this.model)
     this.mixer = new THREE.AnimationMixer(this.model)
-    for (const clip of assets.heroClips) {
+    for (const clip of rig.clips) {
       const action = this.mixer.clipAction(clip)
       this.actions.set(clip.name as Clip, action)
     }
@@ -160,8 +206,15 @@ export class HeroModelPart implements ScenePart {
   update(run: RunState, _time: number, delta: number): void {
     const dt = Math.min(delta, 0.05)
     this.time += dt
+    // Un VRM n'a qu'une instance par usage : on la reprend si une autre partie l'a empruntée.
+    if (this.model.parent !== this.root) this.root.add(this.model)
     this.animate(run)
     this.mixer.update(dt)
+    this.life?.update(dt, {
+      strength: this.preview ? 0 : run.over ? 0 : Math.min(1, run.speed / MAX_SPEED + 0.35),
+      windward: BACKWARD,
+      mood: run.over ? 'hurt' : this.currentName === 'Cheer' ? 'happy' : null,
+    })
     if (this.preview) {
       this.root.rotation.y = Math.sin(this.time * 0.5) * 0.45
       return
