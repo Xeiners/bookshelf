@@ -385,6 +385,40 @@
   }
 }
 
+/* Carte de titre de la cinématique du Manga Runner : entre, reste, s'efface. */
+@keyframes runner-title {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+    letter-spacing: 0.02em;
+    filter: blur(6px);
+  }
+  18%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes runner-rule {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  25%,
+  78% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.4);
+  }
+}
 @keyframes runner-count {
   from {
     opacity: 0;

@@ -48,8 +48,10 @@ function disposeTree(root: THREE.Object3D): void {
  * Champ de vision horizontal, tenu à jour par la caméra : demi-ouverture (tangente) et
  * position. En portrait, il est étroit ; on ne pose pas ce qui en sort.
  */
-export const view = { spread: 0.6, x: 0, z: 6.8 }
+export const view = { spread: 0.6, x: 0, z: 6.8, all: false }
 const visible = (x: number, z: number, radius: number) => {
+  // Cinématique : la caméra tourne autour du coureur, tout peut entrer dans le champ.
+  if (view.all) return true
   const ahead = view.z - z
   return ahead > -radius && Math.abs(x - view.x) < Math.max(0, ahead) * view.spread + radius
 }

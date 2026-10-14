@@ -1446,6 +1446,7 @@ export const en: Dictionary = {
       loadFailed: 'Characters unavailable: try again later',
       guest: 'As a guest: your ✦ stay on this device and join your account when you sign up.',
     },
+    intro: { kicker: 'Departure · Cherry blossom valley', skip: 'Tap to skip' },
     hud: {
       pause: 'Pause',
       resume: 'Resume',

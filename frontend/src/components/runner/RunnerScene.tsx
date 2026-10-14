@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { MathUtils, Mesh, PerspectiveCamera, Texture } from 'three'
+import { CatmullRomCurve3, MathUtils, Mesh, PerspectiveCamera, Texture, Vector3 } from 'three'
 import { step, type QuizQuestion, type RunState } from '../../lib/runner/engine'
 import type { RunnerAssets } from './assets'
 import { BIOME_STYLE } from './biomes'
 import { createHero } from './heroModel'
 import { EnvironmentPart, NaturePart, PetalsPart, SkyPart, TerrainPart, TrackPart, view } from './world'
+import type { IntroClock } from './intro'
 import type { HeroLookId } from './looks'
 import { MonstersPart } from './monsters'
 import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
@@ -29,9 +30,10 @@ export interface RunnerSceneProps {
   lite: boolean
   look: HeroLookId
   assets: RunnerAssets
+  intro: IntroClock
 }
 
-export function RunnerScene({ state, paused, ask, onTick, lite, look, assets }: RunnerSceneProps) {
+export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, intro }: RunnerSceneProps) {
   return (
     <Canvas
       dpr={lite ? [1, 1.1] : [1, MAX_DPR]}
@@ -56,7 +58,7 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets }: 
       <Part state={state} make={() => new PickupsPart()} />
       <Part state={state} make={() => createHero(look, assets)!} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
-      <Camera state={state} />
+      <Camera state={state} intro={intro} />
       <Warmup />
       <AdaptiveResolution max={lite ? 1.1 : MAX_DPR} />
     </Canvas>
@@ -153,11 +155,61 @@ function Environment({ state }: { state: RefObject<RunState> }) {
   return <primitive object={environment.object} />
 }
 
-function Camera({ state }: { state: RefObject<RunState> }) {
+/**
+ * La cinématique de départ : plan de héros en contre-plongée, de face, sur fond de ciel ;
+ * la caméra glisse autour de lui, passe sur le côté, s'élève derrière lui et révèle la voie, puis se pose à sa
+ * place de jeu (dernière clé = pose de la caméra de jeu : aucun raccord visible).
+ */
+const SHOTS: { at: number; position: [number, number, number]; look: [number, number, number]; fov: number }[] = [
+  { at: 0, position: [0.95, 0.72, -2.15], look: [0, 1.62, 0.4], fov: 40 },
+  { at: 0.28, position: [-0.35, 0.85, -2.45], look: [0, 1.55, 0.2], fov: 40 },
+  { at: 0.48, position: [-2.3, 1.5, -0.3], look: [0, 1.35, 0], fov: 44 },
+  { at: 0.62, position: [-1.7, 2.4, 2.4], look: [0, 1.3, 0], fov: 48 },
+  { at: 0.78, position: [-0.6, 3.7, 4.6], look: [0, 1.2, -3], fov: 55 },
+  { at: 1, position: [0, 3.4, 6.8], look: [0, 1.3, -8], fov: 62 },
+]
+
+class IntroPath {
+  private readonly positions = new CatmullRomCurve3(SHOTS.map((shot) => new Vector3(...shot.position)), false, 'centripetal')
+  private readonly looks = new CatmullRomCurve3(SHOTS.map((shot) => new Vector3(...shot.look)), false, 'centripetal')
+  private readonly position = new Vector3()
+  private readonly look = new Vector3()
+
+  /** Pose la caméra à l'avancement `progress` (0 à 1) de la cinématique. */
+  apply(camera: PerspectiveCamera, progress: number): void {
+    // Démarrage et arrivée en douceur ; entre les clés, la vitesse reste continue.
+    const eased = progress < 0.5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2
+    let segment = 0
+    while (segment < SHOTS.length - 2 && eased > SHOTS[segment + 1]!.at) segment += 1
+    const from = SHOTS[segment]!
+    const to = SHOTS[segment + 1]!
+    const local = MathUtils.clamp((eased - from.at) / (to.at - from.at), 0, 1)
+    const along = (segment + local) / (SHOTS.length - 1)
+    camera.position.copy(this.positions.getPoint(along, this.position))
+    camera.lookAt(this.looks.getPoint(along, this.look))
+    const fov = from.fov + (to.fov - from.fov) * local
+    if (Math.abs(camera.fov - fov) > 0.01) {
+      camera.fov = fov
+      camera.updateProjectionMatrix()
+    }
+  }
+}
+
+function Camera({ state, intro }: { state: RefObject<RunState>; intro: IntroClock }) {
   const [follow] = useState(() => new CameraFollow())
+  const [path] = useState(() => new IntroPath())
+  const frames = useRef(0)
   useFrame(({ camera }, delta) => {
     const run = state.current
-    if (run) follow.update(camera, run, delta)
+    if (!run) return
+    // Avant le premier pas de la course : la cinématique ; ensuite, la caméra de jeu.
+    // L'horloge part après quelques images : la toute première porte la préparation (compilation).
+    if (run.t === 0 && ++frames.current >= 3) intro.begin()
+    const progress = intro.progress()
+    const cinematic = run.t === 0 && progress < 1 && camera instanceof PerspectiveCamera
+    view.all = cinematic
+    if (cinematic) path.apply(camera, Math.max(0, progress))
+    else follow.update(camera, run, delta)
     // Le paysage ne pose que ce qui entre dans ce champ (étroit en portrait).
     if (camera instanceof PerspectiveCamera) {
       view.spread = Math.tan(MathUtils.degToRad(camera.fov / 2)) * camera.aspect + 0.08

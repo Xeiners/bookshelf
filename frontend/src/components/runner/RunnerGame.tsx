@@ -9,6 +9,7 @@ import { seededRandom } from '../../lib/runner/random'
 import { playChime, playRunnerHit, playRunnerJump, playRunnerPower, playRunnerSlide, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
 import type { RunnerAssets } from './assets'
 import type { HeroLookId } from './looks'
+import { IntroClock } from './intro'
 import { RunnerScene } from './RunnerScene'
 
 export interface RunnerOutcome {
@@ -47,6 +48,10 @@ const KEYS: Record<string, RunAction> = {
   s: 'down',
 }
 
+/** Durée de la cinématique de départ (s), et du raccord vers la caméra de jeu quand on la passe. */
+const INTRO_TIME = 3.4
+const INTRO_SKIP = 0.5
+
 /** Temps pour décider de revivre (s). */
 const REVIVE_SECONDS = 6
 
@@ -64,7 +69,20 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const state = useRef<RunState>(initial)
   const paused = useRef(true)
   const [pausedView, setPausedView] = useState(false)
-  const [countdown, setCountdown] = useState<number | null>(3)
+  const [countdown, setCountdown] = useState<number | null>(null)
+  /** Cinématique de départ : horloge partagée avec la caméra ; `introRunning` tant qu'elle dure. */
+  const [introRunning, setIntroRunning] = useState(true)
+  /** La cinématique a vraiment commencé (premières images affichées) : la carte de titre peut entrer. */
+  const [introShown, setIntroShown] = useState(false)
+  const introTimer = useRef(0)
+  const finishIntroIn = useCallback((milliseconds: number) => {
+    window.clearTimeout(introTimer.current)
+    introTimer.current = window.setTimeout(() => {
+      setIntroRunning(false)
+      setCountdown(3)
+    }, milliseconds)
+  }, [])
+  const [intro] = useState(() => new IntroClock(INTRO_TIME))
   /** Choc fatal : l'offre de résurrection (prix, secondes restantes), ou `null`. */
   const [offer, setOffer] = useState<{ cost: number; paying: boolean } | null>(null)
   const [offerLeft, setOfferLeft] = useState(0)
@@ -129,6 +147,19 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const [quizRandom] = useState(() => seededRandom(seed ^ 0x9e3779b9))
   const ask = useCallback(() => makeQuiz(universes, t.runner.quiz, quizRandom), [universes, t, quizRandom])
 
+  // Cinématique : la caméra lance son horloge ; à sa fin (ou passée d'un toucher), le décompte.
+  useEffect(() => {
+    intro.whenStarted(() => {
+      setIntroShown(true)
+      finishIntroIn(INTRO_TIME * 1000)
+    })
+    return () => window.clearTimeout(introTimer.current)
+  }, [finishIntroIn, intro])
+  const skipIntro = useCallback(() => {
+    // La caméra file vers sa place de jeu en une demi-seconde.
+    finishIntroIn(intro.skipTo(INTRO_SKIP) * 1000)
+  }, [finishIntroIn, intro])
+
   // Compte à rebours, puis départ.
   useEffect(() => {
     if (countdown === null) return
@@ -140,7 +171,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       return () => window.clearTimeout(timer)
     }
     playChime(false)
-    const timer = window.setTimeout(() => setCountdown(countdown - 1), 650)
+    const timer = window.setTimeout(() => setCountdown(countdown - 1), 600)
     return () => window.clearTimeout(timer)
   }, [countdown])
 
@@ -154,20 +185,21 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   // Onglet caché : pause automatique.
   useEffect(() => {
     const onVisibility = () => {
-      if (document.hidden && countdown === null) pause(true)
+      if (document.hidden && countdown === null && !introRunning) pause(true)
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
-  }, [countdown, pause])
+  }, [countdown, introRunning, pause])
 
   // Développement : l'état de la course, lisible depuis la console (et les tests du navigateur).
   useEffect(() => {
     if (!import.meta.env.DEV) return
-    Object.assign(window, { __mangaRunner: state })
+    Object.assign(window, { __mangaRunner: state, __runnerIntro: intro })
     return () => {
       Reflect.deleteProperty(window, '__mangaRunner')
+      Reflect.deleteProperty(window, '__runnerIntro')
     }
-  }, [])
+  }, [intro])
 
   // Pas de défilement de la page pendant la course : les gestes sont pour le jeu.
   useEffect(() => {
@@ -194,6 +226,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   // Clavier : flèches, ZQSD / WASD, espace ; Échap met en pause.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (introRunning) {
+        skipIntro()
+        return
+      }
       if (event.key === 'Escape' || event.key === 'p') {
         pause(!paused.current)
         return
@@ -205,11 +241,15 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pause, perform])
+  }, [introRunning, pause, perform, skipIntro])
 
   // Glissements : le geste part dès que le doigt a assez bougé (pas besoin de le lever).
   const swipe = useRef<{ id: number; x: number; y: number; used: boolean } | null>(null)
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (introRunning) {
+      skipIntro()
+      return
+    }
     swipe.current = { id: event.pointerId, x: event.clientX, y: event.clientY, used: false }
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -340,13 +380,31 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} look={look} assets={assets} />
+      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} look={look} assets={assets} intro={intro} />
+
+      {/* Cinématique : bandes noires, carte de titre, « touche pour passer ». */}
+      <div aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-[11vh] bg-black transition-transform duration-700 ease-out ${introRunning ? 'translate-y-0' : '-translate-y-full'}`} />
+      <div aria-hidden className={`pointer-events-none absolute inset-x-0 bottom-0 h-[11vh] bg-black transition-transform duration-700 ease-out ${introRunning ? 'translate-y-0' : 'translate-y-full'}`} />
+      {introRunning && introShown && (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 top-[15vh] flex flex-col items-center gap-2 px-6 text-center">
+            <span className="animate-[runner-title_3.1s_ease-out_0.5s_both] text-[11px] font-semibold tracking-[0.5em] text-white/85 uppercase drop-shadow">{t.runner.intro.kicker}</span>
+            <span className="animate-[runner-title_3.1s_ease-out_0.75s_both] font-display text-5xl leading-none text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.45)]">
+              {t.runner.title}
+            </span>
+            <span className="mt-1 h-0.5 w-24 origin-center animate-[runner-rule_3.1s_ease-out_0.9s_both] bg-gradient-to-r from-transparent via-[#ff6fb5] to-transparent" />
+          </div>
+          <span className="pointer-events-none absolute inset-x-0 bottom-[3.5vh] animate-pulse text-center text-xs tracking-widest text-white/70 uppercase">{t.runner.intro.skip}</span>
+        </>
+      )}
 
       {/* Éclair rouge au choc. */}
       {hitFlash > 0 && <div key={hitFlash} aria-hidden className="pointer-events-none absolute inset-0 animate-[runner-hit_0.45s_ease-out_forwards] bg-nope/35" />}
 
       {/* HUD du haut : distance, bonus actifs, score, ✦ et multiplicateur, pause. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500 ${introRunning ? 'opacity-0' : 'opacity-100'}`}
+      >
         <div className="flex flex-col gap-1.5">
           <span ref={distanceRef} className="font-display text-3xl leading-none text-white tabular-nums drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
             0 m

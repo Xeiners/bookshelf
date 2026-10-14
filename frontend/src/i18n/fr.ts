@@ -1461,6 +1461,7 @@ export const fr = {
       loadFailed: 'Personnages indisponibles : réessaie plus tard',
       guest: 'En invité : tes ✦ sont gardées sur cet appareil et rejoignent ton compte à l’inscription.',
     },
+    intro: { kicker: 'Départ · Vallée des cerisiers', skip: 'Touche pour passer' },
     hud: {
       pause: 'Pause',
       resume: 'Reprendre',

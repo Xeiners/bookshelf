@@ -90,7 +90,7 @@ const NATURE_SMALL = [
 ]
 
 /** Mouvements humains (UAL) ; `A_TPose` sert de pose de référence au reciblage. */
-const HUMAN_CLIPS = ['A_TPose', 'Idle_LookAround_Loop', 'Sprint_Loop', 'Jump_Start', 'Jump_Loop', 'Jump_Land', 'Roll', 'Death01', 'Celebration', 'Hit_Chest']
+const HUMAN_CLIPS = ['A_TPose', 'Idle_LookAround_Loop', 'Sprint_Loop', 'Crouch_Idle_Loop', 'Jump_Start', 'Jump_Loop', 'Jump_Land', 'Roll', 'Death01', 'Celebration', 'Hit_Chest']
 const SKELETON_CLIPS = ['Idle_Combat', 'Idle_B', 'Taunt', 'Taunt_Longer', '1H_Melee_Attack_Chop', '2H_Melee_Attack_Spin', 'Skeletons_Inactive_Floor_Pose', 'Skeletons_Awaken_Floor', 'Lie_Idle', 'Cheer', 'Blocking']
 
 function keepClips(document, clips) {

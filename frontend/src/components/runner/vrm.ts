@@ -64,6 +64,7 @@ for (const [s, side] of [
 const CLIPS: Record<string, { names: string[]; from?: number; to?: number }> = {
   Idle_LookAround_Loop: { names: ['Idle'] },
   Sprint_Loop: { names: ['Running_A', 'Running_B'] },
+  Crouch_Idle_Loop: { names: ['Cloud_Ride'] },
   Jump_Start: { names: ['Jump_Start'], from: 0.1, to: 0.6 },
   Jump_Loop: { names: ['Jump_Idle'] },
   Jump_Land: { names: ['Jump_Land'] },

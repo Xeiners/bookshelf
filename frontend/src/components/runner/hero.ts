@@ -4,6 +4,7 @@ import { MAX_SPEED, START_SPEED } from '../../lib/runner/constants'
 import { isFlying, isShielded, isSliding, type RunState } from '../../lib/runner/engine'
 import { CHIBI } from './looks'
 import type { ScenePart } from './parts'
+import { CloudRide } from './cloudRide'
 import { TalismanAura } from './talismans'
 import { outlineMaterial, toonMaterial } from './toon'
 
@@ -57,7 +58,7 @@ export class HeroPart implements ScenePart {
   private readonly shoulders: THREE.Group[] = []
   private readonly elbows: THREE.Group[] = []
   private readonly tails: THREE.Group[] = []
-  private readonly cloud = new THREE.Group()
+  private readonly cloud = new CloudRide()
   private readonly talismans = new TalismanAura()
   private readonly shadow: THREE.Mesh
   private readonly ink = outlineMaterial(0.018)
@@ -271,14 +272,8 @@ export class HeroPart implements ScenePart {
       this.tails.push(tail)
     }
 
-    // Nuage magique, bulle du bouclier, ombre au sol.
-    const puff = toonMaterial('#ffffff', '#ffe0ee', 0.25)
-    for (let bump = 0; bump < 6; bump += 1) {
-      const angle = (bump / 6) * Math.PI * 2
-      this.cloud.add(this.outlined(new THREE.SphereGeometry(0.32 - (bump % 2) * 0.06, 14, 12), puff, (mesh) => mesh.position.set(Math.cos(angle) * 0.34, (bump % 2) * 0.07, Math.sin(angle) * 0.28)))
-    }
-    this.cloud.visible = false
-    this.root.add(this.cloud)
+    // Nuage magique (dans le monde : sa traînée reste derrière), talismans, ombre au sol.
+    this.object.add(this.cloud.object)
     this.root.add(this.talismans.object)
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.45, 24), new THREE.MeshBasicMaterial({ color: '#5a2f55', transparent: true, opacity: 0.35, depthWrite: false }))
     this.shadow.rotation.x = -Math.PI / 2
@@ -428,8 +423,7 @@ export class HeroPart implements ScenePart {
     this.shadow.position.set(run.x, 0.02, 0)
     const shrink = Math.max(0.3, 1 - run.y * 0.15)
     this.shadow.scale.set(shrink * (1 + this.squash * 0.15), shrink, 1)
-    this.cloud.visible = isFlying(run)
-    if (this.cloud.visible) this.cloud.rotation.y += dt * 0.8
+    this.cloud.update(isFlying(run) && !run.over, run.x, run.y, this.roll, run.over ? 0 : run.speed, run.t, dt)
     this.root.visible = run.over || run.invulnerableUntil <= run.t || isShielded(run) || Math.floor(run.t * 12) % 2 === 0
     this.talismans.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
   }

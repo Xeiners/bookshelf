@@ -6,8 +6,8 @@ import { HeroPart } from './hero'
 import type { HeroLookId } from './looks'
 import { sourceOf } from './looks'
 import type { ScenePart } from './parts'
+import { CloudRide } from './cloudRide'
 import { TalismanAura } from './talismans'
-import { outlineMaterial, toonMaterial } from './toon'
 import { VrmLife } from './vrm'
 
 /*
@@ -49,7 +49,7 @@ export function createHero(look: HeroLookId, assets: RunnerAssets | null, previe
 
 const BACKWARD = new THREE.Vector3(0, -0.15, 1).normalize()
 
-type Clip = 'Idle' | 'Running_A' | 'Running_B' | 'Jump_Start' | 'Jump_Idle' | 'Jump_Land' | 'Dodge_Forward' | 'Death_A' | 'Cheer' | 'Hit_A' | 'Lie_StandUp'
+type Clip = 'Idle' | 'Cloud_Ride' | 'Running_A' | 'Running_B' | 'Jump_Start' | 'Jump_Idle' | 'Jump_Land' | 'Dodge_Forward' | 'Death_A' | 'Cheer' | 'Hit_A' | 'Lie_StandUp'
 
 const damp = (current: number, target: number, rate: number) => current + (target - current) * rate
 
@@ -61,7 +61,11 @@ export class HeroModelPart implements ScenePart {
   private readonly actions = new Map<Clip, THREE.AnimationAction>()
   private current: THREE.AnimationAction | null = null
   private currentName: Clip | null = null
-  private readonly cloud = new THREE.Group()
+  private readonly cloud = new CloudRide()
+  /** Posture de surf sur le nuage (0 à 1) : le corps se tourne de profil. */
+  private surf = 0
+  /** Avant le départ (cinématique) : une joie, puis l'attente. */
+  private introCheered = false
   private readonly talismans = new TalismanAura()
   private readonly shadow: THREE.Mesh
   private readonly preview: boolean
@@ -112,19 +116,8 @@ export class HeroModelPart implements ScenePart {
     }
     this.play(this.preview ? 'Idle' : 'Running_A', 0)
 
-    // Nuage magique, bulle du bouclier, ombre au sol.
-    const ink = outlineMaterial(0.02)
-    const puff = toonMaterial('#ffffff', '#ffe0ee', 0.25)
-    for (let bump = 0; bump < 6; bump += 1) {
-      const angle = (bump / 6) * Math.PI * 2
-      const geometry = new THREE.SphereGeometry(0.34 - (bump % 2) * 0.06, 14, 12)
-      const mesh = new THREE.Mesh(geometry, puff)
-      mesh.add(new THREE.Mesh(geometry, ink))
-      mesh.position.set(Math.cos(angle) * 0.38, (bump % 2) * 0.07, Math.sin(angle) * 0.3)
-      this.cloud.add(mesh)
-    }
-    this.cloud.visible = false
-    this.root.add(this.cloud)
+    // Talismans, nuage magique (dans le monde : sa traînée reste derrière), ombre au sol.
+    this.object.add(this.cloud.object)
     this.root.add(this.talismans.object)
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: '#2a1838', transparent: true, opacity: 0.35, depthWrite: false }))
     this.shadow.rotation.x = -Math.PI / 2
@@ -179,6 +172,15 @@ export class HeroModelPart implements ScenePart {
       this.play('Death_A', 0.12)
       return
     }
+    // Avant le départ (cinématique) : il lève le poing, puis attend, prêt.
+    if (run.t === 0) {
+      if (!this.introCheered) {
+        this.introCheered = true
+        this.play('Cheer', 0.2, true)
+      } else if (this.currentName === 'Cheer' && !this.actions.get('Cheer')!.isRunning()) this.play('Idle', 0.4)
+      else if (this.currentName !== 'Cheer') this.play('Idle', 0.3)
+      return
+    }
     const sliding = isSliding(run)
     if (sliding) {
       // Roulade sous l'obstacle, calée sur la durée de la glissade.
@@ -191,7 +193,8 @@ export class HeroModelPart implements ScenePart {
     }
     this.wasSliding = false
     if (isFlying(run)) {
-      this.play('Jump_Idle', 0.2)
+      // Accroupi, de profil : il surfe sur son nuage.
+      if (!this.play('Cloud_Ride', 0.3)) this.play('Jump_Idle', 0.2)
       return
     }
     if (!run.grounded) {
@@ -247,7 +250,8 @@ export class HeroModelPart implements ScenePart {
     const stunned = isStunned(run) && !run.over
     const wobble = stunned ? Math.sin(run.t * 9) * 0.07 * Math.min(1, (run.stunnedUntil - run.t) / 0.6) : 0
     this.root.position.set(run.x, run.y, 0)
-    this.root.rotation.set(0, this.yaw, this.roll + wobble)
+    this.surf = damp(this.surf, isFlying(run) && !run.over ? 1 : 0, 1 - Math.exp(-dt * 5))
+    this.root.rotation.set(0, this.yaw - this.surf * 0.75, this.roll * (1 + this.surf * 1.5) + wobble)
     this.stars.visible = stunned
     if (stunned) {
       this.stars.rotation.y = run.t * 5
@@ -260,8 +264,7 @@ export class HeroModelPart implements ScenePart {
     this.shadow.position.set(run.x, 0.02, 0)
     const shrink = Math.max(0.3, 1 - run.y * 0.15)
     this.shadow.scale.set(shrink, shrink, 1)
-    this.cloud.visible = isFlying(run)
-    if (this.cloud.visible) this.cloud.rotation.y += dt * 0.8
+    this.cloud.update(isFlying(run) && !run.over, run.x, run.y, this.roll, run.over ? 0 : run.speed, run.t, dt)
     // Clignote après un choc ou une résurrection.
     this.root.visible = run.over || run.invulnerableUntil <= run.t || isShielded(run) || Math.floor(run.t * 12) % 2 === 0
     this.talismans.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
@@ -274,7 +277,8 @@ export class HeroModelPart implements ScenePart {
     this.current = null
     this.currentName = null
     // Les maillages du modèle sont partagés avec l'original chargé : seuls nos ajouts sont libérés.
-    for (const owned of [this.cloud, this.shadow, this.stars]) {
+    this.cloud.dispose()
+    for (const owned of [this.shadow, this.stars]) {
       owned.traverse((node) => {
         if (node instanceof THREE.Mesh) {
           node.geometry.dispose()
