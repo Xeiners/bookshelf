@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Loader2, Magnet, Pause, Play, ScrollText, Sparkles, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Loader2, Flame, Magnet, Pause, Play, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
 import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, multiplierFor, reviveCost } from '../../lib/runner/constants'
 import { act, answerQuiz, createRun, revive, scoreOf, type ActiveQuiz, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
-import { playChime, playRunnerHit, playRunnerJump, playRunnerPower, playRunnerSlide, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
+import { playChime, playRunnerHit, playRunnerJump, playRunnerAwaken, playRunnerPower, playRunnerSlide, playRunnerSmash, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
 import type { RunnerAssets } from './assets'
 import type { HeroLookId } from './looks'
 import { IntroClock } from './intro'
+import { QuizDeck } from './quizDeck'
 import { RunnerScene } from './RunnerScene'
 
 export interface RunnerOutcome {
@@ -87,8 +88,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const [offer, setOffer] = useState<{ cost: number; paying: boolean } | null>(null)
   const [offerLeft, setOfferLeft] = useState(0)
   const [quiz, setQuiz] = useState<ActiveQuiz | null>(null)
-  const [verdict, setVerdict] = useState<'right' | 'wrong' | null>(null)
+  const [verdict, setVerdict] = useState<'wrong' | null>(null)
   const [hitFlash, setHitFlash] = useState(0)
+  const [awaken, setAwaken] = useState(0)
+  const awakeLinesRef = useRef<HTMLDivElement>(null)
 
   const distanceRef = useRef<HTMLSpanElement>(null)
   const scoreRef = useRef<HTMLSpanElement>(null)
@@ -145,7 +148,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
 
   // Questions de quiz : tirées des univers du BookshelfDLE, reproductibles avec la graine.
   const [quizRandom] = useState(() => seededRandom(seed ^ 0x9e3779b9))
-  const ask = useCallback(() => makeQuiz(universes, t.runner.quiz, quizRandom), [universes, t, quizRandom])
+  // Préparées une à l'avance, portraits préchargés : poser une question ne fait jamais attendre.
+  const [deck] = useState(() => new QuizDeck())
+  useEffect(() => deck.setMaker(() => makeQuiz(universes, t.runner.quiz, quizRandom)), [deck, universes, t, quizRandom])
+  const ask = useCallback(() => deck.draw(), [deck])
 
   // Cinématique : la caméra lance son horloge ; à sa fin (ou passée d'un toucher), le décompte.
   useEffect(() => {
@@ -291,6 +297,9 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         const bar = node.lastElementChild as HTMLElement | null
         if (bar) bar.style.transform = `scaleX(${left})`
       }
+      // Lignes de vitesse tant que dure l'Éveil.
+      const awake = run.shieldUntil > run.t ? 'block' : 'none'
+      if (awakeLinesRef.current && awakeLinesRef.current.style.display !== awake) awakeLinesRef.current.style.display = awake
       if (run.quiz && quizBarRef.current) quizBarRef.current.style.transform = `scaleX(${Math.max(0, run.quiz.deadline - run.t) / QUIZ_TIME})`
 
       if (run.events.length === 0) return
@@ -332,10 +341,14 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
             setQuiz(run.quiz)
             break
           case 'quizRight':
-            playRunnerPower()
-            vibrate([15, 30, 15])
+            playRunnerAwaken()
+            vibrate([30, 40, 60])
             setQuiz(null)
-            setVerdict('right')
+            setAwaken((value) => value + 1)
+            break
+          case 'smash':
+            playRunnerSmash()
+            vibrate(25)
             break
           case 'quizWrong':
             playRunnerWrong()
@@ -385,6 +398,31 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       {/* Cinématique : bandes noires, carte de titre, « touche pour passer ». */}
       <div aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-[11vh] bg-black transition-transform duration-700 ease-out ${introRunning ? 'translate-y-0' : '-translate-y-full'}`} />
       <div aria-hidden className={`pointer-events-none absolute inset-x-0 bottom-0 h-[11vh] bg-black transition-transform duration-700 ease-out ${introRunning ? 'translate-y-0' : 'translate-y-full'}`} />
+      {/* Préparation de la scène (shaders, textures) : un sceau qui respire, des pétales qui tournent. */}
+      <div
+        aria-hidden={introShown}
+        className={`pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_45%,#3a1f63_0%,#140a2e_70%)] transition-opacity duration-700 ${introShown ? 'opacity-0' : 'opacity-100'}`}
+      >
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative grid size-24 place-items-center">
+            {[0, 1, 2, 3, 4].map((petal) => (
+              <span
+                key={petal}
+                className="absolute inset-0 animate-[spin_3.2s_linear_infinite]"
+                style={{ animationDelay: `${-petal * 0.64}s` }}
+              >
+                <span className="absolute top-0 left-1/2 block size-3 -translate-x-1/2 rounded-[60%_0_60%_0] bg-[#ffb7d0] opacity-80" />
+              </span>
+            ))}
+            <span className="grid size-14 animate-pulse place-items-center rounded-xl border-2 border-[#e0b04a] bg-[#1d1719] font-display text-2xl text-[#f2cf6c] shadow-[0_0_30px_rgba(224,176,74,0.45)]">
+              漫
+            </span>
+          </div>
+          <p role="status" className="text-xs tracking-[0.3em] text-white/75 uppercase">
+            {t.runner.intro.loading}
+          </p>
+        </div>
+      </div>
       {introRunning && introShown && (
         <>
           <div className="pointer-events-none absolute inset-x-0 top-[15vh] flex flex-col items-center gap-2 px-6 text-center">
@@ -399,6 +437,17 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       )}
 
       {/* Éclair rouge au choc. */}
+      {/* L'Éveil : lignes de vitesse dorées tant qu'il dure ; à l'activation, éclair et titre. */}
+      <div ref={awakeLinesRef} aria-hidden className="runner-speedlines pointer-events-none absolute inset-0" style={{ display: 'none' }} />
+      {awaken > 0 && (
+        <div key={awaken} aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 animate-[runner-hit_0.7s_ease-out_forwards] bg-[radial-gradient(circle_at_50%_62%,#fffbe6_0%,#ffd23ae0_30%,#ff8a0060_65%,transparent_100%)]" />
+          <div className="absolute inset-x-0 top-[20%] flex animate-[runner-awaken_1.7s_ease-out_forwards] flex-col items-center gap-1 opacity-0">
+            <span className="font-black text-7xl leading-none text-[#ffe37a] [-webkit-text-stroke:2px_#4a1d00] [text-shadow:0_0_24px_#ffb300,0_4px_0_#4a1d00]">{t.runner.hud.awakenSeal}</span>
+            <span className="rounded-full bg-black/45 px-4 py-1 text-sm font-bold tracking-[0.3em] text-white uppercase">{t.runner.hud.quizRight}</span>
+          </div>
+        </div>
+      )}
       {hitFlash > 0 && <div key={hitFlash} aria-hidden className="pointer-events-none absolute inset-0 animate-[runner-hit_0.45s_ease-out_forwards] bg-nope/35" />}
 
       {/* HUD du haut : distance, bonus actifs, score, ✦ et multiplicateur, pause. */}
@@ -412,7 +461,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
           <div className="flex flex-col gap-1">
             <PowerGauge register={registerGauge} name="magnet" label={t.runner.hud.magnet} icon={<Magnet size={13} aria-hidden />} color="#ff4d5e" />
             <PowerGauge register={registerGauge} name="cloud" label={t.runner.hud.cloud} icon={<Cloud size={13} aria-hidden />} color="#bfe9ff" />
-            <PowerGauge register={registerGauge} name="shield" label={t.runner.hud.shield} icon={<ScrollText size={13} aria-hidden />} color="#ffd36b" />
+            <PowerGauge register={registerGauge} name="shield" label={t.runner.hud.shield} icon={<Flame size={13} aria-hidden />} color="#ffb21a" />
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -475,9 +524,9 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       {verdict && (
         <div className="pointer-events-none absolute inset-x-0 top-[30%] flex justify-center px-4">
           <span
-            className={`rounded-full px-5 py-2.5 text-base font-bold shadow-lg ${verdict === 'right' ? 'bg-[#3fd0ff] text-void' : 'bg-nope/90 text-white'}`}
+            className="rounded-full bg-nope/90 px-5 py-2.5 text-base font-bold text-white shadow-lg"
           >
-            {verdict === 'right' ? t.runner.hud.quizRight : t.runner.hud.quizWrong}
+            {t.runner.hud.quizWrong}
           </span>
         </div>
       )}

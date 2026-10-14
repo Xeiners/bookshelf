@@ -4,8 +4,8 @@ import { MAX_SPEED, START_SPEED } from '../../lib/runner/constants'
 import { isFlying, isShielded, isSliding, type RunState } from '../../lib/runner/engine'
 import { CHIBI } from './looks'
 import type { ScenePart } from './parts'
-import { CloudRide } from './cloudRide'
-import { TalismanAura } from './talismans'
+import { CloudRide, cloudBob } from './cloudRide'
+import { AwakeningAura } from './awakening'
 import { outlineMaterial, toonMaterial } from './toon'
 
 /*
@@ -59,7 +59,7 @@ export class HeroPart implements ScenePart {
   private readonly elbows: THREE.Group[] = []
   private readonly tails: THREE.Group[] = []
   private readonly cloud = new CloudRide()
-  private readonly talismans = new TalismanAura()
+  private readonly aura = new AwakeningAura()
   private readonly shadow: THREE.Mesh
   private readonly ink = outlineMaterial(0.018)
   private readonly pose: Pose = { hipL: 0, hipR: 0, kneeL: 0, kneeR: 0, shoulderL: 0, shoulderR: 0, armOutL: 0, armOutR: 0, elbowL: 0, elbowR: 0, lean: 0, pelvisY: PELVIS, head: 0 }
@@ -272,9 +272,9 @@ export class HeroPart implements ScenePart {
       this.tails.push(tail)
     }
 
-    // Nuage magique (dans le monde : sa traînée reste derrière), talismans, ombre au sol.
+    // Nuage magique (dans le monde : sa traînée reste derrière), aura de l'Éveil, ombre au sol.
     this.object.add(this.cloud.object)
-    this.root.add(this.talismans.object)
+    this.root.add(this.aura.object)
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.45, 24), new THREE.MeshBasicMaterial({ color: '#5a2f55', transparent: true, opacity: 0.35, depthWrite: false }))
     this.shadow.rotation.x = -Math.PI / 2
     this.object.add(this.root, this.shadow)
@@ -393,7 +393,7 @@ export class HeroPart implements ScenePart {
       const smooth = 1 - Math.exp(-dt * 12)
       this.yaw = damp(this.yaw, Math.max(-0.5, Math.min(0.5, -vx * 0.03)), smooth)
       this.roll = damp(this.roll, Math.max(-0.35, Math.min(0.35, -vx * 0.022)), smooth)
-      this.root.position.set(run.x, run.y, 0)
+      this.root.position.set(run.x, run.y + (isFlying(run) && !run.over ? cloudBob(run.t) : 0), 0)
       this.root.rotation.set(0, this.yaw, this.roll)
     }
     this.pelvis.position.y = pose.pelvisY - this.squash * 0.08
@@ -425,7 +425,7 @@ export class HeroPart implements ScenePart {
     this.shadow.scale.set(shrink * (1 + this.squash * 0.15), shrink, 1)
     this.cloud.update(isFlying(run) && !run.over, run.x, run.y, this.roll, run.over ? 0 : run.speed, run.t, dt)
     this.root.visible = run.over || run.invulnerableUntil <= run.t || isShielded(run) || Math.floor(run.t * 12) % 2 === 0
-    this.talismans.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
+    this.aura.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
   }
 
   dispose(): void {

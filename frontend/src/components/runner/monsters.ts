@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
-import { LANE_WIDTH } from '../../lib/runner/constants'
-import type { RunState, TrackObject } from '../../lib/runner/engine'
+import { objectX, type RunState, type TrackObject } from '../../lib/runner/engine'
 import { SKELETON_MODELS, type RunnerAssets, type SkeletonModel } from './assets'
 import { monsterOf } from './biomes'
 import type { ScenePart } from './parts'
@@ -144,8 +143,23 @@ export class MonstersPart implements ScenePart {
       const object = monster.object === null ? undefined : byId.get(monster.object)
       if (!object) continue
       const ahead = object.s - run.distance
-      monster.root.position.set(object.lane * LANE_WIDTH, 0, -(object.s + object.length / 2 - run.distance))
-      monster.root.rotation.y = Math.sin(time * 0.7 + object.id) * 0.15
+      // Pulvérisé par l'Éveil : projeté en l'air, en tournoyant, loin devant.
+      if (object.smashedAt !== undefined) {
+        const age = run.t - object.smashedAt
+        monster.root.visible = age < 1.2
+        monster.root.position.set(objectX(object) + age * 3, age * 7 - age * age * 6, -(object.s + object.length / 2 - run.distance) - age * 14)
+        monster.root.rotation.set(age * 9, age * 4, age * 6)
+        monster.mixer.update(dt)
+        continue
+      }
+      monster.root.rotation.x = 0
+      // La feinte : un bond de côté (arc, corps penché vers la voie visée).
+      const shift = object.shiftTo === undefined ? 0 : (object.shift ?? 0)
+      const hop = Math.sin(Math.PI * shift)
+      const side = object.shiftTo === undefined ? 0 : Math.sign(object.shiftTo - object.lane)
+      monster.root.position.set(objectX(object), hop * 1.1, -(object.s + object.length / 2 - run.distance))
+      monster.root.rotation.y = Math.sin(time * 0.7 + object.id) * 0.15 - side * hop * 0.9
+      monster.root.rotation.z = -side * hop * 0.25
       // De loin : en garde ou provocation ; de près : il frappe.
       if (object.done) this.play(monster, 'Cheer', 0.15)
       else if (ahead < 9) this.play(monster, object.variant % 2 ? '1H_Melee_Attack_Chop' : '2H_Melee_Attack_Spin', 0.12, 1.4)
@@ -157,7 +171,7 @@ export class MonstersPart implements ScenePart {
       const object = monster.object === null ? undefined : byId.get(monster.object)
       if (!object) continue
       // Étendu en travers de la voie : on le saute.
-      monster.root.position.set(object.lane * LANE_WIDTH, 0, -(object.s + object.length / 2 - run.distance))
+      monster.root.position.set(objectX(object), 0, -(object.s + object.length / 2 - run.distance))
       monster.root.rotation.y = Math.PI / 2
       this.play(monster, 'Skeletons_Inactive_Floor_Pose', 0)
       monster.aura.scale.set(1.4, 0.8, 1)

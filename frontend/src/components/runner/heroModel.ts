@@ -6,8 +6,8 @@ import { HeroPart } from './hero'
 import type { HeroLookId } from './looks'
 import { sourceOf } from './looks'
 import type { ScenePart } from './parts'
-import { CloudRide } from './cloudRide'
-import { TalismanAura } from './talismans'
+import { CloudRide, cloudBob } from './cloudRide'
+import { AwakeningAura } from './awakening'
 import { VrmLife } from './vrm'
 
 /*
@@ -66,7 +66,7 @@ export class HeroModelPart implements ScenePart {
   private surf = 0
   /** Avant le départ (cinématique) : une joie, puis l'attente. */
   private introCheered = false
-  private readonly talismans = new TalismanAura()
+  private readonly aura = new AwakeningAura()
   private readonly shadow: THREE.Mesh
   private readonly preview: boolean
   private readonly life: VrmLife | undefined
@@ -118,7 +118,7 @@ export class HeroModelPart implements ScenePart {
 
     // Talismans, nuage magique (dans le monde : sa traînée reste derrière), ombre au sol.
     this.object.add(this.cloud.object)
-    this.root.add(this.talismans.object)
+    this.root.add(this.aura.object)
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: '#2a1838', transparent: true, opacity: 0.35, depthWrite: false }))
     this.shadow.rotation.x = -Math.PI / 2
     // Étoiles de l'étourdissement, en couronne au-dessus de la tête.
@@ -249,9 +249,11 @@ export class HeroModelPart implements ScenePart {
     // Sonné : il vacille.
     const stunned = isStunned(run) && !run.over
     const wobble = stunned ? Math.sin(run.t * 9) * 0.07 * Math.min(1, (run.stunnedUntil - run.t) / 0.6) : 0
-    this.root.position.set(run.x, run.y, 0)
     this.surf = damp(this.surf, isFlying(run) && !run.over ? 1 : 0, 1 - Math.exp(-dt * 5))
-    this.root.rotation.set(0, this.yaw - this.surf * 0.75, this.roll * (1 + this.surf * 1.5) + wobble)
+    // Sur le nuage, il ne fait qu'un avec lui : même balancement, même inclinaison dans les
+    // virages (celle du nuage), le buste penché vers l'avant, face au vent.
+    this.root.position.set(run.x, run.y + cloudBob(run.t) * this.surf, 0)
+    this.root.rotation.set(-0.14 * this.surf, this.yaw - this.surf * 0.75, this.roll * (1 + this.surf * 0.3) + wobble)
     this.stars.visible = stunned
     if (stunned) {
       this.stars.rotation.y = run.t * 5
@@ -267,13 +269,13 @@ export class HeroModelPart implements ScenePart {
     this.cloud.update(isFlying(run) && !run.over, run.x, run.y, this.roll, run.over ? 0 : run.speed, run.t, dt)
     // Clignote après un choc ou une résurrection.
     this.root.visible = run.over || run.invulnerableUntil <= run.t || isShielded(run) || Math.floor(run.t * 12) % 2 === 0
-    this.talismans.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
+    this.aura.update(Math.max(0, run.shieldUntil - run.t), run.t, dt)
   }
 
   dispose(): void {
     // Sans `uncacheRoot` : React (mode strict) peut remonter la même partie après ce nettoyage.
     this.mixer.stopAllAction()
-    this.talismans.dispose()
+    this.aura.dispose()
     this.current = null
     this.currentName = null
     // Les maillages du modèle sont partagés avec l'original chargé : seuls nos ajouts sont libérés.

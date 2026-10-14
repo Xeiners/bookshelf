@@ -46,6 +46,14 @@ export const STUN_TIME = 2.6
 export const STUMBLE_SLOWDOWN = 0.3
 export const STUMBLE_RECOVERY = 1.1
 
+/**
+ * Monstres qui feintent : à `SHIFT_LEAD` secondes de l'impact, un monstre bondit dans la
+ * voie voisine (libre) en `SHIFT_TIME` secondes. Il a fini 1,6 s avant d'arriver : le
+ * coureur a toujours le temps de changer de voie.
+ */
+export const SHIFT_LEAD = 2.1
+export const SHIFT_TIME = 0.45
+
 /** Une seule vie : un choc termine la course, sauf résurrection payée en Poussières. */
 export const LIVES = 1
 /** Après une résurrection : invincible un instant, et la piste proche est dégagée (m). */

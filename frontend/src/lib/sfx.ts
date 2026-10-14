@@ -649,6 +649,25 @@ export function playRunnerPower(): void {
   ;[784, 988, 1175, 1568].forEach((frequency, index) => bell(e, frequency, at + index * 0.06, 0.5, 0.05, index % 2 ? 0.3 : -0.3))
 }
 
+/** L'Éveil : un grondement qui enfle, un souffle, puis un accord éclatant. */
+export function playRunnerAwaken(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 70, 35, 0.7, 0.4)
+  noiseBurst(e, { at, duration: 0.6, from: 400, to: 5200, q: 0.8, gain: 0.14, grain: 30, send: 0.35 })
+  ;[523, 659, 784, 1047, 1319].forEach((frequency, index) => bell(e, frequency, at + 0.18 + index * 0.045, 0.9, 0.05, index % 2 ? 0.35 : -0.35))
+}
+
+/** Un obstacle pulvérisé par l'Éveil : un impact sec et des éclats. */
+export function playRunnerSmash(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 180, 50, 0.3, 0.35)
+  noiseBurst(e, { at, duration: 0.18, from: 6000, to: 1500, q: 1.4, gain: 0.18, grain: 90, send: 0.2 })
+}
+
 /** Mauvaise réponse au quiz : deux notes qui descendent. */
 export function playRunnerWrong(): void {
   const e = start()

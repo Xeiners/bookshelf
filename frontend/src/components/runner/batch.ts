@@ -49,6 +49,11 @@ export class Batch {
     this.count = 0
   }
 
+  /** Nombre d'instances posées depuis `begin` (l'indice de la prochaine). */
+  get size(): number {
+    return this.count
+  }
+
   push(x: number, y: number, z: number, sx: number, sy: number, sz: number, color?: THREE.ColorRepresentation, rx = 0, ry = 0, rz = 0): void {
     if (this.count >= this.max) return
     dummy.position.set(x, y, z)

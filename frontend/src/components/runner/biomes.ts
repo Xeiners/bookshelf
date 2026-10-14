@@ -161,6 +161,8 @@ export function mixColor(target: THREE.Color, a: string, b: string, weight: numb
  */
 export function monsterOf(object: TrackObject): 'standing' | 'lying' | null {
   const haunted = biomeAt(object.s) === 'haunted'
+  // Les feintes (un mur qui change de voie) sont toujours des monstres : un mur ne bondit pas.
+  if (object.kind === 'wall' && object.shiftTo !== undefined) return 'standing'
   if (object.kind === 'wall') return object.variant % 3 === 0 || (haunted && object.variant % 3 === 1) ? 'standing' : null
   if (object.kind === 'low') return object.variant % (haunted ? 2 : 4) === 0 ? 'lying' : null
   return null

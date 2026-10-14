@@ -20,6 +20,7 @@ import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { loadRunnerAssets, type RunnerAssets } from './assets'
+import { COVER_CELLS, coverAtlas, smallCover } from './covers'
 import { HeroPreview } from './HeroPreview'
 import { DEFAULT_LOOK, HERO_LOOKS, sourceOf, type HeroLookId } from './looks'
 import { RunnerGame, type RunnerOutcome } from './RunnerGame'
@@ -59,6 +60,35 @@ interface Session {
 
 type Settled = { outcome: RunnerOutcome; result: RunnerResult | null; error: string | null; saving: boolean }
 
+/** Univers du quiz, gardés sur l'appareil : le quiz marche aussi hors-ligne. */
+const UNIVERSES_KEY = 'bookshelf:runner:universes'
+function readUniverses(): QuizUniverse[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(UNIVERSES_KEY) ?? '[]') as unknown
+    return Array.isArray(stored) ? (stored as QuizUniverse[]) : []
+  } catch {
+    return []
+  }
+}
+function saveUniverses(universes: QuizUniverse[]): void {
+  try {
+    localStorage.setItem(UNIVERSES_KEY, JSON.stringify(universes))
+  } catch {
+    // Stockage plein ou interdit : le quiz se contentera du réseau.
+  }
+}
+
+/** Couvertures des tomes géants (œuvres du BookshelfDLE), gardées sur l'appareil elles aussi. */
+const COVERS_KEY = 'bookshelf:runner:covers'
+function readCovers(): string[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(COVERS_KEY) ?? '[]') as unknown
+    return Array.isArray(stored) ? stored.filter((url): url is string => typeof url === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 /**
  * Manga Runner 3D : l'accueil (records, réglages, classement), la course en plein écran et
  * son bilan. Sans compte, on court en invité, comme au BookshelfDLE : les ✦ gagnées sont
@@ -77,7 +107,7 @@ export function RunnerView() {
   const stardust = useStardustBalance()
   const prefs = useRunnerPrefs()
   const [overview, setOverview] = useState<RunnerOverview | null>(null)
-  const [universes, setUniverses] = useState<QuizUniverse[]>([])
+  const [universes, setUniverses] = useState<QuizUniverse[]>(readUniverses)
   const [session, setSession] = useState<Session | null>(null)
   /** Modèles 3D (personnages, monstres, décor) : chargés à l'ouverture du Runner. */
   const [assets, setAssets] = useState<RunnerAssets | null>(null)
@@ -125,16 +155,42 @@ export function RunnerView() {
     const categories = DLE_CATEGORIES.filter((category) => category !== 'manga')
     void Promise.allSettled(categories.map((category) => dleApi.works(category, controller.signal))).then((lists) => {
       if (controller.signal.aborted) return
-      setUniverses(
-        lists.flatMap((list, index) =>
-          list.status === 'fulfilled' && list.value.length > 0
-            ? [{ title: t.dle.categories[categories[index]!].title, characters: list.value.slice(0, 40).map((work) => ({ name: work.name, image: work.imageUrl })) }]
-            : [],
-        ),
+      const fresh = lists.flatMap((list, index) =>
+        list.status === 'fulfilled' && list.value.length > 0
+          ? [{ title: t.dle.categories[categories[index]!].title, characters: list.value.slice(0, 40).map((work) => ({ name: work.name, image: work.imageUrl })) }]
+          : [],
       )
+      // Hors-ligne (ou serveur injoignable) : on garde les univers déjà connus.
+      if (fresh.length === 0) return
+      setUniverses(fresh)
+      saveUniverses(fresh)
     })
     return () => controller.abort()
   }, [t])
+
+  // Couvertures manga des tomes géants et des publicités des trains : téléchargées dès
+  // l'entrée (petite taille), d'abord celles déjà connues (en cache, même hors-ligne).
+  useEffect(() => {
+    coverAtlas().load(readCovers())
+    const controller = new AbortController()
+    dleApi
+      .works('manga', controller.signal)
+      .then((works) => {
+        const urls = works
+          .filter((work) => work.imageUrl)
+          .slice(0, COVER_CELLS)
+          .map((work) => smallCover(work.imageUrl))
+        if (urls.length === 0) return
+        coverAtlas().load(urls)
+        try {
+          localStorage.setItem(COVERS_KEY, JSON.stringify(urls))
+        } catch {
+          // Stockage plein : les couvertures seront retéléchargées.
+        }
+      })
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [])
 
   const start = useCallback(async () => {
     if (starting) return

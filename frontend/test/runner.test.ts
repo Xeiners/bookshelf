@@ -69,6 +69,25 @@ describe('Manga Runner — simulation', () => {
     assert.equal(state.lives, 2)
   })
 
+  it('un monstre feinte assez tôt pour être esquivé', () => {
+    const state = emptyRun()
+    run(state, 1)
+    const wall = { id: 99, kind: 'wall' as const, lane: 0 as const, s: state.distance + state.speed * 3, length: 1, y: 1, variant: 0, done: false, shiftTo: 1 as const, shift: 0 }
+    state.objects.push(wall)
+    act(state, 'right')
+    run(state, 0.6)
+    assert.equal(state.lane, 1)
+    assert.equal(wall.shift, 0, 'encore loin : il attend')
+    run(state, 1.1)
+    assert.equal(wall.shift, 1, 'bondi dans la voie de droite')
+    // Plus d'une seconde avant l'impact : on a le temps de revenir au centre (qu'il a quittée).
+    assert.ok((wall.s - state.distance) / state.speed > 1)
+    act(state, 'left')
+    run(state, 2)
+    assert.equal(state.lives, 3)
+    assert.ok(!state.over)
+  })
+
   it('changement de voie fluide : pas de saut de position ni de vitesse, même enchaîné', () => {
     const state = emptyRun()
     act(state, 'left')
@@ -188,9 +207,13 @@ describe('Manga Runner — simulation', () => {
     assert.equal(state.quiz, null)
     assert.equal(state.quizRight, 1)
     assert.ok(state.shieldUntil > state.t)
-    place(state, 'wall', 1, state.distance + 3)
+    // L'Éveil : le mur devant vole en éclats, le train se traverse, les ✦ voisines sont attirées.
+    const wall = place(state, 'wall', 0, state.distance + 3)
     run(state, 0.5)
-    assert.equal(state.lives, 3, 'bouclier')
+    assert.equal(state.lives, 3, 'éveillé')
+    assert.ok(state.objects[wall - 1]!.smashedAt !== undefined)
+    assert.ok(state.events.includes('smash'))
+    assert.ok(state.magnetUntil >= state.shieldUntil)
   })
 })
 
@@ -202,10 +225,14 @@ describe('Manga Runner — piste', () => {
     new TrackGenerator(42).fill(b, 6000)
     assert.deepEqual(a, b)
     const hard = a.filter((object) => object.kind === 'wall' || object.kind === 'train')
-    for (let s = 0; s < 6000; s += 0.5) {
-      const lanes = new Set(hard.filter((object) => object.s <= s && object.s + object.length >= s).map((object) => object.lane))
-      assert.ok(lanes.size < 3, `trois voies bouchées à ${s} m`)
+    // Avant et après les feintes des monstres.
+    for (const laneOf of [(object: TrackObject) => object.lane, (object: TrackObject) => object.shiftTo ?? object.lane]) {
+      for (let s = 0; s < 6000; s += 0.5) {
+        const lanes = new Set(hard.filter((object) => object.s <= s && object.s + object.length >= s).map(laneOf))
+        assert.ok(lanes.size < 3, `trois voies bouchées à ${s} m`)
+      }
     }
+    assert.ok(a.some((object) => object.shiftTo !== undefined), 'des monstres feintent')
     assert.ok(a.some((object) => object.kind === 'quiz'))
     assert.ok(a.some((object) => object.kind === 'magnet' || object.kind === 'cloud'))
     assert.ok(a.filter((object) => object.kind === 'star').length > 300)

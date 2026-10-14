@@ -10,6 +10,7 @@ import type { IntroClock } from './intro'
 import type { HeroLookId } from './looks'
 import { MonstersPart } from './monsters'
 import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
+import { SmashPart } from './smash'
 
 /*
  * La scène du Manga Runner. Une seule boucle (`useFrame`, priorité −1) fait avancer la
@@ -34,9 +35,10 @@ export interface RunnerSceneProps {
 }
 
 export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, intro }: RunnerSceneProps) {
+  const [dpr] = useState(() => budgetDpr(lite))
   return (
     <Canvas
-      dpr={lite ? [1, 1.1] : [1, MAX_DPR]}
+      dpr={dpr}
       gl={{ antialias: !lite, powerPreference: 'high-performance', alpha: false, stencil: false }}
       camera={{ fov: 62, near: 0.2, far: 900, position: [0, 3.4, 6.8] }}
       style={{ touchAction: 'none' }}
@@ -56,17 +58,29 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       <Part state={state} make={() => new ObstaclesPart()} />
       <Part state={state} make={() => new MonstersPart(assets)} />
       <Part state={state} make={() => new PickupsPart()} />
+      <Part state={state} make={() => new SmashPart()} />
       <Part state={state} make={() => createHero(look, assets)!} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} intro={intro} />
       <Warmup />
-      <AdaptiveResolution max={lite ? 1.1 : MAX_DPR} />
+      <AdaptiveResolution start={dpr} />
     </Canvas>
   )
 }
 
-/** Résolution maximale (rapport de pixels) hors mode allégé ; abaissée si l'appareil peine. */
-const MAX_DPR = 1.5
+/**
+ * Résolution : un budget de pixels plutôt qu'un rapport fixe. Un téléphone (≈ 0,3 Mpx CSS)
+ * dessine net, en 1,5 ; un écran d'ordinateur (≈ 2 Mpx CSS) descend sous 1 : sinon la
+ * carte graphique y calcule six fois plus de pixels pour la même image.
+ */
+const PIXEL_BUDGET = 1_300_000
+const LITE_PIXEL_BUDGET = 550_000
+const MIN_DPR = 0.5
+function budgetDpr(lite: boolean): number {
+  const area = Math.max(1, window.innerWidth * window.innerHeight)
+  const cap = Math.min(window.devicePixelRatio || 1, lite ? 1.1 : 1.5)
+  return Math.max(MIN_DPR, Math.min(cap, Math.sqrt((lite ? LITE_PIXEL_BUDGET : PIXEL_BUDGET) / area)))
+}
 
 /**
  * Prépare tout avant la course : programmes des matériaux compilés et textures envoyées à
@@ -94,11 +108,11 @@ function Warmup() {
 
 /**
  * Résolution adaptative : si les images tardent (moins de ~45 par seconde en moyenne sur
- * une seconde), on baisse la définition par paliers, jusqu'à 1. La fluidité d'abord.
+ * une seconde), on baisse la définition par paliers, jusqu'à un plancher. La fluidité d'abord.
  */
-function AdaptiveResolution({ max }: { max: number }) {
+function AdaptiveResolution({ start }: { start: number }) {
   const setDpr = useThree((three) => three.setDpr)
-  const sample = useRef({ time: 0, frames: 0, dpr: max })
+  const sample = useRef({ time: 0, frames: 0, dpr: start })
   useFrame((_, delta) => {
     const current = sample.current
     // On ignore les pauses et les retours au premier plan (une image très longue).
@@ -109,25 +123,32 @@ function AdaptiveResolution({ max }: { max: number }) {
     const fps = current.frames / current.time
     current.time = 0
     current.frames = 0
-    if (fps < 45 && current.dpr > 1) {
-      current.dpr = Math.max(1, current.dpr - 0.2)
+    if (fps < 45 && current.dpr > MIN_DPR) {
+      current.dpr = Math.max(MIN_DPR, current.dpr * 0.85)
       setDpr(current.dpr)
     }
   })
   return null
 }
 
+const SLOW_TIME = 0.75
+
 /** La boucle : pas de simulation borné (un onglet revenu au premier plan ne téléporte pas le coureur). */
 function Simulation({ state, paused, ask, onTick }: Pick<RunnerSceneProps, 'state' | 'paused' | 'ask' | 'onTick'>) {
+  // Ralenti (temps réel restant, s) : l'instant de l'Éveil se savoure. Le temps de course ralentit
+  // avec l'image : la vitesse du coureur, elle, ne change pas.
+  const slow = useRef(0)
   useFrame((_, delta) => {
     const run = state.current
     if (!run || paused.current) return
-    const dt = Math.min(delta, 1 / 20)
+    slow.current = Math.max(0, slow.current - delta)
+    const dt = Math.min(delta, 1 / 20) * (slow.current > 0 ? 0.3 + 0.7 * (1 - slow.current / SLOW_TIME) ** 2 : 1)
     // Deux demi-pas sous 40 images/s : les collisions restent précises.
     if (dt > 1 / 40) {
       step(run, dt / 2, ask)
       step(run, dt / 2, ask)
     } else step(run, dt, ask)
+    if (run.events.includes('quizRight')) slow.current = SLOW_TIME
     onTick(run)
   }, -1)
   return null

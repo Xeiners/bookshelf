@@ -16,6 +16,9 @@
  *  - listes de chapitres et de pages → réseau d'abord (4 s max), repli sur la dernière copie
  *  - couvertures des romans du compte (/api/books/<id>/cover) → stale-while-revalidate,
  *    dans un cache « privé » que la déconnexion efface (cf. useNovelStore.clear)
+ *  - Manga Runner (/runner/… : modèles 3D) → copie locale d'abord, mise à jour en arrière-plan,
+ *    dans son propre cache (jamais purgé au déploiement) : le jeu se lance hors-ligne
+ *  - portraits des personnages (/api/dle/characters/…/image) → stale-while-revalidate (couvertures)
  *  - reste de /api   → réseau uniquement (session, bibliothèque : jamais périmés).
  *    Les fichiers EPUB du compte n'y passent pas : IndexedDB les garde (cloudBooks.ts).
  */
@@ -39,6 +42,11 @@ const READER_DATA_CACHE = `bookshelf-reader-data-${VERSION}`
  * remplis par l'app, JAMAIS purgés ici (ni plafond, ni changement de version).
  */
 const DOWNLOADS_CACHE = 'bookshelf-downloads-v1'
+/** Modèles 3D du Manga Runner : gardés d'un déploiement à l'autre, rafraîchis en arrière-plan. */
+const RUNNER_CACHE = 'bookshelf-runner-v1'
+const RUNNER_PREFIX = '/runner/'
+/** Portrait d'un personnage du BookshelfDLE (quiz du Runner, saisie des jeux). */
+const CHARACTER_IMAGE = /^\/api\/dle\/characters\/[\w-]+\/[^/]+\/image$/
 /** Données d'un compte : le préfixe `bookshelf-private-` est effacé à la déconnexion. */
 const PRIVATE_CACHE = `bookshelf-private-${VERSION}`
 
@@ -134,7 +142,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys()
-      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE, PRIVATE_CACHE, DOWNLOADS_CACHE])
+      const current = new Set([SHELL_CACHE, ASSET_CACHE, IMAGE_CACHE, PAGES_CACHE, READER_DATA_CACHE, PRIVATE_CACHE, DOWNLOADS_CACHE, RUNNER_CACHE])
       await Promise.all(keys.filter((key) => !current.has(key)).map((key) => caches.delete(key)))
       await pruneOldAssets()
       await self.clients.claim()
@@ -251,6 +259,21 @@ async function staleWhileRevalidate(request, cacheName) {
   return network
 }
 
+/** Modèle du Runner : la copie locale tout de suite (hors-ligne compris), la nouvelle version pour la fois suivante. */
+async function runnerAsset(request) {
+  const cache = await caches.open(RUNNER_CACHE)
+  const cached = await cache.match(request, { ignoreVary: true })
+  const network = fetch(request).then((response) => {
+    if (response.ok && response.type !== 'opaque') cache.put(request, response.clone()).catch(() => {})
+    return response
+  })
+  if (cached) {
+    network.catch(() => {})
+    return cached
+  }
+  return network
+}
+
 /**
  * Page de chapitre : immuable (le nom de fichier est l'empreinte de l'image),
  * donc servie depuis le cache dès qu'elle y est. Un repli n'est pas gardé :
@@ -324,6 +347,16 @@ self.addEventListener('fetch', (event) => {
   // Couvertures des romans du compte : affichées hors-ligne dans « Mes romans ».
   if (url.origin === self.location.origin && NOVEL_COVER.test(url.pathname)) {
     event.respondWith(staleWhileRevalidate(request, PRIVATE_CACHE))
+    return
+  }
+
+  // Manga Runner : modèles 3D (le jeu se lance hors-ligne) et portraits du quiz.
+  if (url.origin === self.location.origin && url.pathname.includes(RUNNER_PREFIX) && !url.pathname.startsWith(API_PREFIX)) {
+    event.respondWith(runnerAsset(request))
+    return
+  }
+  if (url.origin === self.location.origin && CHARACTER_IMAGE.test(url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request, IMAGE_CACHE))
     return
   }
 

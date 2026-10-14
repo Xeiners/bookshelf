@@ -823,7 +823,8 @@ export class NaturePart implements ScenePart {
     const distance = run.distance
     for (const batch of this.batches.values()) batch.begin()
     this.shadowCount = 0
-    const density = this.density
+    // Champ large (ordinateur, paysage) : bien plus de paysage y entre ; on l'éclaircit d'autant.
+    const density = this.density * Math.min(1, 0.7 / Math.max(0.2, view.spread))
     const first = Math.floor((distance - BEHIND) / CELL)
     const last = Math.ceil((distance + AHEAD) / CELL)
     for (let cell = first; cell <= last; cell += 1) {

@@ -4,17 +4,81 @@ import { uploadUsed } from './batch'
 /*
  * Le nuage magique : un nuage doré à la Kinto-un, fait de volutes qui respirent, blanc
  * dessus et doré dessous, posé sur un halo. Il se forme dans une bouffée quand on le
- * ramasse, laisse une traînée de petits nuages et d'étincelles, s'incline dans les virages,
- * et se dissipe à la fin. Des lignes de vent filent autour du coureur pendant le vol.
+ * ramasse, laisse derrière lui un long sillage doré (comme dans Dragon Ball : une traîne
+ * lumineuse qui épouse ses virages), quelques petits nuages et des étincelles, s'incline
+ * dans les virages et se dissipe à la fin. Des lignes de vent filent autour du coureur.
  *
- * Trois appels de dessin (volutes et traînée en instances, lignes de vent), aucun objet
- * créé pendant la course.
+ * Quelques appels de dessin (volutes et traînée en instances, sillage, lignes de vent),
+ * aucun objet créé pendant la course.
  */
 
 const PUFFS = 22
 const TRAIL = 40
 const STREAKS = 26
 const SPARKS = 36
+/** Sillage : segments, durée d'historique représentée (s), longueur à l'écran (m). */
+const WAKE_SEGMENTS = 28
+const WAKE_AGE = 0.6
+const WAKE_LENGTH = 4.2
+const WAKE_HISTORY = 96
+
+/** Le nuage flotte : son balancement vertical (le coureur posé dessus suit le même). */
+export const cloudBob = (time: number) => Math.sin(time * 2.4) * 0.06
+
+// i18n-ignore (code GLSL)
+const WAKE_VERTEX = /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
+
+// i18n-ignore (code GLSL)
+const WAKE_FRAGMENT = /* glsl */ `
+uniform float uTime;
+uniform float uPresence;
+varying vec2 vUv;
+void main() {
+  // u : du nuage (0) à la pointe (1) ; v : en travers. Cœur blanc, bords dorés puis orangés.
+  float across = abs(vUv.y - 0.5) * 2.0;
+  float core = 1.0 - smoothstep(0.0, 0.35, across);
+  float body = 1.0 - smoothstep(0.35, 1.0, across);
+  float tail = pow(1.0 - vUv.x, 1.4);
+  // Pulsations qui remontent le sillage.
+  float pulse = 0.82 + 0.18 * sin(vUv.x * 26.0 - uTime * 30.0);
+  vec3 color = mix(vec3(1.0, 0.62, 0.12), vec3(1.0, 0.86, 0.38), body);
+  color = mix(color, vec3(1.0, 0.99, 0.9), core);
+  float alpha = min(1.0, (body * 0.9 + core * 0.7) * tail * pulse * uPresence);
+  gl_FragColor = vec4(color * alpha, alpha);
+}
+`
+
+/**
+ * Le sillage : deux rubans en croix (à plat et debout), pour qu'il se voie sous tous les
+ * angles. Les sommets sont recalculés à chaque image à partir de l'historique du nuage.
+ */
+function wakeGeometry(): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry()
+  const columns = WAKE_SEGMENTS + 1
+  const uvs = new Float32Array(columns * 2 * 2 * 2)
+  const indices: number[] = []
+  for (let strip = 0; strip < 2; strip += 1) {
+    const offset = strip * columns * 2
+    for (let column = 0; column < columns; column += 1) {
+      const u = column / WAKE_SEGMENTS
+      uvs.set([u, 0, u, 1], (offset + column * 2) * 2)
+      if (column < WAKE_SEGMENTS) {
+        const a = offset + column * 2
+        indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+      }
+    }
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(columns * 2 * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage))
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  geometry.setIndex(indices)
+  return geometry
+}
 
 interface Particle {
   x: number
@@ -61,6 +125,9 @@ export class CloudRide {
   private readonly sparkPositions = new Float32Array(SPARKS * 3)
   private readonly glow: THREE.Mesh
   private readonly streakMaterial: THREE.MeshBasicMaterial
+  private readonly wake: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
+  /** Positions passées du nuage (x, y, âge), la plus récente en tête. */
+  private readonly history: { x: number; y: number; age: number }[] = []
   private presence = 0
   private flying = false
   private spawn = 0
@@ -126,7 +193,60 @@ export class CloudRide {
     )
     this.sparks.frustumCulled = false
     this.object.add(this.sparks)
+
+    this.wake = new THREE.Mesh(
+      wakeGeometry(),
+      new THREE.ShaderMaterial({
+        vertexShader: WAKE_VERTEX,
+        fragmentShader: WAKE_FRAGMENT,
+        uniforms: { uTime: { value: 0 }, uPresence: { value: 0 } },
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      }),
+    )
+    this.wake.frustumCulled = false
+    this.wake.renderOrder = 2
+    this.object.add(this.wake)
     this.object.visible = false
+  }
+
+  /** Le sillage suit l'historique des positions du nuage : il serpente derrière lui dans les virages. */
+  private updateWake(x: number, y: number, time: number, dt: number): void {
+    for (const sample of this.history) sample.age += dt
+    this.history.unshift({ x, y, age: 0 })
+    while (this.history.length > WAKE_HISTORY || (this.history.length > 2 && this.history[this.history.length - 2]!.age > WAKE_AGE)) this.history.pop()
+    const material = this.wake.material
+    material.uniforms.uTime!.value = time
+    material.uniforms.uPresence!.value = this.presence
+    this.wake.visible = this.presence > 0.01
+    if (!this.wake.visible) return
+    const positions = this.wake.geometry.attributes.position as THREE.BufferAttribute
+    const columns = WAKE_SEGMENTS + 1
+    let cursor = 0
+    for (let column = 0; column < columns; column += 1) {
+      const u = column / WAKE_SEGMENTS
+      // L'endroit où était le nuage il y a `age` secondes (interpolé dans l'historique).
+      const age = u * WAKE_AGE
+      while (cursor < this.history.length - 2 && this.history[cursor + 1]!.age < age) cursor += 1
+      const a = this.history[cursor]!
+      const b = this.history[Math.min(cursor + 1, this.history.length - 1)]!
+      const mix = b.age > a.age ? THREE.MathUtils.clamp((age - a.age) / (b.age - a.age), 0, 1) : 0
+      const px = a.x + (b.x - a.x) * mix
+      // Il jaillit de l'arrière du nuage, à mi-hauteur, et s'abaisse en s'éloignant.
+      const py = a.y + (b.y - a.y) * mix - 0.05 - u * 0.35
+      const pz = 0.85 + u * WAKE_LENGTH
+      // Large au nuage, effilé à la pointe ; le ruban debout est un peu plus fin.
+      const width = 1.35 * (1 - u) ** 0.55 * this.presence
+      const flat = column * 2
+      positions.setXYZ(flat, px - width / 2, py, pz)
+      positions.setXYZ(flat + 1, px + width / 2, py, pz)
+      const upright = (columns + column) * 2
+      positions.setXYZ(upright, px, py - width * 0.4, pz)
+      positions.setXYZ(upright + 1, px, py + width * 0.4, pz)
+    }
+    positions.needsUpdate = true
   }
 
   private newStreak(z: number): { x: number; y: number; z: number; length: number } {
@@ -164,7 +284,8 @@ export class CloudRide {
     // Le nuage : il gonfle en apparaissant, flotte, s'incline dans les virages.
     const grow = this.presence > 0 ? easeOutBack(this.presence) : 0
     this.cloud.visible = grow > 0.01
-    this.cloud.position.set(x, y - 0.12 + Math.sin(time * 2.4) * 0.06, 0.1)
+    this.cloud.position.set(x, y - 0.12 + cloudBob(time), 0.1)
+    this.updateWake(x, y + cloudBob(time), time, dt)
     this.cloud.rotation.set(Math.sin(time * 1.7) * 0.05, 0, roll * 1.3)
     this.cloud.scale.setScalar(Math.max(0.001, grow))
     this.layout.forEach((puff, index) => {
@@ -181,7 +302,7 @@ export class CloudRide {
     if (flying && this.presence > 0.5) {
       this.spawn -= dt
       while (this.spawn <= 0) {
-        this.spawn += 0.045
+        this.spawn += 0.08
         // Lâchées à l'arrière, elles freinent un peu moins que le paysage : la traînée reste près du nuage.
         this.emit({
           x: x + (Math.random() - 0.5) * 0.9,
@@ -208,7 +329,7 @@ export class CloudRide {
       particle.y += particle.vy * dt
       particle.z += (particle.vz + speed) * dt
       // Jamais jusqu'à la caméra (elle grossirait tout l'écran).
-      if (particle.z > 3.2) {
+      if (particle.z > 2.4) {
         this.particles.splice(index, 1)
         continue
       }

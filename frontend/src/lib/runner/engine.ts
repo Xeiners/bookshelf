@@ -28,6 +28,8 @@ import {
   REVIVE_CLEARANCE,
   REVIVE_INVULNERABILITY,
   SHIELD_TIME,
+  SHIFT_LEAD,
+  SHIFT_TIME,
   SLIDE_HEIGHT,
   SLIDE_TIME,
   STUMBLE_RECOVERY,
@@ -57,6 +59,19 @@ export interface TrackObject {
   variant: number
   /** Ramassé, ou déjà heurté : ne compte plus. */
   done: boolean
+  /** Monstre qui feinte : la voie où il bondit, et son avancement (0 à 1). */
+  shiftTo?: Lane
+  shift?: number
+  /** Pulvérisé par l'Éveil (instant `t`) : il vole en éclats au lieu de bloquer. */
+  smashedAt?: number
+}
+
+/** Position latérale d'un objet (m) : sa voie, ou entre deux voies quand un monstre bondit. */
+export function objectX(object: TrackObject): number {
+  const from = object.lane * LANE_WIDTH
+  if (object.shiftTo === undefined) return from
+  const p = object.shift ?? 0
+  return from + (object.shiftTo - object.lane) * LANE_WIDTH * p * p * (3 - 2 * p)
 }
 
 /** Hauteurs occupées par chaque obstacle (m) : on saute un tome couché, on glisse sous un torii. */
@@ -83,6 +98,7 @@ export type RunEvent =
   | 'quiz'
   | 'quizRight'
   | 'quizWrong'
+  | 'smash'
   | 'over'
   | 'revive'
 
@@ -261,14 +277,16 @@ function steer(state: RunState, lane: Lane): void {
 
 /**
  * Répondre au quiz en cours (on touche une des trois réponses) ; `null` : temps écoulé.
- * Bonne réponse : les talismans protègent le coureur un moment.
+ * Bonne réponse : l'Éveil (invincible, il pulvérise les obstacles et attire les ✦).
  */
 export function answerQuiz(state: RunState, choice: 0 | 1 | 2 | null): void {
   const quiz = state.quiz
   if (!quiz || state.over) return
   if (choice === quiz.question.answer) {
     state.quizRight += 1
+    // L'Éveil : invincible, on pulvérise ce qui barre la voie et on attire les ✦.
     state.shieldUntil = state.t + SHIELD_TIME
+    state.magnetUntil = Math.max(state.magnetUntil, state.shieldUntil)
     state.events.push('quizRight')
   } else {
     state.events.push('quizWrong')
@@ -328,6 +346,13 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
   // Quiz : sans réponse à l'échéance, c'est raté.
   if (state.quiz && t >= state.quiz.deadline) answerQuiz(state, null)
 
+  // Monstres qui feintent : à l'approche, ils bondissent dans la voie voisine.
+  for (const object of state.objects) {
+    if (object.shiftTo === undefined || (object.shift ?? 0) >= 1) continue
+    if ((object.s - state.distance) / Math.max(state.speed, 1) > SHIFT_LEAD) continue
+    object.shift = Math.min(1, (object.shift ?? 0) + dt / SHIFT_TIME)
+  }
+
   collide(state, from, ask)
 
   // Piste : on efface derrière, on tire devant.
@@ -357,10 +382,17 @@ function collide(state: RunState, from: number, ask: () => QuizQuestion | null):
     if (object.done) continue
     if (object.s > front + (magnet ? 2.5 : 1)) continue
     if (object.s + object.length < back - (magnet ? 1.5 : 0.6)) continue
-    const laneX = object.lane * LANE_WIDTH
+    const laneX = objectX(object)
     const sideways = Math.abs(state.x - laneX)
 
     if (isObstacle(object.kind)) {
+      // Éveillé : ce qui se dresse devant (sauf les trains, qu'on traverse) vole en éclats.
+      if (state.shieldUntil > t && object.kind !== 'train' && object.s <= front + 1 && sideways < 1.0 + PLAYER_HALF_WIDTH) {
+        object.done = true
+        object.smashedAt = t
+        state.events.push('smash')
+        continue
+      }
       if (safe || object.s > front || object.s + object.length < back) continue
       if (sideways > 1.0 + PLAYER_HALF_WIDTH) continue
       const [low, high] = OBSTACLE_SPAN[object.kind]
@@ -402,7 +434,7 @@ function stumble(state: RunState, object: TrackObject): void {
     return
   }
   state.graceUntil = t + 0.45
-  if (object.lane === state.lane && state.laneBefore !== state.lane) {
+  if (Math.round(objectX(object) / LANE_WIDTH) === state.lane && state.laneBefore !== state.lane) {
     const back = state.laneBefore
     steer(state, back)
     state.laneSpeed = -state.laneSpeed * 0.3
@@ -519,8 +551,22 @@ export class TrackGenerator {
       }
     }
 
+    // Un monstre feinte parfois : il bondira dans une voie voisine libre (de plus en plus souvent).
+    const rowObstacles = objects.filter((object) => object.s === s && object.kind !== 'star')
+    for (const wall of rowObstacles) {
+      if (wall.kind !== 'wall' || random() > 0.2 + 0.3 * difficulty) continue
+      const targets = LANES.filter((lane) => Math.abs(lane - wall.lane) === 1 && !blocked.has(lane) && !rowObstacles.some((other) => other.lane === lane))
+      if (targets.length === 0) continue
+      const target = targets[Math.floor(random() * targets.length)]!
+      wall.shiftTo = target
+      wall.shift = 0
+      blocked.add(target)
+      this.hardUntil[target] = Math.max(this.hardUntil[target], s + wall.length)
+      break
+    }
+
     // Une voie libre (sans obstacle à cette rangée) reçoit une ligne de ✦, parfois un bonus.
-    const occupied = new Set(objects.filter((object) => object.s === s && object.kind !== 'star').map((object) => object.lane))
+    const occupied = new Set(rowObstacles.map((object) => object.shiftTo ?? object.lane))
     const free = LANES.filter((lane) => !occupied.has(lane) && !blocked.has(lane))
     if (free.length === 0) return
     const lane = this.pick(free)
