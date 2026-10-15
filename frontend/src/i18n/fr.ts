@@ -1571,13 +1571,13 @@ export const fr = {
     },
     realm: {
       skySeal: '空島',
-      underSeal: '地底',
+      underSeal: '地獄',
       sky: 'Skypia · les îles célestes',
-      under: 'Le monde souterrain',
+      under: 'Les Enfers',
       timer: 'Royaume',
       leaving: 'Retour sur terre !',
       padAhead: 'Tremplin → Skypia',
-      tunnelAhead: 'Tunnel → sous terre',
+      tunnelAhead: 'Tunnel → les Enfers',
     },
     revive: {
       title: 'Encore une chance ?',

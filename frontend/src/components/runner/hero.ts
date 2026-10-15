@@ -373,7 +373,7 @@ export class HeroPart implements ScenePart {
   update(run: RunState, _time: number, delta: number): void {
     const dt = Math.min(delta, 0.05)
     this.time += dt
-    if (!run.over && run.grounded && !isFlying(run) && !this.preview) this.phase += dt * Math.PI * 2 * (1.6 + run.speed * 0.055)
+    if (!run.over && !run.boss && run.grounded && !isFlying(run) && !this.preview) this.phase += dt * Math.PI * 2 * (1.6 + run.speed * 0.055)
     this.aim(run)
 
     const rate = 1 - Math.exp(-dt * (this.preview ? 6 : run.grounded && !isSliding(run) ? 24 : 13))

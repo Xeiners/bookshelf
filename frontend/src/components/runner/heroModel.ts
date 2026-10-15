@@ -194,6 +194,13 @@ export class HeroModelPart implements ScenePart {
       else if (this.currentName !== 'Cheer') this.play('Idle', 0.3)
       return
     }
+    // Combat de boss : planté face au géant, en garde ; il lève le poing pour lancer une attaque.
+    if (run.boss) {
+      const casting = run.boss.phase === 'strike' && run.t - run.boss.phaseAt < 0.5
+      if (casting) this.play('Cheer', 0.12)
+      else this.play('Idle', 0.3)
+      return
+    }
     const sliding = isSliding(run)
     if (sliding) {
       // Roulade sous l'obstacle, calée sur la durée de la glissade.

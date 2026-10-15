@@ -1555,13 +1555,13 @@ export const en: Dictionary = {
     },
     realm: {
       skySeal: '空島',
-      underSeal: '地底',
+      underSeal: '地獄',
       sky: 'Skypia · the sky islands',
-      under: 'The underworld',
+      under: 'The Underworld',
       timer: 'Realm',
       leaving: 'Back to Earth!',
       padAhead: 'Launch pad → Skypia',
-      tunnelAhead: 'Tunnel → underworld',
+      tunnelAhead: 'Tunnel → the Underworld',
     },
     looks: { adventurer: 'Adventurer', ninja: 'Chibi ninja' } as Record<string, string>,
     revive: {

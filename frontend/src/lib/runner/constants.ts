@@ -33,7 +33,7 @@ export const RAMP_LENGTH = 9
 
 /**
  * Les royaumes : un tremplin lance le coureur dans le ciel, jusqu'aux îles célestes de
- * Skypia ; un tunnel l'emmène dans le monde souterrain. On y court `REALM_TIME` secondes,
+ * Skypia ; un tunnel l’emmène aux Enfers. On y court `REALM_TIME` secondes,
  * puis l'on revient sur terre. Le premier passage arrive vers `PORTAL_FIRST` m, puis tous
  * les `PORTAL_EVERY` m environ (tremplin et tunnel en alternance).
  */

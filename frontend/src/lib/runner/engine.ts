@@ -10,7 +10,7 @@
  * Certains trains ont une rampe : on monte sur leur toit (le « support » sous le coureur).
  * Un jeton de quiz vide la route devant soi le temps de répondre : la voie où l'on court à
  * l'échéance donne la réponse. Les monstres se pulvérisent d'un tir (avec une recharge).
- * Un tremplin lance le coureur jusqu'à Skypia, un tunnel l'emmène sous terre : ces
+ * Un tremplin lance le coureur jusqu'à Skypia, un tunnel l'emmène aux Enfers : ces
  * royaumes ont leur piste, le temps d'une trentaine de secondes. Tous les 1 500 m, un boss
  * barre la route : on le bat en enchaînant des gestes (trois attaques).
  *
@@ -78,9 +78,9 @@ import { seededRandom } from './random'
 
 export type Lane = -1 | 0 | 1
 export type ObstacleKind = 'wall' | 'low' | 'gate' | 'train'
-/** `pad` : tremplin vers Skypia ; `tunnel` : entrée du monde souterrain. */
+/** `pad` : tremplin vers Skypia ; `tunnel` : entrée des Enfers. */
 export type PickupKind = 'star' | 'quiz' | 'magnet' | 'cloud' | 'pad' | 'tunnel'
-/** Le monde où l'on court : la Terre, les îles célestes (Skypia), le monde souterrain. */
+/** Le monde où l'on court : la Terre, les îles célestes (Skypia), les Enfers. */
 export type Realm = 'earth' | 'sky' | 'under'
 export type ObjectKind = ObstacleKind | PickupKind
 
@@ -293,6 +293,8 @@ export interface RunState {
   transitUntil: number
   /** Combat de boss en cours, distance du prochain, boss vaincus. */
   boss: BossFight | null
+  /** Fin du dernier combat (temps de course) : la course repart en douceur. */
+  bossEndedAt: number
   nextBoss: number
   bossesBeaten: number
   over: boolean
@@ -351,6 +353,7 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
     pendingRealm: null,
     transitUntil: 0,
     boss: null,
+    bossEndedAt: -10,
     nextBoss: BOSS_EVERY,
     bossesBeaten: 0,
     over: false,
@@ -487,7 +490,10 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
   const t = (state.t += dt)
   // Après un trébuchement, on repart moins vite, puis on retrouve son allure.
   const recovering = Math.max(0, 1 - (t - state.stumbleAt) / STUMBLE_RECOVERY)
-  state.speed = speedAt(t) * (1 - STUMBLE_SLOWDOWN * recovering)
+  // Combat de boss : on s'arrête face à lui (le décor ne défile plus sous ses pieds) ;
+  // après la victoire, la course repart en une seconde.
+  const restart = Math.min(1, Math.max(0.15, (t - state.bossEndedAt) / 1.2))
+  state.speed = state.boss ? 0 : speedAt(t) * (1 - STUMBLE_SLOWDOWN * recovering) * restart
   const from = state.distance
   state.distance += state.speed * dt
 
@@ -817,6 +823,7 @@ function bossStep(state: RunState, boss: BossFight): void {
       if (elapsed < BOSS_DEATH) return
       // Vaincu : la récompense, et la route reprend un peu plus loin.
       state.boss = null
+      state.bossEndedAt = state.t
       state.bossesBeaten += 1
       state.stardust += BOSS_REWARD
       state.nextBoss = state.distance + BOSS_EVERY
@@ -846,7 +853,7 @@ function enterRealm(state: RunState, realm: Exclude<Realm, 'earth'>): void {
   state.events.push('realm')
 }
 
-/** Retour sur terre : de Skypia, on redescend du ciel ; du souterrain, on ressort à la lumière. */
+/** Retour sur terre : de Skypia, on redescend du ciel ; des Enfers, on ressort à la lumière. */
 function leaveRealm(state: RunState): void {
   if (state.realm === 'sky' && !isFlying(state)) {
     state.y = Math.max(state.y, 7)
@@ -1044,7 +1051,7 @@ export class TrackGenerator {
     const free = LANES.filter((lane) => !occupied.has(lane) && !blocked.has(lane))
     if (free.length === 0) return
     const lane = this.pick(free)
-    // Un passage vers un royaume : le tremplin (Skypia), puis le tunnel (sous terre), en alternance.
+    // Un passage vers un royaume : le tremplin (Skypia), puis le tunnel (les Enfers), en alternance.
     if (s >= this.nextPortal) {
       this.nextPortal = s + PORTAL_EVERY + random() * 250
       const kind = this.portals++ % 2 === 0 ? 'pad' : 'tunnel'

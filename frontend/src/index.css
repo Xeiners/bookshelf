@@ -453,7 +453,7 @@
   --timer: #9fe0ff;
 }
 .runner-timer[data-timer='realm'][data-realm='under'] {
-  --timer: #d59bff;
+  --timer: #ff8a4a;
 }
 .runner-timer-ring {
   stroke: var(--timer);
@@ -495,7 +495,7 @@
   }
 }
 
-/* Annonce d'un tremplin (Skypia) ou d'un tunnel (sous terre) : un badge qui pulse, et sa voie. */
+/* Annonce d'un tremplin (Skypia) ou d'un tunnel (les Enfers) : un badge qui pulse, et sa voie. */
 .runner-portal {
   display: none;
 }
@@ -512,9 +512,9 @@
   box-shadow: 0 0 26px rgb(43 217 255 / 0.65);
 }
 .runner-portal[data-kind='tunnel'] .runner-portal-badge {
-  background: linear-gradient(135deg, #e04dff, #7a2cff);
+  background: linear-gradient(135deg, #ffb347, #ff4a14 50%, #8a0a00);
   color: #fff;
-  box-shadow: 0 0 26px rgb(224 77 255 / 0.6);
+  box-shadow: 0 0 26px rgb(255 74 20 / 0.65);
 }
 .runner-portal-pad,
 .runner-portal-tunnel,

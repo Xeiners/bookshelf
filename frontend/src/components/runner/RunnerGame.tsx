@@ -656,7 +656,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       {/* Arrivée dans un royaume : son nom, en grand. */}
       {arrival && (
         <div key={arrival.key} aria-live="polite" className="pointer-events-none absolute inset-x-0 top-[24%] flex animate-[runner-awaken_2.6s_ease-out_forwards] flex-col items-center gap-1 opacity-0">
-          <span className={`font-black text-6xl leading-none ${arrival.realm === 'sky' ? 'text-[#fff6d0] [-webkit-text-stroke:2px_#2a6fb0] [text-shadow:0_0_24px_#7fc8ff]' : 'text-[#e8c8ff] [-webkit-text-stroke:2px_#2a0f4a] [text-shadow:0_0_24px_#c77dff]'}`}>
+          <span className={`font-black text-6xl leading-none ${arrival.realm === 'sky' ? 'text-[#fff6d0] [-webkit-text-stroke:2px_#2a6fb0] [text-shadow:0_0_24px_#7fc8ff]' : 'text-[#ffd9b8] [-webkit-text-stroke:2px_#3a0800] [text-shadow:0_0_26px_#ff4a14]'}`}>
             {arrival.realm === 'sky' ? t.runner.realm.skySeal : t.runner.realm.underSeal}
           </span>
           <span className="rounded-full bg-black/45 px-4 py-1 text-sm font-bold tracking-[0.25em] text-white uppercase">{arrival.realm === 'sky' ? t.runner.realm.sky : t.runner.realm.under}</span>

@@ -10,7 +10,7 @@ import type { ScenePart } from './parts'
  * garde ou qui provoquent le coureur — et qui frappent quand il arrive sur eux ; ou
  * étendus en travers de la voie, à sauter. Ils se tiennent toujours sur leur support : le
  * sol, ou le toit d'un train. Un tir les pulvérise. Chaque royaume a les siens : gardiens
- * célestes de Skypia (os blancs dorés, auréole et ailes), spectres de cristal sous terre.
+ * célestes de Skypia (os blancs dorés, auréole et ailes), démons cornus aux épaules en flammes aux Enfers.
  * Un réservoir d'instances (clones avec leur squelette et leur mixeur d'animations) est
  * attribué aux obstacles visibles : rien n'est créé pendant la course.
  */
@@ -44,7 +44,7 @@ const WEAPONS: Record<SkeletonModel, { right?: string; left?: string }> = {
 /** Teinte des os et lueur, par royaume (la Terre garde les couleurs du modèle). */
 const REALM_LOOK: Record<Exclude<Realm, 'earth'>, { color: string; emissive: string; glow: number; aura: string }> = {
   sky: { color: '#fffaf0', emissive: '#ffcf6b', glow: 0.32, aura: '#ffe08a' },
-  under: { color: '#8a6bff', emissive: '#4b12a8', glow: 0.55, aura: '#38f2d0' },
+  under: { color: '#4a1812', emissive: '#ff2a00', glow: 0.3, aura: '#ff5a00' },
 }
 
 /** Une aile de plumes : un éventail de trois pennes arrondies. */
@@ -76,8 +76,10 @@ export class MonstersPart implements ScenePart {
     const haloMaterial = new THREE.MeshBasicMaterial({ color: '#ffe27a', toneMapped: false })
     const wing = wingGeometry()
     const wingMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#fff1c9', emissiveIntensity: 0.35, side: THREE.DoubleSide })
-    const crystal = new THREE.ConeGeometry(0.11, 0.55, 5)
-    const crystalMaterial = new THREE.MeshBasicMaterial({ color: '#7ef9ff', toneMapped: false })
+    const horn = new THREE.ConeGeometry(0.06, 0.42, 8)
+    const hornMaterial = new THREE.MeshStandardMaterial({ color: '#1a0806', emissive: '#5a0a00', emissiveIntensity: 0.5, roughness: 0.45 })
+    const flame = new THREE.ConeGeometry(0.13, 0.5, 7)
+    const flameMaterial = new THREE.MeshBasicMaterial({ color: '#ff7a1a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
     const make = (model: SkeletonModel, lying: boolean, realm: Realm = 'earth'): Monster => {
       const body = cloneSkinned(assets.skeletons[model].scene)
       const look = realm === 'earth' ? null : REALM_LOOK[realm]
@@ -140,17 +142,28 @@ export class MonstersPart implements ScenePart {
           wings.push(pivot)
         }
       } else if (realm === 'under') {
-        // Spectre de cristal : des éclats lumineux plantés dans les épaules et le dos.
-        for (const [x, y, z, tilt] of [
-          [-0.28, 1.85, -0.1, 0.5],
-          [0.28, 1.85, -0.1, -0.5],
-          [0, 1.6, -0.3, 0],
-          [-0.12, 2.05, -0.22, 0.25],
-        ] as const) {
-          const shard = new THREE.Mesh(crystal, crystalMaterial)
-          shard.position.set(x, y, z)
-          shard.rotation.set(-0.4, 0, tilt)
-          root.add(shard)
+        // Démon des Enfers : des cornes noires recourbées (sur l'os de la tête, en unités
+        // du coureur : on compense l'échelle du modèle) et des flammes sur les épaules.
+        const head = body.getObjectByName('head')
+        if (head) {
+          const crest = new THREE.Group()
+          crest.scale.setScalar(1 / scale)
+          for (const side of [-1, 1]) {
+            const cone = new THREE.Mesh(horn, hornMaterial)
+            cone.position.set(side * 0.16, 0.4, 0.02)
+            cone.rotation.set(-0.35, 0, -side * 0.6)
+            crest.add(cone)
+          }
+          head.add(crest)
+        }
+        for (const side of [-1, 1]) {
+          const pivot = new THREE.Group()
+          pivot.position.set(side * 0.3, 1.78, -0.08)
+          const fire = new THREE.Mesh(flame, flameMaterial)
+          fire.position.y = 0.2
+          pivot.add(fire)
+          root.add(pivot)
+          wings.push(pivot)
         }
       }
       root.visible = false
@@ -260,7 +273,8 @@ export class MonstersPart implements ScenePart {
         monster.root.rotation.z = -side * hop * 0.25
         // Les ailes battent doucement, plus vite quand il frappe.
         const beat = Math.sin(time * (ahead < 9 ? 14 : 6) + object.id) * 0.35
-        monster.wings.forEach((wing, index) => (wing.rotation.y = (index === 0 ? 1 : -1) * (0.55 + beat)))
+        if (object.realm === 'under') monster.wings.forEach((fire, index) => fire.scale.set(1, 0.85 + Math.abs(Math.sin(time * 11 + index * 2 + object.id)) * 0.45, 1))
+        else monster.wings.forEach((wing, index) => (wing.rotation.y = (index === 0 ? 1 : -1) * (0.55 + beat)))
         // De loin : en garde ou provocation ; de près : il frappe.
         if (object.done) this.play(monster, 'Cheer', 0.15)
         else if (ahead < 9) this.play(monster, object.variant % 2 ? '1H_Melee_Attack_Chop' : '2H_Melee_Attack_Spin', 0.12, 1.4)

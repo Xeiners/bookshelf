@@ -983,7 +983,7 @@ export class EnvironmentPart {
 
   update(run: RunState, scene: THREE.Scene): void {
     if (run.realm !== 'earth') {
-      // Royaume : sa lumière et sa brume (azur de Skypia, pénombre violette sous terre).
+      // Royaume : sa lumière et sa brume (azur de Skypia, rougeoiement des Enfers).
       const look = REALM_ATMOSPHERE[run.realm]
       this.hemisphere.color.set(look.hemiSky)
       this.hemisphere.groundColor.set(look.hemiGround)

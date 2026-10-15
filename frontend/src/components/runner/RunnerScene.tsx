@@ -59,7 +59,7 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       <fog attach="fog" args={[BIOME_STYLE.sakura.horizon, BIOME_STYLE.sakura.fogNear, BIOME_STYLE.sakura.fogFar]} />
       <Simulation state={state} paused={paused} ask={ask} onTick={onTick} />
       <Environment state={state} />
-      {/* La Terre (masquée dans les royaumes), puis Skypia et le monde souterrain. */}
+      {/* La Terre (masquée dans les royaumes), puis Skypia et les Enfers. */}
       <Part state={state} earth make={() => new SkyPart()} />
       <Part state={state} earth make={() => new TerrainPart()} />
       <Part state={state} earth make={() => new TrackPart()} />
