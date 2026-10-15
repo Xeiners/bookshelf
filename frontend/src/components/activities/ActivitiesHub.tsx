@@ -494,8 +494,9 @@ function RunnerArtefact() {
   useGSAP(
     () => {
       if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.to('[data-runner-hop]', { y: -7, duration: 0.32, ease: 'power1.out', repeat: -1, yoyo: true })
-      gsap.fromTo('[data-runner-lanes]', { backgroundPositionY: '0px' }, { backgroundPositionY: '24px', duration: 0.5, ease: 'none', repeat: -1 })
+      gsap.to('[data-runner-hop]', { y: -3, duration: 0.18, ease: 'power1.out', repeat: -1, yoyo: true, transformOrigin: '50% 100%' })
+      gsap.fromTo('[data-runner-rail]', { strokeDashoffset: 0 }, { strokeDashoffset: -12, duration: 0.35, ease: 'none', repeat: -1 })
+      gsap.to('[data-runner-sun]', { scale: 1.08, duration: 1.4, ease: 'sine.inOut', repeat: -1, yoyo: true, transformOrigin: '50% 50%' })
     },
     { scope: ref, dependencies: [covered], revertOnUpdate: true },
   )
@@ -503,19 +504,8 @@ function RunnerArtefact() {
   return (
     <button ref={ref} type="button" data-artefact onClick={() => openActivity('runner')} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={surface(TINT.runner)}>
       <span className="flex items-center gap-5 p-5">
-        <span aria-hidden className="relative grid size-16 shrink-0 place-items-center overflow-hidden rounded-[1.35rem]" style={{ background: RUNNER_GRADIENT, boxShadow: '0 0 26px -6px rgba(255,111,181,0.75)' }}>
-          <span
-            data-runner-lanes
-            className="absolute inset-[2.5px] rounded-[1.2rem]"
-            style={{
-              backgroundColor: '#1d0f40',
-              backgroundImage: 'linear-gradient(90deg, transparent 31%, #ff6fb5 31%, #ff6fb5 35%, transparent 35%, transparent 65%, #ff6fb5 65%, #ff6fb5 69%, transparent 69%), linear-gradient(0deg, rgba(255,255,255,0.08) 50%, transparent 50%)',
-              backgroundSize: '100% 100%, 100% 24px',
-            }}
-          />
-          <span data-runner-hop className="relative text-3xl will-change-transform">
-            🏃
-          </span>
+        <span aria-hidden className="relative block size-[4.5rem] shrink-0 overflow-hidden rounded-[1.4rem]" style={{ boxShadow: '0 0 28px -6px rgba(255,111,181,0.8), inset 0 0 0 2px rgba(255,211,92,0.55)' }}>
+          <RunnerEmblem />
         </span>
         <span className="block min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -529,6 +519,62 @@ function RunnerArtefact() {
         <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
       </span>
     </button>
+  )
+}
+
+/**
+ * L'emblème du Runner : un soir de sakura sur la voie. Ciel dégradé, soleil, montagnes et
+ * torii à l'horizon, trois couloirs qui filent vers le spectateur, le coureur au premier plan.
+ */
+function RunnerEmblem() {
+  return (
+    <svg viewBox="0 0 72 72" className="block size-full">
+      <defs>
+        <linearGradient id="runner-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#5b3aa8" />
+          <stop offset="0.55" stopColor="#ff6fb5" />
+          <stop offset="1" stopColor="#ffd35c" />
+        </linearGradient>
+        <radialGradient id="runner-sun">
+          <stop offset="0" stopColor="#fffbe6" />
+          <stop offset="0.6" stopColor="#ffe08a" />
+          <stop offset="1" stopColor="#ffe08a" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="runner-ground" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2a1650" />
+          <stop offset="1" stopColor="#120828" />
+        </linearGradient>
+      </defs>
+      <rect width="72" height="40" fill="url(#runner-sky)" />
+      <circle data-runner-sun cx="36" cy="30" r="13" fill="url(#runner-sun)" />
+      <path d="M0 40 L0 31 L9 25 L16 30 L26 21 L34 29 L42 24 L50 30 L60 19 L72 29 L72 40 Z" fill="#3b2270" />
+      {/* Torii à l'horizon. */}
+      <g fill="#d6264b">
+        <rect x="31" y="31.5" width="10" height="1.4" rx="0.6" />
+        <rect x="32" y="33.6" width="8" height="0.9" />
+        <rect x="32.8" y="32.5" width="1.1" height="7.5" />
+        <rect x="38.1" y="32.5" width="1.1" height="7.5" />
+      </g>
+      <rect y="40" width="72" height="32" fill="url(#runner-ground)" />
+      {/* Trois couloirs : rails qui défilent. */}
+      <g stroke="#ff9ccf" strokeWidth="1.3" strokeDasharray="7 5" data-runner-rail>
+        <line x1="33" y1="40" x2="4" y2="72" />
+        <line x1="35" y1="40" x2="26" y2="72" />
+        <line x1="37" y1="40" x2="46" y2="72" />
+        <line x1="39" y1="40" x2="68" y2="72" />
+      </g>
+      {/* Le coureur, de dos, en pleine course. */}
+      <g data-runner-hop>
+        <ellipse cx="36" cy="68" rx="7" ry="1.6" fill="#000" opacity="0.35" />
+        <path d="M33 66 L34.5 59 L37.5 59 L40 66" stroke="#2b3a7e" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+        <rect x="32" y="50" width="8" height="10" rx="2.6" fill="#f2f2f2" />
+        <rect x="32" y="56.2" width="8" height="1.6" fill="#1f2a4d" />
+        <path d="M32.5 52 L28.5 57 M39.5 52 L43.5 47.5" stroke="#f2c9a5" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="36" cy="46.5" r="4.2" fill="#1b1730" />
+        <path d="M31.6 45 Q36 40.5 40.4 45 L41 46.6 L31 46.6 Z" fill="#e9c46a" />
+        <rect x="31.8" y="45.6" width="8.4" height="1.2" fill="#c62828" />
+      </g>
+    </svg>
   )
 }
 

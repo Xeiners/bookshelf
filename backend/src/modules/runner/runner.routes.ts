@@ -5,6 +5,8 @@ import { rateLimit } from '../../middleware/rateLimit.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { requireAdmin } from '../admin/admin.access.js'
 import { finishRunnerRun, reviveRunnerRun, runnerOverview, startRunnerRun } from './runner.service.js'
+import { openBox, setOutfit, wardrobeView } from './runner.wardrobe.service.js'
+import { WARDROBE_SLOTS } from './runner.wardrobe.js'
 
 /**
  * Manga Runner 3D (cf. `runner.service.ts`). Monté sous `/api/runner`. Pour l'instant
@@ -48,4 +50,25 @@ runnerRouter.post('/runs/:id/end', runLimiter, async (req, res) => {
 runnerRouter.post('/runs/:id/revive', runLimiter, async (req, res) => {
   const { id } = RunParams.parse(req.params)
   res.json(await reviveRunnerRun(currentUserId(req), id))
+})
+
+/** Garde-robe de l'aventurier : pièces, tenue, boîtes (gratuite toutes les 24 h). */
+runnerRouter.get('/wardrobe', async (req, res) => {
+  res.json(await wardrobeView(currentUserId(req)))
+})
+
+const boxLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 10_000 : 40 })
+const BoxBody = z.object({ free: z.boolean().default(false) })
+
+/** Ouvre une boîte mystère : la pièce tirée, doublon remboursé, et la garde-robe à jour. */
+runnerRouter.post('/boxes', boxLimiter, async (req, res) => {
+  const { free } = BoxBody.parse(req.body ?? {})
+  res.status(201).json(await openBox(currentUserId(req), free))
+})
+
+const OutfitBody = z.object(Object.fromEntries(WARDROBE_SLOTS.map((slot) => [slot, z.string().max(40).nullable().optional()])))
+
+/** Équipe une tenue (pièces possédées seulement). */
+runnerRouter.patch('/outfit', async (req, res) => {
+  res.json(await setOutfit(currentUserId(req), OutfitBody.parse(req.body ?? {}) as Record<string, string | null | undefined>))
 })

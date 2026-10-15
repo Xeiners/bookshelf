@@ -668,6 +668,36 @@ export function playRunnerSmash(): void {
   noiseBurst(e, { at, duration: 0.18, from: 6000, to: 1500, q: 1.4, gain: 0.18, grain: 90, send: 0.2 })
 }
 
+/** Boîte mystère : elle tombe sur l'autel (choc sourd, petit tintement). */
+export function playBoxDrop(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 110, 40, 0.4, 0.4)
+  noiseBurst(e, { at, duration: 0.12, from: 900, to: 300, q: 1, gain: 0.12, send: 0.15, type: 'lowpass' })
+  bell(e, 1567.98, at + 0.06, 0.5, 0.025)
+}
+
+/** Un coup sur la boîte : craquement et note qui monte d'un cran à chaque coup. */
+export function playBoxKnock(stage: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 160 + stage * 30, 60, 0.22, 0.3)
+  noiseBurst(e, { at, duration: 0.09, from: 5200, to: 1600, q: 1.5, gain: 0.14, grain: 80, send: 0.15 })
+  bell(e, [659.25, 783.99, 987.77, 1318.5][Math.min(3, stage)]!, at + 0.02, 0.7, 0.05)
+}
+
+/** La boîte éclate : souffle, impact, puis l'accord de la rareté (0 commune … 3 légendaire). */
+export function playBoxBurst(rarity: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 180, 35, 0.9 + rarity * 0.2, 0.45)
+  noiseBurst(e, { at, duration: 0.5 + rarity * 0.15, from: 6000, to: 500, q: 0.8, gain: 0.2, send: 0.4 })
+  playReveal((['COMMON', 'RARE', 'EPIC', 'LEGENDARY'] as const)[Math.max(0, Math.min(3, rarity))]!)
+}
+
 /** Mauvaise réponse au quiz : deux notes qui descendent. */
 export function playRunnerWrong(): void {
   const e = start()

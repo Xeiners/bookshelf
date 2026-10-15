@@ -83,6 +83,7 @@ model User {
   higherLowerStats HigherLowerStats?
   bombStats        BombStats?
   runnerStats      RunnerStats?
+  runnerItems      RunnerItem[]
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -545,9 +546,28 @@ model RunnerStats {
   /// Jour (heure de Paris) auquel se rapporte `dayEarned`.
   day           String?
   dayEarned     Int       @default(0)
+  /// Garde-robe de l'aventurier : JSON `{ top?, bottom?, shoes?, hat?, accessory? }` (ids de pièces possédées).
+  outfit        String    @default("{}")
+  /// Dernière boîte mystère gratuite ouverte (une toutes les 24 h).
+  freeBoxAt     DateTime?
+  /// Boîtes ouvertes, et boîtes d'affilée sans pièce légendaire (garantie au bout de `BOX_PITY`).
+  boxes         Int       @default(0)
+  boxPity       Int       @default(0)
   updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([best])
+}
+
+/// Pièce de la garde-robe du Manga Runner obtenue dans une boîte mystère (`count` : exemplaires reçus).
+model RunnerItem {
+  userId     String
+  itemId     String
+  count      Int      @default(1)
+  obtainedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, itemId])
 }

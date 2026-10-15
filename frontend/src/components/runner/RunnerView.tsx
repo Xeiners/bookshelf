@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Cloud, Gamepad2, HelpCircle, Loader2, Magnet, Play, RotateCcw, Sparkles, Trophy } from 'lucide-react'
+import { ChevronDown, Cloud, Gamepad2, Gift, HelpCircle, Loader2, Magnet, Play, RotateCcw, Shirt, Sparkles, Trophy } from 'lucide-react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useT } from '../../i18n'
@@ -24,6 +24,9 @@ import { COVER_CELLS, coverAtlas, smallCover } from './covers'
 import { HeroPreview } from './HeroPreview'
 import { DEFAULT_LOOK, HERO_LOOKS, sourceOf, type HeroLookId } from './looks'
 import { RunnerGame, type RunnerOutcome } from './RunnerGame'
+import { Wardrobe } from './Wardrobe'
+import { WARDROBE_ITEMS } from '../../lib/runner/wardrobe'
+import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 
 /** Réglages du Runner, gardés sur l'appareil. */
 interface RunnerPrefs {
@@ -306,102 +309,193 @@ function RunnerHome({
   const ref = useRef<HTMLDivElement>(null)
   const prefs = useRunnerPrefs()
   const signedIn = useAuthStore((state) => state.user !== null)
+  const outfit = useRunnerWardrobe((state) => state.outfit)
+  const wardrobe = useRunnerWardrobe((state) => state.view)
+  const loadWardrobe = useRunnerWardrobe((state) => state.load)
+  const [dressing, setDressing] = useState<{ box: boolean } | null>(null)
+  const [now, setNow] = useState(() => Date.now())
   const me = overview?.me
+  const look = knownLook(prefs.look)
+  const owned = wardrobe ? Object.keys(wardrobe.owned).length : 0
+  const freeAt = wardrobe?.freeAt ? Date.parse(wardrobe.freeAt) : null
+  const freeReady = wardrobe !== null && (freeAt === null || freeAt <= now)
+
+  useEffect(() => {
+    if (signedIn) void loadWardrobe()
+  }, [signedIn, loadWardrobe])
+  // Compte à rebours de la boîte gratuite (à la minute suffit ici).
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useGSAP(
     () => {
       gsap.fromTo('[data-runner-in]', { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, stagger: 0.06, ease: EASE.glide })
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        gsap.to('[data-home-box]', { y: -4, rotation: -3, duration: 0.9, ease: 'sine.inOut', repeat: -1, yoyo: true })
+        gsap.fromTo('[data-home-sleepers]', { backgroundPositionY: '0px' }, { backgroundPositionY: '36px', duration: 0.45, ease: 'none', repeat: -1 })
+      }
     },
     { scope: ref },
   )
 
+  const openDressing = (box: boolean) => {
+    vibrate(8)
+    // La garde-robe habille l'aventurier.
+    if (look !== 'adventurer') prefs.set({ look: 'adventurer' })
+    setDressing({ box })
+  }
+
   return (
-    <div ref={ref} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-28">
-      <section data-runner-in className="relative shrink-0 overflow-hidden rounded-[1.75rem] border border-[#ff6fb5]/30 bg-[#140a2e] p-5">
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(120% 80% at 80% 0%, rgba(255,111,181,0.28), transparent 60%)' }} />
-        {/* Le coureur, en 3D, sous un ciel de sakura : la future vitrine des tenues. */}
-        <div className="relative -mx-5 -mt-5 mb-4 h-56 overflow-hidden" style={{ background: 'linear-gradient(180deg, #8d6fd0 0%, #e7a0d0 55%, #ffd2c2 100%)' }}>
-          <div aria-hidden className="absolute inset-x-0 bottom-0 h-16" style={{ background: 'linear-gradient(180deg, transparent, rgba(20,10,46,0.9))' }} />
-          <HeroPreview look={knownLook(prefs.look)} assets={assets} className="absolute inset-0" />
-          <span className="absolute bottom-3 left-4 rounded-full bg-black/35 px-3 py-1 text-xs font-semibold text-cream backdrop-blur-sm">
-            {t.runner.home.character} · {t.runner.looks[knownLook(prefs.look)]}
-          </span>
-        </div>
-        {/* Choix du coureur. */}
-        <div className="relative -mx-5 mb-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label={t.runner.home.pick}>
-          {HERO_LOOKS.map((look) => {
-            const active = knownLook(prefs.look) === look
-            return (
+    <div ref={ref} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-28">
+      {/* La scène : ciel du soir, voie qui file, le coureur en 3D ; tout se joue d'ici. */}
+      <section data-runner-in className="relative shrink-0 overflow-hidden rounded-[1.75rem] border border-[#ff6fb5]/30 bg-[#140a2e]">
+        <div className="relative h-[46vh] max-h-[26rem] min-h-72 overflow-hidden" style={{ background: 'linear-gradient(180deg, #5b3aa8 0%, #b06ad0 38%, #ffb2c8 62%, #ffd9b8 70%, #2a1650 70.5%, #1a0d33 100%)' }}>
+          <span aria-hidden className="absolute top-[34%] left-1/2 size-28 -translate-x-1/2 rounded-full" style={{ background: 'radial-gradient(circle, #fff3c4 0%, #ffd27a 45%, transparent 70%)' }} />
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-[52%] h-[18%]"
+            style={{ background: '#3b2270', clipPath: 'polygon(0 100%, 0 55%, 12% 30%, 22% 52%, 34% 18%, 46% 48%, 55% 30%, 63% 46%, 74% 10%, 86% 44%, 94% 32%, 100% 50%, 100% 100%)' }}
+          />
+          {/* Voie : trois couloirs en perspective, traverses qui défilent. */}
+          <span
+            aria-hidden
+            data-home-sleepers
+            className="absolute inset-x-0 bottom-0 h-[30%]"
+            style={{
+              clipPath: 'polygon(44% 0, 56% 0, 100% 100%, 0 100%)',
+              backgroundColor: '#2a1650',
+              backgroundImage: 'linear-gradient(0deg, rgba(255,255,255,0.12) 30%, transparent 30%)',
+              backgroundSize: '100% 36px',
+            }}
+          />
+          <span
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 h-[30%]"
+            style={{ background: 'linear-gradient(90deg, transparent 32.5%, #ff6fb5 32.5%, #ff6fb5 33.5%, transparent 33.5%, transparent 66.5%, #ff6fb5 66.5%, #ff6fb5 67.5%, transparent 67.5%)', clipPath: 'polygon(44% 0, 56% 0, 100% 100%, 0 100%)', opacity: 0.7 }}
+          />
+          <HeroPreview look={look} assets={dressing ? null : assets} outfit={outfit} className="absolute inset-0" />
+
+          {/* Titre et choix du coureur. */}
+          <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-4">
+            <div className="min-w-0">
+              <h2 className="font-display text-[1.7rem] leading-none text-white drop-shadow-[0_2px_10px_rgba(40,0,80,0.6)]">{t.runner.title}</h2>
+              <p className="mt-1 max-w-[15rem] text-[11px] leading-snug text-white/80">{t.runner.home.tagline}</p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-1.5" role="radiogroup" aria-label={t.runner.home.pick}>
+              {HERO_LOOKS.map((option) => {
+                const active = look === option
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => prefs.set({ look: option })}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold backdrop-blur-sm transition-colors ${active ? 'bg-white text-[#2a1150]' : 'bg-black/30 text-white/80'}`}
+                  >
+                    {t.runner.looks[option]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Garde-robe et boîte mystère. */}
+          {sourceOf(look).kind === 'vrm' || signedIn ? (
+            <div className="absolute bottom-3 left-3 flex flex-col gap-2">
               <button
-                key={look}
                 type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => prefs.set({ look })}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${active ? 'border-[#ff6fb5] bg-[#ff6fb5]/20 text-cream' : 'border-white/12 text-cream/60 hover:text-cream'}`}
+                onClick={() => openDressing(false)}
+                className="flex items-center gap-2 rounded-2xl border border-white/20 bg-black/40 py-1.5 pr-3 pl-1.5 text-left backdrop-blur-md"
               >
-                {t.runner.looks[look]}
+                <span className="grid size-9 place-items-center rounded-xl text-white" style={{ background: 'linear-gradient(135deg, #ff6fb5, #b05cff)' }}>
+                  <Shirt size={18} aria-hidden />
+                </span>
+                <span>
+                  <span className="block text-xs font-bold text-white">{t.runner.wardrobe.open}</span>
+                  <span className="block text-[10px] text-white/70 tabular-nums">{t.runner.wardrobe.collection(owned, WARDROBE_ITEMS.length)}</span>
+                </span>
               </button>
-            )
-          })}
+              {signedIn && (
+                <button
+                  type="button"
+                  onClick={() => openDressing(true)}
+                  className="flex items-center gap-2 rounded-2xl border bg-black/40 py-1.5 pr-3 pl-1.5 text-left backdrop-blur-md"
+                  style={{ borderColor: freeReady ? '#ffd35c' : 'rgba(255,255,255,0.2)', boxShadow: freeReady ? '0 0 22px -4px #ffc23a' : undefined }}
+                >
+                  <span data-home-box className="relative grid size-9 place-items-center rounded-xl will-change-transform" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: 'inset 0 0 0 2px #ffc93c' }}>
+                    <span className="absolute inset-y-0 left-1/2 w-1.5 -translate-x-1/2 bg-[#ffc93c]" />
+                    <Gift size={16} className="relative text-[#ffe9a8]" aria-hidden />
+                    {freeReady && <span className="absolute -top-1 -right-1 size-2.5 animate-ping rounded-full bg-like" />}
+                  </span>
+                  <span>
+                    <span className="block text-xs font-bold text-white">{t.runner.wardrobe.box.title}</span>
+                    <span className={`block text-[10px] tabular-nums ${freeReady ? 'font-bold text-gold' : 'text-white/70'}`}>
+                      {freeReady ? t.runner.wardrobe.box.freeReady : freeAt ? t.runner.wardrobe.box.freeIn(shortCountdown(freeAt - now)) : '…'}
+                    </span>
+                  </span>
+                </button>
+              )}
+            </div>
+          ) : null}
         </div>
-        {sourceOf(knownLook(prefs.look)).kind === 'vrm' && <p className="relative -mt-2 mb-3 text-[11px] text-cream/40">{t.runner.home.modelCredit}</p>}
-        <div className="relative min-w-0">
-          <h2 className="font-display text-3xl leading-tight text-cream">{t.runner.title}</h2>
-          <p className="mt-1 text-sm leading-snug text-cream/65">{t.runner.home.tagline}</p>
+
+        <div className="relative p-4">
+          <div className="grid grid-cols-3 gap-2">
+            <Stat label={t.runner.home.best} value={me ? me.best.toLocaleString() : '—'} />
+            <Stat label={t.runner.over.distance} value={me ? `${me.bestDistance.toLocaleString()} m` : '—'} />
+            <Stat label={t.runner.home.todayShort} value={overview ? `${overview.me.earnedToday}/${overview.dailyCap}` : '—'} />
+          </div>
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={starting || !assets}
+            className="relative mt-3 inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full text-base font-bold text-void shadow-[0_0_30px_rgba(255,111,181,0.45)] transition-transform active:scale-[0.98] disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg, #ffd35c, #ff6fb5 60%, #c58bff)' }}
+          >
+            {starting || !assets ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <Play size={20} className="fill-void" aria-hidden />}
+            {assets ? t.runner.home.play : loading === null ? t.runner.home.loadFailed : t.runner.home.loading(Math.round(loading * 100))}
+          </button>
+          {overview && <p className="mt-2 text-center text-[11px] text-cream/50">{t.runner.home.games(overview.me.games)}</p>}
+          {!signedIn && <p className="mt-2 text-[11px] leading-relaxed text-cream/55">{t.runner.home.guest}</p>}
+          {sourceOf(look).kind === 'vrm' && <p className="mt-2 text-center text-[10px] text-cream/35">{t.runner.home.modelCredit}</p>}
         </div>
-        <div className="relative mt-4 grid grid-cols-2 gap-2">
-          <Stat label={t.runner.home.best} value={me ? me.best.toLocaleString() : '—'} />
-          <Stat label={t.runner.home.bestDistance} value={me ? `${me.bestDistance.toLocaleString()} m` : '—'} />
-        </div>
-        {overview && (
-          <p className="relative mt-3 text-xs text-cream/60">
-            {t.runner.home.today(overview.me.earnedToday, overview.dailyCap)} · {t.runner.home.games(overview.me.games)}
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={onStart}
-          disabled={starting || !assets}
-          className="relative mt-4 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full text-base font-bold text-void shadow-[0_0_30px_rgba(255,111,181,0.45)] transition-transform active:scale-[0.98] disabled:opacity-60"
-          style={{ background: 'linear-gradient(135deg, #ffd35c, #ff6fb5 60%, #c58bff)' }}
-        >
-          {starting || !assets ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <Play size={20} className="fill-void" aria-hidden />}
-          {assets ? t.runner.home.play : loading === null ? t.runner.home.loadFailed : t.runner.home.loading(Math.round(loading * 100))}
-        </button>
-        {!signedIn && <p className="relative mt-3 text-[11px] leading-relaxed text-cream/55">{t.runner.home.guest}</p>}
       </section>
 
-      <section data-runner-in className="flex shrink-0 flex-col gap-3 rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-4">
-        <Toggle label={t.runner.home.buttons} hint={t.runner.home.buttonsHint} checked={prefs.buttons} onChange={(buttons) => prefs.set({ buttons })} />
-        <Toggle label={t.runner.home.lite} hint={t.runner.home.liteHint} checked={prefs.lite} onChange={(lite) => prefs.set({ lite })} />
-      </section>
-
-      <section data-runner-in className="flex shrink-0 flex-col gap-2 rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-4 text-sm text-cream/75">
-        <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.2em] text-mist uppercase">
+      {/* Commandes, bonus et réglages : repliés, pour laisser la place au jeu. */}
+      <details data-runner-in className="group shrink-0 rounded-[1.5rem] border border-white/8 bg-white/[0.03]">
+        <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-[11px] font-semibold tracking-[0.2em] text-mist uppercase">
           <Gamepad2 size={14} aria-hidden />
-          {t.runner.home.controls}
-        </p>
-        <p>{t.runner.home.swipe}</p>
-        <p className="text-cream/55">{t.runner.home.keys}</p>
-        <p className="mt-2 text-[11px] font-semibold tracking-[0.2em] text-mist uppercase">{t.runner.home.pickups}</p>
-        <p className="flex items-center gap-2">
-          <Sparkles size={15} className="shrink-0 text-gold" aria-hidden />
-          {t.runner.home.stardust}
-        </p>
-        <p className="flex items-center gap-2">
-          <HelpCircle size={15} className="shrink-0 text-[#ffd35c]" aria-hidden />
-          {t.runner.home.quiz}
-        </p>
-        <p className="flex items-center gap-2">
-          <Magnet size={15} className="shrink-0 text-[#ff4d5e]" aria-hidden />
-          {t.runner.home.magnet}
-        </p>
-        <p className="flex items-center gap-2">
-          <Cloud size={15} className="shrink-0 text-[#bfe9ff]" aria-hidden />
-          {t.runner.home.cloud}
-        </p>
-      </section>
+          <span className="flex-1">{t.runner.home.howTo}</span>
+          <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden />
+        </summary>
+        <div className="flex flex-col gap-2 px-4 pb-4 text-sm text-cream/75">
+          <p>{t.runner.home.swipe}</p>
+          <p className="text-cream/55">{t.runner.home.keys}</p>
+          <p className="flex items-center gap-2">
+            <Sparkles size={15} className="shrink-0 text-gold" aria-hidden />
+            {t.runner.home.stardust}
+          </p>
+          <p className="flex items-center gap-2">
+            <HelpCircle size={15} className="shrink-0 text-[#ffd35c]" aria-hidden />
+            {t.runner.home.quiz}
+          </p>
+          <p className="flex items-center gap-2">
+            <Magnet size={15} className="shrink-0 text-[#ff4d5e]" aria-hidden />
+            {t.runner.home.magnet}
+          </p>
+          <p className="flex items-center gap-2">
+            <Cloud size={15} className="shrink-0 text-[#bfe9ff]" aria-hidden />
+            {t.runner.home.cloud}
+          </p>
+          <div className="mt-2 flex flex-col gap-2 border-t border-white/8 pt-3">
+            <Toggle label={t.runner.home.buttons} hint={t.runner.home.buttonsHint} checked={prefs.buttons} onChange={(buttons) => prefs.set({ buttons })} />
+            <Toggle label={t.runner.home.lite} hint={t.runner.home.liteHint} checked={prefs.lite} onChange={(lite) => prefs.set({ lite })} />
+          </div>
+        </div>
+      </details>
 
       <section data-runner-in className="flex shrink-0 flex-col gap-2 rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-4">
         <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.2em] text-mist uppercase">
@@ -427,8 +521,16 @@ function RunnerHome({
           ))}
         </ol>
       </section>
+
+      {dressing && <Wardrobe assets={assets} openBox={dressing.box} onClose={() => setDressing(null)} />}
     </div>
   )
+}
+
+/** Compte à rebours court : « 5 h 12 » ou « 12 min ». */
+function shortCountdown(ms: number): string {
+  const minutes = Math.max(1, Math.ceil(ms / 60_000))
+  return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}` : `${minutes} min`
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

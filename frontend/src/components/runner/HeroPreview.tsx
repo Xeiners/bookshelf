@@ -4,19 +4,26 @@ import { createRun } from '../../lib/runner/engine'
 import type { RunnerAssets } from './assets'
 import { createHero } from './heroModel'
 import { sourceOf, type HeroLookId } from './looks'
+import { applyOutfit } from './outfit'
+import type { Outfit } from '../../lib/runner/wardrobe'
 import type { ScenePart } from './parts'
 
 /** Le coureur choisi, en vitrine (accueil du Runner) : il attend, respire, se réjouit. */
-export function HeroPreview({ look, assets, className }: { look: HeroLookId; assets: RunnerAssets | null; className?: string }) {
-  const kind = sourceOf(look).kind
+export function HeroPreview({ look, assets, outfit = {}, className, close }: { look: HeroLookId; assets: RunnerAssets | null; outfit?: Outfit; className?: string; close?: boolean }) {
+  const source = sourceOf(look)
+  const kind = source.kind
   const ready = kind === 'chibi' || assets !== null
+  // Essayage : la tenue change sur le modèle déjà monté (pas de rechargement).
+  useEffect(() => {
+    if (assets && source.kind === 'vrm') applyOutfit(assets.vrm[source.model].preview, outfit)
+  }, [assets, source, outfit])
   return (
     <div className={className}>
       <Canvas dpr={[1, 1.75]} gl={{ antialias: true, alpha: true }} camera={{ fov: 30, position: [0, 1.2, 5.2] }}>
-        <Framing close={kind === 'vrm'} />
+        <Framing close={close ?? kind === 'vrm'} />
         <hemisphereLight args={['#fff1f6', '#b98bb4', 1.5]} />
         <directionalLight position={[3, 5, 6]} intensity={1.7} color="#ffe6cc" />
-        {ready && <Hero key={look} make={() => createHero(look, assets, true)!} />}
+        {ready && <Hero key={look} make={() => createHero(look, assets, true, outfit)!} />}
       </Canvas>
     </div>
   )

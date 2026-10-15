@@ -9,13 +9,14 @@ import { installMangadexMock, prepareEnvironment, startServer, type TestClient }
 
 prepareEnvironment('runner')
 // Le Runner est réservé aux administrateurs pour l'instant.
-process.env.ADMIN_EMAILS = 'ana-runner@example.com, chef-runner@example.com'
+process.env.ADMIN_EMAILS = 'ana-runner@example.com, chef-runner@example.com, dressing-runner@example.com'
 installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
 const { prisma } = await import('../src/db.js')
 const logic = await import('../src/modules/runner/runner.logic.js')
+const wardrobe = await import('../src/modules/runner/runner.wardrobe.js')
 
 type Account = TestClient & { userId: string }
 
@@ -114,5 +115,86 @@ describe('Manga Runner — API', () => {
     assert.equal((await guest.request('POST', '/dle/guest', { name: 'Coureur' })).status, 200)
     assert.equal((await guest.request('POST', '/runner/runs')).status, 401)
     assert.equal((await client().request('POST', '/runner/runs')).status, 401)
+  })
+})
+
+describe('Manga Runner — garde-robe', () => {
+  it('25 pièces : cinq par emplacement, une légendaire, une épique, une rare, deux communes', () => {
+    assert.equal(wardrobe.WARDROBE.length, 25)
+    assert.equal(new Set(wardrobe.WARDROBE.map((item) => item.id)).size, 25)
+    for (const slot of wardrobe.WARDROBE_SLOTS) {
+      const items = wardrobe.WARDROBE.filter((item) => item.slot === slot)
+      assert.deepEqual(items.map((item) => item.rarity).sort(), ['common', 'common', 'epic', 'legendary', 'rare'])
+    }
+    assert.equal(Object.values(wardrobe.RARITY_WEIGHTS).reduce((sum, weight) => sum + weight, 0), 100)
+  })
+
+  it('tirage : rareté selon le ticket, pièce nouvelle d’abord, doublon remboursé, garantie légendaire', () => {
+    const sequence = (...values: number[]) => () => values.shift() ?? 0
+    assert.equal(wardrobe.rollBox(sequence(0.01, 0), new Set(), 0).item.rarity, 'legendary')
+    assert.equal(wardrobe.rollBox(sequence(0.99, 0), new Set(), 0).item.rarity, 'common')
+    // Une commune déjà possédée : l'autre commune de la même rareté est choisie.
+    const commons = wardrobe.WARDROBE.filter((item) => item.rarity === 'common')
+    const owned = new Set(commons.slice(1).map((item) => item.id))
+    const fresh = wardrobe.rollBox(sequence(0.99, 0.99), owned, 0)
+    assert.equal(fresh.item.id, commons[0]!.id)
+    assert.equal(fresh.duplicate, false)
+    // Toutes les communes possédées : doublon, remboursé.
+    const twice = wardrobe.rollBox(sequence(0.99, 0), new Set(commons.map((item) => item.id)), 0)
+    assert.deepEqual([twice.duplicate, twice.refund], [true, wardrobe.DUPLICATE_REFUND.common])
+    // Garantie : la boîte n° BOX_PITY sans légendaire en contient une.
+    const pity = wardrobe.rollBox(sequence(0.99, 0), new Set(), wardrobe.BOX_PITY - 1)
+    assert.deepEqual([pity.item.rarity, pity.guaranteed], ['legendary', true])
+    assert.deepEqual(wardrobe.readOutfit('{"hat":"hat-straw","top":"hat-ace","shoes":"nope"}', new Set(['hat-straw', 'hat-ace'])), { hat: 'hat-straw' })
+    assert.deepEqual(wardrobe.readOutfit('pas du json', new Set()), {})
+  })
+
+  it('boîtes : une gratuite par 24 h, les autres payées ; tenue équipée seulement avec ses pièces', async () => {
+    const dressing = await account('Dressing', 'dressing-runner@example.com')
+    const empty = await dressing.request('GET', '/runner/wardrobe')
+    assert.equal(empty.status, 200, JSON.stringify(empty.body))
+    assert.equal(empty.body.items.length, 25)
+    assert.deepEqual([empty.body.owned, empty.body.outfit, empty.body.freeAt, empty.body.price], [{}, {}, null, wardrobe.BOX_PRICE])
+
+    const free = await dressing.request('POST', '/runner/boxes', { free: true })
+    assert.equal(free.status, 201, JSON.stringify(free.body))
+    assert.equal(free.body.free, true)
+    assert.equal(free.body.duplicate, false)
+    assert.equal(free.body.wardrobe.owned[free.body.item.id], 1)
+    assert.ok(Date.parse(free.body.wardrobe.freeAt) > Date.now() + 23 * 3600 * 1000)
+    const again = await dressing.request('POST', '/runner/boxes', { free: true })
+    assert.equal(again.status, 409)
+    assert.equal(again.body.error.code, 'free_box_not_ready')
+
+    // Payée : refusée sans solde, puis débitée.
+    const broke = await dressing.request('POST', '/runner/boxes', { free: false })
+    assert.equal(broke.body.error.code, 'not_enough_stardust')
+    await prisma.user.update({ where: { id: dressing.userId }, data: { stardust: wardrobe.BOX_PRICE * 30 } })
+    let balance = wardrobe.BOX_PRICE * 30
+    let legendary = free.body.item.rarity === 'legendary'
+    for (let box = 0; box < 24; box += 1) {
+      const paid = await dressing.request('POST', '/runner/boxes', {})
+      assert.equal(paid.status, 201, JSON.stringify(paid.body))
+      balance += paid.body.refund - wardrobe.BOX_PRICE
+      assert.equal(paid.body.wardrobe.balance, balance)
+      legendary ||= paid.body.item.rarity === 'legendary'
+    }
+    assert.ok(legendary, 'la garantie a donné au moins une légendaire')
+    const view = (await dressing.request('GET', '/runner/wardrobe')).body
+    assert.equal(view.boxes, 25)
+    assert.equal(Object.values(view.owned as Record<string, number>).reduce((sum, count) => sum + count, 0), 25)
+    assert.equal(await prisma.stardustEntry.count({ where: { userId: dressing.userId, reason: 'runner_box' } }), 24)
+
+    // Tenue : une pièce possédée, à son emplacement.
+    const mine = Object.keys(view.owned)[0]!
+    const slot = wardrobe.wardrobeItem(mine)!.slot
+    const dressed = await dressing.request('PATCH', '/runner/outfit', { [slot]: mine })
+    assert.equal(dressed.status, 200, JSON.stringify(dressed.body))
+    assert.deepEqual(dressed.body.outfit, { [slot]: mine })
+    const missing = wardrobe.WARDROBE.find((item) => !view.owned[item.id])
+    if (missing) assert.equal((await dressing.request('PATCH', '/runner/outfit', { [missing.slot]: missing.id })).status, 400)
+    const wrongSlot = wardrobe.WARDROBE_SLOTS.find((other) => other !== slot)!
+    assert.equal((await dressing.request('PATCH', '/runner/outfit', { [wrongSlot]: mine })).status, 400)
+    assert.deepEqual((await dressing.request('PATCH', '/runner/outfit', { [slot]: null })).body.outfit, {})
   })
 })

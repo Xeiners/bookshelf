@@ -9,6 +9,8 @@ import type { ScenePart } from './parts'
 import { CloudRide, cloudBob } from './cloudRide'
 import { AwakeningAura } from './awakening'
 import { VrmLife } from './vrm'
+import { applyOutfit } from './outfit'
+import type { Outfit } from '../../lib/runner/wardrobe'
 
 /*
  * Le coureur, en vrai modèle animé (personnage VRM aux vraies proportions, mouvements
@@ -39,12 +41,17 @@ export function vrmRig(hero: VrmHero, preview: boolean): HeroRig {
   return { model: vrm.scene, clips: hero.clips, height: VRM_HEIGHT, life: new VrmLife(vrm) }
 }
 
-/** Le coureur d'une tenue : `null` tant que les modèles ne sont pas chargés (sauf le ninja chibi). */
-export function createHero(look: HeroLookId, assets: RunnerAssets | null, preview = false): ScenePart | null {
+/**
+ * Le coureur d'une tenue : `null` tant que les modèles ne sont pas chargés (sauf le ninja
+ * chibi). L'aventurier porte sa garde-robe (`outfit`).
+ */
+export function createHero(look: HeroLookId, assets: RunnerAssets | null, preview = false, outfit: Outfit = {}): ScenePart | null {
   const source = sourceOf(look)
   if (source.kind === 'chibi') return new HeroPart({ preview })
   if (!assets) return null
-  return new HeroModelPart(vrmRig(assets.vrm[source.model], preview), { preview })
+  const hero = assets.vrm[source.model]
+  applyOutfit(preview ? hero.preview : hero.game, outfit)
+  return new HeroModelPart(vrmRig(hero, preview), { preview })
 }
 
 const BACKWARD = new THREE.Vector3(0, -0.15, 1).normalize()
@@ -142,6 +149,12 @@ export class HeroModelPart implements ScenePart {
     this.stars.visible = false
     this.root.add(this.stars)
     this.object.add(this.root, this.shadow)
+  }
+
+  /** Une joie, tout de suite (révélation d'une pièce de la garde-robe). */
+  cheer(): void {
+    this.play('Cheer', 0.15, true)
+    this.nextCheer = this.time + 6
   }
 
   /** Fondu enchaîné vers un clip ; `restart` relance un clip déjà en cours. */

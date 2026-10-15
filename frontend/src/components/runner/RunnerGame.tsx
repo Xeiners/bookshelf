@@ -11,6 +11,7 @@ import type { RunnerAssets } from './assets'
 import type { HeroLookId } from './looks'
 import { IntroClock } from './intro'
 import { QuizDeck } from './quizDeck'
+import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { RunnerScene } from './RunnerScene'
 
 export interface RunnerOutcome {
@@ -66,6 +67,7 @@ const SWIPE = 26
  */
 export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOver, revival, onQuit }: RunnerGameProps) {
   const t = useT()
+  const outfit = useRunnerWardrobe((state) => state.outfit)
   const [initial] = useState(() => createRun(seed))
   const state = useRef<RunState>(initial)
   const paused = useRef(true)
@@ -393,7 +395,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} look={look} assets={assets} intro={intro} />
+      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} look={look} assets={assets} intro={intro} outfit={outfit} />
 
       {/* Cinématique : bandes noires, carte de titre, « touche pour passer ». */}
       <div aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-[11vh] bg-black transition-transform duration-700 ease-out ${introRunning ? 'translate-y-0' : '-translate-y-full'}`} />

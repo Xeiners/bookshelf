@@ -73,6 +73,12 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.offerUnavailable
     case 'card_not_available':
       return t.errors.cardNotAvailable
+    case 'free_box_not_ready':
+      return t.errors.freeBoxNotReady
+    case 'wardrobe_account_only':
+      return t.errors.wardrobeAccountOnly
+    case 'item_not_owned':
+      return t.errors.itemNotOwned
     case 'not_enough_stardust':
       return t.errors.notEnoughStardust(Math.max(1, numberDetail(error, 'price', 0) - numberDetail(error, 'balance', 0)))
     case 'room_not_found':

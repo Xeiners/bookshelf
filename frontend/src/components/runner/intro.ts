@@ -31,7 +31,11 @@ export class IntroClock {
   /** Saute à `seconds` de la fin ; renvoie le temps restant réel (s). */
   skipTo(seconds: number): number {
     const now = performance.now()
-    if (this.start === 0) this.start = now
+    // Passée avant même d'avoir commencé : elle « commence » ici (l'écran de chargement s'efface).
+    if (this.start === 0) {
+      this.start = now
+      this.onStart()
+    }
     const left = this.length - (now - this.start) / 1000
     if (left <= seconds) return left
     this.start = now - (this.length - seconds) * 1000

@@ -3,6 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm'
 import { uploadUsed } from './batch'
+import { captureRest } from './outfit'
 import { retargetHuman } from './vrm'
 
 /*
@@ -103,6 +104,8 @@ function prepareVrm(gltf: GLTF): VRM {
   vrm.scene.traverse((node) => {
     node.frustumCulled = false
   })
+  // Pose de repos relevée avant toute animation : la garde-robe s'y accroche (cf. `outfit.ts`).
+  captureRest(vrm)
   return vrm
 }
 

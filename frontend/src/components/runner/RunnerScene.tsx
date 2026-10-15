@@ -7,6 +7,7 @@ import { BIOME_STYLE } from './biomes'
 import { createHero } from './heroModel'
 import { EnvironmentPart, NaturePart, PetalsPart, SkyPart, TerrainPart, TrackPart, view } from './world'
 import type { IntroClock } from './intro'
+import type { Outfit } from '../../lib/runner/wardrobe'
 import type { HeroLookId } from './looks'
 import { MonstersPart } from './monsters'
 import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
@@ -32,9 +33,11 @@ export interface RunnerSceneProps {
   look: HeroLookId
   assets: RunnerAssets
   intro: IntroClock
+  /** Garde-robe de l'aventurier. */
+  outfit: Outfit
 }
 
-export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, intro }: RunnerSceneProps) {
+export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, intro, outfit }: RunnerSceneProps) {
   const [dpr] = useState(() => budgetDpr(lite))
   return (
     <Canvas
@@ -59,7 +62,7 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       <Part state={state} make={() => new MonstersPart(assets)} />
       <Part state={state} make={() => new PickupsPart()} />
       <Part state={state} make={() => new SmashPart()} />
-      <Part state={state} make={() => createHero(look, assets)!} />
+      <Part state={state} make={() => createHero(look, assets, false, outfit)!} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} intro={intro} />
       <Warmup />

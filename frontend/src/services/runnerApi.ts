@@ -1,3 +1,4 @@
+import type { Outfit, Rarity, WardrobeSlot } from '../lib/runner/wardrobe'
 import { api } from './api'
 
 /** Manga Runner 3D (cf. `backend/src/modules/runner/`). Un compte, ou un invité du BookshelfDLE. */
@@ -35,6 +36,34 @@ export interface RunnerResult {
   receipts: string[]
 }
 
+export interface WardrobeView {
+  items: { id: string; slot: WardrobeSlot; rarity: Rarity }[]
+  /** Pièces possédées → exemplaires reçus. */
+  owned: Record<string, number>
+  outfit: Outfit
+  price: number
+  /** Prochaine boîte gratuite (ISO) ; `null` : disponible. */
+  freeAt: string | null
+  pity: number
+  pityMax: number
+  boxes: number
+  weights: Record<Rarity, number>
+  refunds: Record<Rarity, number>
+  balance: number
+}
+
+export interface BoxOpening {
+  item: { id: string; slot: WardrobeSlot; rarity: Rarity }
+  duplicate: boolean
+  refund: number
+  guaranteed: boolean
+  free: boolean
+  wardrobe: WardrobeView
+}
+
+/** Ouvertures en cours, par demande : une même demande n'ouvre qu'une boîte (React peut relancer un effet). */
+const openings = new Map<number, Promise<BoxOpening>>()
+
 export const runnerApi = {
   overview: (signal?: AbortSignal) => api<RunnerOverview>('/runner', { signal }),
   start: () => api<{ id: string; seed: number }>('/runner/runs', { method: 'POST' }),
@@ -42,4 +71,13 @@ export const runnerApi = {
   revive: (id: string) => api<{ cost: number; balance: number; revives: number; nextCost: number | null }>(`/runner/runs/${encodeURIComponent(id)}/revive`, { method: 'POST' }),
   end: (id: string, run: { distance: number; stardust: number; quiz: number }) =>
     api<RunnerResult>(`/runner/runs/${encodeURIComponent(id)}/end`, { method: 'POST', body: run }),
+  wardrobe: (signal?: AbortSignal) => api<WardrobeView>('/runner/wardrobe', { signal }),
+  /** Boîte mystère : 409 `free_box_not_ready` / `not_enough_stardust`. */
+  openBox: (free: boolean, request: number) => {
+    const pending = openings.get(request) ?? api<BoxOpening>('/runner/boxes', { method: 'POST', body: { free } })
+    openings.set(request, pending)
+    if (openings.size > 8) openings.delete(openings.keys().next().value!)
+    return pending
+  },
+  setOutfit: (outfit: Outfit) => api<WardrobeView>('/runner/outfit', { method: 'PATCH', body: outfit }),
 }
