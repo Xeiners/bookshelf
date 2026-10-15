@@ -11,13 +11,26 @@
  * Un jeton de quiz vide la route devant soi le temps de répondre : la voie où l'on court à
  * l'échéance donne la réponse. Les monstres se pulvérisent d'un tir (avec une recharge).
  * Un tremplin lance le coureur jusqu'à Skypia, un tunnel l'emmène sous terre : ces
- * royaumes ont leur piste, le temps d'une trentaine de secondes.
+ * royaumes ont leur piste, le temps d'une trentaine de secondes. Tous les 1 500 m, un boss
+ * barre la route : on le bat en enchaînant des gestes (trois attaques).
  *
  * Tout est muté en place (aucune allocation par image) : la boucle de rendu lit l'état.
  */
 import {
   ACCEL,
+  BOSS_AFTER,
+  BOSS_COMBOS,
+  BOSS_COUNTER,
+  BOSS_DEATH,
+  BOSS_EVERY,
+  BOSS_HP,
+  BOSS_IMPACT,
+  BOSS_INTRO,
+  BOSS_PENALTY,
+  BOSS_REWARD,
+  BOSS_STRIKE,
   CLOUD_TIME,
+  comboTime,
   DIVE_VELOCITY,
   FLY_HEIGHT,
   GRAVITY,
@@ -164,6 +177,14 @@ export type RunEvent =
   | 'smash'
   | 'shot'
   | 'clear'
+  | 'boss'
+  | 'comboStep'
+  | 'comboMiss'
+  | 'bossCast'
+  | 'bossHit'
+  | 'bossCounter'
+  | 'bossDown'
+  | 'bossDefeated'
   | 'launch'
   | 'tunnel'
   | 'realm'
@@ -191,8 +212,35 @@ export interface ActiveQuiz {
   deadline: number
 }
 
+/** Phases d'un combat de boss. */
+export type BossPhase = 'intro' | 'combo' | 'strike' | 'counter' | 'dying'
+
+/** Un combat de boss en cours. */
+export interface BossFight {
+  /** Numéro du boss (0, 1, 2…) : le rendu en tire le monstre, le combo sa suite de gestes. */
+  index: number
+  phase: BossPhase
+  /** Début de la phase (temps de course). */
+  phaseAt: number
+  hp: number
+  /** Attaque en cours (0 à 2) : la compétence lancée. */
+  round: number
+  /** Gestes à enchaîner, et combien sont déjà faits. */
+  combo: RunAction[]
+  progress: number
+  /** Fin du temps pour le combo (temps de course). */
+  deadline: number
+  /** Contre-attaques subies ; dernier faux geste (temps de course). */
+  counters: number
+  missAt: number
+  /** L'attaque lancée a touché (une fois par attaque). */
+  struck: boolean
+}
+
 export interface RunState {
   t: number
+  /** Graine de la course (combos des boss). */
+  seed: number
   distance: number
   speed: number
   lane: Lane
@@ -243,6 +291,10 @@ export interface RunState {
   pendingRealm: { realm: Exclude<Realm, 'earth'>; at: number } | null
   /** Passage d'un monde à l'autre : intouchable, sans clignoter (temps de course). */
   transitUntil: number
+  /** Combat de boss en cours, distance du prochain, boss vaincus. */
+  boss: BossFight | null
+  nextBoss: number
+  bossesBeaten: number
   over: boolean
   objects: TrackObject[]
   /** Ce qui s'est passé depuis la dernière lecture (sons, vibrations, interface). */
@@ -259,6 +311,7 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
   const lives = Math.max(1, options.lives ?? LIVES)
   const state: RunState = {
     t: 0,
+    seed,
     distance: 0,
     speed: speedAt(0),
     lane: 0,
@@ -297,6 +350,9 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
     realmUntil: 0,
     pendingRealm: null,
     transitUntil: 0,
+    boss: null,
+    nextBoss: BOSS_EVERY,
+    bossesBeaten: 0,
     over: false,
     objects: [],
     events: [],
@@ -333,6 +389,11 @@ export function revive(state: RunState): void {
 /** Un geste du joueur : changer de voie, sauter, glisser (plonger s'il est en l'air). */
 export function act(state: RunState, action: RunAction): void {
   if (state.over) return
+  // Combat de boss : les gestes lancent les attaques (on ne change pas de voie).
+  if (state.boss) {
+    bossInput(state, state.boss, action)
+    return
+  }
   if (action === 'left' || action === 'right') {
     const next = Math.max(-1, Math.min(1, state.lane + (action === 'left' ? -1 : 1))) as Lane
     if (next !== state.lane) {
@@ -478,6 +539,10 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
 
   // Quiz : à l'échéance, la voie où l'on court donne la réponse.
   if (state.quiz && t >= state.quiz.deadline) answerQuiz(state, (state.lane + 1) as 0 | 1 | 2)
+
+  // Boss : tous les 1 500 m, sur terre, hors quiz et hors passage d'un monde à l'autre.
+  if (state.boss) bossStep(state, state.boss)
+  else if (state.distance >= state.nextBoss && state.realm === 'earth' && !state.pendingRealm && !state.quiz && t > state.transitUntil) startBoss(state)
 
   // Royaumes : la bascule (au sommet du saut, au fond du tunnel), puis le retour sur terre.
   if (state.pendingRealm && t >= state.pendingRealm.at) enterRealm(state, state.pendingRealm.realm)
@@ -654,6 +719,113 @@ function clearRoad(state: RunState): void {
   state.events.push('clear')
 }
 
+/* ---- Boss ------------------------------------------------------------------------- */
+
+const GESTURES: readonly RunAction[] = ['up', 'down', 'left', 'right']
+
+/** Un combo de gestes pour l'attaque `round` (jamais deux fois le même geste de suite). */
+function comboFor(state: RunState, boss: BossFight): RunAction[] {
+  const random = seededRandom((state.seed ^ (boss.index * 7919 + boss.round * 131 + boss.counters * 17 + 1)) >>> 0)
+  const length = BOSS_COMBOS[Math.min(boss.round, BOSS_COMBOS.length - 1)]!
+  const combo: RunAction[] = []
+  while (combo.length < length) {
+    const gesture = GESTURES[Math.floor(random() * GESTURES.length)]!
+    if (gesture !== combo[combo.length - 1]) combo.push(gesture)
+  }
+  return combo
+}
+
+function newCombo(state: RunState, boss: BossFight): void {
+  boss.combo = comboFor(state, boss)
+  boss.progress = 0
+  boss.phase = 'combo'
+  boss.phaseAt = state.t
+  boss.deadline = state.t + comboTime(boss.combo.length)
+}
+
+/** Le boss arrive : la route se vide, le coureur revient au centre. */
+function startBoss(state: RunState): void {
+  for (const object of state.objects) {
+    const start = object.s - (object.ramp ? RAMP_LENGTH : 0)
+    if (object.done || start <= state.distance + 1.5) continue
+    object.done = true
+    object.cleared = true
+  }
+  // Rien n'est tiré pendant le combat.
+  state.clearUntil = Number.POSITIVE_INFINITY
+  state.cloudUntil = Math.min(state.cloudUntil, state.t)
+  if (state.lane !== 0) steer(state, 0)
+  state.boss = { index: state.bossesBeaten, phase: 'intro', phaseAt: state.t, hp: BOSS_HP, round: 0, combo: [], progress: 0, deadline: 0, counters: 0, missAt: -10, struck: false }
+  state.events.push('boss')
+}
+
+/** Un geste pendant le combat : le bon fait avancer le combo ; un faux le remet à zéro. */
+function bossInput(state: RunState, boss: BossFight, action: RunAction): void {
+  if (boss.phase !== 'combo') return
+  if (action === boss.combo[boss.progress]) {
+    boss.progress += 1
+    state.events.push('comboStep')
+    if (boss.progress >= boss.combo.length) {
+      boss.phase = 'strike'
+      boss.phaseAt = state.t
+      boss.struck = false
+      state.events.push('bossCast')
+    }
+    return
+  }
+  boss.progress = 0
+  boss.missAt = state.t
+  state.events.push('comboMiss')
+}
+
+function bossStep(state: RunState, boss: BossFight): void {
+  const elapsed = state.t - boss.phaseAt
+  switch (boss.phase) {
+    case 'intro':
+      if (elapsed >= BOSS_INTRO) newCombo(state, boss)
+      return
+    case 'combo':
+      // Trop lent : il contre-attaque, et coûte quelques ✦.
+      if (state.t >= boss.deadline) {
+        boss.phase = 'counter'
+        boss.phaseAt = state.t
+        boss.counters += 1
+        state.stardust = Math.max(0, state.stardust - BOSS_PENALTY)
+        state.events.push('bossCounter')
+      }
+      return
+    case 'counter':
+      if (elapsed >= BOSS_COUNTER) newCombo(state, boss)
+      return
+    case 'strike':
+      if (!boss.struck && elapsed >= BOSS_IMPACT) {
+        boss.struck = true
+        boss.hp -= 1
+        state.events.push('bossHit')
+      }
+      if (elapsed < BOSS_STRIKE) return
+      if (boss.hp <= 0) {
+        boss.phase = 'dying'
+        boss.phaseAt = state.t
+        state.events.push('bossDown')
+        return
+      }
+      boss.round += 1
+      newCombo(state, boss)
+      return
+    case 'dying':
+      if (elapsed < BOSS_DEATH) return
+      // Vaincu : la récompense, et la route reprend un peu plus loin.
+      state.boss = null
+      state.bossesBeaten += 1
+      state.stardust += BOSS_REWARD
+      state.nextBoss = state.distance + BOSS_EVERY
+      state.clearUntil = state.distance + BOSS_AFTER
+      state.track.resume(state.distance + BOSS_AFTER)
+      state.events.push('bossDefeated')
+  }
+}
+
 /**
  * Arrivée dans un royaume : tout ce qui était devant disparaît, sa piste à lui commence un
  * peu plus loin (le temps de se poser) et dure une trentaine de secondes.
@@ -745,6 +917,12 @@ export class TrackGenerator {
     if (this.realm !== 'earth') object.realm = this.realm
     objects.push(object)
     return object
+  }
+
+  /** La piste reprend à `from` (m), après un combat de boss. */
+  resume(from: number): void {
+    this.nextRow = from
+    for (const lane of LANES) this.hardUntil[lane] = 0
   }
 
   /** Arrivée dans un royaume : sa piste commence à `from` et s'arrête à `until` (m). */

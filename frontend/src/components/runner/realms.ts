@@ -21,6 +21,11 @@ import { canvasTexture, toonMaterial } from './toon'
 
 const BEHIND = 14
 const AHEAD = 190
+/** Galerie souterraine : rayon et hauteur de l'axe du tube de roche (m). Le sol est à 0. */
+const TUBE_RADIUS = 8.5
+const TUBE_AXIS = 4.2
+/** Demi-largeur du sol, là où il rejoint la paroi. */
+const FLOOR_HALF = Math.sqrt(TUBE_RADIUS * TUBE_RADIUS - TUBE_AXIS * TUBE_AXIS)
 const ROAD_LENGTH = 420
 /** Royaume affiché : le monde où court le joueur. */
 type Elsewhere = Exclude<Realm, 'earth'>
@@ -130,7 +135,7 @@ function mineFloorTexture(): THREE.CanvasTexture {
   })
 }
 
-function glowTexture(): THREE.CanvasTexture {
+export function glowTexture(): THREE.CanvasTexture {
   return canvasTexture(64, 64, (context) => {
     const glow = context.createRadialGradient(32, 32, 0, 32, 32, 32)
     glow.addColorStop(0, 'rgba(255,255,255,1)')
@@ -259,12 +264,13 @@ export class RealmScenery implements ScenePart {
     this.sky.add(this.puffs.group, this.columns.group, this.capitals.group)
 
     // Sous terre : la galerie (tube de roche vu de l'intérieur), le sol de la mine.
-    const tube = new THREE.CylinderGeometry(8.5, 8.5, ROAD_LENGTH, 30, 1, true)
+    const tube = new THREE.CylinderGeometry(TUBE_RADIUS, TUBE_RADIUS, ROAD_LENGTH, 30, 1, true)
     tube.rotateX(Math.PI / 2)
     const tunnel = new THREE.Mesh(tube, new THREE.MeshLambertMaterial({ map: this.rockTexture, side: THREE.BackSide }))
-    tunnel.position.set(0, 4.2, -(ROAD_LENGTH / 2 - BEHIND))
+    tunnel.position.set(0, TUBE_AXIS, -(ROAD_LENGTH / 2 - BEHIND))
     this.under.add(tunnel)
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, ROAD_LENGTH), new THREE.MeshLambertMaterial({ map: this.floorTexture }))
+    // Le sol s'arrête à la paroi (sinon il la traverse).
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_HALF * 2, ROAD_LENGTH), new THREE.MeshLambertMaterial({ map: this.floorTexture }))
     floor.rotation.x = -Math.PI / 2
     floor.position.set(0, -0.01, -(ROAD_LENGTH / 2 - BEHIND))
     this.under.add(floor)
@@ -356,7 +362,7 @@ export class RealmScenery implements ScenePart {
   private updateUnder(distance: number, time: number): void {
     this.rockTexture.offset.y = -(distance / 14) % 1
     this.floorTexture.offset.y = (distance / 5) % 1
-    // Cristaux plantés dans les parois.
+    // Cristaux plantés dans la paroi courbe, pointés vers le centre de la galerie.
     this.crystals.begin()
     const colors = ['#38f2d0', '#e04dff', '#5aa8ff', '#9d7bff'] as const
     for (let cell = Math.floor((distance - BEHIND) / 3.5); cell <= Math.floor((distance + AHEAD) / 3.5); cell += 1) {
@@ -364,12 +370,17 @@ export class RealmScenery implements ScenePart {
       for (const side of [-1, 1]) {
         const count = 1 + Math.floor(hash(cell, side * 3) * 2)
         for (let index = 0; index < count; index += 1) {
-          const height = hash(cell, side * 7 + index) * 6
-          // Sur la paroi courbe : plus haut, plus près du centre.
-          const x = side * (7.2 - Math.max(0, height - 3) * 0.55)
+          // Angle sur la paroi : du pied du mur (juste au-dessus du sol) jusque sous la voûte.
+          const angle = -0.42 + hash(cell, side * 7 + index) * 1.45
           const size = 0.6 + hash(cell, side * 11 + index) * 1.3
           const pulse = 1 + Math.sin(time * 2 + cell + index) * 0.04
-          this.crystals.push(x, height + 0.3, z + index * 1.2, size * pulse, size * pulse, size * pulse, colors[(cell + index + (side > 0 ? 1 : 0)) % colors.length], 0, 0, side * (0.7 + height * 0.12))
+          const half = 0.9 * size * pulse
+          // Point de la paroi, puis le cristal y est enfoncé par sa base (vers l'axe : la normale intérieure).
+          const inwardX = -side * Math.cos(angle)
+          const inwardY = -Math.sin(angle)
+          const x = side * TUBE_RADIUS * Math.cos(angle) + inwardX * (half - 0.15)
+          const y = TUBE_AXIS + TUBE_RADIUS * Math.sin(angle) + inwardY * (half - 0.15)
+          this.crystals.push(x, y, z + index * 1.2, size * pulse, size * pulse, size * pulse, colors[(cell + index + (side > 0 ? 1 : 0)) % colors.length], 0, 0, Math.atan2(side * Math.cos(angle), -Math.sin(angle)))
         }
       }
     }
@@ -380,9 +391,11 @@ export class RealmScenery implements ScenePart {
     for (let cell = Math.floor((distance - BEHIND) / 14); cell <= Math.floor((distance + AHEAD) / 14); cell += 1) {
       const z = -(cell * 14 - distance)
       const flicker = 1 + Math.sin(time * 9 + cell * 3) * 0.06
+      // Accrochées à la paroi.
+      const wall = Math.sqrt(TUBE_RADIUS * TUBE_RADIUS - (3.3 - TUBE_AXIS) ** 2) - 0.25
       for (const side of [-1, 1]) {
-        this.lamps.push(side * 5.9, 3.3, z, 1, 1, 1)
-        this.glows.push(side * 5.85, 3.3, z + 0.3, 2.6 * flicker, 2.6 * flicker, 1, '#ffb347')
+        this.lamps.push(side * wall, 3.3, z, 1, 1, 1)
+        this.glows.push(side * (wall - 0.1), 3.3, z + 0.3, 2.6 * flicker, 2.6 * flicker, 1, '#ffb347')
       }
     }
     this.lamps.end()
@@ -390,8 +403,9 @@ export class RealmScenery implements ScenePart {
     this.timbers.begin()
     for (let cell = Math.floor((distance - BEHIND) / 18); cell <= Math.floor((distance + AHEAD) / 18); cell += 1) {
       const z = -(cell * 18 + 7 - distance)
-      for (const side of [-1, 1]) this.timbers.push(side * 6.3, 3.2, z, 0.4, 6.4, 0.4)
-      this.timbers.push(0, 6.5, z, 13, 0.45, 0.45)
+      // Deux poteaux contre la paroi, une poutre sous la voûte.
+      for (const side of [-1, 1]) this.timbers.push(side * (FLOOR_HALF - 0.6), 3.2, z, 0.4, 6.4, 0.4)
+      this.timbers.push(0, 6.5, z, (FLOOR_HALF - 0.4) * 2, 0.45, 0.45)
     }
     this.timbers.end()
   }

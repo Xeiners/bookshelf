@@ -698,6 +698,91 @@ export function playRunnerTunnel(): void {
   bell(e, 196, at + 0.25, 1.4, 0.04)
 }
 
+/* ---- Boss du Manga Runner ---------------------------------------------------------- */
+
+/** Le boss surgit : un grondement qui monte de la terre, un rugissement râpeux. */
+export function playBossRoar(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 55, 30, 1.6, 0.55)
+  noiseBurst(e, { at: at + 0.15, duration: 1.3, from: 900, to: 180, q: 2.5, gain: 0.2, grain: 55, send: 0.5, type: 'lowpass' })
+  boom(e, at + 0.6, 90, 40, 0.9, 0.4)
+}
+
+/** Un geste juste du combo : une note qui monte d'un cran à chaque geste. */
+export function playComboStep(step: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const notes = [523.25, 659.25, 783.99, 987.77, 1174.66, 1396.91]
+  blip(e, notes[Math.min(notes.length - 1, Math.max(0, step - 1))]!, at, 0.12, 0.05, 'square')
+}
+
+/** Un faux geste : un buzz sec. */
+export function playComboMiss(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  blip(e, 140, at, 0.18, 0.06, 'sawtooth')
+  blip(e, 110, at + 0.06, 0.2, 0.05, 'sawtooth')
+}
+
+/** Une compétence lancée : vague de ki (souffle qui monte), lame de lune (sifflement), météores (grondement céleste). */
+export function playBossCast(round: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  if (round % 3 === 0) {
+    noiseBurst(e, { at, duration: 0.6, from: 400, to: 6000, q: 1.2, gain: 0.16, send: 0.4 })
+    ;[392, 523.25, 659.25].forEach((frequency, index) => bell(e, frequency, at + index * 0.05, 0.6, 0.04))
+  } else if (round % 3 === 1) {
+    noiseBurst(e, { at, duration: 0.45, from: 9000, to: 2500, q: 4, gain: 0.15, send: 0.35 })
+    blip(e, 1760, at, 0.3, 0.03, 'triangle')
+  } else {
+    boom(e, at, 60, 220, 0.8, 0.35)
+    noiseBurst(e, { at, duration: 0.7, from: 200, to: 4000, q: 0.9, gain: 0.18, grain: 30, send: 0.5 })
+    ;[783.99, 987.77, 1318.5, 1567.98].forEach((frequency, index) => bell(e, frequency, at + 0.1 + index * 0.05, 0.7, 0.035))
+  }
+}
+
+/** La compétence touche : un impact lourd et des éclats. */
+export function playBossHit(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 160, 40, 0.5, 0.55)
+  noiseBurst(e, { at, duration: 0.3, from: 7000, to: 1200, q: 1.2, gain: 0.22, grain: 90, send: 0.3 })
+}
+
+/** La contre-attaque : le sol frappé, une onde qui roule. */
+export function playBossCounter(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at + 0.4, 80, 25, 0.9, 0.6)
+  noiseBurst(e, { at: at + 0.4, duration: 0.7, from: 2500, to: 150, q: 1, gain: 0.2, grain: 45, send: 0.45, type: 'lowpass' })
+}
+
+/** Le boss s'effondre : un râle qui descend, puis l'explosion de lumière. */
+export function playBossDeath(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 1.8, from: 1200, to: 90, q: 2.2, gain: 0.18, grain: 50, send: 0.5, type: 'lowpass' })
+  boom(e, at + 2.2, 120, 30, 1.4, 0.6)
+  noiseBurst(e, { at: at + 2.2, duration: 1.2, from: 8000, to: 400, q: 0.8, gain: 0.22, send: 0.6 })
+}
+
+/** Victoire : une fanfare. */
+export function playBossVictory(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => bell(e, frequency, at + index * 0.11, 0.9, 0.05, index % 2 ? 0.3 : -0.3))
+  ;[1046.5, 1318.5, 1567.98].forEach((frequency) => bell(e, frequency, at + 0.55, 1.6, 0.045))
+}
+
 /** Le quiz vide la route : un grand souffle qui balaie, et une note suspendue. */
 export function playRunnerClear(): void {
   const e = start()

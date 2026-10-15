@@ -424,6 +424,8 @@ export class PickupsPart implements ScenePart {
 export class CameraFollow {
   private readonly look = new THREE.Vector3(0, 1.3, -8)
   private fov = 62
+  /** Combat de boss (0 à 1) : la caméra se recule et lève les yeux vers le géant. */
+  private fight = 0
 
   update(camera: THREE.Camera, run: RunState, delta: number): void {
     const ease = 1 - Math.exp(-Math.min(delta, 0.05) * 7)
@@ -431,12 +433,17 @@ export class CameraFollow {
     // Un obstacle pulvérisé par l'Éveil secoue aussi l'image, brièvement.
     let smash = -Infinity
     for (const object of run.objects) if (object.smashedAt !== undefined && object.smashedAt > smash) smash = object.smashedAt
-    const shake = run.invulnerableUntil - run.t > 1.25 ? 0.18 : run.t - run.stumbleAt < 0.22 ? 0.09 : run.t - smash < 0.18 ? 0.14 : 0
+    this.fight += ((run.boss ? 1 : 0) - this.fight) * (1 - Math.exp(-Math.min(delta, 0.05) * 2.5))
+    // Le boss frappe le sol, ou s'effondre : l'image tremble fort.
+    const boss = run.boss
+    const since = boss ? run.t - boss.phaseAt : 0
+    const quake = boss && ((boss.phase === 'counter' && since > 0.4 && since < 0.8) || (boss.phase === 'dying' && since > 2.1 && since < 2.7) || (boss.phase === 'intro' && since < 0.6)) ? 0.32 : 0
+    const shake = quake || (run.invulnerableUntil - run.t > 1.25 ? 0.18 : run.t - run.stumbleAt < 0.22 ? 0.09 : run.t - smash < 0.18 ? 0.14 : 0)
     camera.position.x += (run.x * 0.55 - camera.position.x) * ease + (Math.random() - 0.5) * shake
-    camera.position.y += (3.4 + run.y * 0.85 - camera.position.y) * ease + (Math.random() - 0.5) * shake
-    camera.position.z = 6.8
+    camera.position.y += (3.4 + this.fight * 1.1 + run.y * 0.85 - camera.position.y) * ease + (Math.random() - 0.5) * shake
+    camera.position.z = 6.8 + this.fight * 1.6
     this.look.x += (run.x * 0.7 - this.look.x) * ease
-    this.look.y += (1.3 + run.y * 0.8 - this.look.y) * ease
+    this.look.y += (1.3 + this.fight * 2.4 + run.y * 0.8 - this.look.y) * ease
     camera.lookAt(this.look)
     if (camera instanceof THREE.PerspectiveCamera) {
       // L'Éveil élargit le champ (sensation de vitesse) le temps qu'il dure.

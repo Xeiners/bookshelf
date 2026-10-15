@@ -56,6 +56,29 @@ export const SHOT_REWARD = 2
 /** Quiz : la route se vide devant soi le temps de répondre, plus cette marge (m). */
 export const QUIZ_CLEAR_MARGIN = 25
 
+/**
+ * Boss : tous les `BOSS_EVERY` m (sur terre), un monstre géant barre la route. On le bat en
+ * trois attaques : chacune se lance en enchaînant des gestes (glisser vers le haut, le bas,
+ * la gauche, la droite) dans l'ordre affiché, avant la fin du temps. Raté : il contre-attaque
+ * (quelques ✦ perdues) et l'on recommence l'attaque. Vaincu, il s'effondre et rapporte des ✦.
+ */
+export const BOSS_EVERY = 1500
+export const BOSS_HP = 3
+/** Combos des trois attaques (nombre de gestes), et le temps pour les enchaîner (s). */
+export const BOSS_COMBOS = [3, 4, 5] as const
+export const comboTime = (length: number) => 2.4 + length * 0.75
+/** Durées (s) : apparition, attaque lancée (vol de la compétence ; impact à `BOSS_IMPACT`), contre-attaque, mort. */
+export const BOSS_INTRO = 2.6
+export const BOSS_STRIKE = 1.25
+export const BOSS_IMPACT = 0.55
+export const BOSS_COUNTER = 1.3
+export const BOSS_DEATH = 3.6
+export const BOSS_REWARD = 30
+export const BOSS_PENALTY = 10
+/** Le boss se tient à cette distance devant le coureur (m) ; la route reprend ensuite après ce vide. */
+export const BOSS_DISTANCE = 24
+export const BOSS_AFTER = 40
+
 /** Taille du coureur : debout, puis en glissade (m). */
 export const PLAYER_HEIGHT = 1.75
 export const SLIDE_HEIGHT = 0.85

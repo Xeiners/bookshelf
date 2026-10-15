@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { LANE_WIDTH, MAX_SPEED, PORTAL_FIRST, RAMP_LENGTH, REALM_GAP, REALM_TIME, SHOT_COOLDOWN, SHOT_REWARD, SLIDE_TIME, START_SPEED, TRAIN_ROOF, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
+import { BOSS_COUNTER, BOSS_DEATH, BOSS_EVERY, BOSS_HP, BOSS_INTRO, BOSS_PENALTY, BOSS_REWARD, BOSS_STRIKE, LANE_WIDTH, MAX_SPEED, PORTAL_FIRST, comboTime, RAMP_LENGTH, REALM_GAP, REALM_TIME, SHOT_COOLDOWN, SHOT_REWARD, SLIDE_TIME, START_SPEED, TRAIN_ROOF, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
 import { OBSTACLE_SPAN, TrackGenerator, act, answerQuiz, createRun, goToLane, isSliding, revive, shoot, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
 import { makeQuiz } from '../src/lib/runner/quiz'
 import { seededRandom } from '../src/lib/runner/random'
@@ -343,6 +343,7 @@ describe('Manga Runner — toits, tirs, royaumes, ✦', () => {
       generator.starArc(objects, 0, at)
       const state = emptyRun(1)
       state.distance = at - 30
+      state.nextBoss = Number.POSITIVE_INFINITY
       state.t = (-START_SPEED + Math.sqrt(START_SPEED ** 2 + 2 * 0.18 * state.distance)) / 0.18
       state.objects.push(...objects, { id: 999, kind: 'low', lane: 0, s: at, length: 1, y: 0, variant: 0, done: false })
       // Saut lancé pour culminer au-dessus du tome.
@@ -411,5 +412,75 @@ describe('Manga Runner — quiz', () => {
       assert.equal(new Set(quiz.options.map((option) => option.label)).size, 3)
     }
     assert.equal(makeQuiz(universes.slice(0, 2), text, random), null)
+  })
+})
+
+describe('Manga Runner — boss', () => {
+  const bossRun = () => {
+    const state = createRun(21)
+    state.objects.length = 0
+    state.track.fill = () => undefined
+    state.distance = BOSS_EVERY - 1
+    state.t = 60
+    state.invulnerableUntil = 0
+    return state
+  }
+
+  it('tous les 1 500 m, un boss : la route se vide, trois attaques en gestes, il meurt et rapporte des ✦', () => {
+    const state = bossRun()
+    state.objects.push({ id: 1, kind: 'wall', lane: 0, s: BOSS_EVERY + 20, length: 1.6, y: 0, variant: 0, done: false })
+    run(state, 0.2)
+    assert.ok(state.boss, 'le boss arrive')
+    assert.ok(state.events.includes('boss'))
+    assert.ok(state.objects.find((object) => object.id === 1)?.cleared, 'la route se vide')
+    act(state, 'left')
+    assert.equal(state.lane, 0, 'on ne change pas de voie pendant le combat')
+    run(state, BOSS_INTRO)
+    const boss = state.boss!
+    assert.equal(boss.phase, 'combo')
+    assert.equal(boss.combo.length, 3)
+    for (let round = 0; round < 3; round += 1) {
+      assert.equal(boss.phase, 'combo')
+      for (const gesture of [...boss.combo]) act(state, gesture)
+      assert.equal(boss.phase, 'strike')
+      run(state, BOSS_STRIKE + 0.05)
+    }
+    assert.equal(boss.hp, 0)
+    assert.equal(boss.phase, 'dying')
+    const stars = state.stardust
+    run(state, BOSS_DEATH + 0.1)
+    assert.equal(state.boss, null)
+    assert.equal(state.bossesBeaten, 1)
+    assert.equal(state.stardust, stars + BOSS_REWARD)
+    assert.ok(state.nextBoss > state.distance + BOSS_EVERY - 5)
+    assert.equal(state.over, false)
+  })
+
+  it('un faux geste remet le combo à zéro ; trop lent, il contre-attaque et l’on recommence', () => {
+    const state = bossRun()
+    state.stardust = 25
+    run(state, 0.2 + BOSS_INTRO)
+    const boss = state.boss!
+    act(state, boss.combo[0]!)
+    assert.equal(boss.progress, 1)
+    const wrong = (['up', 'down', 'left', 'right'] as const).find((gesture) => gesture !== boss.combo[1])!
+    act(state, wrong)
+    assert.equal(boss.progress, 0)
+    assert.ok(state.events.includes('comboMiss'))
+    run(state, comboTime(boss.combo.length) + 0.1)
+    assert.ok(state.events.includes('bossCounter'))
+    assert.equal(state.stardust, 25 - BOSS_PENALTY)
+    assert.equal(boss.hp, BOSS_HP, 'pas de dégât')
+    run(state, BOSS_COUNTER + 0.05)
+    assert.equal(boss.phase, 'combo', 'nouvelle chance')
+    assert.equal(boss.round, 0)
+  })
+
+  it('pas de boss dans un royaume : il attend le retour sur terre', () => {
+    const state = bossRun()
+    state.realm = 'sky'
+    state.realmUntil = state.distance + 1000
+    run(state, 0.5)
+    assert.equal(state.boss, null)
   })
 })

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Crosshair, Loader2, Flame, Magnet, Mountain, Pause, Play, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
-import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, REALM_TIME, SHIELD_TIME, SHOT_COOLDOWN, multiplierFor, reviveCost } from '../../lib/runner/constants'
+import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, REALM_TIME, SHIELD_TIME, SHOT_COOLDOWN, comboTime, multiplierFor, reviveCost } from '../../lib/runner/constants'
 import { act, createRun, goToLane, revive, scoreOf, shoot, shotReady, type ActiveQuiz, type Lane, type Realm, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
-import { playChime, playRunnerClear, playRunnerHit, playRunnerJump, playRunnerAwaken, playRunnerLaunch, playRunnerPower, playRunnerShot, playRunnerSlide, playRunnerSmash, playRunnerStar, playRunnerStumble, playRunnerTunnel, playRunnerWrong } from '../../lib/sfx'
+import { playBossCast, playBossCounter, playBossDeath, playBossHit, playBossRoar, playBossVictory, playComboMiss, playComboStep, playChime, playRunnerClear, playRunnerHit, playRunnerJump, playRunnerAwaken, playRunnerLaunch, playRunnerPower, playRunnerShot, playRunnerSlide, playRunnerSmash, playRunnerStar, playRunnerStumble, playRunnerTunnel, playRunnerWrong } from '../../lib/sfx'
 import type { RunnerAssets } from './assets'
 import type { HeroLookId } from './looks'
 import { IntroClock } from './intro'
@@ -14,6 +14,7 @@ import { QuizDeck } from './quizDeck'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { RunnerScene } from './RunnerScene'
 import { ShotAim } from './shots'
+import { BossHud, BossVictory, type BossView } from './BossHud'
 
 export interface RunnerOutcome {
   distance: number
@@ -116,6 +117,12 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   /** Transition de monde (tremplin, tunnel, retour) et carte de titre du royaume. */
   const [passage, setPassage] = useState<{ kind: 'launch' | 'tunnel' | 'exit'; key: number } | null>(null)
   const [arrival, setArrival] = useState<{ realm: Exclude<Realm, 'earth'>; key: number } | null>(null)
+  /** Combat de boss : ce que montre le HUD (relu à chaque changement), le minuteur du combo, la victoire. */
+  const [bossView, setBossView] = useState<BossView | null>(null)
+  const [victory, setVictory] = useState<{ index: number; key: number } | null>(null)
+  const bossKey = useRef('')
+  const bossMisses = useRef(0)
+  const comboTimerRef = useRef<HTMLDivElement>(null)
   const shotRef = useRef<HTMLButtonElement>(null)
   const shotRingRef = useRef<SVGCircleElement>(null)
   const quizCardsRef = useRef<HTMLDivElement>(null)
@@ -403,9 +410,17 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         const ready = charge >= 1 ? 'true' : 'false'
         if (shot.dataset.ready !== ready) shot.dataset.ready = ready
         shotRingRef.current?.setAttribute('stroke-dashoffset', String(RING * (1 - charge)))
-        const hidden = run.quiz !== null ? 'hidden' : 'visible'
+        const hidden = run.quiz !== null || run.boss !== null ? 'hidden' : 'visible'
         if (shot.style.visibility !== hidden) shot.style.visibility = hidden
       }
+      // Boss : le HUD se relit quand le combat change ; le minuteur du combo file à chaque image.
+      const boss = run.boss
+      const key = boss ? `${boss.index}|${boss.phase}|${boss.round}|${boss.progress}|${boss.counters}|${boss.hp}|${bossMisses.current}` : ''
+      if (key !== bossKey.current) {
+        bossKey.current = key
+        setBossView(boss ? { index: boss.index, phase: boss.phase, hp: boss.hp, round: boss.round, combo: [...boss.combo], progress: boss.progress, misses: bossMisses.current, counters: boss.counters } : null)
+      }
+      if (boss?.phase === 'combo' && comboTimerRef.current) comboTimerRef.current.style.transform = `scaleX(${Math.max(0, boss.deadline - run.t) / comboTime(boss.combo.length)})`
       if (run.quiz) {
         if (quizBarRef.current) quizBarRef.current.style.transform = `scaleX(${Math.max(0, run.quiz.deadline - run.t) / QUIZ_TIME})`
         if (quizSecondsRef.current) quizSecondsRef.current.textContent = String(Math.ceil(Math.max(0, run.quiz.deadline - run.t)))
@@ -503,6 +518,40 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
             } else end(run)
             break
           }
+          case 'boss':
+            playBossRoar()
+            vibrate([60, 40, 120])
+            setVictory(null)
+            break
+          case 'comboStep':
+            playComboStep(run.boss?.progress ?? 1)
+            vibrate(8)
+            break
+          case 'comboMiss':
+            bossMisses.current += 1
+            playComboMiss()
+            vibrate([30, 20, 30])
+            break
+          case 'bossCast':
+            playBossCast(run.boss?.round ?? 0)
+            vibrate([15, 30, 15])
+            break
+          case 'bossHit':
+            playBossHit()
+            vibrate([40, 30, 80])
+            break
+          case 'bossCounter':
+            playBossCounter()
+            vibrate([80, 40, 80])
+            break
+          case 'bossDown':
+            playBossDeath()
+            vibrate([30, 40, 30, 40, 200])
+            break
+          case 'bossDefeated':
+            playBossVictory()
+            setVictory({ index: run.bossesBeaten - 1, key: Date.now() })
+            break
           case 'revive':
             playRunnerPower()
             vibrate([20, 40, 20])
@@ -744,6 +793,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         </svg>
         <Crosshair size={26} className="runner-shot-icon relative" aria-hidden />
       </button>
+
+      {/* Combat de boss. */}
+      {bossView && <BossHud view={bossView} timerRef={comboTimerRef} />}
+      {victory && <BossVictory key={victory.key} index={victory.index} />}
 
       {/* Boutons à l'écran (au choix, sur l'accueil du Runner). */}
       {buttons && (

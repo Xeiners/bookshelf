@@ -376,6 +376,26 @@
 }
 
 /* Manga Runner 3D : éclair du choc, chiffres du compte à rebours. */
+/* Combat de boss : le panneau du combo tremble quand un geste est faux. */
+@keyframes runner-combo-miss {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  20% {
+    translate: -10px 0;
+  }
+  40% {
+    translate: 9px 0;
+  }
+  60% {
+    translate: -6px 0;
+  }
+  80% {
+    translate: 4px 0;
+  }
+}
+
 @keyframes runner-hit {
   from {
     opacity: 1;

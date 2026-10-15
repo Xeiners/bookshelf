@@ -14,6 +14,7 @@ import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './part
 import { SmashPart } from './smash'
 import { ShotPart, type ShotAim } from './shots'
 import { PortalsPart, RealmObstacles, RealmScenery } from './realms'
+import { BossPart } from './boss'
 
 /*
  * La scène du Manga Runner. Une seule boucle (`useFrame`, priorité −1) fait avancer la
@@ -70,6 +71,7 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       <Part state={state} make={() => new MonstersPart(assets)} />
       <Part state={state} make={() => new PickupsPart()} />
       <Part state={state} make={() => new SmashPart()} />
+      <Part state={state} make={() => new BossPart(assets)} />
       <Part state={state} make={() => new ShotPart(aim)} />
       <Aim aim={aim} />
       <Part state={state} make={() => createHero(look, assets, false, outfit)!} />
