@@ -7,7 +7,7 @@ import type { ScenePart } from './parts'
 import { glowTexture } from './realms'
 
 /*
- * Les boss du Manga Runner : des squelettes géants (trois fois la taille des monstres), chacun
+ * Les boss du Manga Runner : des squelettes géants (quatre fois la taille des monstres), chacun
  * avec son allure — Gashadokuro (os blancs, yeux rouges, cornes noires, flammes violettes),
  * le Roi Liche (spectre bleu, couronne d'or, cercle de runes), l'Oni des cendres (rouge braise,
  * cornes d'ivoire, flammes orange). Il surgit du sol, nous provoque, encaisse nos trois
@@ -15,11 +15,11 @@ import { glowTexture } from './realms'
  * (onde de choc au sol), et à la fin s'effondre et explose en lumière.
  */
 
-/** Taille du boss par rapport à un monstre (2,5 m) : 7,5 m. */
-const SCALE = 3
+/** Taille du boss par rapport à un monstre (2,5 m) : 10 m, il domine la route. */
+const SCALE = 4
 const MONSTER_HEIGHT = 2.5
 /** Poitrine du boss (impact des attaques), dans le repère de la scène. */
-const CHEST = new THREE.Vector3(0, 4.4, -BOSS_DISTANCE + 0.8)
+const CHEST = new THREE.Vector3(0, 1.45 * SCALE, -BOSS_DISTANCE + 1)
 
 interface BossLook {
   model: SkeletonModel
