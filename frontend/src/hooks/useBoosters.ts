@@ -85,7 +85,7 @@ export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
     ready: status !== null,
     available: status?.available ?? 0,
     gifted: status?.gifted ?? 0,
-    max: status?.max ?? 2,
+    max: status?.max ?? 3,
     remaining,
     progress: refillProgress(remaining, status?.intervalSeconds ?? 0),
     offline,

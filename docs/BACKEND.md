@@ -906,7 +906,7 @@ voisine. Doublons entre boosters : `count` augmente.
 **Ouverture atomique** : dépense et cartes dans une même transaction ; la
 dépense n'aboutit que si `(availableBoosters, nextBoosterAt)` n'a pas changé
 depuis la lecture (verrou optimiste : ce couple change à chaque consommation).
-Quatre ouvertures simultanées avec 2 boosters → 2 réussites, 2 × 409.
+Cinq ouvertures simultanées avec 3 boosters → 3 réussites, 2 × 409.
 
 **Set de cartes** : une carte = une œuvre du catalogue MangaDex (couverture,
 titre anglais ; `characterName` vide). 300 cartes générées au premier besoin
@@ -937,7 +937,7 @@ avec un reçu signé HMAC (clé dérivée de `JWT_SECRET`) qui liste ses cartes.
 L'appareil garde ses reçus (`bookshelf:guest-cards:v1`) ; ils sont l'album de
 l'invité. À l'inscription (`POST /auth/register/verify`, champ `guestPacks`), les
 reçus valides et distincts (2 au plus) deviennent des cartes du compte, qui
-démarre avec sa réserve pleine (2 boosters) : 4 boosters en tout. La réponse
+démarre avec sa réserve pleine (3 boosters) : 5 boosters en tout. La réponse
 donne `guestCards` (cartes ajoutées). Seule l'inscription réclame les reçus :
 à la connexion, un compte existant pourrait sinon gagner 2 boosters à chaque
 reçu effacé. Limites assumées : effacer ses reçus redonne 2 essais (bornés par

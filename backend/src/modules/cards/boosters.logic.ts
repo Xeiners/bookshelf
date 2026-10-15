@@ -5,7 +5,7 @@
  */
 
 /** Stock maximal de boosters en attente. */
-export const MAX_BOOSTERS = 2
+export const MAX_BOOSTERS = 3
 /** Un booster se régénère toutes les 3 heures. */
 export const BOOSTER_INTERVAL_MS = 3 * 60 * 60 * 1000
 /** Cartes par booster : deux de base, une wildcard Rare+, une Épique+ garantie. */

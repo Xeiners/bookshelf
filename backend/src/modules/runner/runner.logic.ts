@@ -11,7 +11,7 @@ export const RUNNER_START_SPEED = 13
 export const RUNNER_ACCEL = 0.18
 export const RUNNER_MAX_SPEED = 30
 /** Poussières créditées par jour au plus (courses cumulées). */
-export const RUNNER_DAILY_CAP = 150
+export const RUNNER_DAILY_CAP = 1000
 /** Poussières de bonus par bonne réponse à un quiz. */
 export const QUIZ_REWARD = 10
 /** Points par bonne réponse à un quiz. */

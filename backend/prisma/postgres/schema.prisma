@@ -181,8 +181,8 @@ model CatalogWork {
 /// est calculée à la lecture à partir de `nextBoosterAt` : aucune tâche de fond.
 model UserBooster {
   userId            String    @id
-  /// Boosters prêts à ouvrir, 2 au plus.
-  availableBoosters Int       @default(2)
+  /// Boosters prêts à ouvrir, 3 au plus (`MAX_BOOSTERS`).
+  availableBoosters Int       @default(3)
   /// Boosters offerts par un administrateur : hors plafond, jamais perdus, ouverts après le stock normal.
   giftedBoosters    Int       @default(0)
   /// Boosters consécutifs sans Mythique ; le 30e force le dernier slot.

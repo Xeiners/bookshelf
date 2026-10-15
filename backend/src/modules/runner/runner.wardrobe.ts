@@ -81,7 +81,7 @@ export const WARDROBE: readonly WardrobeItem[] = [
 const BY_ID = new Map(WARDROBE.map((item) => [item.id, item]))
 export const wardrobeItem = (id: string): WardrobeItem | undefined => BY_ID.get(id)
 
-/** Prix d'une boîte (repères : le Runner rapporte 150 ✦ par jour au plus, un booster en coûte 340). */
+/** Prix d'une boîte (repères : le Runner rapporte 1000 ✦ par jour au plus, un booster en coûte 340). */
 export const BOX_PRICE = 450
 /** Délai entre deux boîtes gratuites. */
 export const FREE_BOX_MS = 24 * 60 * 60 * 1000

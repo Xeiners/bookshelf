@@ -49,7 +49,7 @@ const at = (ms: number) => new Date(T0.getTime() + ms)
 
 /* ---- Stock : régénération ------------------------------------------------------ */
 
-describe('boosters — régénération (1 toutes les 3 h, 2 au plus)', () => {
+describe('boosters — régénération (1 toutes les 3 h, 3 au plus)', () => {
   it('un compte neuf a un stock plein, sans compte à rebours', () => {
     const state = regenerate(initialState(), T0)
     assert.equal(state.available, MAX_BOOSTERS)
@@ -59,12 +59,15 @@ describe('boosters — régénération (1 toutes les 3 h, 2 au plus)', () => {
 
   it('ouvrir depuis un stock plein démarre le compte à rebours ; ouvrir encore ne le remet pas à zéro', () => {
     const first = consume(initialState(), T0)!
-    assert.equal(first.available, 1)
+    assert.equal(first.available, MAX_BOOSTERS - 1)
     assert.equal(first.nextBoosterAt?.getTime(), at(3 * HOUR).getTime())
-    const second = consume(first, at(HOUR))!
-    assert.equal(second.available, 0)
-    assert.equal(second.nextBoosterAt?.getTime(), at(3 * HOUR).getTime(), 'échéance inchangée')
-    assert.equal(consume(second, at(2 * HOUR)), null, 'stock vide')
+    let state = first
+    for (let opened = 1; opened < MAX_BOOSTERS; opened += 1) {
+      state = consume(state, at(opened * 20 * 60 * 1000))!
+      assert.equal(state.nextBoosterAt?.getTime(), at(3 * HOUR).getTime(), 'échéance inchangée')
+    }
+    assert.equal(state.available, 0)
+    assert.equal(consume(state, at(2 * HOUR)), null, 'stock vide')
   })
 
   it('chaque échéance passée ajoute un booster ; le retard n’est pas perdu', () => {
@@ -282,7 +285,7 @@ describe('API — collection pas encore prête', () => {
     const opened = await account.request('POST', '/boosters/open')
     assert.equal(opened.status, 503)
     assert.equal(opened.body.error.code, 'collection_not_ready')
-    assert.equal((await account.request('GET', '/boosters/status')).body.available, 2)
+    assert.equal((await account.request('GET', '/boosters/status')).body.available, MAX_BOOSTERS)
   })
 })
 
@@ -374,7 +377,7 @@ describe('API — boosters et collection', () => {
     assert.equal(readGuestPack(''), null)
   })
 
-  it('inscription : les cartes d’essai rejoignent le compte, qui démarre avec 2 boosters', async () => {
+  it('inscription : les cartes d’essai rejoignent le compte, qui démarre avec sa réserve pleine', async () => {
     const guest = client()
     const first = await guest.request('POST', '/boosters/guest/open', { receipts: [] })
     const second = await guest.request('POST', '/boosters/guest/open', { receipts: [first.body.receipt] })
@@ -384,16 +387,17 @@ describe('API — boosters et collection', () => {
     const created = await guest.signUp({ email: `guest-${Date.now()}@example.com`, password: 'motdepasse-test', guestPacks: receipts })
     assert.equal(created.status, 201)
     assert.equal(created.body.guestCards, 2 * CARDS_PER_PACK)
-    assert.equal((await guest.request('GET', '/boosters/status')).body.available, 2)
+    assert.equal((await guest.request('GET', '/boosters/status')).body.available, MAX_BOOSTERS)
     const collection = (await guest.request('GET', '/cards/collection')).body
     const counts = (album: { cards: { id: string; count: number }[] }) => album.cards.filter((card) => card.count > 0).map((card) => `${card.id}×${card.count}`)
     assert.deepEqual(counts(collection), counts(expected))
   })
 
-  it('stock initial : 2/2, pas de minuteur, horloge du serveur jointe', async () => {
+  it('stock initial : 3/3, pas de minuteur, horloge du serveur jointe', async () => {
     const { body } = await (await signedUp()).request('GET', '/boosters/status')
-    assert.equal(body.available, 2)
-    assert.equal(body.max, 2)
+    assert.equal(MAX_BOOSTERS, 3)
+    assert.equal(body.available, MAX_BOOSTERS)
+    assert.equal(body.max, MAX_BOOSTERS)
     assert.equal(body.secondsUntilNext, null)
     assert.equal(body.intervalSeconds, 3 * 3600)
     assert.ok(Math.abs(Date.parse(body.serverTime) - Date.now()) < 5000)
@@ -409,10 +413,10 @@ describe('API — boosters et collection', () => {
       assert.match(pulled.card.imageUrl, /^\/api\/covers\//)
       assert.ok(pulled.count >= 1)
     }
-    assert.equal(first.body.status.available, 1)
+    assert.equal(first.body.status.available, MAX_BOOSTERS - 1)
     assert.ok(first.body.status.secondsUntilNext > 3 * 3600 - 10)
 
-    assert.equal((await account.request('POST', '/boosters/open')).status, 200)
+    for (let opened = 1; opened < MAX_BOOSTERS; opened += 1) assert.equal((await account.request('POST', '/boosters/open')).status, 200)
     const empty = await account.request('POST', '/boosters/open')
     assert.equal(empty.status, 409)
     assert.equal(empty.body.error.code, 'no_booster')
@@ -422,17 +426,17 @@ describe('API — boosters et collection', () => {
     assert.equal(collection.total, TOTAL_CARD_COUNT)
     const owned = collection.cards.filter((card: { owned: boolean }) => card.owned)
     assert.equal(collection.owned, owned.length)
-    // 10 cartes tirées : leurs exemplaires (doublons compris) font 10.
-    assert.equal(owned.reduce((sum: number, card: { count: number }) => sum + card.count, 0), 2 * CARDS_PER_PACK)
+    // Toutes les cartes tirées : leurs exemplaires (doublons compris) en font autant.
+    assert.equal(owned.reduce((sum: number, card: { count: number }) => sum + card.count, 0), MAX_BOOSTERS * CARDS_PER_PACK)
     assert.ok(collection.cards.filter((card: { owned: boolean }) => !card.owned).every((card: { count: number }) => card.count === 0))
     assert.equal(collection.byRarity.MYTHIC.total, SET_LAYOUT.MYTHIC * 2)
   })
 
   it('ouvertures simultanées : jamais plus de boosters dépensés que le stock', async () => {
     const account = await signedUp()
-    const results = await Promise.all(Array.from({ length: 4 }, () => account.request('POST', '/boosters/open')))
+    const results = await Promise.all(Array.from({ length: MAX_BOOSTERS + 2 }, () => account.request('POST', '/boosters/open')))
     const statuses = results.map((result) => result.status).sort()
-    assert.deepEqual(statuses.filter((status) => status === 200).length, 2, statuses.join(','))
+    assert.deepEqual(statuses.filter((status) => status === 200).length, MAX_BOOSTERS, statuses.join(','))
     assert.equal((await account.request('GET', '/boosters/status')).body.available, 0)
   })
 
@@ -454,8 +458,7 @@ describe('API — boosters et collection', () => {
   it('le temps du serveur fait foi : 3 h plus tard, un booster est revenu', async () => {
     const account = await signedUp()
     const { openBooster, boosterStatus } = await import('../src/modules/cards/cards.service.js')
-    await openBooster(account.userId, { now: T0 })
-    await openBooster(account.userId, { now: at(10 * 60 * 1000) })
+    for (let opened = 0; opened < MAX_BOOSTERS; opened += 1) await openBooster(account.userId, { now: at(opened * 10 * 60 * 1000) })
     assert.equal((await boosterStatus(account.userId, at(2 * HOUR))).available, 0)
     const later = await boosterStatus(account.userId, at(3 * HOUR))
     assert.equal(later.available, 1)
@@ -493,7 +496,7 @@ describe('API — boosters et collection', () => {
     }
     // Rien n'a été dépensé : le compte garde son stock plein, hors recette aussi.
     assert.equal(await prisma.userBooster.count({ where: { userId: account.userId } }), 0)
-    assert.equal((await boosterStatus(account.userId, new Date(), false)).available, 2)
+    assert.equal((await boosterStatus(account.userId, new Date(), false)).available, MAX_BOOSTERS)
     const copies = await prisma.userCard.aggregate({ where: { userId: account.userId }, _sum: { count: true } })
     assert.equal(copies._sum.count, 6 * CARDS_PER_PACK)
   })

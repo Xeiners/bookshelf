@@ -42,7 +42,7 @@ describe('Manga Runner — règles', () => {
     assert.equal(logic.multiplierFor(40), 1.2)
     assert.equal(logic.scoreFor(1000, 40, 1), 1200 + logic.QUIZ_POINTS)
     assert.equal(logic.cappedReward(30, 1, 0), 30 + logic.QUIZ_REWARD)
-    assert.equal(logic.cappedReward(500, 0, 0), logic.RUNNER_DAILY_CAP)
+    assert.equal(logic.cappedReward(5000, 0, 0), logic.RUNNER_DAILY_CAP)
     assert.equal(logic.cappedReward(30, 0, logic.RUNNER_DAILY_CAP - 5), 5)
   })
 })
