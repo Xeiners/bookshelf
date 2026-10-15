@@ -40,7 +40,7 @@ const repeating = (texture: THREE.Texture, x: number, y: number) => {
 
 /** Lumière et brume de chaque royaume (cf. `EnvironmentPart`). */
 export const REALM_ATMOSPHERE: Record<Elsewhere, { horizon: string; fogNear: number; fogFar: number; hemiSky: string; hemiGround: string; hemi: number; sun: string; sunPower: number; sunDirection: [number, number, number] }> = {
-  sky: { horizon: '#cdeeff', fogNear: 70, fogFar: 330, hemiSky: '#ffffff', hemiGround: '#bcd7ff', hemi: 1.35, sun: '#fff1cf', sunPower: 1.5, sunDirection: [0.4, 0.8, -0.45] },
+  sky: { horizon: '#bfe6ff', fogNear: 90, fogFar: 360, hemiSky: '#ffffff', hemiGround: '#bcd7ff', hemi: 1.35, sun: '#fff1cf', sunPower: 1.5, sunDirection: [0.4, 0.8, -0.45] },
   under: { horizon: '#160c28', fogNear: 6, fogFar: 105, hemiSky: '#9b8cff', hemiGround: '#24123c', hemi: 1.05, sun: '#7fe8ff', sunPower: 0.55, sunDirection: [-0.3, 0.9, 0.3] },
 }
 
@@ -163,17 +163,17 @@ function plaqueTexture(): THREE.CanvasTexture {
 function skyDome(): THREE.Mesh {
   const geometry = new THREE.SphereGeometry(420, 32, 16)
   const colors: number[] = []
-  const zenith = new THREE.Color('#3d97ff')
-  const horizon = new THREE.Color('#e6f6ff')
+  const zenith = new THREE.Color('#1f78f0')
+  const horizon = new THREE.Color('#bfe6ff')
   const color = new THREE.Color()
   const position = geometry.attributes.position!
   for (let index = 0; index < position.count; index += 1) {
     const height = Math.max(0, position.getY(index) / 420)
-    color.copy(horizon).lerp(zenith, Math.pow(height, 0.55))
+    color.copy(horizon).lerp(zenith, Math.pow(height, 0.4))
     colors.push(color.r, color.g, color.b)
   }
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
-  const dome = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }))
+  const dome = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false, toneMapped: false }))
   dome.renderOrder = -10
   dome.frustumCulled = false
   return dome
@@ -235,8 +235,8 @@ export class RealmScenery implements ScenePart {
     this.sky.add(skyDome())
     const glow = glowTexture()
     const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#fff4c2', transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }))
-    sun.position.set(90, 140, -330)
-    sun.scale.setScalar(150)
+    sun.position.set(110, 120, -340)
+    sun.scale.setScalar(80)
     this.sky.add(sun)
     const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshLambertMaterial({ map: this.seaTexture, emissive: '#dff1ff', emissiveIntensity: 0.35 }))
     sea.rotation.x = -Math.PI / 2
