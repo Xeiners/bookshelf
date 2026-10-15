@@ -240,7 +240,8 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
         <nav data-wardrobe-in className="flex shrink-0 gap-1.5 rounded-full border border-white/10 bg-white/[0.04] p-1" aria-label={t.runner.wardrobe.title}>
           {WARDROBE_SLOTS.map((name) => {
             const active = slot === name
-            const have = WARDROBE_ITEMS.filter((id) => ITEM_INFO[id].slot === name && owned[id]).length
+            const all = WARDROBE_ITEMS.filter((id) => ITEM_INFO[id].slot === name)
+            const have = all.filter((id) => owned[id]).length
             return (
               <button
                 key={name}
@@ -251,7 +252,7 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
                 className={`relative flex h-11 flex-1 flex-col items-center justify-center rounded-full transition-colors ${active ? 'bg-[#ff6fb5]/25 text-cream' : 'text-cream/55'}`}
               >
                 {SLOT_ICONS[name]}
-                <span className="text-[9px] font-bold tabular-nums">{have}/5</span>
+                <span className="text-[9px] font-bold tabular-nums">{have}/{all.length}</span>
               </button>
             )
           })}

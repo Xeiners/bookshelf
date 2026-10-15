@@ -72,17 +72,18 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
 }
 
 /**
- * Résolution : un budget de pixels plutôt qu'un rapport fixe. Un téléphone (≈ 0,3 Mpx CSS)
- * dessine net, en 1,5 ; un écran d'ordinateur (≈ 2 Mpx CSS) descend sous 1 : sinon la
+ * Résolution : un budget de pixels plutôt qu'un rapport fixe. Un téléphone (≈ 0,35 Mpx CSS)
+ * dessine net, jusqu'à 1,75 ; un écran d'ordinateur (≈ 2 Mpx CSS) descend sous 1 : sinon la
  * carte graphique y calcule six fois plus de pixels pour la même image.
  */
 const PIXEL_BUDGET = 1_300_000
 const LITE_PIXEL_BUDGET = 550_000
-const MIN_DPR = 0.5
+/** Plancher : un petit écran ne descend jamais sous 1 (en dessous, tout devient flou). */
+const floorDpr = () => (window.innerWidth * window.innerHeight < 700_000 ? 1 : 0.6)
 function budgetDpr(lite: boolean): number {
   const area = Math.max(1, window.innerWidth * window.innerHeight)
-  const cap = Math.min(window.devicePixelRatio || 1, lite ? 1.1 : 1.5)
-  return Math.max(MIN_DPR, Math.min(cap, Math.sqrt((lite ? LITE_PIXEL_BUDGET : PIXEL_BUDGET) / area)))
+  const cap = Math.min(window.devicePixelRatio || 1, lite ? 1.15 : 1.75)
+  return Math.max(Math.min(cap, floorDpr()), Math.min(cap, Math.sqrt((lite ? LITE_PIXEL_BUDGET : PIXEL_BUDGET) / area)))
 }
 
 /**
@@ -110,28 +111,73 @@ function Warmup() {
 }
 
 /**
- * Résolution adaptative : si les images tardent (moins de ~45 par seconde en moyenne sur
- * une seconde), on baisse la définition par paliers, jusqu'à un plancher. La fluidité d'abord.
+ * Résolution adaptative. On mesure la cadence réelle de l'écran (60, 90, 120 Hz… ou 30 en
+ * économie d'énergie) et l'on ne baisse la définition que si la course tient durablement
+ * moins de 80 % de cette cadence — jamais pendant le chargement ni la cinématique. Si la
+ * cadence revient, la définition remonte. Plancher : 1 sur un petit écran.
  */
 function AdaptiveResolution({ start }: { start: number }) {
   const setDpr = useThree((three) => three.setDpr)
-  const sample = useRef({ time: 0, frames: 0, dpr: start })
+  const [tuner] = useState(() => new ResolutionTuner(start, floorDpr()))
   useFrame((_, delta) => {
-    const current = sample.current
-    // On ignore les pauses et les retours au premier plan (une image très longue).
-    if (delta > 0.25) return
-    current.time += delta
-    current.frames += 1
-    if (current.time < 1) return
-    const fps = current.frames / current.time
-    current.time = 0
-    current.frames = 0
-    if (fps < 45 && current.dpr > MIN_DPR) {
-      current.dpr = Math.max(MIN_DPR, current.dpr * 0.85)
-      setDpr(current.dpr)
-    }
+    const next = tuner.sample(delta)
+    if (next !== null) setDpr(next)
   })
   return null
+}
+
+class ResolutionTuner {
+  private time = 0
+  private frames = 0
+  private age = 0
+  private peak = 0
+  private slow = 0
+  private fast = 0
+  private dpr: number
+  private readonly start: number
+  private readonly floor: number
+
+  constructor(start: number, floor: number) {
+    this.dpr = start
+    this.start = start
+    this.floor = Math.min(start, floor)
+  }
+
+  /** Une image de plus ; renvoie la nouvelle résolution s'il faut en changer. */
+  sample(delta: number): number | null {
+    // Pauses, retours au premier plan, compilation : une image très longue ne compte pas.
+    if (delta > 0.25) return null
+    this.age += delta
+    this.time += delta
+    this.frames += 1
+    if (this.time < 1) return null
+    const fps = this.frames / this.time
+    this.time = 0
+    this.frames = 0
+    this.peak = Math.max(this.peak, Math.min(fps, 125))
+    // Les premières secondes (chargement, cinématique) ne servent qu'à mesurer l'écran.
+    if (this.age < 6) return null
+    const target = Math.min(this.peak, 60) * 0.8
+    if (fps < target) {
+      this.fast = 0
+      if (++this.slow >= 2 && this.dpr > this.floor) {
+        this.slow = 0
+        this.dpr = Math.max(this.floor, this.dpr * 0.88)
+        return this.dpr
+      }
+    } else if (fps >= Math.min(this.peak, 60) * 0.95) {
+      this.slow = 0
+      if (++this.fast >= 4 && this.dpr < this.start) {
+        this.fast = 0
+        this.dpr = Math.min(this.start, this.dpr * 1.1)
+        return this.dpr
+      }
+    } else {
+      this.slow = 0
+      this.fast = 0
+    }
+    return null
+  }
 }
 
 const SLOW_TIME = 0.75

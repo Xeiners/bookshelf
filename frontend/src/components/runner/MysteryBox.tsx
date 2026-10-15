@@ -13,7 +13,8 @@ import { playBoxBurst, playBoxDrop, playBoxKnock, playRiser } from '../../lib/sf
 import { runnerApi, type BoxOpening } from '../../services/runnerApi'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
-import type { RunnerAssets } from './assets'
+import { loadRunnerAssets, type RunnerAssets } from './assets'
+import { itemIcon, loadItemIcons } from './wardrobeIcons'
 import { HeroModelPart, createHero } from './heroModel'
 import { BoxTimeline, MysteryBoxScene } from './mysteryBox'
 
@@ -43,7 +44,20 @@ function teaseColor(stage: number, rarity: number): string {
 /** Où regarder la nouvelle pièce sur le coureur (hauteur, distance). */
 const FOCUS: Record<string, [number, number]> = { hat: [1.62, 2.6], top: [1.2, 3.0], accessory: [1.1, 3.2], bottom: [0.72, 3.0], shoes: [0.3, 2.5] }
 
-export function MysteryBox({ free, request, assets, onClose, onAgain }: { free: boolean; request: number; assets: RunnerAssets; onClose: () => void; onAgain: (free: boolean) => void }) {
+export function MysteryBox({
+  free,
+  request,
+  assets: given,
+  onClose,
+  onAgain,
+}: {
+  free: boolean
+  request: number
+  /** Modèles du Runner ; `null` (ouverture depuis les activités) : chargés ici, pendant que la boîte tombe. */
+  assets: RunnerAssets | null
+  onClose: () => void
+  onAgain: (free: boolean) => void
+}) {
   const t = useT()
   const receive = useRunnerWardrobe((state) => state.receive)
   const equip = useRunnerWardrobe((state) => state.equip)
@@ -57,6 +71,19 @@ export function MysteryBox({ free, request, assets, onClose, onAgain }: { free: 
   // Le temps de la boîte, partagé avec la scène 3D (lu à chaque image).
   const [timeline] = useState(() => new BoxTimeline())
   const rootRef = useRef<HTMLDivElement>(null)
+  const [loaded, setLoaded] = useState<RunnerAssets | null>(null)
+  const assets = given ?? loaded
+  useEffect(() => {
+    if (given) return
+    let alive = true
+    loadRunnerAssets()
+      .then((ready) => alive && setLoaded(ready))
+      .catch(() => undefined)
+    void loadItemIcons()
+    return () => {
+      alive = false
+    }
+  }, [given])
 
   const rarity = result ? RARITIES.indexOf(result.item.rarity) : 0
   const item = result && isWardrobeItem(result.item.id) ? result.item.id : null
@@ -163,7 +190,7 @@ export function MysteryBox({ free, request, assets, onClose, onAgain }: { free: 
         <hemisphereLight args={['#fff1f6', '#7d5aa8', 1.6]} />
         <directionalLight position={[3, 5, 6]} intensity={1.8} color="#ffe6cc" />
         <BoxStage timeline={timeline} />
-        {phase === 'reveal' && <RevealHero assets={assets} outfit={revealOutfit} />}
+        {phase === 'reveal' && assets && <RevealHero assets={assets} outfit={revealOutfit} />}
         <CameraRig timeline={timeline} phase={phase} focus={item ? (FOCUS[ITEM_INFO[item].slot] ?? FOCUS.top!) : FOCUS.top!} />
       </Canvas>
 
@@ -227,6 +254,7 @@ export function MysteryBox({ free, request, assets, onClose, onAgain }: { free: 
             >
               {result.duplicate ? t.runner.wardrobe.box.duplicate(result.refund) : t.runner.wardrobe.box.isNew}
             </span>
+            {!assets && itemIcon(item) && <img src={itemIcon(item)} alt="" className="mx-auto -mt-2 mb-1 size-28 object-contain" />}
             <p className="font-display text-3xl leading-tight text-cream">{t.runner.wardrobe.items[item]}</p>
             <p className="mt-1 text-xs tracking-[0.18em] text-cream/55 uppercase">
               {ITEM_INFO[item].anime} · {t.runner.wardrobe.slots[ITEM_INFO[item].slot]}

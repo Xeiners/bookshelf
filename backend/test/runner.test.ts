@@ -119,12 +119,12 @@ describe('Manga Runner — API', () => {
 })
 
 describe('Manga Runner — garde-robe', () => {
-  it('25 pièces : cinq par emplacement, une légendaire, une épique, une rare, deux communes', () => {
-    assert.equal(wardrobe.WARDROBE.length, 25)
-    assert.equal(new Set(wardrobe.WARDROBE.map((item) => item.id)).size, 25)
+  it('50 pièces : dix par emplacement, deux légendaires, deux épiques, deux rares, quatre communes', () => {
+    assert.equal(wardrobe.WARDROBE.length, 50)
+    assert.equal(new Set(wardrobe.WARDROBE.map((item) => item.id)).size, 50)
     for (const slot of wardrobe.WARDROBE_SLOTS) {
       const items = wardrobe.WARDROBE.filter((item) => item.slot === slot)
-      assert.deepEqual(items.map((item) => item.rarity).sort(), ['common', 'common', 'epic', 'legendary', 'rare'])
+      assert.deepEqual(items.map((item) => item.rarity).sort(), ['common', 'common', 'common', 'common', 'epic', 'epic', 'legendary', 'legendary', 'rare', 'rare'])
     }
     assert.equal(Object.values(wardrobe.RARITY_WEIGHTS).reduce((sum, weight) => sum + weight, 0), 100)
   })
@@ -153,7 +153,7 @@ describe('Manga Runner — garde-robe', () => {
     const dressing = await account('Dressing', 'dressing-runner@example.com')
     const empty = await dressing.request('GET', '/runner/wardrobe')
     assert.equal(empty.status, 200, JSON.stringify(empty.body))
-    assert.equal(empty.body.items.length, 25)
+    assert.equal(empty.body.items.length, 50)
     assert.deepEqual([empty.body.owned, empty.body.outfit, empty.body.freeAt, empty.body.price], [{}, {}, null, wardrobe.BOX_PRICE])
 
     const free = await dressing.request('POST', '/runner/boxes', { free: true })

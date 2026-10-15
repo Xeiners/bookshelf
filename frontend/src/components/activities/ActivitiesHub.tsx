@@ -24,6 +24,7 @@ import { Bomb } from '../bomb/Bomb'
 import { BOMB_GRADIENT } from '../../lib/bomb'
 import { StardustBadge } from '../dle/StardustBadge'
 import { EnergyRing } from './EnergyRing'
+import { ShopBanners } from './ShopBanners'
 import { inkText } from '../../lib/ink'
 
 /** Texte néon : lueur de la couleur donnée. */
@@ -102,6 +103,8 @@ export function ActivitiesHub() {
       </div>
 
       <BoosterAltar />
+      {/* La boutique : un booster ou une boîte mystère, achetés d'ici. */}
+      <ShopBanners boxes={isAdmin} />
       <div className="grid shrink-0 gap-5 md:grid-cols-2">
         <OracleArtefact />
         <CollectionArtefact />
