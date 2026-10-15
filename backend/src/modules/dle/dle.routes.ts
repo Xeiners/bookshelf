@@ -5,7 +5,7 @@ import { HttpError, notFound } from '../../lib/errors.js'
 import { currentUserId, optionalAuth, requireAuth } from '../../middleware/auth.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
 import type { CachedImage } from '../manga/manga.routes.js'
-import { BOOSTER_PRICE } from '../stardust/stardust.service.js'
+import { priceOf } from '../promotions/promotions.service.js'
 import { SWEEP_BATCH, dailySolved, dailyView, dleOverview, emptyOverview, guessDaily, puzzleEntity, puzzleSeed, revealDaily } from './dle.daily.js'
 import { characterOf, gameOf } from './dle.games.js'
 import { currentPlayer, issueGuest, readGuest, requirePlayer } from './dle.guests.js'
@@ -61,11 +61,11 @@ const roomLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' 
 dleRouter.get('/', optionalAuth, async (req, res) => {
   res.set('Cache-Control', 'no-store')
   if (req.userId) {
-    res.json({ ...(await dleOverview(req.userId, BOOSTER_PRICE)), currentRoom: currentRoomOf(req.userId), guest: null })
+    res.json({ ...(await dleOverview(req.userId, await priceOf('booster'))), currentRoom: currentRoomOf(req.userId), guest: null })
     return
   }
   const guest = readGuest(req)
-  res.json({ ...emptyOverview(BOOSTER_PRICE), currentRoom: guest ? currentRoomOf(guest.id) : null, guest })
+  res.json({ ...emptyOverview(await priceOf('booster')), currentRoom: guest ? currentRoomOf(guest.id) : null, guest })
 })
 
 const guestLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: config.env === 'test' ? 1000 : 30 })

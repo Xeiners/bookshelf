@@ -3,6 +3,8 @@ import type { Prisma } from '../../generated/prisma/client.js'
 import { HttpError } from '../../lib/errors.js'
 import { boosterStatus, type BoosterStatus } from '../cards/cards.service.js'
 import { GUEST_CLAIM_CAP, readReceipt } from '../dle/dle.guests.js'
+import { priceOf } from '../promotions/promotions.service.js'
+import { BOOSTER_PRICE } from './prices.js'
 
 /*
  * Poussières d'Étoile : la monnaie du BookshelfDLE. Gagnées en résolvant les
@@ -10,8 +12,7 @@ import { GUEST_CLAIM_CAP, readReceipt } from '../dle/dle.guests.js'
  * jamais négatif) ; chaque mouvement est inscrit dans `StardustEntry`.
  */
 
-/** Prix d'un booster. Repère : une énigme du jour bien menée en rapporte ~60. */
-export const BOOSTER_PRICE = 340
+export { BOOSTER_PRICE }
 
 export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'runner_revive' | 'runner_box' | 'runner_gift' | 'runner_refund' | 'booster_purchase' | 'guest_claim'
 
@@ -47,19 +48,23 @@ const parseData = (json: string): Record<string, unknown> => {
 
 export interface StardustWallet {
   balance: number
+  /** Prix du moment (promotion comprise), et prix habituel. */
   boosterPrice: number
+  boosterRegular: number
   /** Derniers mouvements, du plus récent au plus ancien. */
   history: StardustEntryDto[]
 }
 
 export async function walletOf(userId: string): Promise<StardustWallet> {
-  const [user, entries] = await Promise.all([
+  const [user, entries, price] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { stardust: true } }),
     prisma.stardustEntry.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 }),
+    priceOf('booster'),
   ])
   return {
     balance: user?.stardust ?? 0,
-    boosterPrice: BOOSTER_PRICE,
+    boosterPrice: price,
+    boosterRegular: BOOSTER_PRICE,
     history: entries.map((entry) => ({
       id: entry.id,
       amount: entry.amount,
@@ -71,30 +76,31 @@ export async function walletOf(userId: string): Promise<StardustWallet> {
 }
 
 /**
- * Achète un booster : `BOOSTER_PRICE` Poussières contre un booster de réserve (hors
+ * Achète un booster : son prix du moment (promotion comprise) contre un booster de réserve (hors
  * plafond, jamais perdu, comme un booster offert). Atomique : le débit n'aboutit que si
  * le solde suffit au moment de l'écriture — deux achats simultanés ne dépensent jamais
  * deux fois les mêmes Poussières. 409 `not_enough_stardust` sinon.
  */
-export async function buyBooster(userId: string): Promise<{ balance: number; status: BoosterStatus }> {
+export async function buyBooster(userId: string): Promise<{ balance: number; status: BoosterStatus; price: number }> {
+  const price = await priceOf('booster')
   const balance = await prisma.$transaction(async (tx) => {
     const { count } = await tx.user.updateMany({
-      where: { id: userId, stardust: { gte: BOOSTER_PRICE } },
-      data: { stardust: { decrement: BOOSTER_PRICE } },
+      where: { id: userId, stardust: { gte: price } },
+      data: { stardust: { decrement: price } },
     })
     if (count === 0) {
       const user = await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } })
       throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', {
         balance: user?.stardust ?? 0,
-        price: BOOSTER_PRICE,
+        price,
       })
     }
     await tx.userBooster.upsert({ where: { userId }, create: { userId, giftedBoosters: 1 }, update: { giftedBoosters: { increment: 1 } } })
-    await tx.stardustEntry.create({ data: { userId, amount: -BOOSTER_PRICE, reason: 'booster_purchase' } })
+    await tx.stardustEntry.create({ data: { userId, amount: -price, reason: 'booster_purchase', data: JSON.stringify(price < BOOSTER_PRICE ? { promotion: true } : {}) } })
     const user = await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } })
     return user?.stardust ?? 0
   })
-  return { balance, status: await boosterStatus(userId) }
+  return { balance, status: await boosterStatus(userId), price }
 }
 
 /**

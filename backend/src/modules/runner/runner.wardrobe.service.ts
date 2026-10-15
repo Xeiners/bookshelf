@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto'
 import { prisma } from '../../db.js'
 import { HttpError, badRequest, notFound } from '../../lib/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
+import { priceOf } from '../promotions/promotions.service.js'
 import { isGuestId } from '../dle/dle.guests.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import {
@@ -31,7 +32,9 @@ export interface WardrobeView {
   /** Pièces possédées → exemplaires reçus. */
   owned: Record<string, number>
   outfit: Outfit
+  /** Prix du moment (promotion comprise), et prix habituel. */
   price: number
+  regular: number
   /** Prochaine boîte gratuite (ISO) ; `null` : disponible maintenant. */
   freeAt: string | null
   pity: number
@@ -68,10 +71,11 @@ const ensureStats = (userId: string) => prisma.runnerStats.upsert({ where: { use
 
 export async function wardrobeView(userId: string, now = new Date()): Promise<WardrobeView> {
   accountOnly(userId)
-  const [stats, rows, user] = await Promise.all([
+  const [stats, rows, user, price] = await Promise.all([
     prisma.runnerStats.findUnique({ where: { userId } }),
     prisma.runnerItem.findMany({ where: { userId }, select: { itemId: true, count: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { stardust: true } }),
+    priceOf('box', now),
   ])
   const owned = Object.fromEntries(rows.filter((row) => wardrobeItem(row.itemId)).map((row) => [row.itemId, row.count]))
   const nextFree = stats?.freeBoxAt ? stats.freeBoxAt.getTime() + FREE_BOX_MS : 0
@@ -79,7 +83,8 @@ export async function wardrobeView(userId: string, now = new Date()): Promise<Wa
     items: WARDROBE,
     owned,
     outfit: readOutfit(stats?.outfit ?? '{}', new Set(Object.keys(owned))),
-    price: BOX_PRICE,
+    price,
+    regular: BOX_PRICE,
     freeAt: nextFree > now.getTime() ? new Date(nextFree).toISOString() : null,
     pity: stats?.boxPity ?? 0,
     pityMax: BOX_PITY,
@@ -100,6 +105,7 @@ export async function openBox(userId: string, source: BoxSource, now = new Date(
   accountOnly(userId)
   await ensureStats(userId)
   const free = source === 'free'
+  const price = source === 'paid' ? await priceOf('box', now) : 0
   const result = await prisma.$transaction(async (tx) => {
     if (source === 'gift') {
       const { count } = await tx.runnerStats.updateMany({ where: { userId, giftBoxes: { gt: 0 } }, data: { giftBoxes: { decrement: 1 } } })
@@ -115,12 +121,12 @@ export async function openBox(userId: string, source: BoxSource, now = new Date(
         throw new HttpError(409, 'free_box_not_ready', 'La boîte gratuite n’est pas encore prête.', { freeAt: at })
       }
     } else {
-      const { count } = await tx.user.updateMany({ where: { id: userId, stardust: { gte: BOX_PRICE } }, data: { stardust: { decrement: BOX_PRICE } } })
+      const { count } = await tx.user.updateMany({ where: { id: userId, stardust: { gte: price } }, data: { stardust: { decrement: price } } })
       if (count === 0) {
         const user = await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } })
-        throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', { balance: user?.stardust ?? 0, price: BOX_PRICE })
+        throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', { balance: user?.stardust ?? 0, price })
       }
-      await tx.stardustEntry.create({ data: { userId, amount: -BOX_PRICE, reason: 'runner_box' } })
+      await tx.stardustEntry.create({ data: { userId, amount: -price, reason: 'runner_box' } })
     }
     const stats = await tx.runnerStats.findUniqueOrThrow({ where: { userId }, select: { boxPity: true } })
     const rows = await tx.runnerItem.findMany({ where: { userId }, select: { itemId: true } })
@@ -173,13 +179,14 @@ export async function giftBox(senderId: string, recipientId: string, message: st
   if (!recipient || recipient.suspendedAt) throw notFound('Ce membre est introuvable.')
   await ensureStats(recipientId)
   const note = message?.trim().slice(0, GIFT_NOTE_MAX) || null
+  const price = await priceOf('box', now)
   await prisma.$transaction(async (tx) => {
-    const { count } = await tx.user.updateMany({ where: { id: senderId, stardust: { gte: BOX_PRICE } }, data: { stardust: { decrement: BOX_PRICE } } })
+    const { count } = await tx.user.updateMany({ where: { id: senderId, stardust: { gte: price } }, data: { stardust: { decrement: price } } })
     if (count === 0) {
       const user = await tx.user.findUnique({ where: { id: senderId }, select: { stardust: true } })
-      throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', { balance: user?.stardust ?? 0, price: BOX_PRICE })
+      throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', { balance: user?.stardust ?? 0, price })
     }
-    await tx.stardustEntry.create({ data: { userId: senderId, amount: -BOX_PRICE, reason: 'runner_gift', data: JSON.stringify({ to: recipientId }) } })
+    await tx.stardustEntry.create({ data: { userId: senderId, amount: -price, reason: 'runner_gift', data: JSON.stringify({ to: recipientId }) } })
     await tx.runnerStats.update({ where: { userId: recipientId }, data: { giftBoxes: { increment: 1 } } })
     const sender = await tx.user.findUnique({ where: { id: senderId }, select: { id: true, displayName: true } })
     await createNotification(tx, recipientId, 'box_gift', { from: { id: senderId, displayName: sender?.displayName ?? null }, message: note })

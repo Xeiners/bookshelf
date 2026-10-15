@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Ban, Gift, Loader2, PackageOpen, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react'
+import { BadgePercent, Ban, Gift, Loader2, PackageOpen, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react'
 import { useT } from '../../i18n'
 import { describeAction } from '../../lib/admin'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
@@ -12,6 +12,8 @@ const ICON: Record<AdminActionType, typeof Gift> = {
   suspend: Ban,
   unsuspend: RotateCcw,
   moderate: ShieldCheck,
+  promotion: BadgePercent,
+  promotion_end: BadgePercent,
 }
 
 const TINT: Record<AdminActionType, string> = {
@@ -20,6 +22,8 @@ const TINT: Record<AdminActionType, string> = {
   suspend: 'text-nope bg-nope/12', // i18n-ignore : classes CSS
   unsuspend: 'text-like bg-like/12', // i18n-ignore : classes CSS
   moderate: 'text-glow bg-glow/15', // i18n-ignore : classes CSS
+  promotion: 'text-[#ff4d6d] bg-[#ff4d6d]/15', // i18n-ignore : classes CSS
+  promotion_end: 'text-cream/60 bg-white/10', // i18n-ignore : classes CSS
 }
 
 /** Une ligne du journal : qui, quoi, sur quel compte (cliquable), quand. */

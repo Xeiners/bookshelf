@@ -4,6 +4,7 @@ import { HttpError, notFound } from '../../lib/errors.js'
 import { characterImageUrl } from '../dle/dle.games.js'
 import { isGuestId, signReceipt } from '../dle/dle.guests.js'
 import { parisDay } from '../dle/dle.logic.js'
+import { awardRecord, recordOf, type RecordRewardDto } from '../rewards/rewards.service.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { publicAvatarUrl } from '../users/publicProfile.service.js'
 import { workCover } from './hl.covers.js'
@@ -55,6 +56,8 @@ export interface HlResult {
   capped: boolean
   /** Invité : les Poussières gagnées, en reçus signés gardés sur l'appareil (vide pour un compte). */
   receipts: string[]
+  /** Record de tous les temps battu : la récompense à choisir (un compte). */
+  recordReward?: RecordRewardDto | null
 }
 
 export interface HlGuessResult {
@@ -244,6 +247,7 @@ async function finishRun(run: Run, now: Date): Promise<HlResult> {
     const reward = cappedReward(streak, earnedBefore)
     const record = streak > stats.best
     const dayRecord = streak > dayBestBefore
+    const recordReward = record ? await awardRecord(tx, userId, 'higher_lower', streak, await recordOf.higher_lower(tx)) : null
     const saved = await tx.higherLowerStats.update({
       where: { userId },
       data: {
@@ -270,6 +274,7 @@ async function finishRun(run: Run, now: Date): Promise<HlResult> {
       dayRecord: dayRecord && streak > 0,
       capped: reward < cappedReward(streak, 0),
       receipts: [],
+      recordReward,
     }
   })
 }

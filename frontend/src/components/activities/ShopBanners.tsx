@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { ChevronDown, Gift, Loader2, Send, Sparkles } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
@@ -6,8 +6,10 @@ import type { BoxKind } from '../../lib/runner/wardrobe'
 import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { CARD_SERIES, type CardSeries } from '../../services/cardsApi'
+import type { Promotion } from '../../services/promotionsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDleStore } from '../../store/useDleStore'
+import { promotionOf, usePromotions } from '../../store/usePromotions'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
@@ -22,6 +24,28 @@ import { BoosterPackArt } from '../boosters/BoosterPackArt'
 /** L'ouverture en 3D (Three.js, modèles) : chargée seulement quand on ouvre une boîte. */
 const MysteryBox = lazy(() => import('../runner/MysteryBox').then((module) => ({ default: module.MysteryBox })))
 const GiftBoxSheet = lazy(() => import('../runner/GiftBoxSheet').then((module) => ({ default: module.GiftBoxSheet })))
+
+/**
+ * Le prix d'un article ; en promotion, le prix habituel barré au-dessus, une étiquette
+ * « −40 % » et le temps qui reste.
+ */
+function PricePill({ price, promo, now, className = '', style }: { price: number | null; promo: Promotion | null; now: number; className?: string; style?: CSSProperties }) {
+  const t = useT()
+  return (
+    <span className="relative flex flex-col items-center">
+      {promo && (
+        <span className="absolute -top-3.5 -right-2 z-10 rotate-6 rounded-full bg-[#ff4d6d] px-1.5 py-0.5 text-[9px] font-black text-white shadow-[0_0_14px_rgba(255,77,109,0.7)]">
+          −{Math.round((1 - promo.price / promo.regular) * 100)} %
+        </span>
+      )}
+      <span className={`flex flex-col items-center rounded-full px-3 py-1.5 text-sm leading-none font-bold ${className}`} style={style}>
+        {promo && <span className="text-[10px] font-semibold line-through opacity-60">{promo.regular} ✦</span>}
+        <span>{price ?? '…'} ✦</span>
+      </span>
+      {promo && <span className="mt-1 text-[9px] font-semibold tracking-wide whitespace-nowrap text-[#ff8fa3] tabular-nums">{t.activities.shop.promoEnds(countdown(Date.parse(promo.endsAt) - now))}</span>}
+    </span>
+  )
+}
 
 const pad = (value: number) => String(value).padStart(2, '0')
 function countdown(ms: number): string {
@@ -44,6 +68,10 @@ export function ShopBanners() {
   const [box, setBox] = useState<{ kind: BoxKind; key: number } | null>(null)
   const [gifting, setGifting] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const promotions = usePromotions((state) => state.items)
+  useEffect(() => {
+    void usePromotions.getState().load()
+  }, [])
 
   useEffect(() => {
     if (signedIn) void loadWardrobe()
@@ -63,8 +91,11 @@ export function ShopBanners() {
   )
 
   const balance = overview?.stardust ?? wardrobe?.balance ?? 0
-  const boosterPrice = overview?.boosterPrice ?? null
-  const boxPrice = wardrobe?.price ?? null
+  // Promotions en cours : prix réduit, prix habituel barré, et la fin.
+  const boosterPromo = promotionOf(promotions, 'booster', now)
+  const boxPromo = promotionOf(promotions, 'box', now)
+  const boosterPrice = boosterPromo?.price ?? overview?.boosterPrice ?? null
+  const boxPrice = boxPromo?.price ?? wardrobe?.price ?? null
   const freeAt = wardrobe?.freeAt ? Date.parse(wardrobe.freeAt) : null
   const freeReady = wardrobe !== null && (freeAt === null || freeAt <= now)
   const gifts = wardrobe?.gifts ?? 0
@@ -120,9 +151,7 @@ export function ShopBanners() {
             <span className="block text-xs text-cream/60">{t.activities.shop.boosterBody}</span>
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
-            <span className="rounded-full px-3 py-1.5 text-sm font-bold text-[#1a0b1f]" style={{ background: 'linear-gradient(135deg, #fff0a8, #ffc23a)' }}>
-              {boosterPrice ?? '…'} ✦
-            </span>
+            <PricePill price={boosterPrice} promo={boosterPromo} now={now} style={{ background: 'linear-gradient(135deg, #fff0a8, #ffc23a)' }} className="text-[#1a0b1f]" />
             <ChevronDown size={16} className={`text-cream/50 transition-transform ${open === 'booster' ? 'rotate-180' : ''}`} aria-hidden />
           </span>
         </button>
@@ -169,7 +198,7 @@ export function ShopBanners() {
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
-            <span className="rounded-full border border-[#b05cff]/60 bg-[#b05cff]/25 px-3 py-1.5 text-sm font-bold text-cream">{boxPrice ?? '…'} ✦</span>
+            <PricePill price={boxPrice} promo={boxPromo} now={now} className="border border-[#b05cff]/60 bg-[#b05cff]/25 text-cream" />
             <ChevronDown size={16} className={`text-cream/50 transition-transform ${open === 'box' ? 'rotate-180' : ''}`} aria-hidden />
           </span>
         </button>

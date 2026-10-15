@@ -224,6 +224,7 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
                 className={`inline-flex h-12 items-center justify-center gap-1.5 rounded-full border text-sm font-bold ${canBuy ? 'border-[#b05cff]/60 bg-[#b05cff]/20 text-cream' : 'border-white/10 bg-white/[0.04] text-cream/50'}`}
               >
                 <Sparkles size={15} aria-hidden />
+                {view && view.regular > view.price && <span className="text-[11px] font-semibold line-through opacity-60">{view.regular}</span>}
                 {t.runner.wardrobe.box.buy(view?.price ?? 0)}
               </button>
               {gifts > 0 && (

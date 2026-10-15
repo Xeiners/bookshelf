@@ -113,6 +113,7 @@ export const en: Dictionary = {
       boxBody: 'An iconic wardrobe piece for your adventurer.',
       balance: (balance: number) => `Your balance: ${balance} ✦`,
       short: (missing: number) => `You need ${missing} more ✦.`,
+      promoEnds: (time: string) => `ends in ${time}`,
     },
     booster: {
       eyebrow: 'The booster altar',
@@ -343,6 +344,15 @@ export const en: Dictionary = {
   },
 
   notifications: {
+    promotion: {
+      title: (target: 'booster' | 'box', price: number, regular: number) => `Sale: ${target === 'box' ? 'the mystery box' : 'the booster'} at ${price} ✦ instead of ${regular}!`,
+      body: (target: 'booster' | 'box') => (target === 'box' ? 'Grab it in the Activities shop or the wardrobe.' : 'Grab it in the Activities shop.'),
+    },
+    recordReward: {
+      title: (game: string) => `New all-time record · ${game}!`,
+      body: (score: number, previous: number) => `${score.toLocaleString()} vs ${previous.toLocaleString()}: pick your reward.`,
+      claimed: 'Reward picked. Well done!',
+    },
     boxGift: {
       title: (who: string) => `${who} sent you a mystery box!`,
       body: (message: string | null) => message ?? 'It’s waiting in the Activities shop.',
@@ -418,7 +428,26 @@ export const en: Dictionary = {
   admin: {
     title: 'Administration',
     close: 'Close administration',
-    tabs: { label: 'Administration sections', users: 'Accounts', audit: 'Log' },
+    promos: {
+      title: 'Launch a promotion',
+      subtitle: 'Everyone gets a notification; the shop shows the struck-through price.',
+      item: 'Item',
+      targets: { booster: 'Booster', box: 'Mystery box' },
+      regular: (price: number) => `Regular price: ${price} ✦`,
+      price: 'Promotional price',
+      invalid: (regular: number) => `Between 1 and ${regular - 1} ✦ (a real discount).`,
+      duration: 'Duration',
+      hours: (hours: number) => (hours >= 24 ? `${hours / 24} d` : `${hours} h`),
+      message: 'A note for the announcement (optional)',
+      launch: 'Launch and notify everyone',
+      launched: (count: number) => `Promotion launched: ${count} account${count === 1 ? '' : 's'} notified.`,
+      history: 'Promotions',
+      none: 'No promotion yet.',
+      until: (date: string) => `until ${date}`,
+      over: 'ended',
+      stop: 'Stop',
+    },
+    tabs: { label: 'Administration sections', users: 'Accounts', promos: 'Promos', audit: 'Log' },
     overview: {
       users: 'Accounts',
       newThisWeek: 'New · 7 d',
@@ -515,9 +544,26 @@ export const en: Dictionary = {
       suspend: (reason: string | null) => (reason ? `suspended the account (${reason})` : 'suspended the account'),
       unsuspend: 'reinstated the account',
       moderate: (fields: string) => `moderated: ${fields}`,
+      promotion: (target: 'booster' | 'box', price: number, regular: number, hours: number) =>
+        `launched a promotion: ${target === 'box' ? 'mystery box' : 'booster'} at ${price} ✦ instead of ${regular} (${hours} h)`,
+      promotionEnd: (target: 'booster' | 'box') => `stopped the ${target === 'box' ? 'mystery box' : 'booster'} promotion`,
       fields: { displayName: 'username', bio: 'bio', avatar: 'avatar', makePrivate: 'private profile', cancelOffers: 'offers' },
       message: (text: string) => `“${text}”`,
     },
+  },
+
+  recordReward: {
+    title: 'New record!',
+    body: (score: number, previous: number) => `${score.toLocaleString()} — you beat the all-time record (${previous.toLocaleString()}).`,
+    choose: 'Pick your reward',
+    games: { runner: 'Manga Runner 3D', bomb_classic: 'Bomb Party · classic', bomb_manga: 'Bomb Party · manga', higher_lower: 'Higher or Lower' } as Record<string, string>,
+    booster: 'A booster',
+    boosterHint: '4 cards, to open right away',
+    box: 'A mystery box',
+    boxHint: 'A wardrobe piece, to open later',
+    gotBooster: 'Booster added to your reserve!',
+    gotBox: 'Mystery box added to your wardrobe!',
+    later: 'Later',
   },
 
   banner: {

@@ -6,6 +6,7 @@ import type { AppNotification } from '../services/notificationsApi'
 import { useAuthStore } from '../store/useAuthStore'
 import { setArrivalHandler, useNotificationStore } from '../store/useNotificationStore'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { useRecordRewards } from '../store/useRecordRewards'
 import { useShowcaseStore } from '../store/useShowcaseStore'
 import { useTradeStore } from '../store/useTradeStore'
 import { useUiStore } from '../store/useUiStore'
@@ -74,6 +75,11 @@ export function openNotification(item: AppNotification) {
   ui.closeNotifications()
   ui.closeDetail()
   const target = targetOf(item)
+  // Record battu : la fenêtre du choix de la récompense.
+  if (target.kind === 'reward') {
+    void useRecordRewards.getState().load(true)
+    return
+  }
   if (target.kind === 'showcase') {
     useShowcaseStore.getState().replay(item.id)
     return

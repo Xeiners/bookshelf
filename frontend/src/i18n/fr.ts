@@ -120,6 +120,7 @@ export const fr = {
       boxBody: 'Une pièce de garde-robe culte pour ton aventurier.',
       balance: (balance: number) => `Ton solde : ${balance} ✦`,
       short: (missing: number) => `Il te manque ${missing} ✦.`,
+      promoEnds: (time: string) => `fin dans ${time}`,
     },
     booster: {
       eyebrow: 'L’autel des boosters',
@@ -352,6 +353,15 @@ export const fr = {
   },
 
   notifications: {
+    promotion: {
+      title: (target: 'booster' | 'box', price: number, regular: number) => `Promo : ${target === 'box' ? 'la boîte mystère' : 'le booster'} à ${price} ✦ au lieu de ${regular} !`,
+      body: (target: 'booster' | 'box'): string => (target === 'box' ? 'Profites-en dans la boutique des Activités ou la garde-robe.' : 'Profites-en dans la boutique des Activités.'),
+    },
+    recordReward: {
+      title: (game: string) => `Nouveau record de tous les temps · ${game} !`,
+      body: (score: number, previous: number) => `${score.toLocaleString()} contre ${previous.toLocaleString()} : choisis ta récompense.`,
+      claimed: 'Récompense choisie. Bravo !',
+    },
     boxGift: {
       title: (who: string) => `${who} t’offre une boîte mystère !`,
       body: (message: string | null) => message ?? 'Elle t’attend dans la boutique des Activités.',
@@ -427,7 +437,26 @@ export const fr = {
   admin: {
     title: 'Administration',
     close: 'Fermer l’administration',
-    tabs: { label: 'Rubriques de l’administration', users: 'Comptes', audit: 'Journal' },
+    tabs: { label: 'Rubriques de l’administration', users: 'Comptes', promos: 'Promos', audit: 'Journal' },
+    promos: {
+      title: 'Lancer une promotion',
+      subtitle: 'Tout le monde reçoit une notification ; la boutique affiche le prix barré.',
+      item: 'Article',
+      targets: { booster: 'Booster', box: 'Boîte mystère' },
+      regular: (price: number) => `Prix habituel : ${price} ✦`,
+      price: 'Prix promotionnel',
+      invalid: (regular: number) => `Entre 1 et ${regular - 1} ✦ (une vraie baisse).`,
+      duration: 'Durée',
+      hours: (hours: number) => (hours >= 24 ? `${hours / 24} j` : `${hours} h`),
+      message: 'Un mot pour l’annonce (facultatif)',
+      launch: 'Lancer et prévenir tout le monde',
+      launched: (count: number) => `Promotion lancée : ${count} compte${plural(count, '', 's')} prévenu${plural(count, '', 's')}.`,
+      history: 'Promotions',
+      none: 'Aucune promotion pour l’instant.',
+      until: (date: string) => `jusqu’au ${date}`,
+      over: 'terminée',
+      stop: 'Arrêter',
+    },
     overview: {
       users: 'Comptes',
       newThisWeek: 'Nouveaux · 7 j',
@@ -525,9 +554,26 @@ export const fr = {
       suspend: (reason: string | null) => (reason ? `a suspendu le compte (${reason})` : 'a suspendu le compte'),
       unsuspend: 'a réactivé le compte',
       moderate: (fields: string) => `a modéré : ${fields}`,
+      promotion: (target: 'booster' | 'box', price: number, regular: number, hours: number) =>
+        `a lancé une promotion : ${target === 'box' ? 'boîte mystère' : 'booster'} à ${price} ✦ au lieu de ${regular} (${hours} h)`,
+      promotionEnd: (target: 'booster' | 'box') => `a arrêté la promotion ${target === 'box' ? 'de la boîte mystère' : 'du booster'}`,
       fields: { displayName: 'pseudo', bio: 'présentation', avatar: 'avatar', makePrivate: 'profil privé', cancelOffers: 'offres' },
       message: (text: string) => `« ${text} »`,
     },
+  },
+
+  recordReward: {
+    title: 'Nouveau record !',
+    body: (score: number, previous: number) => `${score.toLocaleString()} — tu bats le record de tous les temps (${previous.toLocaleString()}).`,
+    choose: 'Choisis ta récompense',
+    games: { runner: 'Manga Runner 3D', bomb_classic: 'Bomb Party · classique', bomb_manga: 'Bomb Party · manga', higher_lower: 'Plus ou Moins' } as Record<string, string>,
+    booster: 'Un booster',
+    boosterHint: '4 cartes, à ouvrir tout de suite',
+    box: 'Une boîte mystère',
+    boxHint: 'Une pièce de garde-robe, à ouvrir plus tard',
+    gotBooster: 'Booster ajouté à ta réserve !',
+    gotBox: 'Boîte mystère ajoutée à ta garde-robe !',
+    later: 'Plus tard',
   },
 
   banner: {

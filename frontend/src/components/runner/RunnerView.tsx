@@ -15,6 +15,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useDleStore } from '../../store/useDleStore'
 import { useGuestStardustStore } from '../../store/useGuestStardustStore'
 import { useStardustBalance } from '../../store/useHigherLowerStore'
+import { useRecordRewards } from '../../store/useRecordRewards'
 import { useUiStore } from '../../store/useUiStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from '../dle/DleBar'
@@ -227,6 +228,8 @@ export function RunnerView() {
             playChime(true)
             vibrate([20, 40, 20, 40, 60])
           }
+          // Record de tous les temps : la fenêtre du choix de la récompense.
+          if (result.recordReward) useRecordRewards.getState().push(result.recordReward)
           refresh()
         })
         .catch((error: unknown) => setSettled({ outcome, result: null, error: apiErrorMessage(error, t), saving: false }))

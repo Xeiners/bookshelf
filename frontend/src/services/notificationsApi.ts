@@ -47,7 +47,29 @@ export interface BoxGiftNotification extends NotificationBase {
   data: { from: { id: string; displayName: string | null }; message: string | null }
 }
 
-export type AppNotification = TradeAcceptedNotification | TradeMatchNotification | BoosterGiftNotification | CardGiftNotification | CardShareNotification | BoxGiftNotification
+/** Promotion lancée par l'équipe : un booster ou une boîte mystère à prix réduit, jusqu'à `endsAt`. */
+export interface PromotionNotification extends NotificationBase {
+  type: 'promotion'
+  data: { promotionId: string; target: 'booster' | 'box'; price: number; regular: number; endsAt: string; message: string | null }
+}
+
+/** Record de tous les temps battu : une récompense à choisir (booster ou boîte). */
+export interface RecordRewardNotification extends NotificationBase {
+  type: 'record_reward'
+  data: { rewardId: string; game: RecordGame; score: number; previous: number }
+}
+
+export type RecordGame = 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower'
+
+export type AppNotification =
+  | TradeAcceptedNotification
+  | TradeMatchNotification
+  | BoosterGiftNotification
+  | CardGiftNotification
+  | CardShareNotification
+  | BoxGiftNotification
+  | PromotionNotification
+  | RecordRewardNotification
 
 export interface NotificationList {
   notifications: AppNotification[]

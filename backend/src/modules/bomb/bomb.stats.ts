@@ -2,6 +2,7 @@ import { prisma } from '../../db.js'
 import { isGuestId } from '../dle/dle.guests.js'
 import { parisDay } from '../dle/dle.logic.js'
 import { receiptsFor } from '../higherlower/hl.service.js'
+import { awardRecord, recordOf, type RecordRewardDto } from '../rewards/rewards.service.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import type { BombMode } from './bomb.dictionary.js'
 import { BOMB_DAILY_CAP, cappedReward } from './bomb.logic.js'
@@ -32,6 +33,8 @@ export interface BombReward {
   /** Nouveau record solo pour ce mode. */
   record: boolean
   best: number
+  /** Record de tous les temps battu : la récompense à choisir (un compte). */
+  recordReward?: RecordRewardDto | null
 }
 
 interface GuestStats {
@@ -102,6 +105,8 @@ export async function settleGame(
     const earnedBefore = stats.day === day ? stats.dayEarned : 0
     const reward = cappedReward(game.amount, earnedBefore)
     const record = game.solo !== undefined && game.solo > stats[bestKey]
+    const recordGame = game.mode === 'classic' ? 'bomb_classic' : 'bomb_manga'
+    const recordReward = record ? await awardRecord(tx, playerId, recordGame, game.solo ?? 0, await recordOf[recordGame](tx)) : null
     const saved = await tx.bombStats.update({
       where: { userId: playerId },
       data: {
@@ -116,6 +121,6 @@ export async function settleGame(
       reward > 0
         ? await creditStardust(tx, playerId, reward, 'bomb_party', { mode: game.mode, ...(game.solo !== undefined ? { words: game.solo } : { won: Boolean(game.won) }) })
         : ((await tx.user.findUnique({ where: { id: playerId }, select: { stardust: true } }))?.stardust ?? 0)
-    return { reward, capped: reward < game.amount, balance, receipts: [], record, best: saved[bestKey] }
+    return { reward, capped: reward < game.amount, balance, receipts: [], record, best: saved[bestKey], recordReward }
   })
 }

@@ -50,10 +50,12 @@ export type NotificationTarget =
   | { kind: 'boosters' }
   | { kind: 'collection' }
   | { kind: 'showcase' }
+  | { kind: 'reward' }
 
 export function targetOf(item: AppNotification): NotificationTarget {
   if (item.type === 'trade_accepted') return { kind: 'my-trades' }
-  if (item.type === 'booster_gift' || item.type === 'box_gift') return { kind: 'boosters' }
+  if (item.type === 'booster_gift' || item.type === 'box_gift' || item.type === 'promotion') return { kind: 'boosters' }
+  if (item.type === 'record_reward') return { kind: 'reward' }
   if (item.type === 'card_gift') return { kind: 'collection' }
   // Cartes montrées par un membre : on rejoue leur présentation.
   if (item.type === 'card_share') return { kind: 'showcase' }
@@ -100,6 +102,8 @@ export type NotificationVisual =
   | { kind: 'card'; card: TradeCard; count: number }
   | { kind: 'booster'; count: number }
   | { kind: 'box' }
+  | { kind: 'promo'; price: number; regular: number }
+  | { kind: 'trophy' }
 
 export interface NotificationCopy {
   title: string
@@ -111,7 +115,8 @@ export interface NotificationCopy {
 const GOLD = '#ffc46b'
 
 /** Couleur d'accent d'une notification : la rareté de la carte, l'or pour un booster. */
-export const accentOf = (visual: NotificationVisual): string => (visual.kind === 'booster' ? GOLD : visual.kind === 'box' ? '#b05cff' : RARITY_STYLE[visual.card.rarity].color)
+export const accentOf = (visual: NotificationVisual): string =>
+  visual.kind === 'booster' || visual.kind === 'trophy' ? GOLD : visual.kind === 'box' ? '#b05cff' : visual.kind === 'promo' ? '#ff4d6d' : RARITY_STYLE[visual.card.rarity].color
 
 /** Phrase d'une notification, rédigée dans la langue de l'app (le serveur n'envoie que des données). */
 export function notificationCopy(item: AppNotification, t: Dictionary): NotificationCopy {
@@ -148,6 +153,18 @@ export function notificationCopy(item: AppNotification, t: Dictionary): Notifica
         title: t.notifications.tradeAccepted.title(partyName(item.data.by, t.trades.anonymous)),
         body: t.notifications.tradeAccepted.body(item.data.received.name, item.data.given.name),
         visual: { kind: 'trade', card: item.data.received, behind: item.data.given },
+      }
+    case 'promotion':
+      return {
+        title: t.notifications.promotion.title(item.data.target, item.data.price, item.data.regular),
+        body: item.data.message ?? t.notifications.promotion.body(item.data.target),
+        visual: { kind: 'promo', price: item.data.price, regular: item.data.regular },
+      }
+    case 'record_reward':
+      return {
+        title: t.notifications.recordReward.title(t.recordReward.games[item.data.game]),
+        body: item.active ? t.notifications.recordReward.body(item.data.score, item.data.previous) : t.notifications.recordReward.claimed,
+        visual: { kind: 'trophy' },
       }
     case 'trade_match':
       return {

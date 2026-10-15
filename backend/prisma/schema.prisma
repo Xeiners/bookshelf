@@ -84,6 +84,7 @@ model User {
   bombStats        BombStats?
   runnerStats      RunnerStats?
   runnerItems      RunnerItem[]
+  recordRewards    RecordReward[]
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -573,4 +574,43 @@ model RunnerItem {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, itemId])
+}
+
+/// Promotion décidée par un administrateur : un prix réduit (booster ou boîte mystère)
+/// jusqu'à `endsAt` (ou son arrêt anticipé, `endedAt`). Une seule active par article.
+model Promotion {
+  id        String    @id @default(cuid())
+  /// 'booster' | 'box'
+  target    String
+  price     Int
+  /// Prix habituel au moment de la promotion (affiché barré).
+  regular   Int
+  message   String?
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime
+  endedAt   DateTime?
+  createdBy String
+  createdAt DateTime  @default(now())
+
+  @@index([target, endsAt])
+}
+
+/// Record de tous les temps battu dans un mode de jeu : le joueur choisit sa récompense
+/// (un booster, ou une boîte mystère de la garde-robe), une seule fois.
+model RecordReward {
+  id        String    @id @default(cuid())
+  userId    String
+  /// 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower'
+  game      String
+  score     Int
+  /// Record battu.
+  previous  Int
+  /// 'booster' | 'box', une fois choisie.
+  choice    String?
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, claimedAt])
 }

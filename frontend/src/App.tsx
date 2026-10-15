@@ -40,6 +40,7 @@ import { useDleStore } from './store/useDleStore'
 import { useNotificationPolling } from './hooks/useNotifications'
 import { NotificationBanner } from './components/notifications/NotificationBanner'
 import { NotificationCenter } from './components/notifications/NotificationCenter'
+import { RecordRewardModal } from './components/rewards/RecordRewardModal'
 import { GiftReveal } from './components/cards/GiftReveal'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
@@ -290,6 +291,7 @@ export default function App() {
       {boosterOpen && <BoosterPackModal />}
       {musicOpen && <MusicSheet />}
       {notificationsOpen && <NotificationCenter />}
+      <RecordRewardModal />
       <NotificationBanner />
       {/* Carte offerte : la surprise, face cachée, à la visite suivante. */}
       <GiftReveal />

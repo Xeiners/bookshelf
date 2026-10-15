@@ -1,5 +1,6 @@
 import { api } from './api'
 import type { Rarity } from '../lib/boosters'
+import type { RecordReward } from './rewardsApi'
 
 /* Higher or Lower (cf. `backend/src/modules/higherlower/`). */
 
@@ -39,6 +40,8 @@ export interface HlResult {
   capped: boolean
   /** Invité : ses Poussières en reçus signés, gardés sur l'appareil (vide pour un compte). */
   receipts: string[]
+  /** Record de tous les temps battu : la récompense à choisir. */
+  recordReward?: RecordReward | null
 }
 
 export interface HlGuessResult {

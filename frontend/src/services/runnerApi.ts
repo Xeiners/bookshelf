@@ -1,5 +1,6 @@
 import type { BoxKind, Outfit, Rarity, WardrobeSlot } from '../lib/runner/wardrobe'
 import { api } from './api'
+import type { RecordReward } from './rewardsApi'
 
 /** Manga Runner 3D (cf. `backend/src/modules/runner/`). Un compte, ou un invité du BookshelfDLE. */
 export interface RunnerStanding {
@@ -34,6 +35,8 @@ export interface RunnerResult {
   record: boolean
   /** Invité : les Poussières en reçus signés, gardés sur l'appareil. */
   receipts: string[]
+  /** Record de tous les temps battu : la récompense à choisir. */
+  recordReward?: RecordReward | null
 }
 
 export interface WardrobeView {
@@ -49,6 +52,8 @@ export interface WardrobeView {
   boxes: number
   /** Boîtes offertes par d'autres membres, à ouvrir. */
   gifts: number
+  /** Prix habituel d'une boîte (`price` : celui du moment, promotion comprise). */
+  regular: number
   weights: Record<Rarity, number>
   refunds: Record<Rarity, number>
   balance: number

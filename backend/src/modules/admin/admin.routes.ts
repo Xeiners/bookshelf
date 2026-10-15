@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth.js'
 import { storedAvatar } from '../users/avatarUpload.js'
 import { currentAdmin, requireAdmin } from './admin.access.js'
+import { PROMOTION_MAX_HOURS, PROMOTION_MESSAGE_MAX, PROMOTION_TARGETS, createPromotion, endPromotion, listPromotions } from '../promotions/promotions.service.js'
 import {
   MAX_GIFT_BOOSTERS,
   MAX_GIFT_CARDS,
@@ -105,6 +106,28 @@ adminRouter.post('/users/:id/moderate', async (req, res) => {
 
 adminRouter.get('/cards', async (req, res) => {
   res.json({ cards: await searchCards(CardsQuery.parse(req.query).q) })
+})
+
+/* ---- Promotions --------------------------------------------------------------------- */
+
+const PromotionBody = z.object({
+  target: z.enum(PROMOTION_TARGETS),
+  price: z.number().int().min(1).max(100_000),
+  hours: z.number().int().min(1).max(PROMOTION_MAX_HOURS),
+  message: z.string().trim().max(PROMOTION_MESSAGE_MAX).transform((value) => value || null).nullable().default(null),
+})
+
+adminRouter.get('/promotions', async (_req, res) => {
+  res.json({ promotions: await listPromotions() })
+})
+
+/** Lance une promotion : tous les comptes sont prévenus. 400 `promotion_price` si ce n'est pas une baisse. */
+adminRouter.post('/promotions', async (req, res) => {
+  res.status(201).json(await createPromotion(currentAdmin(req), PromotionBody.parse(req.body)))
+})
+
+adminRouter.post('/promotions/:id/end', async (req, res) => {
+  res.json({ promotion: await endPromotion(currentAdmin(req), z.string().min(1).max(40).parse(req.params.id)) })
 })
 
 adminRouter.get('/audit', async (req, res) => {

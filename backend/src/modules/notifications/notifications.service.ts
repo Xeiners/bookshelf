@@ -10,7 +10,7 @@ import type { CardDto } from '../cards/cards.service.js'
  * aucune connexion permanente à tenir derrière Caddy et Nginx.
  */
 
-export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift', 'card_share', 'box_gift'] as const
+export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift', 'card_share', 'box_gift', 'promotion', 'record_reward'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
 export interface NotificationParty {
@@ -67,6 +67,24 @@ export interface BoxGiftData {
   message: string | null
 }
 
+/** Promotion lancée par l'équipe : l'article, son prix réduit, le prix habituel, la fin. */
+export interface PromotionData {
+  promotionId: string
+  target: 'booster' | 'box'
+  price: number
+  regular: number
+  endsAt: string
+  message: string | null
+}
+
+/** Record de tous les temps battu : la récompense est à choisir (booster ou boîte). */
+export interface RecordRewardData {
+  rewardId: string
+  game: 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower'
+  score: number
+  previous: number
+}
+
 interface DataOf {
   trade_accepted: TradeAcceptedData
   trade_match: TradeMatchData
@@ -74,6 +92,8 @@ interface DataOf {
   card_gift: CardGiftData
   card_share: CardShareData
   box_gift: BoxGiftData
+  promotion: PromotionData
+  record_reward: RecordRewardData
 }
 
 export type NotificationDto = {
@@ -182,6 +202,12 @@ export async function listNotifications(userId: string, since?: Date, now = new 
       )
     : new Set<string>()
 
+  // Récompenses de record encore à choisir.
+  const rewardIds = parsed.filter((item) => item.type === 'record_reward').map((item) => String(item.data.rewardId))
+  const unclaimed = rewardIds.length
+    ? new Set((await prisma.recordReward.findMany({ where: { id: { in: rewardIds }, claimedAt: null }, select: { id: true } })).map((reward) => reward.id))
+    : new Set<string>()
+
   // Les données ont été écrites par `createNotification` / `notifyTradeMatch` : leur forme suit le type.
   const notifications = parsed.map(
     ({ row, type, data }) =>
@@ -191,7 +217,14 @@ export async function listNotifications(userId: string, since?: Date, now = new 
         data,
         read: row.readAt !== null,
         createdAt: row.createdAt.toISOString(),
-        active: type === 'trade_match' ? open.has(String(data.offerId)) : true,
+        active:
+          type === 'trade_match'
+            ? open.has(String(data.offerId))
+            : type === 'promotion'
+              ? Date.parse(String(data.endsAt)) > now.getTime()
+              : type === 'record_reward'
+                ? unclaimed.has(String(data.rewardId))
+                : true,
       }) as unknown as NotificationDto,
   )
   return { notifications, unread }

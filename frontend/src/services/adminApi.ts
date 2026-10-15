@@ -29,7 +29,7 @@ export interface AdminUserRow {
   boostersOpened: number
 }
 
-export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate'
+export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end'
 
 export interface AdminAuditEntry {
   id: string

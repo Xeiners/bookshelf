@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { higherLowerApi, type HlCard, type HlChoice, type HlGuessResult, type HlMetric, type HlOverview, type HlResult, type HlRun } from '../services/higherLowerApi'
 import { useAuthStore } from './useAuthStore'
 import { useDleStore } from './useDleStore'
+import { useRecordRewards } from './useRecordRewards'
 import { pendingGuestStardust, useGuestStardustStore } from './useGuestStardustStore'
 
 /*
@@ -108,6 +109,7 @@ export const useHigherLowerStore = create<HigherLowerState>((set, get) => ({
 
   finish: (result, duel) => {
     keepStardust(result)
+    if (result.recordReward) useRecordRewards.getState().push(result.recordReward)
     set((state) => ({
       run: null,
       result,

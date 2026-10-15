@@ -10,12 +10,13 @@ import { useUiStore } from '../../store/useUiStore'
 import { Pressable } from '../ui/Pressable'
 import { AccountAvatar } from './AccountAvatar'
 import { AdminAudit } from './AdminAudit'
+import { AdminPromotions } from './AdminPromotions'
 import { AdminUserPanel } from './AdminUserPanel'
 
 /** Au-delà de cette largeur : la liste à gauche, la fiche à droite. En dessous, la fiche passe par-dessus. */
 const WIDE = 900
 
-type Tab = 'users' | 'audit'
+type Tab = 'users' | 'audit' | 'promos'
 
 /**
  * Administration, en plein écran (comptes de `ADMIN_EMAILS`) : chiffres clés,
@@ -81,7 +82,11 @@ export function AdminView() {
       </header>
 
       <div className="relative min-h-0 flex-1">
-        {tab === 'audit' ? (
+        {tab === 'promos' ? (
+          <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <AdminPromotions />
+          </div>
+        ) : tab === 'audit' ? (
           <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <AdminAudit onOpenUser={openUser} />
           </div>
@@ -120,11 +125,11 @@ export function AdminView() {
   )
 }
 
-/** Comptes / Journal : capsule glissante. */
+/** Comptes / Promotions / Journal : capsule glissante. */
 function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
-  const tabs: Tab[] = ['users', 'audit']
+  const tabs: Tab[] = ['users', 'promos', 'audit']
   useGSAP(
     () => {
       gsap.to('[data-tab-thumb]', { xPercent: tabs.indexOf(tab) * 100, duration: 0.35, ease: 'power3.out' })
@@ -132,8 +137,8 @@ function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }
     { scope: ref, dependencies: [tab] },
   )
   return (
-    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative grid shrink-0 grid-cols-2 rounded-full p-1">
-      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-full bg-cream will-change-transform" />
+    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative grid shrink-0 grid-cols-3 rounded-full p-1">
+      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-full bg-cream will-change-transform" />
       {tabs.map((value) => (
         <button
           key={value}

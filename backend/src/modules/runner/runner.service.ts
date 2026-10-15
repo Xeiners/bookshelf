@@ -4,6 +4,7 @@ import { HttpError, notFound } from '../../lib/errors.js'
 import { isGuestId } from '../dle/dle.guests.js'
 import { parisDay } from '../dle/dle.logic.js'
 import { receiptsFor } from '../higherlower/hl.service.js'
+import { awardRecord, recordOf, type RecordRewardDto } from '../rewards/rewards.service.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { publicAvatarUrl } from '../users/publicProfile.service.js'
 import { QUIZ_REWARD, RUNNER_DAILY_CAP, cappedReward, plausible, reviveCost, scoreFor, type RunClaim } from './runner.logic.js'
@@ -87,6 +88,8 @@ export interface RunnerResult {
   record: boolean
   /** Invité : les Poussières gagnées, en reçus signés gardés sur l'appareil. */
   receipts: string[]
+  /** Record de tous les temps battu : la récompense à choisir (un compte). */
+  recordReward?: RecordRewardDto | null
 }
 
 interface GuestStats {
@@ -142,6 +145,8 @@ export async function finishRunnerRun(userId: string, runId: string, claim: RunC
     const earnedBefore = stats.day === day ? stats.dayEarned : 0
     const reward = cappedReward(stardust, quiz, earnedBefore)
     const record = score > stats.best
+    // Record de tous les temps battu : une récompense à choisir.
+    const recordReward = record ? await awardRecord(tx, userId, 'runner', score, await recordOf.runner(tx)) : null
     const saved = await tx.runnerStats.update({
       where: { userId },
       data: {
@@ -159,7 +164,7 @@ export async function finishRunnerRun(userId: string, runId: string, claim: RunC
         : ((await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } }))?.stardust ?? 0)
     return {
       distance, stardust, quiz, score, reward, quizReward: quiz * QUIZ_REWARD, capped: reward < cappedReward(stardust, quiz, 0),
-      balance, best: saved.best, bestDistance: saved.bestDistance, earnedToday: saved.dayEarned, record: record && score > 0, receipts: [],
+      balance, best: saved.best, bestDistance: saved.bestDistance, earnedToday: saved.dayEarned, record: record && score > 0, receipts: [], recordReward,
     }
   })
 }
