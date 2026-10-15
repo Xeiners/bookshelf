@@ -29,7 +29,7 @@ function countdown(ms: number): string {
   return `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`
 }
 
-export function ShopBanners({ boxes }: { /** La boîte mystère (le Manga Runner est encore réservé aux administrateurs). */ boxes: boolean }) {
+export function ShopBanners() {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   const signedIn = useAuthStore((state) => state.user !== null)
@@ -46,13 +46,12 @@ export function ShopBanners({ boxes }: { /** La boîte mystère (le Manga Runner
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    if (boxes && signedIn) void loadWardrobe()
-  }, [boxes, signedIn, loadWardrobe])
+    if (signedIn) void loadWardrobe()
+  }, [signedIn, loadWardrobe])
   useEffect(() => {
-    if (!boxes) return
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
-  }, [boxes])
+  }, [])
 
   useGSAP(
     () => {
@@ -149,76 +148,74 @@ export function ShopBanners({ boxes }: { /** La boîte mystère (le Manga Runner
       </section>
 
       {/* Boîte mystère de la garde-robe. */}
-      {boxes && (
-        <section
-          className="overflow-hidden rounded-[1.5rem] border"
-          style={{ borderColor: glowing ? '#ffd35c99' : '#b05cff55', background: 'linear-gradient(110deg, #2a1150 0%, #160a33 55%, #2d1238 100%)', boxShadow: glowing ? '0 0 30px -10px #ffc23a' : undefined }}
-        >
-          <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-4 overflow-hidden p-4 text-left">
-            <span data-shop-shine aria-hidden className="pointer-events-none absolute inset-y-0 w-16 -skew-x-12 bg-white/10 blur-sm" />
-            <span data-shop-bob aria-hidden className="relative grid size-12 shrink-0 place-items-center will-change-transform">
-              <span className="absolute inset-0 rounded-xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: `0 0 18px -2px ${glowing ? '#ffd35c' : '#b05cff'}, inset 0 0 0 2px #ffc93c` }} />
-              <span className="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 bg-[#ffc93c]" />
-              <span className="absolute inset-x-0 top-[38%] h-2 bg-[#ffc93c]" />
-              <span className="relative font-display text-xl text-[#ffe9a8] drop-shadow-[0_0_6px_#ffb300]">?</span>
-              {glowing && <span className="absolute -top-1 -right-1 size-3 animate-ping rounded-full bg-like" />}
+      <section
+        className="overflow-hidden rounded-[1.5rem] border"
+        style={{ borderColor: glowing ? '#ffd35c99' : '#b05cff55', background: 'linear-gradient(110deg, #2a1150 0%, #160a33 55%, #2d1238 100%)', boxShadow: glowing ? '0 0 30px -10px #ffc23a' : undefined }}
+      >
+        <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-4 overflow-hidden p-4 text-left">
+          <span data-shop-shine aria-hidden className="pointer-events-none absolute inset-y-0 w-16 -skew-x-12 bg-white/10 blur-sm" />
+          <span data-shop-bob aria-hidden className="relative grid size-12 shrink-0 place-items-center will-change-transform">
+            <span className="absolute inset-0 rounded-xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: `0 0 18px -2px ${glowing ? '#ffd35c' : '#b05cff'}, inset 0 0 0 2px #ffc93c` }} />
+            <span className="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 bg-[#ffc93c]" />
+            <span className="absolute inset-x-0 top-[38%] h-2 bg-[#ffc93c]" />
+            <span className="relative font-display text-xl text-[#ffe9a8] drop-shadow-[0_0_6px_#ffb300]">?</span>
+            {glowing && <span className="absolute -top-1 -right-1 size-3 animate-ping rounded-full bg-like" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-semibold tracking-[0.24em] text-[#dcb2ff]/80 uppercase">{t.activities.shop.boxEyebrow}</span>
+            <span className="block font-display text-xl leading-tight text-cream">{t.runner.wardrobe.box.title}</span>
+            <span className={`block text-xs tabular-nums ${glowing ? 'font-bold text-gold' : 'text-cream/60'}`}>
+              {gifts > 0 ? t.runner.wardrobe.box.gifted(gifts) : freeReady ? t.runner.wardrobe.box.freeReady : freeAt ? t.runner.wardrobe.box.freeIn(countdown(freeAt - now)) : t.activities.shop.boxBody}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] font-semibold tracking-[0.24em] text-[#dcb2ff]/80 uppercase">{t.activities.shop.boxEyebrow}</span>
-              <span className="block font-display text-xl leading-tight text-cream">{t.runner.wardrobe.box.title}</span>
-              <span className={`block text-xs tabular-nums ${glowing ? 'font-bold text-gold' : 'text-cream/60'}`}>
-                {gifts > 0 ? t.runner.wardrobe.box.gifted(gifts) : freeReady ? t.runner.wardrobe.box.freeReady : freeAt ? t.runner.wardrobe.box.freeIn(countdown(freeAt - now)) : t.activities.shop.boxBody}
-              </span>
-            </span>
-            <span className="flex shrink-0 items-center gap-1.5">
-              <span className="rounded-full border border-[#b05cff]/60 bg-[#b05cff]/25 px-3 py-1.5 text-sm font-bold text-cream">{boxPrice ?? '…'} ✦</span>
-              <ChevronDown size={16} className={`text-cream/50 transition-transform ${open === 'box' ? 'rotate-180' : ''}`} aria-hidden />
-            </span>
-          </button>
-          {open === 'box' && (
-            <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className="rounded-full border border-[#b05cff]/60 bg-[#b05cff]/25 px-3 py-1.5 text-sm font-bold text-cream">{boxPrice ?? '…'} ✦</span>
+            <ChevronDown size={16} className={`text-cream/50 transition-transform ${open === 'box' ? 'rotate-180' : ''}`} aria-hidden />
+          </span>
+        </button>
+        {open === 'box' && (
+          <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+            <button
+              type="button"
+              onClick={() => openBox('free')}
+              disabled={!freeReady}
+              className="inline-flex h-12 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-bold text-void disabled:bg-white/[0.06] disabled:text-cream/50"
+              style={freeReady ? { background: 'linear-gradient(135deg, #fff0a8, #ffc23a 55%, #ff8a3d)' } : undefined}
+            >
+              <Gift size={15} aria-hidden />
+              {freeReady ? t.runner.wardrobe.box.free : t.runner.wardrobe.box.freeIn(countdown((freeAt ?? now) - now))}
+            </button>
+            <button type="button" onClick={() => openBox('paid')} className="inline-flex h-12 items-center justify-center gap-1.5 rounded-full border border-[#b05cff]/60 bg-[#b05cff]/20 text-sm font-bold text-cream">
+              <Sparkles size={15} aria-hidden />
+              {t.runner.wardrobe.box.buy(boxPrice ?? 0)}
+            </button>
+            {gifts > 0 && (
               <button
                 type="button"
-                onClick={() => openBox('free')}
-                disabled={!freeReady}
-                className="inline-flex h-12 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-bold text-void disabled:bg-white/[0.06] disabled:text-cream/50"
-                style={freeReady ? { background: 'linear-gradient(135deg, #fff0a8, #ffc23a 55%, #ff8a3d)' } : undefined}
+                onClick={() => openBox('gift')}
+                className="col-span-2 inline-flex h-12 items-center justify-center gap-1.5 rounded-full text-sm font-bold text-void"
+                style={{ background: 'linear-gradient(135deg, #ffd1f0, #ff6fb5 60%, #b05cff)', boxShadow: '0 0 24px -4px #ff6fb5' }}
               >
                 <Gift size={15} aria-hidden />
-                {freeReady ? t.runner.wardrobe.box.free : t.runner.wardrobe.box.freeIn(countdown((freeAt ?? now) - now))}
+                {t.runner.wardrobe.box.gifted(gifts)}
               </button>
-              <button type="button" onClick={() => openBox('paid')} className="inline-flex h-12 items-center justify-center gap-1.5 rounded-full border border-[#b05cff]/60 bg-[#b05cff]/20 text-sm font-bold text-cream">
-                <Sparkles size={15} aria-hidden />
-                {t.runner.wardrobe.box.buy(boxPrice ?? 0)}
-              </button>
-              {gifts > 0 && (
-                <button
-                  type="button"
-                  onClick={() => openBox('gift')}
-                  className="col-span-2 inline-flex h-12 items-center justify-center gap-1.5 rounded-full text-sm font-bold text-void"
-                  style={{ background: 'linear-gradient(135deg, #ffd1f0, #ff6fb5 60%, #b05cff)', boxShadow: '0 0 24px -4px #ff6fb5' }}
-                >
-                  <Gift size={15} aria-hidden />
-                  {t.runner.wardrobe.box.gifted(gifts)}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  vibrate(8)
-                  setOpen(null)
-                  setGifting(true)
-                }}
-                className="col-span-2 inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] text-[13px] font-semibold text-cream/85"
-              >
-                <Send size={14} aria-hidden />
-                {t.runner.wardrobe.gift.open}
-              </button>
-              <p className="col-span-2 text-center text-[11px] text-cream/50 tabular-nums">{t.activities.shop.balance(balance)}</p>
-            </div>
-          )}
-        </section>
-      )}
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                vibrate(8)
+                setOpen(null)
+                setGifting(true)
+              }}
+              className="col-span-2 inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] text-[13px] font-semibold text-cream/85"
+            >
+              <Send size={14} aria-hidden />
+              {t.runner.wardrobe.gift.open}
+            </button>
+            <p className="col-span-2 text-center text-[11px] text-cream/50 tabular-nums">{t.activities.shop.balance(balance)}</p>
+          </div>
+        )}
+      </section>
       {box && (
         <Suspense fallback={null}>
           <MysteryBox key={box.key} request={box.key} kind={box.kind} assets={null} onClose={() => setBox(null)} onAgain={(kind) => setBox({ kind, key: Date.now() })} />

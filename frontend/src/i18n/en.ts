@@ -1590,6 +1590,7 @@ export const en: Dictionary = {
         again: (price: number) => `Again · ${price} ✦`,
         againFree: 'Again (free)',
         againGift: 'Next (gift)',
+        giftsReady: (count: number) => (count > 1 ? `${count} gifted boxes!` : '1 gifted box!'),
         gifted: (count: number) => (count > 1 ? `Open a gifted box · ×${count}` : 'Open your gifted box'),
         close: 'Close',
         complete: 'Collection complete!',

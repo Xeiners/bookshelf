@@ -39,7 +39,6 @@ const neon = (color: string): CSSProperties => ({ color, textShadow: `0 0 6px ${
  * compte à l'inscription.
  */
 export function ActivitiesHub() {
-  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   // Le hub n'affiche que le stock : le décompte à la seconde reste dans l'autel.
@@ -104,7 +103,7 @@ export function ActivitiesHub() {
 
       <BoosterAltar />
       {/* La boutique : un booster ou une boîte mystère, achetés d'ici. */}
-      <ShopBanners boxes={isAdmin} />
+      <ShopBanners />
       <div className="grid shrink-0 gap-5 md:grid-cols-2">
         <OracleArtefact />
         <CollectionArtefact />
@@ -113,8 +112,7 @@ export function ActivitiesHub() {
         <DleArtefact />
         <HigherLowerArtefact />
       </div>
-      {/* Manga Runner 3D : réservé aux administrateurs pour l'instant. */}
-      {isAdmin && <RunnerArtefact />}
+      <RunnerArtefact />
       <BombArtefact />
       <MarketArtefact />
     </div>

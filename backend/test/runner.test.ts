@@ -8,8 +8,6 @@ import { after, describe, it } from 'node:test'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
 prepareEnvironment('runner')
-// Le Runner est réservé aux administrateurs pour l'instant.
-process.env.ADMIN_EMAILS = 'ana-runner@example.com, chef-runner@example.com, dressing-runner@example.com, giver-runner@example.com, taker-runner@example.com'
 installMangadexMock()
 const { client, close } = await startServer()
 after(close)
@@ -107,13 +105,26 @@ describe('Manga Runner — API', () => {
     assert.equal((await chef.request('POST', `/runner/runs/${run.body.id}/revive`)).status, 404)
   })
 
-  it('réservé aux administrateurs : un compte ordinaire et un invité ne le voient pas', async () => {
+  it('ouvert à tous : un compte ordinaire court ; un invité aussi, avec des reçus signés', async () => {
     const bob = await account('Bob')
-    assert.equal((await bob.request('GET', '/runner')).status, 404)
-    assert.equal((await bob.request('POST', '/runner/runs')).status, 404)
+    assert.equal((await bob.request('GET', '/runner')).status, 200)
+    assert.equal((await bob.request('POST', '/runner/runs')).status, 201)
     const guest = client()
     assert.equal((await guest.request('POST', '/dle/guest', { name: 'Coureur' })).status, 200)
-    assert.equal((await guest.request('POST', '/runner/runs')).status, 401)
+    const start = await guest.request('POST', '/runner/runs')
+    assert.equal(start.status, 201)
+    const end = await guest.request('POST', `/runner/runs/${start.body.id}/end`, { distance: 30, stardust: 6, quiz: 0 })
+    assert.equal(end.status, 200)
+    assert.equal(end.body.reward, 6)
+    assert.equal(end.body.receipts.length, 1)
+    const { readReceipt } = await import('../src/modules/dle/dle.guests.js')
+    assert.equal(readReceipt(end.body.receipts[0])?.a, 6)
+    const overview = await guest.request('GET', '/runner')
+    assert.equal(overview.body.me.games, 1)
+    assert.equal(overview.body.myRank, null)
+    // Garde-robe : un compte seulement.
+    assert.equal((await guest.request('GET', '/runner/wardrobe')).body.error.code, 'wardrobe_account_only')
+    // Sans compte ni pseudo : on demande un pseudo.
     assert.equal((await client().request('POST', '/runner/runs')).status, 401)
   })
 })
@@ -210,12 +221,14 @@ describe('Manga Runner — garde-robe', () => {
     const notification = await prisma.notification.findFirst({ where: { userId: taker.userId, type: 'box_gift' } })
     assert.ok(notification)
     assert.equal(JSON.parse(notification.data).message, 'Bonne course !')
-    assert.equal((await taker.request('GET', '/runner/wardrobe')).body.gifts, 1)
+    // Les deux boîtes de bienvenue, plus celle offerte.
+    assert.equal((await taker.request('GET', '/runner/wardrobe')).body.gifts, wardrobe.WELCOME_GIFT_BOXES + 1)
     const opened = await taker.request('POST', '/runner/boxes', { gift: true })
     assert.equal(opened.status, 201, JSON.stringify(opened.body))
     assert.equal(opened.body.source, 'gift')
-    assert.equal(opened.body.wardrobe.gifts, 0)
+    assert.equal(opened.body.wardrobe.gifts, wardrobe.WELCOME_GIFT_BOXES)
     assert.equal(opened.body.wardrobe.balance, 0)
+    for (let i = 0; i < wardrobe.WELCOME_GIFT_BOXES; i++) assert.equal((await taker.request('POST', '/runner/boxes', { gift: true })).status, 201)
     assert.equal((await taker.request('POST', '/runner/boxes', { gift: true })).body.error.code, 'no_gift_box')
   })
 })

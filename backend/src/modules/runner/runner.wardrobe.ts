@@ -85,6 +85,8 @@ export const wardrobeItem = (id: string): WardrobeItem | undefined => BY_ID.get(
 export const BOX_PRICE = 450
 /** Délai entre deux boîtes gratuites. */
 export const FREE_BOX_MS = 24 * 60 * 60 * 1000
+/** Boîtes offertes à chaque joueur à l'ouverture du Runner à tous (défaut de `RunnerStats.giftBoxes`). */
+export const WELCOME_GIFT_BOXES = 2
 /** Boîtes sans légendaire avant la garantie. */
 export const BOX_PITY = 20
 /** Chances de chaque rareté (sur 100). */

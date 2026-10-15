@@ -319,6 +319,8 @@ function RunnerHome({
   const owned = wardrobe ? Object.keys(wardrobe.owned).length : 0
   const freeAt = wardrobe?.freeAt ? Date.parse(wardrobe.freeAt) : null
   const freeReady = wardrobe !== null && (freeAt === null || freeAt <= now)
+  const gifts = wardrobe?.gifts ?? 0
+  const glowing = freeReady || gifts > 0
 
   useEffect(() => {
     if (signedIn) void loadWardrobe()
@@ -423,17 +425,17 @@ function RunnerHome({
                   type="button"
                   onClick={() => openDressing(true)}
                   className="flex items-center gap-2 rounded-2xl border bg-black/40 py-1.5 pr-3 pl-1.5 text-left backdrop-blur-md"
-                  style={{ borderColor: freeReady ? '#ffd35c' : 'rgba(255,255,255,0.2)', boxShadow: freeReady ? '0 0 22px -4px #ffc23a' : undefined }}
+                  style={{ borderColor: glowing ? '#ffd35c' : 'rgba(255,255,255,0.2)', boxShadow: glowing ? '0 0 22px -4px #ffc23a' : undefined }}
                 >
                   <span data-home-box className="relative grid size-9 place-items-center rounded-xl will-change-transform" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: 'inset 0 0 0 2px #ffc93c' }}>
                     <span className="absolute inset-y-0 left-1/2 w-1.5 -translate-x-1/2 bg-[#ffc93c]" />
                     <Gift size={16} className="relative text-[#ffe9a8]" aria-hidden />
-                    {freeReady && <span className="absolute -top-1 -right-1 size-2.5 animate-ping rounded-full bg-like" />}
+                    {glowing && <span className="absolute -top-1 -right-1 size-2.5 animate-ping rounded-full bg-like" />}
                   </span>
                   <span>
                     <span className="block text-xs font-bold text-white">{t.runner.wardrobe.box.title}</span>
-                    <span className={`block text-[10px] tabular-nums ${freeReady ? 'font-bold text-gold' : 'text-white/70'}`}>
-                      {freeReady ? t.runner.wardrobe.box.freeReady : freeAt ? t.runner.wardrobe.box.freeIn(shortCountdown(freeAt - now)) : '…'}
+                    <span className={`block text-[10px] tabular-nums ${glowing ? 'font-bold text-gold' : 'text-white/70'}`}>
+                      {gifts > 0 ? t.runner.wardrobe.box.giftsReady(gifts) : freeReady ? t.runner.wardrobe.box.freeReady : freeAt ? t.runner.wardrobe.box.freeIn(shortCountdown(freeAt - now)) : '…'}
                     </span>
                   </span>
                 </button>

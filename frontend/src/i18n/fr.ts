@@ -1605,6 +1605,7 @@ export const fr = {
         again: (price: number) => `Encore · ${price} ✦`,
         againFree: 'Encore (gratuite)',
         againGift: 'Suivante (offerte)',
+        giftsReady: (count: number) => (count > 1 ? `${count} boîtes offertes !` : '1 boîte offerte !'),
         gifted: (count: number) => (count > 1 ? `Ouvrir une boîte offerte · ×${count}` : 'Ouvrir ta boîte offerte'),
         close: 'Fermer',
         complete: 'Collection complète !',

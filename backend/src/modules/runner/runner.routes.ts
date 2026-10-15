@@ -2,20 +2,18 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { config } from '../../config.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
-import { requireAdmin } from '../admin/admin.access.js'
+import { currentPlayer, requirePlayer } from '../dle/dle.guests.js'
 import { finishRunnerRun, reviveRunnerRun, runnerOverview, startRunnerRun } from './runner.service.js'
 import { GIFT_NOTE_MAX, giftBox, openBox, setOutfit, wardrobeView } from './runner.wardrobe.service.js'
 import { WARDROBE_SLOTS } from './runner.wardrobe.js'
 
 /**
- * Manga Runner 3D (cf. `runner.service.ts`). Monté sous `/api/runner`. Pour l'instant
- * réservé aux administrateurs (`ADMIN_EMAILS`) : 404 pour les autres comptes et les
- * invités, comme l'administration. Le service sait déjà servir les invités du
- * BookshelfDLE (reçus de Poussières) pour le jour de l'ouverture à tous.
+ * Manga Runner 3D (cf. `runner.service.ts`). Monté sous `/api/runner` : un compte, ou un
+ * invité avec son pseudo (le même que celui du BookshelfDLE, cf. `dle.guests.ts`). La
+ * garde-robe et les boîtes demandent un compte (403 `wardrobe_account_only`).
  */
 export const runnerRouter = Router()
-runnerRouter.use(requireAuth, requireAdmin)
+runnerRouter.use(requirePlayer)
 runnerRouter.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store')
   next()
@@ -23,14 +21,14 @@ runnerRouter.use((_req, res, next) => {
 
 /** Mes records, le plafond du jour et le classement. */
 runnerRouter.get('/', async (req, res) => {
-  res.json(await runnerOverview(currentUserId(req)))
+  res.json(await runnerOverview(currentPlayer(req).id))
 })
 
 const runLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 10_000 : 30 })
 
 /** Départ : identifiant de la course et graine de la piste. */
 runnerRouter.post('/runs', runLimiter, (req, res) => {
-  res.status(201).json(startRunnerRun(currentUserId(req)))
+  res.status(201).json(startRunnerRun(currentPlayer(req).id))
 })
 
 const RunParams = z.object({ id: z.string().regex(/^[0-9a-f]{18}$/) })
@@ -43,18 +41,18 @@ const EndBody = z.object({
 /** Arrivée : le bilan déclaré, borné par le serveur, puis records et Poussières. */
 runnerRouter.post('/runs/:id/end', runLimiter, async (req, res) => {
   const { id } = RunParams.parse(req.params)
-  res.json(await finishRunnerRun(currentUserId(req), id, EndBody.parse(req.body)))
+  res.json(await finishRunnerRun(currentPlayer(req).id, id, EndBody.parse(req.body)))
 })
 
 /** Revivre après un choc : la course continue, contre des Poussières (prix doublé à chaque fois). */
 runnerRouter.post('/runs/:id/revive', runLimiter, async (req, res) => {
   const { id } = RunParams.parse(req.params)
-  res.json(await reviveRunnerRun(currentUserId(req), id))
+  res.json(await reviveRunnerRun(currentPlayer(req).id, id))
 })
 
 /** Garde-robe de l'aventurier : pièces, tenue, boîtes (gratuite toutes les 24 h). */
 runnerRouter.get('/wardrobe', async (req, res) => {
-  res.json(await wardrobeView(currentUserId(req)))
+  res.json(await wardrobeView(currentPlayer(req).id))
 })
 
 const boxLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 10_000 : 40 })
@@ -63,7 +61,7 @@ const BoxBody = z.object({ free: z.boolean().default(false), gift: z.boolean().d
 /** Ouvre une boîte mystère : la pièce tirée, doublon remboursé, et la garde-robe à jour. */
 runnerRouter.post('/boxes', boxLimiter, async (req, res) => {
   const { free, gift } = BoxBody.parse(req.body ?? {})
-  res.status(201).json(await openBox(currentUserId(req), gift ? 'gift' : free ? 'free' : 'paid'))
+  res.status(201).json(await openBox(currentPlayer(req).id, gift ? 'gift' : free ? 'free' : 'paid'))
 })
 
 const GiftBody = z.object({ to: z.string().regex(/^[a-z0-9]{8,40}$/i), message: z.string().max(GIFT_NOTE_MAX).nullable().optional() })
@@ -71,12 +69,12 @@ const GiftBody = z.object({ to: z.string().regex(/^[a-z0-9]{8,40}$/i), message: 
 /** Offrir une boîte mystère à un autre membre (payée par l'expéditeur). */
 runnerRouter.post('/gifts', boxLimiter, async (req, res) => {
   const { to, message } = GiftBody.parse(req.body ?? {})
-  res.status(201).json(await giftBox(currentUserId(req), to, message ?? null))
+  res.status(201).json(await giftBox(currentPlayer(req).id, to, message ?? null))
 })
 
 const OutfitBody = z.object(Object.fromEntries(WARDROBE_SLOTS.map((slot) => [slot, z.string().max(40).nullable().optional()])))
 
 /** Équipe une tenue (pièces possédées seulement). */
 runnerRouter.patch('/outfit', async (req, res) => {
-  res.json(await setOutfit(currentUserId(req), OutfitBody.parse(req.body ?? {}) as Record<string, string | null | undefined>))
+  res.json(await setOutfit(currentPlayer(req).id, OutfitBody.parse(req.body ?? {}) as Record<string, string | null | undefined>))
 })

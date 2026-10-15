@@ -12,6 +12,7 @@ import {
   RARITY_WEIGHTS,
   WARDROBE,
   WARDROBE_SLOTS,
+  WELCOME_GIFT_BOXES,
   readOutfit,
   rollBox,
   wardrobeItem,
@@ -36,7 +37,7 @@ export interface WardrobeView {
   pity: number
   pityMax: number
   boxes: number
-  /** Boîtes offertes par d'autres membres, à ouvrir. */
+  /** Boîtes offertes à ouvrir (par d'autres membres, et celles de bienvenue). */
   gifts: number
   weights: Record<string, number>
   refunds: Record<string, number>
@@ -83,7 +84,7 @@ export async function wardrobeView(userId: string, now = new Date()): Promise<Wa
     pity: stats?.boxPity ?? 0,
     pityMax: BOX_PITY,
     boxes: stats?.boxes ?? 0,
-    gifts: stats?.giftBoxes ?? 0,
+    gifts: stats?.giftBoxes ?? WELCOME_GIFT_BOXES,
     weights: RARITY_WEIGHTS,
     refunds: DUPLICATE_REFUND,
     balance: user?.stardust ?? 0,
