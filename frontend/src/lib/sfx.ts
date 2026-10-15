@@ -668,6 +668,25 @@ export function playRunnerSmash(): void {
   noiseBurst(e, { at, duration: 0.18, from: 6000, to: 1500, q: 1.4, gain: 0.18, grain: 90, send: 0.2 })
 }
 
+/** Un tir sur un monstre : un rayon qui siffle et descend, puis l'impact. */
+export function playRunnerShot(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.16, from: 9000, to: 2400, q: 3, gain: 0.12, send: 0.25 })
+  ;[1760, 1320, 990].forEach((frequency, index) => blip(e, frequency, at + index * 0.03, 0.09, 0.03, 'sawtooth'))
+  boom(e, at + 0.08, 200, 55, 0.28, 0.3)
+}
+
+/** Le quiz vide la route : un grand souffle qui balaie, et une note suspendue. */
+export function playRunnerClear(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.7, from: 300, to: 7000, q: 0.7, gain: 0.12, grain: 20, send: 0.45 })
+  bell(e, 1046.5, at + 0.2, 1.2, 0.035)
+}
+
 /** Boîte mystère : elle tombe sur l'autel (choc sourd, petit tintement). */
 export function playBoxDrop(): void {
   const e = start()

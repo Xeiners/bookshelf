@@ -12,6 +12,7 @@ import type { HeroLookId } from './looks'
 import { MonstersPart } from './monsters'
 import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
 import { SmashPart } from './smash'
+import { ShotPart, type ShotAim } from './shots'
 
 /*
  * La scène du Manga Runner. Une seule boucle (`useFrame`, priorité −1) fait avancer la
@@ -35,9 +36,11 @@ export interface RunnerSceneProps {
   intro: IntroClock
   /** Garde-robe de l'aventurier. */
   outfit: Outfit
+  /** Les monstres à portée de tir, et la caméra pour les retrouver sous le doigt. */
+  aim: ShotAim
 }
 
-export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, intro, outfit }: RunnerSceneProps) {
+export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, intro, outfit, aim }: RunnerSceneProps) {
   const [dpr] = useState(() => budgetDpr(lite))
   return (
     <Canvas
@@ -62,6 +65,8 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       <Part state={state} make={() => new MonstersPart(assets)} />
       <Part state={state} make={() => new PickupsPart()} />
       <Part state={state} make={() => new SmashPart()} />
+      <Part state={state} make={() => new ShotPart(aim)} />
+      <Aim aim={aim} />
       <Part state={state} make={() => createHero(look, assets, false, outfit)!} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} intro={intro} />
@@ -237,6 +242,14 @@ function Part({ state, make }: { state: RefObject<RunState>; make: () => ScenePa
     } else part.update(run, clock.elapsedTime, delta)
   })
   return <primitive object={part.object} />
+}
+
+/** Donne au viseur la caméra et le canevas (pour retrouver le monstre touché du doigt). */
+function Aim({ aim }: { aim: ShotAim }) {
+  const camera = useThree((three) => three.camera)
+  const gl = useThree((three) => three.gl)
+  useEffect(() => aim.attach(camera, gl.domElement), [aim, camera, gl])
+  return null
 }
 
 /** Lumières, brume et fond : ils suivent le biome où court le joueur. */

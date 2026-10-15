@@ -422,8 +422,70 @@
   }
 }
 
+/* Minuteur du nuage : bleu ciel en vol ; orange et pulsant quand la descente approche. */
+.runner-cloud-ring {
+  stroke: #bfe9ff;
+  transition: stroke 0.2s;
+}
+.runner-cloud-icon {
+  color: #bfe9ff;
+}
+.runner-cloud-label {
+  background: rgb(13 8 40 / 0.6);
+  color: #bfe9ff;
+}
+.runner-cloud-landing {
+  display: none;
+}
+.runner-cloud-timer[data-warning='true'] {
+  animation: runner-cloud-warn 0.42s ease-in-out infinite alternate;
+}
+.runner-cloud-timer[data-warning='true'] .runner-cloud-ring {
+  stroke: #ff9f43;
+}
+.runner-cloud-timer[data-warning='true'] .runner-cloud-icon {
+  color: #ffb36b;
+}
+.runner-cloud-timer[data-warning='true'] .runner-cloud-label {
+  background: #ff7a1a;
+  color: #fff;
+}
+.runner-cloud-timer[data-warning='true'] .runner-cloud-flying {
+  display: none;
+}
+.runner-cloud-timer[data-warning='true'] .runner-cloud-landing {
+  display: inline;
+}
+
+@keyframes runner-cloud-warn {
+  to {
+    scale: 1.08;
+  }
+}
+
+/* Bouton de tir : grisé pendant la recharge, rose et lumineux quand il est prêt. */
+.runner-shot {
+  color: rgb(255 255 255 / 0.45);
+  touch-action: none;
+}
+.runner-shot[data-ready='true'] {
+  color: #fff;
+  filter: drop-shadow(0 0 14px #ff4fd8);
+}
+.runner-shot[data-ready='true'] .runner-shot-icon {
+  animation: runner-shot-ready 1.2s ease-in-out infinite;
+}
+
+@keyframes runner-shot-ready {
+  50% {
+    transform: scale(1.14) rotate(45deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .runner-speedlines {
+  .runner-speedlines,
+  .runner-cloud-timer[data-warning='true'],
+  .runner-shot[data-ready='true'] .runner-shot-icon {
     animation: none;
   }
 }

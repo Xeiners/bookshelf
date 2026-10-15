@@ -31,6 +31,8 @@ interface Shard {
 interface Burst {
   life: number
   x: number
+  /** Hauteur de l'éclat (un monstre volant éclate en l'air). */
+  y: number
   s: number
   flash: THREE.Sprite
   word: THREE.Sprite
@@ -120,7 +122,7 @@ export class SmashPart implements ScenePart {
         new THREE.MeshBasicMaterial({ color: '#fff0b0', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }),
       )
       flash.visible = text.visible = ring.visible = false
-      this.bursts.push({ life: 0, x: 0, s: 0, flash, word: text, ring })
+      this.bursts.push({ life: 0, x: 0, y: 0, s: 0, flash, word: text, ring })
       this.object.add(flash, text, ring)
     }
   }
@@ -129,7 +131,9 @@ export class SmashPart implements ScenePart {
     const x = objectX(object)
     const s = object.s
     const base = new THREE.Color(paletteColor(object.variant))
-    const tall = object.kind === 'wall'
+    const tall = object.kind === 'wall' || object.kind === 'flyer'
+    // Un monstre volant éclate à sa hauteur (au-dessus de la voie ou d'un toit).
+    const lift = object.kind === 'flyer' ? object.y : 0
     for (let count = 0; count < PER_SMASH; count += 1) {
       const index = this.cursor
       const shard = this.shards[index]!
@@ -137,7 +141,7 @@ export class SmashPart implements ScenePart {
       const angle = Math.random() * Math.PI * 2
       shard.life = LIFE * (0.7 + Math.random() * 0.3)
       shard.x = x + (Math.random() - 0.5) * 1.2
-      shard.y = 0.2 + Math.random() * (tall ? 2.2 : 0.8)
+      shard.y = lift + 0.2 + Math.random() * (tall ? 2.2 : 0.8)
       shard.s = s + Math.random() * object.length
       shard.vx = Math.cos(angle) * (3 + Math.random() * 5)
       shard.vy = 3 + Math.random() * 6
@@ -155,6 +159,7 @@ export class SmashPart implements ScenePart {
     burst.life = 1
     burst.x = x
     burst.s = s
+    burst.y = lift
   }
 
   update(run: RunState, _time: number, delta: number): void {
@@ -204,16 +209,16 @@ export class SmashPart implements ScenePart {
       burst.life = Math.max(0, burst.life - dt / 0.7)
       const age = 1 - burst.life
       const z = -(burst.s - run.distance)
-      burst.flash.position.set(burst.x, 1.2, z)
+      burst.flash.position.set(burst.x, burst.y + 1.2, z)
       burst.flash.scale.setScalar(1.2 + age * 2.6)
       burst.flash.material.opacity = burst.life ** 2
-      burst.ring.position.set(burst.x, 1.1, z - 0.2)
+      burst.ring.position.set(burst.x, burst.y + 1.1, z - 0.2)
       burst.ring.scale.setScalar(0.3 + (1 - (1 - age) ** 3) * 2.2)
       burst.ring.material.opacity = burst.life * 0.7
       // Le mot claque (léger rebond), monte un peu, puis s'efface.
       const pop = age < 0.15 ? (age / 0.15) * 1.25 : 1.25 - Math.min(0.25, (age - 0.15) * 1.2)
       // Posé un peu devant l'impact, au-dessus de la voie : lisible, sans masquer le coureur.
-      burst.word.position.set(burst.x * 0.8, 3.1 + age * 0.6, z - 5)
+      burst.word.position.set(burst.x * 0.8, burst.y + 3.1 + age * 0.6, z - 5)
       burst.word.scale.set(1.9 * pop, 1.2 * pop, 1)
       burst.word.material.opacity = Math.min(1, burst.life * 2.2)
     }

@@ -7,11 +7,18 @@
  * franchissable (libre, ou à sauter / à glisser), et les murs et trains, qui ne se
  * franchissent pas, ne bouchent jamais les trois voies à la fois.
  *
+ * Certains trains ont une rampe : on monte sur leur toit (le « support » sous le coureur).
+ * Un jeton de quiz vide la route devant soi le temps de répondre : la voie où l'on court à
+ * l'échéance donne la réponse. Les monstres se pulvérisent d'un tir (avec une recharge).
+ *
  * Tout est muté en place (aucune allocation par image) : la boucle de rendu lit l'état.
  */
 import {
+  ACCEL,
   CLOUD_TIME,
   DIVE_VELOCITY,
+  FLYER_HEIGHT,
+  FLYER_LIFT,
   FLY_HEIGHT,
   GRAVITY,
   HIT_INVULNERABILITY,
@@ -24,17 +31,24 @@ import {
   PLAYER_HALF_DEPTH,
   PLAYER_HALF_WIDTH,
   PLAYER_HEIGHT,
+  QUIZ_CLEAR_MARGIN,
   QUIZ_TIME,
+  RAMP_LENGTH,
   REVIVE_CLEARANCE,
   REVIVE_INVULNERABILITY,
   SHIELD_TIME,
   SHIFT_LEAD,
   SHIFT_TIME,
+  SHOT_COOLDOWN,
+  SHOT_RANGE,
+  SHOT_REWARD,
   SLIDE_HEIGHT,
   SLIDE_TIME,
+  START_SPEED,
   STUMBLE_RECOVERY,
   STUMBLE_SLOWDOWN,
   STUN_TIME,
+  TRAIN_ROOF,
   VIEW_AHEAD,
   scoreFor,
   speedAt,
@@ -42,7 +56,7 @@ import {
 import { seededRandom } from './random'
 
 export type Lane = -1 | 0 | 1
-export type ObstacleKind = 'wall' | 'low' | 'gate' | 'train'
+export type ObstacleKind = 'wall' | 'low' | 'gate' | 'train' | 'flyer'
 export type PickupKind = 'star' | 'quiz' | 'magnet' | 'cloud'
 export type ObjectKind = ObstacleKind | PickupKind
 
@@ -53,7 +67,7 @@ export interface TrackObject {
   /** Début de l'objet le long de la piste (m). */
   s: number
   length: number
-  /** Hauteur d'une ✦ (arc au-dessus d'un tome couché). */
+  /** Hauteur d'une ✦ (arc au-dessus d'un tome couché), du bas d'un monstre volant. */
   y: number
   /** Variante d'apparence (couleur, motif), tirée avec la piste. */
   variant: number
@@ -62,8 +76,13 @@ export interface TrackObject {
   /** Monstre qui feinte : la voie où il bondit, et son avancement (0 à 1). */
   shiftTo?: Lane
   shift?: number
-  /** Pulvérisé par l'Éveil (instant `t`) : il vole en éclats au lieu de bloquer. */
+  /** Pulvérisé par l'Éveil ou par un tir (instant `t`) : il vole en éclats au lieu de bloquer. */
   smashedAt?: number
+  /** Train : une rampe devant lui (on monte sur le toit) ; ou accroché au train d'avant (toit continu). */
+  ramp?: boolean
+  linked?: boolean
+  /** Effacé par un quiz (la route se vide le temps de répondre) : il n'existe plus. */
+  cleared?: boolean
 }
 
 /** Position latérale d'un objet (m) : sa voie, ou entre deux voies quand un monstre bondit. */
@@ -74,15 +93,44 @@ export function objectX(object: TrackObject): number {
   return from + (object.shiftTo - object.lane) * LANE_WIDTH * p * p * (3 - 2 * p)
 }
 
-/** Hauteurs occupées par chaque obstacle (m) : on saute un tome couché, on glisse sous un torii. */
+/**
+ * Hauteurs occupées par chaque obstacle (m) : on saute un tome couché, on glisse sous un
+ * torii ou sous un monstre volant (au-dessus de son support), on court sur le toit d'un train.
+ */
 export const OBSTACLE_SPAN: Record<ObstacleKind, readonly [number, number]> = {
   wall: [0, 3.2],
   low: [0, 0.9],
   gate: [1.15, 3.6],
-  train: [0, 3.4],
+  train: [0, TRAIN_ROOF - 0.3],
+  flyer: [FLYER_LIFT, FLYER_LIFT + FLYER_HEIGHT],
+}
+/** Hauteurs occupées par un obstacle donné (un monstre volant flotte à sa hauteur `y`). */
+export function spanOf(object: TrackObject): readonly [number, number] {
+  if (object.kind === 'flyer') return [object.y, object.y + FLYER_HEIGHT]
+  return OBSTACLE_SPAN[object.kind as ObstacleKind]
 }
 const HARD: ReadonlySet<ObjectKind> = new Set(['wall', 'train'])
-const isObstacle = (kind: ObjectKind): kind is ObstacleKind => kind === 'wall' || kind === 'low' || kind === 'gate' || kind === 'train'
+export const isObstacle = (kind: ObjectKind): kind is ObstacleKind => kind === 'wall' || kind === 'low' || kind === 'gate' || kind === 'train' || kind === 'flyer'
+/** Ce qu'un tir peut pulvériser (le rendu n'offre que les monstres : debout, étendus, volants). */
+const SHOOTABLE: ReadonlySet<ObjectKind> = new Set(['wall', 'low', 'flyer'])
+
+/** Demi-largeur d'un toit de train (m) : au-delà, on tombe. */
+const ROOF_HALF_WIDTH = 1.1
+
+/**
+ * Le support sous un point de la piste : le sol (0), le toit d'un train, ou la pente de sa
+ * rampe. `x` : position latérale (m), `s` : abscisse (m).
+ */
+export function supportAt(objects: readonly TrackObject[], x: number, s: number): number {
+  let ground = 0
+  for (const object of objects) {
+    if (object.kind !== 'train' || object.cleared) continue
+    if (Math.abs(x - object.lane * LANE_WIDTH) > ROOF_HALF_WIDTH) continue
+    if (s >= object.s && s <= object.s + object.length) return TRAIN_ROOF
+    if (object.ramp && s >= object.s - RAMP_LENGTH && s < object.s) ground = Math.max(ground, (TRAIN_ROOF * (s - object.s + RAMP_LENGTH)) / RAMP_LENGTH)
+  }
+  return ground
+}
 
 export type RunAction = 'left' | 'right' | 'up' | 'down'
 
@@ -99,6 +147,8 @@ export type RunEvent =
   | 'quizRight'
   | 'quizWrong'
   | 'smash'
+  | 'shot'
+  | 'clear'
   | 'over'
   | 'revive'
 
@@ -159,6 +209,14 @@ export interface RunState {
   quizRight: number
   quizAsked: number
   quiz: ActiveQuiz | null
+  /** La route est vide jusque-là (m) : posée par un quiz. */
+  clearUntil: number
+  /** Support sous le coureur (sol, toit ou rampe), en m. */
+  ground: number
+  /** Prochain tir possible (temps de course), monstres pulvérisés, et le dernier tir (pour le rayon). */
+  shotReadyAt: number
+  kills: number
+  lastShot: { at: number; x: number; y: number; s: number } | null
   over: boolean
   objects: TrackObject[]
   /** Ce qui s'est passé depuis la dernière lecture (sons, vibrations, interface). */
@@ -203,6 +261,11 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
     quizRight: 0,
     quizAsked: 0,
     quiz: null,
+    clearUntil: 0,
+    ground: 0,
+    shotReadyAt: 0,
+    kills: 0,
+    lastShot: null,
     over: false,
     objects: [],
     events: [],
@@ -216,6 +279,7 @@ export const isSliding = (state: RunState) => state.slideUntil > state.t
 export const isFlying = (state: RunState) => state.cloudUntil > state.t
 export const isShielded = (state: RunState) => state.shieldUntil > state.t
 export const isStunned = (state: RunState) => state.stunnedUntil > state.t
+export const shotReady = (state: RunState) => state.t >= state.shotReadyAt
 export const scoreOf = (state: RunState) => scoreFor(state.distance, state.stardust, state.quizRight)
 
 /**
@@ -266,6 +330,13 @@ export function act(state: RunState, action: RunAction): void {
   state.events.push('slide')
 }
 
+/** Aller droit dans une voie (une réponse touchée au quiz : on court vers sa voie). */
+export function goToLane(state: RunState, lane: Lane): void {
+  if (state.over || lane === state.lane) return
+  steer(state, lane)
+  state.events.push('lane')
+}
+
 /** Part vers une voie, depuis la position et la vitesse latérale du moment. */
 function steer(state: RunState, lane: Lane): void {
   state.laneBefore = state.lane
@@ -276,7 +347,28 @@ function steer(state: RunState, lane: Lane): void {
 }
 
 /**
- * Répondre au quiz en cours (on touche une des trois réponses) ; `null` : temps écoulé.
+ * Tirer sur un obstacle (un monstre touché du doigt) : pulvérisé s'il est devant, à portée,
+ * et si le tir est rechargé. Rapporte quelques ✦. Renvoie `false` si le tir ne part pas.
+ */
+export function shoot(state: RunState, id: number): boolean {
+  if (state.over || !shotReady(state)) return false
+  const object = state.objects.find((candidate) => candidate.id === id)
+  if (!object || object.done || object.cleared || object.smashedAt !== undefined || !SHOOTABLE.has(object.kind)) return false
+  const ahead = object.s - state.distance
+  if (ahead < -0.5 || ahead > SHOT_RANGE) return false
+  const [low, high] = spanOf(object)
+  state.lastShot = { at: state.t, x: objectX(object), y: object.kind === 'low' ? 0.5 : (low + Math.min(high, low + 2.4)) / 2, s: object.s + object.length / 2 }
+  object.done = true
+  object.smashedAt = state.t
+  state.shotReadyAt = state.t + SHOT_COOLDOWN
+  state.kills += 1
+  state.stardust += SHOT_REWARD
+  state.events.push('shot')
+  return true
+}
+
+/**
+ * Répondre au quiz en cours : à l'échéance, la voie où l'on court ; `null` : pas de réponse.
  * Bonne réponse : l'Éveil (invincible, il pulvérise les obstacles et attire les ✦).
  */
 export function answerQuiz(state: RunState, choice: 0 | 1 | 2 | null): void {
@@ -321,17 +413,27 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
     state.vx = ((6 * p2 - 6 * p) * state.laneFrom + (3 * p2 - 4 * p + 1) * v0 + (6 * p - 6 * p2) * target) / LANE_TIME
   }
 
-  // Vertical : vol sur le nuage, sinon saut et gravité.
+  // Vertical : vol sur le nuage, sinon saut et gravité, au-dessus du support (sol, toit, rampe).
+  const ground = supportAt(state.objects, state.x, state.distance)
+  state.ground = ground
   if (isFlying(state)) {
     state.y += (FLY_HEIGHT - state.y) * Math.min(1, dt * 6)
     state.vy = 0
     state.grounded = false
   } else {
-    if (!state.grounded || state.y > 0) {
+    if (state.grounded) {
+      // Au bout du toit, ou d'un pas de côté dans le vide : on tombe. Sur la rampe : on monte.
+      if (ground < state.y - 0.05) state.grounded = false
+      else if (ground > state.y) state.y = Math.min(ground, state.y + Math.max(0.9, 14 * dt))
+    }
+    if (!state.grounded) {
+      const before = state.y
       state.vy -= GRAVITY * dt
       state.y += state.vy * dt
-      if (state.y <= 0) {
-        state.y = 0
+      // On se pose sur le toit seulement en arrivant d'au-dessus (pas à travers la caisse).
+      const floor = before >= ground - 0.5 ? ground : 0
+      if (state.vy <= 0 && state.y <= floor) {
+        state.y = floor
         state.vy = 0
         state.grounded = true
         if (state.slideOnLanding) {
@@ -343,8 +445,8 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
     }
   }
 
-  // Quiz : sans réponse à l'échéance, c'est raté.
-  if (state.quiz && t >= state.quiz.deadline) answerQuiz(state, null)
+  // Quiz : à l'échéance, la voie où l'on court donne la réponse.
+  if (state.quiz && t >= state.quiz.deadline) answerQuiz(state, (state.lane + 1) as 0 | 1 | 2)
 
   // Monstres qui feintent : à l'approche, ils bondissent dans la voie voisine.
   for (const object of state.objects) {
@@ -363,7 +465,7 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
     if (object.s + object.length > state.distance - KEEP_BEHIND) objects[kept++] = object
   }
   objects.length = kept
-  state.track.fill(objects, state.distance + VIEW_AHEAD, state.quiz !== null)
+  state.track.fill(objects, state.distance + VIEW_AHEAD, state.quiz !== null, state.clearUntil)
 }
 
 function collide(state: RunState, from: number, ask: () => QuizQuestion | null): void {
@@ -379,7 +481,7 @@ function collide(state: RunState, from: number, ask: () => QuizQuestion | null):
   const safe = flying || state.invulnerableUntil > t || state.shieldUntil > t
 
   for (const object of state.objects) {
-    if (object.done) continue
+    if (object.done || object.cleared) continue
     if (object.s > front + (magnet ? 2.5 : 1)) continue
     if (object.s + object.length < back - (magnet ? 1.5 : 0.6)) continue
     const laneX = objectX(object)
@@ -395,7 +497,7 @@ function collide(state: RunState, from: number, ask: () => QuizQuestion | null):
       }
       if (safe || object.s > front || object.s + object.length < back) continue
       if (sideways > 1.0 + PLAYER_HALF_WIDTH) continue
-      const [low, high] = OBSTACLE_SPAN[object.kind]
+      const [low, high] = spanOf(object)
       if (top <= low || bottom >= high) continue
       // De face (on vient d'atteindre l'obstacle, bien dans sa voie) : le choc.
       const headOn = object.s >= from + PLAYER_HALF_DEPTH - 0.05 && sideways < 0.9
@@ -415,7 +517,9 @@ function collide(state: RunState, from: number, ask: () => QuizQuestion | null):
     // Objets à ramasser : dans sa voie et à sa hauteur ; en vol, toute la voie ; l'aimant attire tout.
     const near = magnet && object.kind === 'star' ? sideways < LANE_WIDTH * 1.6 : sideways < 1.1
     if (!near) continue
-    const reach = flying || (magnet && object.kind === 'star') || (object.y + 0.5 > bottom && object.y - 0.5 < top)
+    // Hauteur : large pour les ✦ (les arcs au-dessus des tomes suivent le saut, mais pas au centimètre).
+    const margin = object.kind === 'star' ? 0.8 : 0.5
+    const reach = flying || (magnet && object.kind === 'star') || (object.y + margin > bottom && object.y - margin < top)
     if (!reach) continue
     object.done = true
     pickUp(state, object.kind, ask)
@@ -475,11 +579,36 @@ function pickUp(state: RunState, kind: ObjectKind, ask: () => QuizQuestion | nul
       state.quiz = { question, deadline: t + QUIZ_TIME }
       state.quizAsked += 1
       state.events.push('quiz')
+      clearRoad(state)
     } else {
       state.stardust += 5
       state.events.push('star')
     }
   }
+}
+
+/**
+ * La route se vide devant soi le temps du quiz : tout ce qui est devant (obstacles, ✦,
+ * bonus) disparaît jusqu'au-delà de l'échéance, et rien n'y sera posé. Le train dont on
+ * foule le toit ou la rampe reste.
+ */
+function clearRoad(state: RunState): void {
+  const from = state.distance + 1.5
+  const until = state.distance + state.speed * (QUIZ_TIME + 0.4) + QUIZ_CLEAR_MARGIN
+  for (const object of state.objects) {
+    const start = object.s - (object.ramp ? RAMP_LENGTH : 0)
+    if (object.done || start <= from || object.s >= until) continue
+    object.done = true
+    object.cleared = true
+  }
+  state.clearUntil = until
+  state.events.push('clear')
+}
+
+/** Vitesse probable à l'abscisse `s` (accélération depuis le départ) : pour caler les arcs de ✦ sur le saut. */
+function speedAround(s: number): number {
+  const t = (-START_SPEED + Math.sqrt(START_SPEED * START_SPEED + 2 * ACCEL * Math.max(0, s))) / ACCEL
+  return speedAt(t)
 }
 
 /* ---- Piste ------------------------------------------------------------------------ */
@@ -499,10 +628,15 @@ export class TrackGenerator {
     this.random = seededRandom(seed)
   }
 
-  /** Ajoute des rangées jusqu'à `until` mètres. `quizOpen` : un quiz est en cours, pas de nouveau jeton. */
-  fill(objects: TrackObject[], until: number, quizOpen = false): void {
+  /**
+   * Ajoute des rangées jusqu'à `until` mètres. `quizOpen` : un quiz est en cours, pas de
+   * nouveau jeton ; `quietUntil` : la route reste vide jusque-là (rangées tirées puis écartées).
+   */
+  fill(objects: TrackObject[], until: number, quizOpen = false, quietUntil = 0): void {
     while (this.nextRow < until) {
+      const start = objects.length
       this.row(objects, this.nextRow, quizOpen)
+      if (this.nextRow < quietUntil) objects.length = start
       const difficulty = Math.min(1, this.nextRow / 2500)
       this.nextRow += Math.max(16, 30 - 12 * difficulty) + this.random() * 6
     }
@@ -512,8 +646,34 @@ export class TrackGenerator {
     return items[Math.floor(this.random() * items.length)]!
   }
 
-  private push(objects: TrackObject[], kind: ObjectKind, lane: Lane, s: number, length: number, y = 0): void {
-    objects.push({ id: this.nextId++, kind, lane, s, length, y, variant: Math.floor(this.random() * 1000), done: false })
+  private push(objects: TrackObject[], kind: ObjectKind, lane: Lane, s: number, length: number, y = 0): TrackObject {
+    const object: TrackObject = { id: this.nextId++, kind, lane, s, length, y, variant: Math.floor(this.random() * 1000), done: false }
+    objects.push(object)
+    return object
+  }
+
+  /** Un arc de ✦ au-dessus d'un tome couché, calé sur un saut à la vitesse probable de l'endroit. */
+  private starArc(objects: TrackObject[], lane: Lane, s: number): void {
+    const speed = speedAround(s)
+    const air = (2 * JUMP_VELOCITY) / GRAVITY
+    const peak = (JUMP_VELOCITY * JUMP_VELOCITY) / (2 * GRAVITY)
+    for (let index = 0; index < 5; index += 1) {
+      const offset = (index - 2) * 0.19 * speed * air
+      const fromTop = offset / speed
+      // Hauteur des pieds à cet instant du saut, plus de quoi tomber à hauteur de poitrine.
+      const feet = Math.max(0, peak - (GRAVITY / 2) * fromTop * fromTop)
+      this.push(objects, 'star', lane, s + 0.5 + offset, 0.6, Math.max(1, feet + 0.9))
+    }
+  }
+
+  /** Le toit d'un train à rampe : une ligne de ✦, parfois un monstre volant à abattre. */
+  private roof(objects: TrackObject[], lane: Lane, s: number, length: number, difficulty: number): void {
+    const random = this.random
+    if (random() < 0.32 + 0.3 * difficulty) {
+      this.push(objects, 'flyer', lane, s + length * (0.45 + random() * 0.3), 1, TRAIN_ROOF + FLYER_LIFT)
+      return
+    }
+    if (random() < 0.8) for (let at = s + 1.5; at < s + length - 1; at += 2.5) this.push(objects, 'star', lane, at, 0.6, TRAIN_ROOF + 1)
   }
 
   private row(objects: TrackObject[], s: number, quizOpen: boolean): void {
@@ -533,22 +693,32 @@ export class TrackGenerator {
       const r = random()
       if (hardAllowed && r < 0.22 + 0.1 * difficulty) kind = 'train'
       else if (hardAllowed && r < 0.45) kind = 'wall'
-      else kind = r < 0.72 ? 'low' : 'gate'
-      if (blocked.has(lane) && (kind === 'train' || kind === 'wall')) continue
+      else if (r < 0.66) kind = 'low'
+      else kind = r < 0.86 - 0.08 * difficulty ? 'gate' : 'flyer'
       if (blocked.has(lane)) continue
+      const freeSince = this.hardUntil[lane]
       const length = kind === 'train' ? 12 + Math.floor(random() * 3) * 4 : kind === 'wall' ? 1.6 : 1
-      this.push(objects, kind, lane, s, length)
+      const object = this.push(objects, kind, lane, s, length, kind === 'flyer' ? FLYER_LIFT : 0)
       if (HARD.has(kind)) {
         blocked.add(lane)
         this.hardUntil[lane] = s + length
       }
-      // Un arc de ✦ au-dessus d'un tome couché : la récompense du saut.
-      if (kind === 'low' && random() < 0.5) {
-        for (let index = 0; index < 5; index += 1) {
-          const offset = (index - 2) * 1.6
-          this.push(objects, 'star', lane, s + offset, 0.6, 2.1 - (offset * offset) / 6)
+      // Un train sur deux a sa rampe (la voie est libre devant elle) : on monte sur le toit,
+      // parfois sur deux wagons à la suite.
+      if (kind === 'train' && freeSince < s - RAMP_LENGTH - 2 && random() < 0.5) {
+        object.ramp = true
+        this.roof(objects, lane, s, length, difficulty)
+        if (random() < 0.35) {
+          const next = s + length + 0.4
+          const second = 12 + Math.floor(random() * 3) * 4
+          const linked = this.push(objects, 'train', lane, next, second)
+          linked.linked = true
+          this.hardUntil[lane] = next + second
+          this.roof(objects, lane, next, second, difficulty)
         }
       }
+      // Un arc de ✦ au-dessus d'un tome couché : la récompense du saut.
+      if (kind === 'low' && random() < 0.5) this.starArc(objects, lane, s)
     }
 
     // Un monstre feinte parfois : il bondira dans une voie voisine libre (de plus en plus souvent).

@@ -24,6 +24,25 @@ export const SLIDE_TIME = 0.62
 /** Hauteur de vol sur le nuage magique. */
 export const FLY_HEIGHT = 4.4
 
+/**
+ * Toit du Manga Express (m) : certains trains ont une rampe devant eux, on y monte et l'on
+ * court sur les toits, à la Subway Surfers. On en tombe en changeant de voie ou au bout.
+ */
+export const TRAIN_ROOF = 3.35
+export const RAMP_LENGTH = 9
+
+/** Monstre volant : le bas de son corps au-dessus de son support (sol ou toit), et sa taille (m). */
+export const FLYER_LIFT = 1.25
+export const FLYER_HEIGHT = 2.2
+
+/** Tir sur les monstres (on les touche du doigt) : recharge (s), portée (m), ✦ gagnées. */
+export const SHOT_COOLDOWN = 5
+export const SHOT_RANGE = 70
+export const SHOT_REWARD = 2
+
+/** Quiz : la route se vide devant soi le temps de répondre, plus cette marge (m). */
+export const QUIZ_CLEAR_MARGIN = 25
+
 /** Taille du coureur : debout, puis en glissade (m). */
 export const PLAYER_HEIGHT = 1.75
 export const SLIDE_HEIGHT = 0.85
@@ -35,6 +54,7 @@ export const HIT_INVULNERABILITY = 1.6
 export const SHIELD_TIME = 6
 export const MAGNET_TIME = 8
 export const CLOUD_TIME = 5
+/** Quiz : la voie où l'on court à l'échéance donne la réponse. */
 export const QUIZ_TIME = 5
 
 /**

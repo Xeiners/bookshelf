@@ -276,8 +276,9 @@ export class HeroModelPart implements ScenePart {
       })
     }
 
-    this.shadow.position.set(run.x, 0.02, 0)
-    const shrink = Math.max(0.3, 1 - run.y * 0.15)
+    // L'ombre se pose sur le support (sol, toit d'un train, rampe).
+    this.shadow.position.set(run.x, run.ground + 0.02, 0)
+    const shrink = Math.max(0.3, 1 - Math.max(0, run.y - run.ground) * 0.15)
     this.shadow.scale.set(shrink, shrink, 1)
     this.cloud.update(isFlying(run) && !run.over, run.x, run.y, this.roll, run.over ? 0 : run.speed, run.t, dt)
     // Clignote après un choc ou une résurrection.

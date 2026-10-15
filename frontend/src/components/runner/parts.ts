@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { LANE_WIDTH, MAX_SPEED, START_SPEED } from '../../lib/runner/constants'
-import type { RunState } from '../../lib/runner/engine'
+import { LANE_WIDTH, MAX_SPEED, RAMP_LENGTH, START_SPEED, TRAIN_ROOF } from '../../lib/runner/constants'
+import type { RunState, TrackObject } from '../../lib/runner/engine'
 import { Batch } from './batch'
 import { monsterOf } from './biomes'
 import { canvasTexture, paletteColor, toonMaterial } from './toon'
@@ -69,11 +69,76 @@ function pantographGeometry(): THREE.BufferGeometry {
   return mergeGeometries(parts)!
 }
 
+/** Flèche d'indication : deux chevrons blancs cernés d'encre, pointe vers le bas (teintée par instance). */
+function arrowTexture(): THREE.CanvasTexture {
+  return canvasTexture(128, 128, (context) => {
+    context.lineJoin = 'round'
+    context.lineCap = 'round'
+    for (const [top, alpha] of [
+      [22, 0.55],
+      [58, 1],
+    ] as const) {
+      context.globalAlpha = alpha
+      context.beginPath()
+      context.moveTo(22, top)
+      context.lineTo(64, top + 40)
+      context.lineTo(106, top)
+      context.strokeStyle = '#170b2e'
+      context.lineWidth = 30
+      context.stroke()
+      context.strokeStyle = '#ffffff'
+      context.lineWidth = 17
+      context.stroke()
+    }
+  })
+}
+
+/**
+ * Rampe d'un train : un plan incliné d'acier (prisme triangulaire), du sol jusqu'au toit.
+ * Origine : le pied de la rampe ; elle monte vers -z jusqu'au nez du train.
+ */
+function rampGeometry(): THREE.BufferGeometry {
+  const shape = new THREE.Shape()
+  shape.moveTo(0, 0)
+  shape.lineTo(RAMP_LENGTH, 0)
+  shape.lineTo(RAMP_LENGTH, TRAIN_ROOF)
+  shape.closePath()
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 1.9, bevelEnabled: false })
+  // (u, v, profondeur) → (x, y, z) = (profondeur, v, -u).
+  geometry.rotateY(Math.PI / 2)
+  geometry.translate(-0.95, 0, 0)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+/** Une voie libre à côté d'un tome géant (pour la flèche qui l'indique), ou `null`. */
+function dodgeOf(objects: readonly TrackObject[], wall: TrackObject): -1 | 1 | null {
+  const free = (lane: number) =>
+    lane >= -1 &&
+    lane <= 1 &&
+    !objects.some(
+      (other) =>
+        other !== wall &&
+        !other.cleared &&
+        other.smashedAt === undefined &&
+        (other.kind === 'wall' || other.kind === 'train' || other.kind === 'low' || other.kind === 'gate' || other.kind === 'flyer') &&
+        (other.shiftTo ?? other.lane) === lane &&
+        other.s < wall.s + wall.length + 3 &&
+        other.s + other.length > wall.s - 3,
+    )
+  const first = wall.lane === 0 ? (wall.variant % 2 ? 1 : -1) : -wall.lane
+  if (free(wall.lane + first)) return first as -1 | 1
+  if (free(wall.lane - first)) return -first as -1 | 1
+  return null
+}
+
 /**
  * Les obstacles : tomes géants debout (la vraie couverture face au coureur), tomes couchés
  * (couverture vers le ciel), torii, et le Manga Express, rame de banlieue japonaise :
  * caisse inox, bandeau de ligne, vitres teintées, portes, publicités de mangas sur les
- * flancs, girouette lumineuse, pantographe. Volumes arrondis, ombrage « cel », contour d'encre.
+ * flancs, girouette lumineuse, pantographe ; certains avec une rampe pour monter sur le toit.
+ * Des flèches lumineuses disent quoi faire : glisser sous un torii, monter la rampe, contourner
+ * un tome géant. Volumes arrondis, ombrage « cel », contour d'encre.
  */
 export class ObstaclesPart implements ScenePart {
   readonly object = new THREE.Group()
@@ -105,6 +170,15 @@ export class ObstaclesPart implements ScenePart {
   private readonly wheel = new Batch(new THREE.CylinderGeometry(0.3, 0.3, 0.16, 16), toonMaterial('#22242c'), 96)
   private readonly roofUnit = new Batch(rounded(1.25, 0.3, 2.2, 0.08), toonMaterial('#c9ced8'), 24)
   private readonly pantograph = new Batch(pantographGeometry(), toonMaterial('#4a4f5c'), 8)
+  // Rampes : le prisme d'acier, ses deux rives jaunes.
+  private readonly ramp = new Batch(rampGeometry(), toonMaterial('#5d6475'), 8, 0.03)
+  private readonly rampEdge = new Batch(rounded(0.14, 0.1, Math.hypot(RAMP_LENGTH, TRAIN_ROOF), 0.04), toonMaterial('#ffd400', '#ffb000', 0.25), 16)
+  // Flèches d'indication (toujours lisibles : pas de brouillard, par-dessus le décor proche).
+  private readonly arrow = new Batch(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: arrowTexture(), transparent: true, depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide }),
+    40,
+  )
   private readonly batches: Batch[]
 
   constructor() {
@@ -133,22 +207,30 @@ export class ObstaclesPart implements ScenePart {
       this.wheel,
       this.roofUnit,
       this.pantograph,
+      this.ramp,
+      this.rampEdge,
+      this.arrow,
     ]
     for (const batch of this.batches) this.object.add(batch.group)
   }
 
   update(run: RunState): void {
     for (const batch of this.batches) batch.begin()
+    // Les flèches battent doucement, toutes ensemble.
+    const bob = Math.sin(run.t * 5) * 0.12
     for (const object of run.objects) {
       if (object.kind !== 'low' && object.kind !== 'wall' && object.kind !== 'gate' && object.kind !== 'train') continue
+      // Effacé par un quiz : la route est vide.
+      if (object.cleared) continue
       // Un monstre tient lieu de cet obstacle (cf. `monsters.ts`) ; pulvérisé, il vole en éclats (`smash.ts`).
       if (monsterOf(object) || object.smashedAt !== undefined) continue
       const x = object.lane * LANE_WIDTH
       // `near` : la face tournée vers le coureur ; `z` : le centre de l'objet.
       const near = -(object.s - run.distance)
       const z = near - object.length / 2
-      if (near < -170 || z > 14) continue
+      if (near < -170 || z > 14 + (object.ramp ? RAMP_LENGTH : 0)) continue
       const color = paletteColor(object.variant)
+      const ahead = object.s - run.distance
       if (object.kind === 'low') {
         this.cover.push(x, 0.42, z, 1, 1, 1, color)
         this.pages.push(x, 0.42, z, 1, 1, 1)
@@ -162,6 +244,11 @@ export class ObstaclesPart implements ScenePart {
         this.bookBoards.push(x, 1.5, bz - 0.24, 1, 1, 1, color)
         this.bookSpine.push(x - 0.97, 1.5, bz, 1, 1, 1, color)
         this.bookArt.cover(object.variant * 5 + 3, x, 1.5, bz + 0.275)
+        // Au-dessus : une flèche vers la voie libre d'à côté.
+        if (ahead > 4 && ahead < 70) {
+          const dodge = dodgeOf(run.objects, object)
+          if (dodge) this.arrow.push(x + dodge * (0.35 + bob), 3.75, near + 0.2, 1.1, 1.1, 1, '#ff8fcb', 0, 0, dodge * (Math.PI / 2))
+        }
       } else if (object.kind === 'gate') {
         // Deux torii voisins sur une même rangée : décalés en profondeur, leurs linteaux ne se mêlent pas.
         const tz = z + object.lane * 0.45
@@ -170,12 +257,24 @@ export class ObstaclesPart implements ScenePart {
         // La corde se balance au vent, chaque torii à son rythme.
         const swing = Math.sin(run.t * 1.9 + object.id) * 0.09 + Math.sin(run.t * 3.3 + object.id * 2) * 0.03
         this.rope.push(x, 1.58, tz, 1, 1, 1, undefined, swing)
-      } else this.train(x, near, z, object.length, object.variant)
+        // Sous le linteau : une flèche vers le bas (on glisse dessous).
+        if (ahead > 2 && ahead < 70) this.arrow.push(x, 2.45 - bob, tz + 0.25, 1.15, 1.15, 1, '#7ff0ff')
+      } else {
+        this.train(x, near, z, object.length, object.variant, object.ramp === true || object.linked === true)
+        if (object.ramp) {
+          // La rampe, du sol jusqu'au nez du train ; une flèche vers le haut à son pied.
+          const slope = Math.atan2(TRAIN_ROOF, RAMP_LENGTH)
+          this.ramp.push(x, 0, near + RAMP_LENGTH, 1, 1, 1)
+          for (const side of [-1, 1]) this.rampEdge.push(x + side * 0.9, TRAIN_ROOF / 2 + 0.04, near + RAMP_LENGTH / 2, 1, 1, 1, undefined, slope)
+          if (ahead > RAMP_LENGTH + 2 && ahead < 80) this.arrow.push(x, 1.7 + bob, near + RAMP_LENGTH + 0.6, 1.2, 1.2, 1, '#ffd35c', 0, 0, Math.PI)
+        }
+      }
     }
     for (const batch of this.batches) batch.end()
   }
 
-  private train(x: number, near: number, z: number, length: number, variant: number): void {
+  /** `rideable` : on court sur son toit (rampe ou wagon accroché) ; pas de climatiseurs ni de pantographe. */
+  private train(x: number, near: number, z: number, length: number, variant: number, rideable: boolean): void {
     const size = TRAIN_LENGTHS.indexOf(length as (typeof TRAIN_LENGTHS)[number])
     const line = LINE_COLORS[Math.abs(variant) % LINE_COLORS.length]!
     this.bodies[size < 0 ? 0 : size]!.push(x, 1.98, z, 1, 1, 1)
@@ -198,10 +297,12 @@ export class ObstaclesPart implements ScenePart {
         this.wheel.push(x + 0.98, 0.32, end + offset, 1, 1, 1, undefined, 0, 0, Math.PI / 2)
       }
     }
-    // Toit : climatiseurs et pantographe.
-    this.roofUnit.push(x, 3.42, near - length * 0.25, 1, 1, 1)
-    this.roofUnit.push(x, 3.42, near - length * 0.75, 1, 1, 1)
-    this.pantograph.push(x, 3.36, z, 1, 1, 1)
+    // Toit : climatiseurs et pantographe (sauf là où l'on court).
+    if (!rideable) {
+      this.roofUnit.push(x, 3.42, near - length * 0.25, 1, 1, 1)
+      this.roofUnit.push(x, 3.42, near - length * 0.75, 1, 1, 1)
+      this.pantograph.push(x, 3.36, z, 1, 1, 1)
+    }
     // Flancs : portes (vitrées) tous les 4 m, une publicité manga entre deux portes.
     for (let slot = 0; 2.4 + slot * 4 < length - 1.2; slot += 1) {
       const doorZ = near - 2.4 - slot * 4

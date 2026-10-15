@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Loader2, Flame, Magnet, Pause, Play, Sparkles, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Crosshair, Loader2, Flame, Magnet, Pause, Play, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
-import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, multiplierFor, reviveCost } from '../../lib/runner/constants'
-import { act, answerQuiz, createRun, revive, scoreOf, type ActiveQuiz, type RunAction, type RunState } from '../../lib/runner/engine'
+import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, SHOT_COOLDOWN, multiplierFor, reviveCost } from '../../lib/runner/constants'
+import { act, createRun, goToLane, revive, scoreOf, shoot, shotReady, type ActiveQuiz, type Lane, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
-import { playChime, playRunnerHit, playRunnerJump, playRunnerAwaken, playRunnerPower, playRunnerSlide, playRunnerSmash, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
+import { playChime, playRunnerClear, playRunnerHit, playRunnerJump, playRunnerAwaken, playRunnerPower, playRunnerShot, playRunnerSlide, playRunnerSmash, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
 import type { RunnerAssets } from './assets'
 import type { HeroLookId } from './looks'
 import { IntroClock } from './intro'
 import { QuizDeck } from './quizDeck'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { RunnerScene } from './RunnerScene'
+import { ShotAim } from './shots'
 
 export interface RunnerOutcome {
   distance: number
@@ -49,6 +50,8 @@ const KEYS: Record<string, RunAction> = {
   ' ': 'up',
   s: 'down',
 }
+/** Touches de tir (sur le monstre le plus proche). */
+const SHOOT_KEYS = new Set(['e', 'f', 'Enter'])
 
 /** Durée de la cinématique de départ (s), et du raccord vers la caméra de jeu quand on la passe. */
 const INTRO_TIME = 3.4
@@ -59,6 +62,11 @@ const REVIVE_SECONDS = 6
 
 /** Distance d'un glissement de doigt qui compte comme un geste (px). */
 const SWIPE = 26
+/** Un toucher bref, sans glisser : un tir sur le monstre sous le doigt. */
+const TAP_MOVE = 14
+const TAP_TIME = 380
+/** Le nuage annonce la descente ces dernières secondes. */
+const CLOUD_WARNING = 1.5
 
 /**
  * Une course : la scène 3D en plein écran et, par-dessus, le HUD. Les compteurs qui
@@ -93,7 +101,17 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const [verdict, setVerdict] = useState<'wrong' | null>(null)
   const [hitFlash, setHitFlash] = useState(0)
   const [awaken, setAwaken] = useState(0)
+  const [cleared, setCleared] = useState(0)
   const awakeLinesRef = useRef<HTMLDivElement>(null)
+  const [aim] = useState(() => new ShotAim())
+  /** Minuteur du nuage (secondes restantes, alerte de descente) et bouton de tir (recharge). */
+  const cloudRef = useRef<HTMLDivElement>(null)
+  const cloudSecondsRef = useRef<HTMLSpanElement>(null)
+  const cloudRingRef = useRef<SVGCircleElement>(null)
+  const shotRef = useRef<HTMLButtonElement>(null)
+  const shotRingRef = useRef<SVGCircleElement>(null)
+  const quizCardsRef = useRef<HTMLDivElement>(null)
+  const quizSecondsRef = useRef<HTMLSpanElement>(null)
 
   const distanceRef = useRef<HTMLSpanElement>(null)
   const scoreRef = useRef<HTMLSpanElement>(null)
@@ -202,12 +220,13 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   // Développement : l'état de la course, lisible depuis la console (et les tests du navigateur).
   useEffect(() => {
     if (!import.meta.env.DEV) return
-    Object.assign(window, { __mangaRunner: state, __runnerIntro: intro })
+    Object.assign(window, { __mangaRunner: state, __runnerIntro: intro, __runnerAim: aim })
     return () => {
       Reflect.deleteProperty(window, '__mangaRunner')
       Reflect.deleteProperty(window, '__runnerIntro')
+      Reflect.deleteProperty(window, '__runnerAim')
     }
-  }, [intro])
+  }, [intro, aim])
 
   // Pas de défilement de la page pendant la course : les gestes sont pour le jeu.
   useEffect(() => {
@@ -225,11 +244,27 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
     act(state.current, action)
   }, [])
 
-  /** Une réponse touchée au quiz : jugée tout de suite (le verdict suit, via les événements). */
+  /** Une réponse touchée au quiz : on court vers sa voie (la voie, à l'échéance, fait foi). */
   const answer = useCallback((choice: 0 | 1 | 2) => {
     if (paused.current) return
-    answerQuiz(state.current, choice)
+    goToLane(state.current, (choice - 1) as Lane)
   }, [])
+
+  /** Un tir : sur le monstre touché, ou le plus proche (bouton, clavier). */
+  const fire = useCallback(
+    (id: number | null) => {
+      if (paused.current) return
+      const run = state.current
+      if (!shotReady(run)) {
+        // Pas encore rechargé : le bouton tremble.
+        shotRef.current?.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 220 })
+        return
+      }
+      const target = id ?? aim.nearest(run.lane)
+      if (target !== null) shoot(run, target)
+    },
+    [aim],
+  )
 
   // Clavier : flèches, ZQSD / WASD, espace ; Échap met en pause.
   useEffect(() => {
@@ -242,6 +277,11 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         pause(!paused.current)
         return
       }
+      if (SHOOT_KEYS.has(event.key) || SHOOT_KEYS.has(event.key.toLowerCase())) {
+        event.preventDefault()
+        if (!event.repeat) fire(null)
+        return
+      }
       const action = KEYS[event.key] ?? KEYS[event.key.toLowerCase()]
       if (!action) return
       event.preventDefault()
@@ -249,16 +289,17 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [introRunning, pause, perform, skipIntro])
+  }, [introRunning, pause, perform, skipIntro, fire])
 
   // Glissements : le geste part dès que le doigt a assez bougé (pas besoin de le lever).
-  const swipe = useRef<{ id: number; x: number; y: number; used: boolean } | null>(null)
+  // Un toucher bref sur un monstre : un tir.
+  const swipe = useRef<{ id: number; x: number; y: number; at: number; used: boolean } | null>(null)
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (introRunning) {
       skipIntro()
       return
     }
-    swipe.current = { id: event.pointerId, x: event.clientX, y: event.clientY, used: false }
+    swipe.current = { id: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now(), used: false }
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = swipe.current
@@ -269,7 +310,15 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
     current.used = true
     perform(Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : dy < 0 ? 'up' : 'down')
   }
-  const onPointerUp = () => {
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const current = swipe.current
+    swipe.current = null
+    if (!current || current.used || current.id !== event.pointerId) return
+    if (performance.now() - current.at > TAP_TIME || Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_MOVE) return
+    const target = aim.pick(event.clientX, event.clientY)
+    if (target !== null) fire(target)
+  }
+  const onPointerCancel = () => {
     swipe.current = null
   }
 
@@ -302,7 +351,36 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       // Lignes de vitesse tant que dure l'Éveil.
       const awake = run.shieldUntil > run.t ? 'block' : 'none'
       if (awakeLinesRef.current && awakeLinesRef.current.style.display !== awake) awakeLinesRef.current.style.display = awake
-      if (run.quiz && quizBarRef.current) quizBarRef.current.style.transform = `scaleX(${Math.max(0, run.quiz.deadline - run.t) / QUIZ_TIME})`
+      // Nuage : les secondes qui restent, et l'alerte de descente à la fin.
+      const cloudLeft = Math.max(0, run.cloudUntil - run.t)
+      const cloud = cloudRef.current
+      if (cloud) {
+        const show = cloudLeft > 0 && !run.over ? 'flex' : 'none'
+        if (cloud.style.display !== show) cloud.style.display = show
+        if (cloudLeft > 0) {
+          const warning = cloudLeft < CLOUD_WARNING ? 'true' : 'false'
+          if (cloud.dataset.warning !== warning) cloud.dataset.warning = warning
+          if (cloudSecondsRef.current) cloudSecondsRef.current.textContent = cloudLeft.toFixed(1)
+          cloudRingRef.current?.setAttribute('stroke-dashoffset', String(RING * (1 - cloudLeft / CLOUD_TIME)))
+        }
+      }
+      // Tir : l'anneau se remplit pendant la recharge ; prêt, le bouton s'allume.
+      const shot = shotRef.current
+      if (shot) {
+        const charge = Math.min(1, 1 - Math.max(0, run.shotReadyAt - run.t) / SHOT_COOLDOWN)
+        const ready = charge >= 1 ? 'true' : 'false'
+        if (shot.dataset.ready !== ready) shot.dataset.ready = ready
+        shotRingRef.current?.setAttribute('stroke-dashoffset', String(RING * (1 - charge)))
+        const hidden = run.quiz !== null ? 'hidden' : 'visible'
+        if (shot.style.visibility !== hidden) shot.style.visibility = hidden
+      }
+      if (run.quiz) {
+        if (quizBarRef.current) quizBarRef.current.style.transform = `scaleX(${Math.max(0, run.quiz.deadline - run.t) / QUIZ_TIME})`
+        if (quizSecondsRef.current) quizSecondsRef.current.textContent = String(Math.ceil(Math.max(0, run.quiz.deadline - run.t)))
+        // La carte de la voie où l'on court est celle qui sera choisie.
+        const cards = quizCardsRef.current?.children
+        if (cards) for (let index = 0; index < cards.length; index += 1) (cards[index] as HTMLElement).dataset.active = index === run.lane + 1 ? 'true' : 'false'
+      }
 
       if (run.events.length === 0) return
       for (const event of run.events) {
@@ -352,6 +430,14 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
             playRunnerSmash()
             vibrate(25)
             break
+          case 'shot':
+            playRunnerShot()
+            vibrate([12, 20, 30])
+            break
+          case 'clear':
+            playRunnerClear()
+            setCleared((value) => value + 1)
+            break
           case 'quizWrong':
             playRunnerWrong()
             setQuiz(null)
@@ -393,9 +479,9 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={onPointerCancel}
     >
-      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} look={look} assets={assets} intro={intro} outfit={outfit} />
+      <RunnerScene state={state} paused={paused} ask={ask} onTick={onTick} lite={lite} look={look} assets={assets} intro={intro} outfit={outfit} aim={aim} />
 
       {/* Cinématique : bandes noires, carte de titre, « touche pour passer ». */}
       <div aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-[11vh] bg-black transition-transform duration-700 ease-out ${introRunning ? 'translate-y-0' : '-translate-y-full'}`} />
@@ -451,6 +537,40 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         </div>
       )}
       {hitFlash > 0 && <div key={hitFlash} aria-hidden className="pointer-events-none absolute inset-0 animate-[runner-hit_0.45s_ease-out_forwards] bg-nope/35" />}
+      {/* Le quiz vide la route : une vague dorée balaie l'écran. */}
+      {cleared > 0 && (
+        <div key={cleared} aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 animate-[runner-hit_0.9s_ease-out_forwards] bg-[radial-gradient(ellipse_at_50%_70%,#fff6d0b0_0%,#ffd35c50_40%,transparent_75%)]" />
+          <div className="absolute inset-x-0 top-[44%] flex animate-[runner-awaken_1.6s_ease-out_forwards] justify-center opacity-0">
+            <span className="rounded-full bg-black/45 px-4 py-1.5 text-xs font-bold tracking-[0.3em] text-gold uppercase">{t.runner.hud.cleared}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Minuteur du nuage : les secondes de vol ; à la fin, il annonce la descente. */}
+      <div
+        ref={cloudRef}
+        aria-live="off"
+        className="runner-cloud-timer pointer-events-none absolute top-[max(5.25rem,calc(env(safe-area-inset-top)+4.5rem))] left-1/2 -translate-x-1/2 flex-col items-center gap-1"
+        style={{ display: 'none' }}
+      >
+        <div className="relative grid size-[4.5rem] place-items-center">
+          <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
+            <circle cx="50" cy="50" r={RING_RADIUS} fill="rgba(13,8,40,0.55)" stroke="rgba(255,255,255,0.15)" strokeWidth="7" />
+            <circle ref={cloudRingRef} className="runner-cloud-ring" cx="50" cy="50" r={RING_RADIUS} fill="none" strokeWidth="7" strokeLinecap="round" strokeDasharray={RING} />
+          </svg>
+          <span className="relative flex flex-col items-center leading-none">
+            <Cloud size={15} className="runner-cloud-icon" aria-hidden />
+            <span ref={cloudSecondsRef} className="mt-0.5 font-display text-xl text-white tabular-nums">
+              5.0
+            </span>
+          </span>
+        </div>
+        <span className="runner-cloud-label rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-[0.2em] uppercase">
+          <span className="runner-cloud-flying">{t.runner.hud.cloudFlying}</span>
+          <span className="runner-cloud-landing">{t.runner.hud.cloudLanding}</span>
+        </span>
+      </div>
 
       {/* HUD du haut : distance, bonus actifs, score, ✦ et multiplicateur, pause. */}
       <div
@@ -499,6 +619,9 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
               <p className="text-base leading-snug font-bold text-white">{quiz.question.prompt}</p>
               <p className="text-[11px] tracking-wide text-gold/90 uppercase">{t.runner.hud.quizHint}</p>
             </div>
+            <span ref={quizSecondsRef} className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-gold/70 font-display text-xl text-gold tabular-nums">
+              {QUIZ_TIME}
+            </span>
           </div>
           <div className="h-1.5 w-full max-w-md overflow-hidden rounded-full bg-white/15">
             <div ref={quizBarRef} className="h-full origin-left rounded-full bg-gold" />
@@ -507,6 +630,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       )}
       {quiz && (
         <div
+          ref={quizCardsRef}
           className="absolute inset-x-0 bottom-[max(6.5rem,calc(env(safe-area-inset-bottom)+6rem))] grid grid-cols-3 gap-2 px-3"
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -514,8 +638,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
             <button
               key={index}
               type="button"
+              data-active={index === 1 ? 'true' : 'false'}
+              aria-label={`${[t.runner.hud.left, t.runner.hud.middle, t.runner.hud.right][index]} : ${option.label}`}
               onClick={() => answer(index as 0 | 1 | 2)}
-              className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border border-white/25 bg-black/50 px-2 py-2 text-center backdrop-blur-sm transition-all duration-150 active:scale-95 active:border-gold active:bg-gold/30 active:shadow-[0_0_20px_rgba(255,196,107,0.55)]"
+              className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border border-white/25 bg-black/50 px-2 py-2 text-center backdrop-blur-sm transition-all duration-150 active:scale-95 data-[active=true]:-translate-y-1.5 data-[active=true]:border-gold data-[active=true]:bg-gold/30 data-[active=true]:shadow-[0_0_22px_rgba(255,196,107,0.6)]"
             >
               {option.image && <img src={option.image} alt="" className="size-9 rounded-lg object-cover object-top" />}
               <span className="line-clamp-2 text-xs leading-tight font-bold text-white">{option.label}</span>
@@ -532,6 +658,26 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
           </span>
         </div>
       )}
+
+      {/* Tir : touche un monstre (viseur rose), ou ce bouton pour le plus proche. Recharge visible. */}
+      <button
+        ref={shotRef}
+        type="button"
+        data-ready="true"
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          event.preventDefault()
+          fire(null)
+        }}
+        aria-label={t.runner.hud.shoot}
+        className={`runner-shot absolute right-3 grid size-[4.25rem] place-items-center rounded-full transition-opacity duration-500 ${introRunning ? 'opacity-0' : 'opacity-100'} ${buttons ? 'bottom-[max(6rem,calc(env(safe-area-inset-bottom)+5.5rem))]' : 'bottom-[max(1.25rem,env(safe-area-inset-bottom))]'}`}
+      >
+        <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
+          <circle cx="50" cy="50" r={RING_RADIUS} fill="rgba(13,8,40,0.6)" stroke="rgba(255,255,255,0.14)" strokeWidth="7" />
+          <circle ref={shotRingRef} cx="50" cy="50" r={RING_RADIUS} fill="none" stroke="#ff6fd1" strokeWidth="7" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={0} />
+        </svg>
+        <Crosshair size={26} className="runner-shot-icon relative" aria-hidden />
+      </button>
 
       {/* Boutons à l'écran (au choix, sur l'accueil du Runner). */}
       {buttons && (
@@ -622,6 +768,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
     </div>
   )
 }
+
+/** Anneaux de minuterie (nuage, tir) : rayon et circonférence dans une boîte de 100. */
+const RING_RADIUS = 43
+const RING = 2 * Math.PI * RING_RADIUS
 
 function PowerGauge({
   register,

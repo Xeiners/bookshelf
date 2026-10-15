@@ -8,12 +8,13 @@ import type { ScenePart } from './parts'
 /*
  * Les monstres du Manga Runner : des squelettes (KayKit) qui barrent une voie, armés, en
  * garde ou qui provoquent le coureur — et qui frappent quand il arrive sur eux ; ou
- * étendus en travers de la voie, à sauter. Un réservoir d'instances (clones avec leur
+ * étendus en travers de la voie, à sauter ; ou volant sur un sceau magique (au-dessus de
+ * la voie ou d'un toit de train), à passer en glissant. Un tir les pulvérise. Un réservoir d'instances (clones avec leur
  * squelette et leur mixeur d'animations) est attribué aux obstacles visibles : rien
  * n'est créé pendant la course.
  */
 
-const STANDING = 7
+const STANDING = 9
 const LYING = 5
 /** Taille d'un squelette debout (m) : plus grand que le coureur, menaçant. */
 const HEIGHT = 2.5
@@ -120,6 +121,7 @@ export class MonstersPart implements ScenePart {
       if (!free) break
       free.object = object.id
       free.root.visible = true
+      free.aura.visible = true
     }
   }
 
@@ -129,7 +131,7 @@ export class MonstersPart implements ScenePart {
     const lying: TrackObject[] = []
     for (const object of run.objects) {
       const ahead = object.s - run.distance
-      if (ahead > 150 || ahead < -10) continue
+      if (ahead > 150 || ahead < -10 || object.cleared) continue
       const kind = monsterOf(object)
       if (kind === 'standing') standing.push(object)
       else if (kind === 'lying') lying.push(object)
@@ -143,16 +145,25 @@ export class MonstersPart implements ScenePart {
       const object = monster.object === null ? undefined : byId.get(monster.object)
       if (!object) continue
       const ahead = object.s - run.distance
-      // Pulvérisé par l'Éveil : projeté en l'air, en tournoyant, loin devant.
+      const base = object.kind === 'flyer' ? object.y - 0.15 : 0
+      // Pulvérisé par l'Éveil ou par un tir : projeté en l'air, en tournoyant, loin devant.
       if (object.smashedAt !== undefined) {
-        const age = run.t - object.smashedAt
-        monster.root.visible = age < 1.2
-        monster.root.position.set(objectX(object) + age * 3, age * 7 - age * age * 6, -(object.s + object.length / 2 - run.distance) - age * 14)
-        monster.root.rotation.set(age * 9, age * 4, age * 6)
-        monster.mixer.update(dt)
+        this.fling(monster, object, run, base, dt)
         continue
       }
       monster.root.rotation.x = 0
+      monster.aura.visible = true
+      if (object.kind === 'flyer') {
+        // En vol, sur son sceau : il flotte, tourne lentement, et frappe quand on arrive.
+        monster.root.position.set(objectX(object), base + Math.sin(time * 2.4 + object.id) * 0.18, -(object.s + object.length / 2 - run.distance))
+        monster.root.rotation.set(0, Math.sin(time * 0.9 + object.id) * 0.4, Math.sin(time * 1.7 + object.id) * 0.06)
+        if (object.done) this.play(monster, 'Cheer', 0.15)
+        else if (ahead < 9) this.play(monster, '2H_Melee_Attack_Spin', 0.12, 1.4)
+        else this.play(monster, 'Taunt_Longer', 0.2)
+        monster.aura.scale.setScalar(1.25 + Math.sin(time * 5 + object.id) * 0.1)
+        monster.mixer.update(dt)
+        continue
+      }
       // La feinte : un bond de côté (arc, corps penché vers la voie visée).
       const shift = object.shiftTo === undefined ? 0 : (object.shift ?? 0)
       const hop = Math.sin(Math.PI * shift)
@@ -170,6 +181,11 @@ export class MonstersPart implements ScenePart {
     for (const monster of this.lying) {
       const object = monster.object === null ? undefined : byId.get(monster.object)
       if (!object) continue
+      if (object.smashedAt !== undefined) {
+        this.fling(monster, object, run, 0, dt)
+        continue
+      }
+      monster.root.rotation.set(0, 0, 0)
       // Étendu en travers de la voie : on le saute.
       monster.root.position.set(objectX(object), 0, -(object.s + object.length / 2 - run.distance))
       monster.root.rotation.y = Math.PI / 2
@@ -177,6 +193,16 @@ export class MonstersPart implements ScenePart {
       monster.aura.scale.set(1.4, 0.8, 1)
       monster.mixer.update(dt)
     }
+  }
+
+  /** Pulvérisé : projeté en l'air en tournoyant, loin devant, puis il disparaît. */
+  private fling(monster: Monster, object: TrackObject, run: RunState, base: number, dt: number): void {
+    const age = run.t - (object.smashedAt ?? run.t)
+    monster.root.visible = age < 1.2
+    monster.aura.visible = false
+    monster.root.position.set(objectX(object) + age * 3, base + age * 7 - age * age * 6, -(object.s + object.length / 2 - run.distance) - age * 14)
+    monster.root.rotation.set(age * 9, age * 4, age * 6)
+    monster.mixer.update(dt)
   }
 
   dispose(): void {

@@ -4,8 +4,8 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { LANE_WIDTH, MAX_SPEED, SLIDE_TIME, START_SPEED, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
-import { OBSTACLE_SPAN, TrackGenerator, act, answerQuiz, createRun, isSliding, revive, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
+import { LANE_WIDTH, MAX_SPEED, RAMP_LENGTH, SHOT_COOLDOWN, SHOT_REWARD, SLIDE_TIME, START_SPEED, TRAIN_ROOF, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
+import { OBSTACLE_SPAN, TrackGenerator, act, answerQuiz, createRun, goToLane, isSliding, revive, shoot, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
 import { makeQuiz } from '../src/lib/runner/quiz'
 import { seededRandom } from '../src/lib/runner/random'
 
@@ -17,8 +17,8 @@ function emptyRun(lives = 3): RunState {
   state.track.fill = () => undefined
   return state
 }
-const place = (state: RunState, kind: TrackObject['kind'], lane: -1 | 0 | 1, s: number, length = 1, y = 1) =>
-  state.objects.push({ id: state.objects.length + 1, kind, lane, s, length, y, variant: 0, done: false })
+const place = (state: RunState, kind: TrackObject['kind'], lane: -1 | 0 | 1, s: number, length = 1, y = 1, extra: Partial<TrackObject> = {}) =>
+  state.objects.push({ id: state.objects.length + 1, kind, lane, s, length, y, variant: 0, done: false, ...extra })
 const run = (state: RunState, seconds: number, ask: () => QuizQuestion | null = noQuiz) => {
   for (let elapsed = 0; elapsed < seconds; elapsed += 1 / 60) step(state, 1 / 60, ask)
 }
@@ -189,16 +189,31 @@ describe('Manga Runner — simulation', () => {
     assert.equal(state.lives, 3, 'en vol, les obstacles passent dessous')
   })
 
-  it('quiz : on touche sa réponse ; bonne réponse = talismans ; sans réponse, c’est raté', () => {
+  it('quiz : la route se vide ; à l’échéance, la voie où l’on court donne la réponse', () => {
     const question: QuizQuestion = { prompt: '?', options: [{ label: 'a' }, { label: 'b' }, { label: 'c' }], answer: 2 }
     const late = emptyRun()
     place(late, 'quiz', 0, 3)
+    const ahead = place(late, 'wall', 0, 30)
+    const star = place(late, 'star', 1, 60, 0.6, 1)
+    const far = place(late, 'wall', 1, 400)
     run(late, 0.4, () => question)
     assert.ok(late.quiz)
+    assert.ok(late.events.includes('clear'))
+    assert.ok(late.objects[ahead - 1]!.cleared && late.objects[star - 1]!.cleared, 'la route devant est vide')
+    assert.ok(!late.objects[far - 1]!.cleared, 'au-delà de l’échéance, la piste reprend')
+    assert.ok(late.clearUntil > late.distance + late.speed * 5)
+    // On reste au centre : réponse 1, fausse.
     run(late, 5)
     assert.equal(late.quiz, null)
     assert.equal(late.quizRight, 0)
     assert.ok(late.events.includes('quizWrong'))
+    assert.equal(late.lives, 3, 'le mur effacé ne compte plus')
+    const lane = emptyRun()
+    place(lane, 'quiz', 0, 3)
+    run(lane, 0.4, () => question)
+    goToLane(lane, 1)
+    run(lane, 5)
+    assert.equal(lane.quizRight, 1, 'voie de droite : la bonne réponse')
     const state = emptyRun()
     place(state, 'quiz', 0, 3)
     run(state, 0.4, () => question)
@@ -214,6 +229,89 @@ describe('Manga Runner — simulation', () => {
     assert.ok(state.objects[wall - 1]!.smashedAt !== undefined)
     assert.ok(state.events.includes('smash'))
     assert.ok(state.magnetUntil >= state.shieldUntil)
+  })
+})
+
+describe('Manga Runner — toits, tirs, monstres volants, ✦', () => {
+  it('rampe : on monte sur le toit du train, on y court, on retombe au bout', () => {
+    const state = emptyRun(1)
+    place(state, 'train', 0, 20, 16, 0, { ramp: true })
+    run(state, (20 + 4 - state.distance) / state.speed)
+    assert.equal(state.over, false, 'pas de choc : la rampe mène au toit')
+    assert.ok(Math.abs(state.y - TRAIN_ROOF) < 0.01, String(state.y))
+    assert.ok(state.grounded)
+    act(state, 'up')
+    run(state, 0.2)
+    assert.ok(state.y > TRAIN_ROOF + 1, 'on saute depuis le toit')
+    run(state, 0.5)
+    assert.ok(Math.abs(state.y - TRAIN_ROOF) < 0.01, 'et l’on retombe sur le toit')
+    run(state, 1.5)
+    assert.equal(state.y, 0, 'au bout du train, on redescend au sol')
+    assert.equal(state.over, false)
+  })
+
+  it('du toit, un pas de côté dans le vide : on tombe ; un train sans rampe se prend de face', () => {
+    const state = emptyRun(1)
+    place(state, 'train', 0, 15, 40, 0, { ramp: true })
+    run(state, (15 + 5 - state.distance) / state.speed)
+    assert.ok(state.y > TRAIN_ROOF - 0.01)
+    act(state, 'left')
+    run(state, 0.8)
+    assert.equal(state.y, 0)
+    assert.equal(state.over, false)
+    const wall = emptyRun(1)
+    place(wall, 'train', 0, 4 + RAMP_LENGTH, 16)
+    run(wall, 1.2)
+    assert.equal(wall.over, true)
+  })
+
+  it('tir : un monstre pulvérisé à portée, puis la recharge ; des ✦ en récompense', () => {
+    const state = emptyRun(1)
+    const near = place(state, 'wall', 0, 30)
+    const next = place(state, 'flyer', 1, 40, 1, 1.25)
+    const far = place(state, 'wall', -1, 200)
+    assert.equal(shoot(state, far), false, 'hors de portée')
+    assert.equal(shoot(state, near), true)
+    assert.equal(state.stardust, SHOT_REWARD)
+    assert.equal(state.kills, 1)
+    assert.ok(state.objects[near - 1]!.smashedAt !== undefined)
+    assert.equal(shoot(state, next), false, 'en recharge')
+    run(state, SHOT_COOLDOWN + 0.05)
+    assert.equal(state.over, false, 'le monstre abattu ne barre plus la voie')
+    assert.equal(shoot(state, next), false, 'déjà dépassé')
+    const again = place(state, 'flyer', 1, state.distance + 20, 1, 1.25)
+    assert.equal(shoot(state, again), true)
+  })
+
+  it('monstre volant : on glisse dessous, debout il nous arrête', () => {
+    const slide = emptyRun(1)
+    place(slide, 'flyer', 0, 4, 1, 1.25)
+    act(slide, 'down')
+    run(slide, 0.5)
+    assert.equal(slide.over, false)
+    const stand = emptyRun(1)
+    place(stand, 'flyer', 0, 4, 1, 1.25)
+    run(stand, 0.5)
+    assert.equal(stand.over, true)
+  })
+
+  it('un saut au bon moment ramasse tout l’arc de ✦ au-dessus d’un tome couché, à toute vitesse', () => {
+    for (const at of [60, 2500, 9000]) {
+      const objects: TrackObject[] = []
+      const generator = new TrackGenerator(3) as unknown as { starArc: (objects: TrackObject[], lane: number, s: number) => void }
+      generator.starArc(objects, 0, at)
+      const state = emptyRun(1)
+      state.distance = at - 30
+      state.t = (-START_SPEED + Math.sqrt(START_SPEED ** 2 + 2 * 0.18 * state.distance)) / 0.18
+      state.objects.push(...objects, { id: 999, kind: 'low', lane: 0, s: at, length: 1, y: 0, variant: 0, done: false })
+      // Saut lancé pour culminer au-dessus du tome.
+      const speed = speedAt(state.t)
+      run(state, Math.max(0, (at + 0.5 - state.distance) / speed - 13.5 / 42))
+      act(state, 'up')
+      run(state, 1)
+      assert.equal(state.over, false)
+      assert.equal(state.stardust, 5, `à ${at} m : ${state.stardust} ✦`)
+    }
   })
 })
 
@@ -236,6 +334,14 @@ describe('Manga Runner — piste', () => {
     assert.ok(a.some((object) => object.kind === 'quiz'))
     assert.ok(a.some((object) => object.kind === 'magnet' || object.kind === 'cloud'))
     assert.ok(a.filter((object) => object.kind === 'star').length > 300)
+    // Des trains à rampe, parfois deux wagons à la suite ; la voie est libre devant chaque rampe.
+    const ramps = a.filter((object) => object.ramp)
+    assert.ok(ramps.length > 10 && a.some((object) => object.linked))
+    for (const ramp of ramps) {
+      const blocking = a.filter((object) => object.lane === ramp.lane && object.kind !== 'star' && object !== ramp && object.s + object.length > ramp.s - RAMP_LENGTH && object.s < ramp.s)
+      assert.deepEqual(blocking, [], `rampe à ${ramp.s} m`)
+    }
+    assert.ok(a.some((object) => object.kind === 'flyer' && object.y > 3), 'des monstres volants sur les toits')
     for (const kind of Object.keys(OBSTACLE_SPAN) as ObstacleKind[]) assert.ok(a.some((object) => object.kind === kind), kind)
   })
 
