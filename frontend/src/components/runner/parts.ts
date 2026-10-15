@@ -25,7 +25,7 @@ export interface ScenePart {
 /* ---- Obstacles ----------------------------------------------------------------------- */
 
 const box = () => new THREE.BoxGeometry(1, 1, 1)
-const rounded = (width: number, height: number, depth: number, radius: number, segments = 3) => new RoundedBoxGeometry(width, height, depth, segments, radius)
+export const rounded = (width: number, height: number, depth: number, radius: number, segments = 3) => new RoundedBoxGeometry(width, height, depth, segments, radius)
 
 /** Longueurs des wagons tirées par la piste (12, 16 ou 20 m) : une caisse arrondie par longueur. */
 const TRAIN_LENGTHS = [12, 16, 20] as const
@@ -70,7 +70,7 @@ function pantographGeometry(): THREE.BufferGeometry {
 }
 
 /** Flèche d'indication : deux chevrons blancs cernés d'encre, pointe vers le bas (teintée par instance). */
-function arrowTexture(): THREE.CanvasTexture {
+export function arrowTexture(): THREE.CanvasTexture {
   return canvasTexture(128, 128, (context) => {
     context.lineJoin = 'round'
     context.lineCap = 'round'
@@ -112,7 +112,7 @@ function rampGeometry(): THREE.BufferGeometry {
 }
 
 /** Une voie libre à côté d'un tome géant (pour la flèche qui l'indique), ou `null`. */
-function dodgeOf(objects: readonly TrackObject[], wall: TrackObject): -1 | 1 | null {
+export function dodgeOf(objects: readonly TrackObject[], wall: TrackObject): -1 | 1 | null {
   const free = (lane: number) =>
     lane >= -1 &&
     lane <= 1 &&
@@ -121,7 +121,7 @@ function dodgeOf(objects: readonly TrackObject[], wall: TrackObject): -1 | 1 | n
         other !== wall &&
         !other.cleared &&
         other.smashedAt === undefined &&
-        (other.kind === 'wall' || other.kind === 'train' || other.kind === 'low' || other.kind === 'gate' || other.kind === 'flyer') &&
+        (other.kind === 'wall' || other.kind === 'train' || other.kind === 'low' || other.kind === 'gate') &&
         (other.shiftTo ?? other.lane) === lane &&
         other.s < wall.s + wall.length + 3 &&
         other.s + other.length > wall.s - 3,
@@ -220,8 +220,8 @@ export class ObstaclesPart implements ScenePart {
     const bob = Math.sin(run.t * 5) * 0.12
     for (const object of run.objects) {
       if (object.kind !== 'low' && object.kind !== 'wall' && object.kind !== 'gate' && object.kind !== 'train') continue
-      // Effacé par un quiz : la route est vide.
-      if (object.cleared) continue
+      // Effacé (quiz, royaume) : la route est vide. Les royaumes dessinent leurs obstacles (`realms.ts`).
+      if (object.cleared || object.realm || run.realm !== 'earth') continue
       // Un monstre tient lieu de cet obstacle (cf. `monsters.ts`) ; pulvérisé, il vole en éclats (`smash.ts`).
       if (monsterOf(object) || object.smashedAt !== undefined) continue
       const x = object.lane * LANE_WIDTH
@@ -376,7 +376,7 @@ export class PickupsPart implements ScenePart {
     const magnet = run.magnetUntil > run.t
     const t = run.t
     for (const object of run.objects) {
-      if (object.done) continue
+      if (object.done || (object.realm ?? 'earth') !== run.realm) continue
       if (object.kind !== 'star' && object.kind !== 'quiz' && object.kind !== 'magnet' && object.kind !== 'cloud') continue
       const ahead = object.s - run.distance
       if (ahead > 160 || ahead < -6) continue

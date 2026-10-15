@@ -6,6 +6,7 @@ import { PropBatch, type RunnerAssets } from './assets'
 import { uploadUsed } from './batch'
 import { BIOME_LENGTH, BIOME_STYLE, biomeAt, biomeBlend, mixColor, type Biome, type BiomeStyle } from './biomes'
 import type { ScenePart } from './parts'
+import { REALM_ATMOSPHERE } from './realms'
 import { canvasTexture } from './toon'
 
 /*
@@ -981,6 +982,24 @@ export class EnvironmentPart {
   }
 
   update(run: RunState, scene: THREE.Scene): void {
+    if (run.realm !== 'earth') {
+      // Royaume : sa lumière et sa brume (azur de Skypia, pénombre violette sous terre).
+      const look = REALM_ATMOSPHERE[run.realm]
+      this.hemisphere.color.set(look.hemiSky)
+      this.hemisphere.groundColor.set(look.hemiGround)
+      this.hemisphere.intensity = look.hemi
+      this.sun.color.set(look.sun)
+      this.sun.intensity = look.sunPower
+      this.sun.position.set(...look.sunDirection).multiplyScalar(60)
+      this.color.set(look.horizon)
+      if (scene.background instanceof THREE.Color) scene.background.copy(this.color)
+      if (scene.fog instanceof THREE.Fog) {
+        scene.fog.color.copy(this.color)
+        scene.fog.near = look.fogNear
+        scene.fog.far = look.fogFar
+      }
+      return
+    }
     const { from, to, weight } = biomeBlend(run.distance)
     const a = BIOME_STYLE[from]
     const b = BIOME_STYLE[to]

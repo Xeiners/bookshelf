@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Crosshair, Loader2, Flame, Magnet, Pause, Play, Sparkles, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Crosshair, Loader2, Flame, Magnet, Mountain, Pause, Play, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
-import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, SHIELD_TIME, SHOT_COOLDOWN, multiplierFor, reviveCost } from '../../lib/runner/constants'
-import { act, createRun, goToLane, revive, scoreOf, shoot, shotReady, type ActiveQuiz, type Lane, type RunAction, type RunState } from '../../lib/runner/engine'
+import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, REALM_TIME, SHIELD_TIME, SHOT_COOLDOWN, multiplierFor, reviveCost } from '../../lib/runner/constants'
+import { act, createRun, goToLane, revive, scoreOf, shoot, shotReady, type ActiveQuiz, type Lane, type Realm, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
-import { playChime, playRunnerClear, playRunnerHit, playRunnerJump, playRunnerAwaken, playRunnerPower, playRunnerShot, playRunnerSlide, playRunnerSmash, playRunnerStar, playRunnerStumble, playRunnerWrong } from '../../lib/sfx'
+import { playChime, playRunnerClear, playRunnerHit, playRunnerJump, playRunnerAwaken, playRunnerLaunch, playRunnerPower, playRunnerShot, playRunnerSlide, playRunnerSmash, playRunnerStar, playRunnerStumble, playRunnerTunnel, playRunnerWrong } from '../../lib/sfx'
 import type { RunnerAssets } from './assets'
 import type { HeroLookId } from './looks'
 import { IntroClock } from './intro'
@@ -65,8 +65,11 @@ const SWIPE = 26
 /** Un toucher bref, sans glisser : un tir sur le monstre sous le doigt. */
 const TAP_MOVE = 14
 const TAP_TIME = 380
-/** Le nuage annonce la descente ces dernières secondes. */
-const CLOUD_WARNING = 1.5
+/** Minuteurs en haut de l'écran (nuage, Éveil, royaume) : l'alerte de fin, ces dernières secondes. */
+type TimerName = 'cloud' | 'shield' | 'realm'
+const TIMER_WARNING: Record<TimerName, number> = { cloud: 1.5, shield: 1.5, realm: 3 }
+/** Annonce d'un tremplin ou d'un tunnel, à cette distance (m). */
+const PORTAL_NOTICE = 90
 
 /**
  * Une course : la scène 3D en plein écran et, par-dessus, le HUD. Les compteurs qui
@@ -105,9 +108,14 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const awakeLinesRef = useRef<HTMLDivElement>(null)
   const [aim] = useState(() => new ShotAim())
   /** Minuteur du nuage (secondes restantes, alerte de descente) et bouton de tir (recharge). */
-  const cloudRef = useRef<HTMLDivElement>(null)
-  const cloudSecondsRef = useRef<HTMLSpanElement>(null)
-  const cloudRingRef = useRef<SVGCircleElement>(null)
+  const timers = useRef<Partial<Record<TimerName, HTMLDivElement | null>>>({})
+  const registerTimer = useCallback((name: TimerName, node: HTMLDivElement | null) => {
+    timers.current[name] = node
+  }, [])
+  const portalRef = useRef<HTMLDivElement>(null)
+  /** Transition de monde (tremplin, tunnel, retour) et carte de titre du royaume. */
+  const [passage, setPassage] = useState<{ kind: 'launch' | 'tunnel' | 'exit'; key: number } | null>(null)
+  const [arrival, setArrival] = useState<{ realm: Exclude<Realm, 'earth'>; key: number } | null>(null)
   const shotRef = useRef<HTMLButtonElement>(null)
   const shotRingRef = useRef<SVGCircleElement>(null)
   const quizCardsRef = useRef<HTMLDivElement>(null)
@@ -351,18 +359,42 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       // Lignes de vitesse tant que dure l'Éveil.
       const awake = run.shieldUntil > run.t ? 'block' : 'none'
       if (awakeLinesRef.current && awakeLinesRef.current.style.display !== awake) awakeLinesRef.current.style.display = awake
-      // Nuage : les secondes qui restent, et l'alerte de descente à la fin.
-      const cloudLeft = Math.max(0, run.cloudUntil - run.t)
-      const cloud = cloudRef.current
-      if (cloud) {
-        const show = cloudLeft > 0 && !run.over ? 'flex' : 'none'
-        if (cloud.style.display !== show) cloud.style.display = show
-        if (cloudLeft > 0) {
-          const warning = cloudLeft < CLOUD_WARNING ? 'true' : 'false'
-          if (cloud.dataset.warning !== warning) cloud.dataset.warning = warning
-          if (cloudSecondsRef.current) cloudSecondsRef.current.textContent = cloudLeft.toFixed(1)
-          cloudRingRef.current?.setAttribute('stroke-dashoffset', String(RING * (1 - cloudLeft / CLOUD_TIME)))
+      // Minuteurs : nuage (la descente), Éveil (sa fin), royaume (le retour sur terre).
+      const realmLeft = run.realm === 'earth' ? 0 : Math.max(0, (run.realmUntil - run.distance) / Math.max(1, run.speed))
+      const lefts: [TimerName, number, number][] = [
+        ['cloud', Math.max(0, run.cloudUntil - run.t), CLOUD_TIME],
+        ['shield', Math.max(0, run.shieldUntil - run.t), SHIELD_TIME],
+        ['realm', realmLeft, REALM_TIME],
+      ]
+      for (const [name, left, total] of lefts) {
+        const node = timers.current[name]
+        if (!node) continue
+        const show = left > 0 && !run.over ? 'flex' : 'none'
+        if (node.style.display !== show) node.style.display = show
+        if (left <= 0) continue
+        const warning = left < TIMER_WARNING[name] ? 'true' : 'false'
+        if (node.dataset.warning !== warning) node.dataset.warning = warning
+        if (name === 'realm' && node.dataset.realm !== run.realm) node.dataset.realm = run.realm
+        const seconds = node.querySelector<HTMLElement>('[data-seconds]')
+        const text = name === 'realm' ? String(Math.ceil(left)) : left.toFixed(1)
+        if (seconds && seconds.textContent !== text) seconds.textContent = text
+        node.querySelector('[data-ring]')?.setAttribute('stroke-dashoffset', String(RING * (1 - Math.min(1, left / total))))
+      }
+      // Un tremplin ou un tunnel approche : on l'annonce, avec sa voie.
+      const portal = portalRef.current
+      if (portal) {
+        let next: (typeof run.objects)[number] | null = null
+        if (run.realm === 'earth' && !run.over) {
+          for (const object of run.objects) {
+            if ((object.kind !== 'pad' && object.kind !== 'tunnel') || object.done || object.cleared) continue
+            const ahead = object.s - run.distance
+            if (ahead > 2 && ahead < PORTAL_NOTICE && (!next || object.s < next.s)) next = object
+          }
         }
+        const kind = next?.kind ?? 'none'
+        if (portal.dataset.kind !== kind) portal.dataset.kind = kind
+        const lane = next ? String(next.lane) : ''
+        if (portal.dataset.lane !== lane) portal.dataset.lane = lane
       }
       // Tir : l'anneau se remplit pendant la recharge ; prêt, le bouton s'allume.
       const shot = shotRef.current
@@ -437,6 +469,23 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
           case 'clear':
             playRunnerClear()
             setCleared((value) => value + 1)
+            break
+          case 'launch':
+            playRunnerLaunch()
+            vibrate([30, 30, 80])
+            setPassage({ kind: 'launch', key: Date.now() })
+            break
+          case 'tunnel':
+            playRunnerTunnel()
+            vibrate([20, 60, 20])
+            setPassage({ kind: 'tunnel', key: Date.now() })
+            break
+          case 'realm':
+            if (run.realm !== 'earth') setArrival({ realm: run.realm, key: Date.now() })
+            break
+          case 'realmExit':
+            playRunnerPower()
+            setPassage({ kind: 'exit', key: Date.now() })
             break
           case 'quizWrong':
             playRunnerWrong()
@@ -547,28 +596,45 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         </div>
       )}
 
-      {/* Minuteur du nuage : les secondes de vol ; à la fin, il annonce la descente. */}
-      <div
-        ref={cloudRef}
-        aria-live="off"
-        className="runner-cloud-timer pointer-events-none absolute top-[max(5.25rem,calc(env(safe-area-inset-top)+4.5rem))] left-1/2 -translate-x-1/2 flex-col items-center gap-1"
-        style={{ display: 'none' }}
-      >
-        <div className="relative grid size-[4.5rem] place-items-center">
-          <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
-            <circle cx="50" cy="50" r={RING_RADIUS} fill="rgba(13,8,40,0.55)" stroke="rgba(255,255,255,0.15)" strokeWidth="7" />
-            <circle ref={cloudRingRef} className="runner-cloud-ring" cx="50" cy="50" r={RING_RADIUS} fill="none" strokeWidth="7" strokeLinecap="round" strokeDasharray={RING} />
-          </svg>
-          <span className="relative flex flex-col items-center leading-none">
-            <Cloud size={15} className="runner-cloud-icon" aria-hidden />
-            <span ref={cloudSecondsRef} className="mt-0.5 font-display text-xl text-white tabular-nums">
-              5.0
-            </span>
+      {/* Passage d'un monde à l'autre : éclair blanc (tremplin, retour), noir (tunnel). */}
+      {passage && (
+        <div
+          key={passage.key}
+          aria-hidden
+          className={`pointer-events-none absolute inset-0 ${passage.kind === 'tunnel' ? 'animate-[runner-passage_1s_ease-in-out_forwards] bg-[#05020a]' : passage.kind === 'launch' ? 'animate-[runner-passage_1.3s_ease-in-out_forwards] bg-[radial-gradient(circle_at_50%_40%,#ffffff_0%,#e6f6ff_55%,#bfe6ff_100%)]' : 'animate-[runner-passage_0.9s_ease-out_forwards] bg-white'}`}
+        />
+      )}
+      {/* Arrivée dans un royaume : son nom, en grand. */}
+      {arrival && (
+        <div key={arrival.key} aria-live="polite" className="pointer-events-none absolute inset-x-0 top-[24%] flex animate-[runner-awaken_2.6s_ease-out_forwards] flex-col items-center gap-1 opacity-0">
+          <span className={`font-black text-6xl leading-none ${arrival.realm === 'sky' ? 'text-[#fff6d0] [-webkit-text-stroke:2px_#2a6fb0] [text-shadow:0_0_24px_#7fc8ff]' : 'text-[#e8c8ff] [-webkit-text-stroke:2px_#2a0f4a] [text-shadow:0_0_24px_#c77dff]'}`}>
+            {arrival.realm === 'sky' ? t.runner.realm.skySeal : t.runner.realm.underSeal}
           </span>
+          <span className="rounded-full bg-black/45 px-4 py-1 text-sm font-bold tracking-[0.25em] text-white uppercase">{arrival.realm === 'sky' ? t.runner.realm.sky : t.runner.realm.under}</span>
         </div>
-        <span className="runner-cloud-label rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-[0.2em] uppercase">
-          <span className="runner-cloud-flying">{t.runner.hud.cloudFlying}</span>
-          <span className="runner-cloud-landing">{t.runner.hud.cloudLanding}</span>
+      )}
+
+      {/* Minuteurs : nuage (descente), Éveil (sa fin), royaume (retour sur terre). */}
+      <div className="pointer-events-none absolute inset-x-0 top-[max(5.25rem,calc(env(safe-area-inset-top)+4.5rem))] flex justify-center gap-3">
+        <PowerTimer name="cloud" register={registerTimer} icon={<Cloud size={15} aria-hidden />} label={t.runner.hud.cloudFlying} warning={t.runner.hud.cloudLanding} />
+        <PowerTimer name="shield" register={registerTimer} icon={<Flame size={15} aria-hidden />} label={t.runner.hud.shield} warning={t.runner.hud.shieldEnding} />
+        <PowerTimer name="realm" register={registerTimer} icon={<Mountain size={15} aria-hidden />} label={t.runner.realm.timer} warning={t.runner.realm.leaving} />
+      </div>
+
+      {/* Un tremplin ou un tunnel approche : l'annonce, et sa voie. */}
+      <div ref={portalRef} data-kind="none" className="runner-portal pointer-events-none absolute inset-x-0 top-[max(10.75rem,calc(env(safe-area-inset-top)+10rem))] justify-center px-4">
+        <span className="runner-portal-badge inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black tracking-[0.18em] uppercase">
+          <span className="runner-portal-pad">{t.runner.realm.padAhead}</span>
+          <span className="runner-portal-tunnel">{t.runner.realm.tunnelAhead}</span>
+          <span className="runner-portal-lane" data-lane="-1">
+            ← {t.runner.hud.left}
+          </span>
+          <span className="runner-portal-lane" data-lane="0">
+            ↑ {t.runner.hud.middle}
+          </span>
+          <span className="runner-portal-lane" data-lane="1">
+            {t.runner.hud.right} →
+          </span>
         </span>
       </div>
 
@@ -772,6 +838,30 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
 /** Anneaux de minuterie (nuage, tir) : rayon et circonférence dans une boîte de 100. */
 const RING_RADIUS = 43
 const RING = 2 * Math.PI * RING_RADIUS
+
+/** Un minuteur rond : les secondes qui restent ; à la fin, il passe à l'orange et prévient. */
+function PowerTimer({ name, register, icon, label, warning }: { name: TimerName; register: (name: TimerName, node: HTMLDivElement | null) => void; icon: ReactNode; label: string; warning: string }) {
+  return (
+    <div ref={(node) => register(name, node)} data-timer={name} data-warning="false" className="runner-timer flex-col items-center gap-1" style={{ display: 'none' }}>
+      <div className="relative grid size-[4.25rem] place-items-center">
+        <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
+          <circle cx="50" cy="50" r={RING_RADIUS} fill="rgba(13,8,40,0.55)" stroke="rgba(255,255,255,0.15)" strokeWidth="7" />
+          <circle data-ring className="runner-timer-ring" cx="50" cy="50" r={RING_RADIUS} fill="none" strokeWidth="7" strokeLinecap="round" strokeDasharray={RING} />
+        </svg>
+        <span className="relative flex flex-col items-center leading-none">
+          <span className="runner-timer-icon">{icon}</span>
+          <span data-seconds className="mt-0.5 font-display text-lg text-white tabular-nums">
+            0
+          </span>
+        </span>
+      </div>
+      <span className="runner-timer-label rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-[0.18em] whitespace-nowrap uppercase">
+        <span className="runner-timer-on">{label}</span>
+        <span className="runner-timer-off">{warning}</span>
+      </span>
+    </div>
+  )
+}
 
 function PowerGauge({
   register,

@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { LANE_WIDTH, MAX_SPEED, RAMP_LENGTH, SHOT_COOLDOWN, SHOT_REWARD, SLIDE_TIME, START_SPEED, TRAIN_ROOF, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
+import { LANE_WIDTH, MAX_SPEED, PORTAL_FIRST, RAMP_LENGTH, REALM_GAP, REALM_TIME, SHOT_COOLDOWN, SHOT_REWARD, SLIDE_TIME, START_SPEED, TRAIN_ROOF, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
 import { OBSTACLE_SPAN, TrackGenerator, act, answerQuiz, createRun, goToLane, isSliding, revive, shoot, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
 import { makeQuiz } from '../src/lib/runner/quiz'
 import { seededRandom } from '../src/lib/runner/random'
@@ -232,7 +232,7 @@ describe('Manga Runner — simulation', () => {
   })
 })
 
-describe('Manga Runner — toits, tirs, monstres volants, ✦', () => {
+describe('Manga Runner — toits, tirs, royaumes, ✦', () => {
   it('rampe : on monte sur le toit du train, on y court, on retombe au bout', () => {
     const state = emptyRun(1)
     place(state, 'train', 0, 20, 16, 0, { ramp: true })
@@ -268,7 +268,7 @@ describe('Manga Runner — toits, tirs, monstres volants, ✦', () => {
   it('tir : un monstre pulvérisé à portée, puis la recharge ; des ✦ en récompense', () => {
     const state = emptyRun(1)
     const near = place(state, 'wall', 0, 30)
-    const next = place(state, 'flyer', 1, 40, 1, 1.25)
+    const next = place(state, 'low', 1, 40, 1, 0)
     const far = place(state, 'wall', -1, 200)
     assert.equal(shoot(state, far), false, 'hors de portée')
     assert.equal(shoot(state, near), true)
@@ -279,20 +279,61 @@ describe('Manga Runner — toits, tirs, monstres volants, ✦', () => {
     run(state, SHOT_COOLDOWN + 0.05)
     assert.equal(state.over, false, 'le monstre abattu ne barre plus la voie')
     assert.equal(shoot(state, next), false, 'déjà dépassé')
-    const again = place(state, 'flyer', 1, state.distance + 20, 1, 1.25)
+    const again = place(state, 'wall', 1, state.distance + 20, 1.6, 0)
     assert.equal(shoot(state, again), true)
   })
 
-  it('monstre volant : on glisse dessous, debout il nous arrête', () => {
-    const slide = emptyRun(1)
-    place(slide, 'flyer', 0, 4, 1, 1.25)
-    act(slide, 'down')
-    run(slide, 0.5)
-    assert.equal(slide.over, false)
-    const stand = emptyRun(1)
-    place(stand, 'flyer', 0, 4, 1, 1.25)
-    run(stand, 0.5)
-    assert.equal(stand.over, true)
+  it('un monstre debout sur un toit barre le toit, pas la voie d’en dessous', () => {
+    const roof = emptyRun(1)
+    place(roof, 'train', 0, 15, 40, 0, { ramp: true })
+    place(roof, 'wall', 0, 40, 1.6, 0, { base: TRAIN_ROOF })
+    run(roof, 3)
+    assert.equal(roof.over, true, 'sur le toit, on le prend de face')
+    const below = emptyRun(1)
+    place(below, 'wall', 0, 10, 1.6, 0, { base: TRAIN_ROOF })
+    run(below, 1)
+    assert.equal(below.over, false, 'au sol, on passe dessous (il est là-haut)')
+  })
+
+  it('tremplin : propulsé dans le ciel, on arrive à Skypia ; trente secondes plus tard, retour sur terre', () => {
+    const state = createRun(11)
+    state.objects.length = 0
+    state.objects.push({ id: 1, kind: 'pad', lane: 0, s: 6, length: 1.6, y: 0, variant: 0, done: false }, { id: 2, kind: 'wall', lane: 0, s: 40, length: 1.6, y: 0, variant: 0, done: false })
+    run(state, 0.75)
+    assert.ok(state.events.includes('launch'))
+    assert.ok(state.y > 5, 'haut dans le ciel')
+    run(state, 0.3)
+    assert.equal(state.realm, 'sky')
+    assert.ok(state.events.includes('realm'))
+    assert.ok(state.objects.find((object) => object.id === 2)?.cleared, 'la Terre devant a disparu')
+    // On traverse sans encombre (invincible) jusqu'au retour.
+    state.invulnerableUntil = 1e9
+    run(state, 3)
+    assert.equal(state.y, 0, 'posé sur la piste céleste')
+    const realmObjects = state.objects.filter((object) => object.realm === 'sky')
+    assert.ok(realmObjects.length > 5, 'la piste de Skypia')
+    assert.ok(!realmObjects.some((object) => object.kind === 'train' || object.kind === 'pad' || object.kind === 'tunnel' || object.kind === 'quiz'))
+    assert.ok(state.realmUntil - state.realmFrom > START_SPEED * REALM_TIME)
+    run(state, REALM_TIME)
+    assert.equal(state.over, false)
+    assert.equal(state.realm, 'earth')
+    assert.ok(state.events.includes('realmExit'))
+    assert.ok(state.objects.some((object) => !object.realm && object.s > state.realmUntil + REALM_GAP - 1), 'la Terre reprend après un peu de route libre')
+  })
+
+  it('tunnel : on y entre dans sa voie et l’on court sous terre ; à côté, on reste sur terre', () => {
+    const inside = emptyRun(1)
+    inside.track = new TrackGenerator(4)
+    place(inside, 'tunnel', 0, 6, 6, 1)
+    run(inside, 1)
+    assert.ok(inside.events.includes('tunnel'))
+    assert.equal(inside.realm, 'under')
+    run(inside, 2)
+    assert.ok(inside.objects.some((object) => object.realm === 'under'))
+    const beside = emptyRun(1)
+    place(beside, 'tunnel', 1, 6, 6, 1)
+    run(beside, 1)
+    assert.equal(beside.realm, 'earth')
   })
 
   it('un saut au bon moment ramasse tout l’arc de ✦ au-dessus d’un tome couché, à toute vitesse', () => {
@@ -341,7 +382,10 @@ describe('Manga Runner — piste', () => {
       const blocking = a.filter((object) => object.lane === ramp.lane && object.kind !== 'star' && object !== ramp && object.s + object.length > ramp.s - RAMP_LENGTH && object.s < ramp.s)
       assert.deepEqual(blocking, [], `rampe à ${ramp.s} m`)
     }
-    assert.ok(a.some((object) => object.kind === 'flyer' && object.y > 3), 'des monstres volants sur les toits')
+    assert.ok(a.some((object) => object.kind === 'wall' && object.base === TRAIN_ROOF), 'des monstres sur les toits')
+    // Tremplins et tunnels, en alternance, dès quelques centaines de mètres.
+    const portals = a.filter((object) => object.kind === 'pad' || object.kind === 'tunnel')
+    assert.ok(portals.length >= 6 && portals[0]!.s >= PORTAL_FIRST && portals[0]!.kind === 'pad' && portals[1]!.kind === 'tunnel')
     for (const kind of Object.keys(OBSTACLE_SPAN) as ObstacleKind[]) assert.ok(a.some((object) => object.kind === kind), kind)
   })
 

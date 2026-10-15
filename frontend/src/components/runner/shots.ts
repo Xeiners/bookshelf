@@ -143,7 +143,7 @@ export class ShotPart implements ScenePart {
     this.reticle.begin()
     for (const object of run.objects) {
       if (aim.count >= MAX_TARGETS) break
-      if (object.done || object.cleared || object.smashedAt !== undefined) continue
+      if (object.done || object.cleared || object.smashedAt !== undefined || (object.realm ?? 'earth') !== run.realm) continue
       const ahead = object.s - run.distance
       if (ahead < 1.5 || ahead > SHOT_RANGE) continue
       const kind = monsterOf(object)
@@ -151,7 +151,7 @@ export class ShotPart implements ScenePart {
       const target = aim.targets[aim.count++]!
       target.id = object.id
       target.x = objectX(object)
-      target.y = kind === 'lying' ? 0.55 : object.kind === 'flyer' ? object.y + 1.1 : 1.35
+      target.y = kind === 'lying' ? 0.55 : (object.base ?? 0) + 1.35
       target.z = -(object.s + object.length / 2 - run.distance)
       target.ahead = ahead
       target.lane = object.shiftTo ?? object.lane

@@ -156,15 +156,18 @@ export function mixColor(target: THREE.Color, a: string, b: string, weight: numb
 /**
  * Les monstres : une pile de tomes sur trois devient un squelette qui barre la voie (deux
  * sur trois au sanctuaire hanté), un tome couché sur quatre un squelette étendu en
- * travers (un sur deux la nuit), et les monstres volants. La simulation ne voit que des
- * obstacles ; seuls ces monstres-là s'offrent au tir (cf. `shots.ts`).
+ * travers (un sur deux la nuit), les monstres des toits de trains et les gardiens des
+ * royaumes. La simulation ne voit que des obstacles ; seuls ces monstres-là s'offrent au tir
+ * (cf. `shots.ts`).
  */
 export function monsterOf(object: TrackObject): 'standing' | 'lying' | null {
   const haunted = biomeAt(object.s) === 'haunted'
   // Les feintes (un mur qui change de voie) sont toujours des monstres : un mur ne bondit pas.
   if (object.kind === 'wall' && object.shiftTo !== undefined) return 'standing'
-  // Les monstres volants : toujours des squelettes, qui flottent sur un sceau magique.
-  if (object.kind === 'flyer') return 'standing'
+  // Sur le toit d'un train : toujours un monstre (on ne pose pas un tome géant là-haut).
+  if (object.kind === 'wall' && object.base) return 'standing'
+  // Dans les royaumes : une colonne (ou un cristal) sur deux est un gardien du lieu.
+  if (object.realm) return object.kind === 'wall' && object.variant % 2 === 0 ? 'standing' : null
   if (object.kind === 'wall') return object.variant % 3 === 0 || (haunted && object.variant % 3 === 1) ? 'standing' : null
   if (object.kind === 'low') return object.variant % (haunted ? 2 : 4) === 0 ? 'lying' : null
   return null

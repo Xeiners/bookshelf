@@ -13,6 +13,7 @@ import { MonstersPart } from './monsters'
 import { CameraFollow, ObstaclesPart, PickupsPart, type ScenePart } from './parts'
 import { SmashPart } from './smash'
 import { ShotPart, type ShotAim } from './shots'
+import { PortalsPart, RealmObstacles, RealmScenery } from './realms'
 
 /*
  * La scène du Manga Runner. Une seule boucle (`useFrame`, priorité −1) fait avancer la
@@ -57,18 +58,22 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       <fog attach="fog" args={[BIOME_STYLE.sakura.horizon, BIOME_STYLE.sakura.fogNear, BIOME_STYLE.sakura.fogFar]} />
       <Simulation state={state} paused={paused} ask={ask} onTick={onTick} />
       <Environment state={state} />
-      <Part state={state} make={() => new SkyPart()} />
-      <Part state={state} make={() => new TerrainPart()} />
-      <Part state={state} make={() => new TrackPart()} />
-      <Part state={state} make={() => new NaturePart(assets, lite)} />
+      {/* La Terre (masquée dans les royaumes), puis Skypia et le monde souterrain. */}
+      <Part state={state} earth make={() => new SkyPart()} />
+      <Part state={state} earth make={() => new TerrainPart()} />
+      <Part state={state} earth make={() => new TrackPart()} />
+      <Part state={state} earth make={() => new NaturePart(assets, lite)} />
+      <Part state={state} make={() => new RealmScenery()} />
       <Part state={state} make={() => new ObstaclesPart()} />
+      <Part state={state} make={() => new RealmObstacles()} />
+      <Part state={state} make={() => new PortalsPart()} />
       <Part state={state} make={() => new MonstersPart(assets)} />
       <Part state={state} make={() => new PickupsPart()} />
       <Part state={state} make={() => new SmashPart()} />
       <Part state={state} make={() => new ShotPart(aim)} />
       <Aim aim={aim} />
       <Part state={state} make={() => createHero(look, assets, false, outfit)!} />
-      <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
+      <Part state={state} earth make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} intro={intro} />
       <Warmup intro={intro} />
       <AdaptiveResolution start={dpr} />
@@ -226,13 +231,23 @@ function Simulation({ state, paused, ask, onTick }: Pick<RunnerSceneProps, 'stat
   return null
 }
 
-/** Monte une partie de la scène, l'appelle à chaque image, la libère au démontage. */
-function Part({ state, make }: { state: RefObject<RunState>; make: () => ScenePart }) {
+/** Un décor de la Terre : visible sur terre seulement (renvoie s'il l'est). */
+function showOnEarth(part: ScenePart, run: RunState): boolean {
+  part.object.visible = run.realm === 'earth'
+  return part.object.visible
+}
+
+/**
+ * Monte une partie de la scène, l'appelle à chaque image, la libère au démontage. `earth` :
+ * un décor de la Terre, masqué (et sans calcul) quand on court dans un royaume.
+ */
+function Part({ state, make, earth = false }: { state: RefObject<RunState>; make: () => ScenePart; earth?: boolean }) {
   const [part] = useState(make)
   useEffect(() => () => part.dispose(), [part])
   useFrame(({ clock }, delta) => {
     const run = state.current
     if (!run) return
+    if (earth && !showOnEarth(part, run)) return
     if (import.meta.env.DEV) {
       // Développement : temps passé par partie (profilage depuis les tests).
       const begin = performance.now()

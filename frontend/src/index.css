@@ -422,44 +422,115 @@
   }
 }
 
-/* Minuteur du nuage : bleu ciel en vol ; orange et pulsant quand la descente approche. */
-.runner-cloud-ring {
-  stroke: #bfe9ff;
+/* Minuteurs (nuage, Éveil, royaume) : leur couleur ; orange et pulsants quand la fin approche. */
+.runner-timer {
+  --timer: #bfe9ff;
+}
+.runner-timer[data-timer='shield'] {
+  --timer: #ffc23a;
+}
+.runner-timer[data-timer='realm'] {
+  --timer: #9fe0ff;
+}
+.runner-timer[data-timer='realm'][data-realm='under'] {
+  --timer: #d59bff;
+}
+.runner-timer-ring {
+  stroke: var(--timer);
   transition: stroke 0.2s;
 }
-.runner-cloud-icon {
-  color: #bfe9ff;
+.runner-timer-icon {
+  color: var(--timer);
 }
-.runner-cloud-label {
+.runner-timer-label {
   background: rgb(13 8 40 / 0.6);
-  color: #bfe9ff;
+  color: var(--timer);
 }
-.runner-cloud-landing {
+.runner-timer-off {
   display: none;
 }
-.runner-cloud-timer[data-warning='true'] {
-  animation: runner-cloud-warn 0.42s ease-in-out infinite alternate;
+.runner-timer[data-warning='true'] {
+  animation: runner-timer-warn 0.42s ease-in-out infinite alternate;
 }
-.runner-cloud-timer[data-warning='true'] .runner-cloud-ring {
+.runner-timer[data-warning='true'] .runner-timer-ring {
   stroke: #ff9f43;
 }
-.runner-cloud-timer[data-warning='true'] .runner-cloud-icon {
+.runner-timer[data-warning='true'] .runner-timer-icon {
   color: #ffb36b;
 }
-.runner-cloud-timer[data-warning='true'] .runner-cloud-label {
+.runner-timer[data-warning='true'] .runner-timer-label {
   background: #ff7a1a;
   color: #fff;
 }
-.runner-cloud-timer[data-warning='true'] .runner-cloud-flying {
+.runner-timer[data-warning='true'] .runner-timer-on {
   display: none;
 }
-.runner-cloud-timer[data-warning='true'] .runner-cloud-landing {
+.runner-timer[data-warning='true'] .runner-timer-off {
   display: inline;
 }
 
-@keyframes runner-cloud-warn {
+@keyframes runner-timer-warn {
   to {
     scale: 1.08;
+  }
+}
+
+/* Annonce d'un tremplin (Skypia) ou d'un tunnel (sous terre) : un badge qui pulse, et sa voie. */
+.runner-portal {
+  display: none;
+}
+.runner-portal[data-kind='pad'],
+.runner-portal[data-kind='tunnel'] {
+  display: flex;
+}
+.runner-portal-badge {
+  animation: runner-portal 0.8s ease-in-out infinite alternate;
+}
+.runner-portal[data-kind='pad'] .runner-portal-badge {
+  background: linear-gradient(135deg, #7ff0ff, #2bd9ff 55%, #ffd35c);
+  color: #062030;
+  box-shadow: 0 0 26px rgb(43 217 255 / 0.65);
+}
+.runner-portal[data-kind='tunnel'] .runner-portal-badge {
+  background: linear-gradient(135deg, #e04dff, #7a2cff);
+  color: #fff;
+  box-shadow: 0 0 26px rgb(224 77 255 / 0.6);
+}
+.runner-portal-pad,
+.runner-portal-tunnel,
+.runner-portal-lane {
+  display: none;
+}
+.runner-portal[data-kind='pad'] .runner-portal-pad,
+.runner-portal[data-kind='tunnel'] .runner-portal-tunnel,
+.runner-portal[data-lane='-1'] .runner-portal-lane[data-lane='-1'],
+.runner-portal[data-lane='0'] .runner-portal-lane[data-lane='0'],
+.runner-portal[data-lane='1'] .runner-portal-lane[data-lane='1'] {
+  display: inline;
+}
+.runner-portal-lane {
+  border-left: 1px solid currentColor;
+  padding-left: 0.5rem;
+  opacity: 0.85;
+}
+
+@keyframes runner-portal {
+  to {
+    scale: 1.06;
+  }
+}
+
+/* Passage d'un monde à l'autre : l'écran se couvre, on bascule, il se découvre. */
+@keyframes runner-passage {
+  0% {
+    opacity: 0;
+  }
+  38%,
+  58% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -484,7 +555,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .runner-speedlines,
-  .runner-cloud-timer[data-warning='true'],
+  .runner-timer[data-warning='true'],
+  .runner-portal-badge,
   .runner-shot[data-ready='true'] .runner-shot-icon {
     animation: none;
   }

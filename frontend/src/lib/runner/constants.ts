@@ -31,9 +31,22 @@ export const FLY_HEIGHT = 4.4
 export const TRAIN_ROOF = 3.35
 export const RAMP_LENGTH = 9
 
-/** Monstre volant : le bas de son corps au-dessus de son support (sol ou toit), et sa taille (m). */
-export const FLYER_LIFT = 1.25
-export const FLYER_HEIGHT = 2.2
+/**
+ * Les royaumes : un tremplin lance le coureur dans le ciel, jusqu'aux îles célestes de
+ * Skypia ; un tunnel l'emmène dans le monde souterrain. On y court `REALM_TIME` secondes,
+ * puis l'on revient sur terre. Le premier passage arrive vers `PORTAL_FIRST` m, puis tous
+ * les `PORTAL_EVERY` m environ (tremplin et tunnel en alternance).
+ */
+export const REALM_TIME = 30
+export const LAUNCH_VELOCITY = 26
+/** Bascule vers le royaume (s après le tremplin ou l'entrée du tunnel), sous l'éclair de transition. */
+export const LAUNCH_SWITCH = 0.55
+export const TUNNEL_SWITCH = 0.3
+/** Route libre (m) à l'arrivée dans un royaume et au retour sur terre. */
+export const REALM_LANDING = 26
+export const REALM_GAP = 30
+export const PORTAL_FIRST = 450
+export const PORTAL_EVERY = 650
 
 /** Tir sur les monstres (on les touche du doigt) : recharge (s), portée (m), ✦ gagnées. */
 export const SHOT_COOLDOWN = 5

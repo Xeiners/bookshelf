@@ -10,6 +10,8 @@
  * Certains trains ont une rampe : on monte sur leur toit (le « support » sous le coureur).
  * Un jeton de quiz vide la route devant soi le temps de répondre : la voie où l'on court à
  * l'échéance donne la réponse. Les monstres se pulvérisent d'un tir (avec une recharge).
+ * Un tremplin lance le coureur jusqu'à Skypia, un tunnel l'emmène sous terre : ces
+ * royaumes ont leur piste, le temps d'une trentaine de secondes.
  *
  * Tout est muté en place (aucune allocation par image) : la boucle de rendu lit l'état.
  */
@@ -17,23 +19,28 @@ import {
   ACCEL,
   CLOUD_TIME,
   DIVE_VELOCITY,
-  FLYER_HEIGHT,
-  FLYER_LIFT,
   FLY_HEIGHT,
   GRAVITY,
   HIT_INVULNERABILITY,
   JUMP_VELOCITY,
   KEEP_BEHIND,
   LANE_TIME,
+  LAUNCH_SWITCH,
+  LAUNCH_VELOCITY,
   LANE_WIDTH,
   LIVES,
   MAGNET_TIME,
+  PORTAL_EVERY,
+  PORTAL_FIRST,
   PLAYER_HALF_DEPTH,
   PLAYER_HALF_WIDTH,
   PLAYER_HEIGHT,
   QUIZ_CLEAR_MARGIN,
   QUIZ_TIME,
   RAMP_LENGTH,
+  REALM_GAP,
+  REALM_LANDING,
+  REALM_TIME,
   REVIVE_CLEARANCE,
   REVIVE_INVULNERABILITY,
   SHIELD_TIME,
@@ -49,6 +56,7 @@ import {
   STUMBLE_SLOWDOWN,
   STUN_TIME,
   TRAIN_ROOF,
+  TUNNEL_SWITCH,
   VIEW_AHEAD,
   scoreFor,
   speedAt,
@@ -56,8 +64,11 @@ import {
 import { seededRandom } from './random'
 
 export type Lane = -1 | 0 | 1
-export type ObstacleKind = 'wall' | 'low' | 'gate' | 'train' | 'flyer'
-export type PickupKind = 'star' | 'quiz' | 'magnet' | 'cloud'
+export type ObstacleKind = 'wall' | 'low' | 'gate' | 'train'
+/** `pad` : tremplin vers Skypia ; `tunnel` : entrée du monde souterrain. */
+export type PickupKind = 'star' | 'quiz' | 'magnet' | 'cloud' | 'pad' | 'tunnel'
+/** Le monde où l'on court : la Terre, les îles célestes (Skypia), le monde souterrain. */
+export type Realm = 'earth' | 'sky' | 'under'
 export type ObjectKind = ObstacleKind | PickupKind
 
 export interface TrackObject {
@@ -67,8 +78,12 @@ export interface TrackObject {
   /** Début de l'objet le long de la piste (m). */
   s: number
   length: number
-  /** Hauteur d'une ✦ (arc au-dessus d'un tome couché), du bas d'un monstre volant. */
+  /** Hauteur d'une ✦ (arc au-dessus d'un tome couché, toit d'un train). */
   y: number
+  /** Obstacle posé sur un support (un monstre sur le toit d'un train) : sa hauteur (m). */
+  base?: number
+  /** Royaume de l'objet (absent : la Terre). */
+  realm?: Realm
   /** Variante d'apparence (couleur, motif), tirée avec la piste. */
   variant: number
   /** Ramassé, ou déjà heurté : ne compte plus. */
@@ -95,24 +110,24 @@ export function objectX(object: TrackObject): number {
 
 /**
  * Hauteurs occupées par chaque obstacle (m) : on saute un tome couché, on glisse sous un
- * torii ou sous un monstre volant (au-dessus de son support), on court sur le toit d'un train.
+ * torii, on court sur le toit d'un train.
  */
 export const OBSTACLE_SPAN: Record<ObstacleKind, readonly [number, number]> = {
   wall: [0, 3.2],
   low: [0, 0.9],
   gate: [1.15, 3.6],
   train: [0, TRAIN_ROOF - 0.3],
-  flyer: [FLYER_LIFT, FLYER_LIFT + FLYER_HEIGHT],
 }
-/** Hauteurs occupées par un obstacle donné (un monstre volant flotte à sa hauteur `y`). */
+/** Hauteurs occupées par un obstacle donné (posé sur son support : un monstre sur un toit). */
 export function spanOf(object: TrackObject): readonly [number, number] {
-  if (object.kind === 'flyer') return [object.y, object.y + FLYER_HEIGHT]
-  return OBSTACLE_SPAN[object.kind as ObstacleKind]
+  const [low, high] = OBSTACLE_SPAN[object.kind as ObstacleKind]
+  const base = object.base ?? 0
+  return base === 0 ? [low, high] : [low + base, high + base]
 }
 const HARD: ReadonlySet<ObjectKind> = new Set(['wall', 'train'])
-export const isObstacle = (kind: ObjectKind): kind is ObstacleKind => kind === 'wall' || kind === 'low' || kind === 'gate' || kind === 'train' || kind === 'flyer'
-/** Ce qu'un tir peut pulvériser (le rendu n'offre que les monstres : debout, étendus, volants). */
-const SHOOTABLE: ReadonlySet<ObjectKind> = new Set(['wall', 'low', 'flyer'])
+export const isObstacle = (kind: ObjectKind): kind is ObstacleKind => kind === 'wall' || kind === 'low' || kind === 'gate' || kind === 'train'
+/** Ce qu'un tir peut pulvériser (le rendu n'offre que les monstres : debout ou étendus). */
+const SHOOTABLE: ReadonlySet<ObjectKind> = new Set(['wall', 'low'])
 
 /** Demi-largeur d'un toit de train (m) : au-delà, on tombe. */
 const ROOF_HALF_WIDTH = 1.1
@@ -149,6 +164,10 @@ export type RunEvent =
   | 'smash'
   | 'shot'
   | 'clear'
+  | 'launch'
+  | 'tunnel'
+  | 'realm'
+  | 'realmExit'
   | 'over'
   | 'revive'
 
@@ -217,6 +236,13 @@ export interface RunState {
   shotReadyAt: number
   kills: number
   lastShot: { at: number; x: number; y: number; s: number } | null
+  /** Le monde où l'on court, et le tronçon (m) qu'il couvre ; la bascule attendue (tremplin, tunnel). */
+  realm: Realm
+  realmFrom: number
+  realmUntil: number
+  pendingRealm: { realm: Exclude<Realm, 'earth'>; at: number } | null
+  /** Passage d'un monde à l'autre : intouchable, sans clignoter (temps de course). */
+  transitUntil: number
   over: boolean
   objects: TrackObject[]
   /** Ce qui s'est passé depuis la dernière lecture (sons, vibrations, interface). */
@@ -266,6 +292,11 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
     shotReadyAt: 0,
     kills: 0,
     lastShot: null,
+    realm: 'earth',
+    realmFrom: 0,
+    realmUntil: 0,
+    pendingRealm: null,
+    transitUntil: 0,
     over: false,
     objects: [],
     events: [],
@@ -448,6 +479,10 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
   // Quiz : à l'échéance, la voie où l'on court donne la réponse.
   if (state.quiz && t >= state.quiz.deadline) answerQuiz(state, (state.lane + 1) as 0 | 1 | 2)
 
+  // Royaumes : la bascule (au sommet du saut, au fond du tunnel), puis le retour sur terre.
+  if (state.pendingRealm && t >= state.pendingRealm.at) enterRealm(state, state.pendingRealm.realm)
+  if (state.realm !== 'earth' && state.distance >= state.realmUntil) leaveRealm(state)
+
   // Monstres qui feintent : à l'approche, ils bondissent dans la voie voisine.
   for (const object of state.objects) {
     if (object.shiftTo === undefined || (object.shift ?? 0) >= 1) continue
@@ -478,7 +513,7 @@ function collide(state: RunState, from: number, ask: () => QuizQuestion | null):
   // Le coureur balaie [from, distance] pendant l'image : rien ne passe au travers à grande vitesse.
   const back = from - PLAYER_HALF_DEPTH
   const front = state.distance + PLAYER_HALF_DEPTH
-  const safe = flying || state.invulnerableUntil > t || state.shieldUntil > t
+  const safe = flying || state.invulnerableUntil > t || state.shieldUntil > t || state.transitUntil > t
 
   for (const object of state.objects) {
     if (object.done || object.cleared) continue
@@ -573,6 +608,20 @@ function pickUp(state: RunState, kind: ObjectKind, ask: () => QuizQuestion | nul
     state.cloudUntil = t + CLOUD_TIME
     state.slideUntil = 0
     state.events.push('cloud')
+  } else if (kind === 'pad') {
+    // Le tremplin : propulsé dans le ciel ; au sommet, on bascule à Skypia.
+    state.vy = LAUNCH_VELOCITY
+    state.grounded = false
+    state.slideUntil = 0
+    state.slideOnLanding = false
+    state.cloudUntil = 0
+    state.transitUntil = t + 2
+    state.pendingRealm = { realm: 'sky', at: t + LAUNCH_SWITCH }
+    state.events.push('launch')
+  } else if (kind === 'tunnel') {
+    state.transitUntil = t + 1.2
+    state.pendingRealm = { realm: 'under', at: t + TUNNEL_SWITCH }
+    state.events.push('tunnel')
   } else if (kind === 'quiz') {
     const question = state.quiz ? null : ask()
     if (question) {
@@ -605,6 +654,38 @@ function clearRoad(state: RunState): void {
   state.events.push('clear')
 }
 
+/**
+ * Arrivée dans un royaume : tout ce qui était devant disparaît, sa piste à lui commence un
+ * peu plus loin (le temps de se poser) et dure une trentaine de secondes.
+ */
+function enterRealm(state: RunState, realm: Exclude<Realm, 'earth'>): void {
+  const from = state.distance
+  const until = from + state.speed * REALM_TIME
+  state.pendingRealm = null
+  state.realm = realm
+  state.realmFrom = from
+  state.realmUntil = until
+  for (const object of state.objects) {
+    if (object.done || object.s + object.length < from - 1) continue
+    object.done = true
+    object.cleared = true
+  }
+  state.track.enterRealm(realm, from + REALM_LANDING, until)
+  state.events.push('realm')
+}
+
+/** Retour sur terre : de Skypia, on redescend du ciel ; du souterrain, on ressort à la lumière. */
+function leaveRealm(state: RunState): void {
+  if (state.realm === 'sky' && !isFlying(state)) {
+    state.y = Math.max(state.y, 7)
+    state.vy = 0
+    state.grounded = false
+  }
+  state.realm = 'earth'
+  state.transitUntil = state.t + 1.2
+  state.events.push('realmExit')
+}
+
 /** Vitesse probable à l'abscisse `s` (accélération depuis le départ) : pour caler les arcs de ✦ sur le saut. */
 function speedAround(s: number): number {
   const t = (-START_SPEED + Math.sqrt(START_SPEED * START_SPEED + 2 * ACCEL * Math.max(0, s))) / ACCEL
@@ -622,6 +703,11 @@ export class TrackGenerator {
   private nextId = 1
   private lastQuiz = 0
   private lastPower = 0
+  private nextPortal = PORTAL_FIRST
+  private portals = 0
+  /** Royaume en cours de tirage, et sa fin (m). */
+  private realm: Realm = 'earth'
+  private realmUntil = 0
   private readonly hardUntil: Record<Lane, number> = { [-1]: 0, 0: 0, 1: 0 }
 
   constructor(seed: number) {
@@ -634,8 +720,16 @@ export class TrackGenerator {
    */
   fill(objects: TrackObject[], until: number, quizOpen = false, quietUntil = 0): void {
     while (this.nextRow < until) {
+      // Fin du royaume : un peu de route libre, puis la Terre reprend.
+      if (this.realm !== 'earth' && this.nextRow >= this.realmUntil) {
+        this.realm = 'earth'
+        this.nextRow = this.realmUntil + REALM_GAP
+        for (const lane of LANES) this.hardUntil[lane] = 0
+        continue
+      }
       const start = objects.length
-      this.row(objects, this.nextRow, quizOpen)
+      if (this.realm === 'earth') this.row(objects, this.nextRow, quizOpen)
+      else this.realmRow(objects, this.nextRow)
       if (this.nextRow < quietUntil) objects.length = start
       const difficulty = Math.min(1, this.nextRow / 2500)
       this.nextRow += Math.max(16, 30 - 12 * difficulty) + this.random() * 6
@@ -648,8 +742,40 @@ export class TrackGenerator {
 
   private push(objects: TrackObject[], kind: ObjectKind, lane: Lane, s: number, length: number, y = 0): TrackObject {
     const object: TrackObject = { id: this.nextId++, kind, lane, s, length, y, variant: Math.floor(this.random() * 1000), done: false }
+    if (this.realm !== 'earth') object.realm = this.realm
     objects.push(object)
     return object
+  }
+
+  /** Arrivée dans un royaume : sa piste commence à `from` et s'arrête à `until` (m). */
+  enterRealm(realm: Exclude<Realm, 'earth'>, from: number, until: number): void {
+    this.realm = realm
+    this.realmUntil = until
+    this.nextRow = from
+    for (const lane of LANES) this.hardUntil[lane] = 0
+  }
+
+  /**
+   * Une rangée de royaume : jamais plus de deux voies prises (on y profite du voyage),
+   * colonnes ou cristaux, blocs bas, arches à passer en glissant, des monstres du lieu, et
+   * des ✦ en abondance dans les voies libres.
+   */
+  private realmRow(objects: TrackObject[], s: number): void {
+    const random = this.random
+    const count = random() < 0.55 ? 1 : 2
+    const lanes = [...LANES].sort(() => random() - 0.5).slice(0, count)
+    for (const lane of lanes) {
+      if (this.hardUntil[lane] > s - 3) continue
+      const r = random()
+      const kind: ObstacleKind = r < 0.42 ? 'wall' : r < 0.72 ? 'low' : 'gate'
+      const length = kind === 'wall' ? 1.6 : 1
+      this.push(objects, kind, lane, s, length)
+      if (kind === 'wall') this.hardUntil[lane] = s + length
+    }
+    for (const lane of LANES) {
+      if (lanes.includes(lane) || random() > 0.6) continue
+      for (let index = 0; index < 6; index += 1) this.push(objects, 'star', lane, s - 2 + index * 2.5, 0.6, 1)
+    }
   }
 
   /** Un arc de ✦ au-dessus d'un tome couché, calé sur un saut à la vitesse probable de l'endroit. */
@@ -666,11 +792,12 @@ export class TrackGenerator {
     }
   }
 
-  /** Le toit d'un train à rampe : une ligne de ✦, parfois un monstre volant à abattre. */
+  /** Le toit d'un train à rampe : une ligne de ✦, parfois un monstre posé dessus, à abattre. */
   private roof(objects: TrackObject[], lane: Lane, s: number, length: number, difficulty: number): void {
     const random = this.random
     if (random() < 0.32 + 0.3 * difficulty) {
-      this.push(objects, 'flyer', lane, s + length * (0.45 + random() * 0.3), 1, TRAIN_ROOF + FLYER_LIFT)
+      const monster = this.push(objects, 'wall', lane, s + length * (0.45 + random() * 0.3), 1.6)
+      monster.base = TRAIN_ROOF
       return
     }
     if (random() < 0.8) for (let at = s + 1.5; at < s + length - 1; at += 2.5) this.push(objects, 'star', lane, at, 0.6, TRAIN_ROOF + 1)
@@ -693,12 +820,11 @@ export class TrackGenerator {
       const r = random()
       if (hardAllowed && r < 0.22 + 0.1 * difficulty) kind = 'train'
       else if (hardAllowed && r < 0.45) kind = 'wall'
-      else if (r < 0.66) kind = 'low'
-      else kind = r < 0.86 - 0.08 * difficulty ? 'gate' : 'flyer'
+      else kind = r < 0.72 ? 'low' : 'gate'
       if (blocked.has(lane)) continue
       const freeSince = this.hardUntil[lane]
       const length = kind === 'train' ? 12 + Math.floor(random() * 3) * 4 : kind === 'wall' ? 1.6 : 1
-      const object = this.push(objects, kind, lane, s, length, kind === 'flyer' ? FLYER_LIFT : 0)
+      const object = this.push(objects, kind, lane, s, length)
       if (HARD.has(kind)) {
         blocked.add(lane)
         this.hardUntil[lane] = s + length
@@ -740,6 +866,13 @@ export class TrackGenerator {
     const free = LANES.filter((lane) => !occupied.has(lane) && !blocked.has(lane))
     if (free.length === 0) return
     const lane = this.pick(free)
+    // Un passage vers un royaume : le tremplin (Skypia), puis le tunnel (sous terre), en alternance.
+    if (s >= this.nextPortal) {
+      this.nextPortal = s + PORTAL_EVERY + random() * 250
+      const kind = this.portals++ % 2 === 0 ? 'pad' : 'tunnel'
+      this.push(objects, kind, lane, s, kind === 'tunnel' ? 6 : 1.6, kind === 'tunnel' ? 1 : 0)
+      return
+    }
     if (!quizOpen && s - this.lastQuiz > 320 && random() < 0.6) {
       this.lastQuiz = s
       this.push(objects, 'quiz', lane, s, 0.8, 1)

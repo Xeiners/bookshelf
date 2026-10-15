@@ -678,6 +678,26 @@ export function playRunnerShot(): void {
   boom(e, at + 0.08, 200, 55, 0.28, 0.3)
 }
 
+/** Le tremplin : un ressort, puis un souffle qui monte et un arpège vers le ciel. */
+export function playRunnerLaunch(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 90, 260, 0.35, 0.35)
+  noiseBurst(e, { at, duration: 1, from: 300, to: 8000, q: 0.8, gain: 0.14, grain: 25, send: 0.45 })
+  ;[523.25, 659.25, 783.99, 1046.5, 1318.5, 1568].forEach((frequency, index) => bell(e, frequency, at + 0.12 + index * 0.07, 0.8, 0.04, index % 2 ? 0.3 : -0.3))
+}
+
+/** L'entrée du tunnel : un grondement sourd qui descend, l'écho de la roche. */
+export function playRunnerTunnel(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 120, 30, 1.1, 0.45)
+  noiseBurst(e, { at, duration: 0.9, from: 1800, to: 120, q: 1, gain: 0.16, grain: 40, send: 0.6, type: 'lowpass' })
+  bell(e, 196, at + 0.25, 1.4, 0.04)
+}
+
 /** Le quiz vide la route : un grand souffle qui balaie, et une note suspendue. */
 export function playRunnerClear(): void {
   const e = start()

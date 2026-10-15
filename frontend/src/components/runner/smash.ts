@@ -31,7 +31,7 @@ interface Shard {
 interface Burst {
   life: number
   x: number
-  /** Hauteur de l'éclat (un monstre volant éclate en l'air). */
+  /** Hauteur de l'éclat (un monstre sur un toit éclate là-haut). */
   y: number
   s: number
   flash: THREE.Sprite
@@ -131,9 +131,9 @@ export class SmashPart implements ScenePart {
     const x = objectX(object)
     const s = object.s
     const base = new THREE.Color(paletteColor(object.variant))
-    const tall = object.kind === 'wall' || object.kind === 'flyer'
-    // Un monstre volant éclate à sa hauteur (au-dessus de la voie ou d'un toit).
-    const lift = object.kind === 'flyer' ? object.y : 0
+    const tall = object.kind === 'wall'
+    // Un monstre sur le toit d'un train éclate là-haut.
+    const lift = object.base ?? 0
     for (let count = 0; count < PER_SMASH; count += 1) {
       const index = this.cursor
       const shard = this.shards[index]!
