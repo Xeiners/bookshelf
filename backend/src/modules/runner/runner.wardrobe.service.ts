@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto'
 import { prisma } from '../../db.js'
-import { HttpError } from '../../lib/errors.js'
+import { HttpError, badRequest, notFound } from '../../lib/errors.js'
+import { createNotification } from '../notifications/notifications.service.js'
 import { isGuestId } from '../dle/dle.guests.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import {
@@ -35,6 +36,8 @@ export interface WardrobeView {
   pity: number
   pityMax: number
   boxes: number
+  /** Boîtes offertes par d'autres membres, à ouvrir. */
+  gifts: number
   weights: Record<string, number>
   refunds: Record<string, number>
   balance: number
@@ -46,8 +49,12 @@ export interface BoxOpening {
   refund: number
   guaranteed: boolean
   free: boolean
+  source: BoxSource
   wardrobe: WardrobeView
 }
+
+/** D'où vient la boîte ouverte : la gratuite du jour, une payée, ou une offerte. */
+export type BoxSource = 'free' | 'paid' | 'gift'
 
 const random = () => randomInt(0, 2 ** 32) / 2 ** 32
 
@@ -76,6 +83,7 @@ export async function wardrobeView(userId: string, now = new Date()): Promise<Wa
     pity: stats?.boxPity ?? 0,
     pityMax: BOX_PITY,
     boxes: stats?.boxes ?? 0,
+    gifts: stats?.giftBoxes ?? 0,
     weights: RARITY_WEIGHTS,
     refunds: DUPLICATE_REFUND,
     balance: user?.stardust ?? 0,
@@ -83,14 +91,19 @@ export async function wardrobeView(userId: string, now = new Date()): Promise<Wa
 }
 
 /**
- * Ouvre une boîte : gratuite (409 `free_box_not_ready` avant 24 h) ou payée (409
- * `not_enough_stardust`). La pièce tirée rejoint la garde-robe ; un doublon rend des Poussières.
+ * Ouvre une boîte : gratuite (409 `free_box_not_ready` avant 24 h), offerte (409
+ * `no_gift_box` s'il n'y en a pas) ou payée (409 `not_enough_stardust`). La pièce tirée
+ * rejoint la garde-robe ; un doublon rend des Poussières.
  */
-export async function openBox(userId: string, free: boolean, now = new Date()): Promise<BoxOpening> {
+export async function openBox(userId: string, source: BoxSource, now = new Date()): Promise<BoxOpening> {
   accountOnly(userId)
   await ensureStats(userId)
+  const free = source === 'free'
   const result = await prisma.$transaction(async (tx) => {
-    if (free) {
+    if (source === 'gift') {
+      const { count } = await tx.runnerStats.updateMany({ where: { userId, giftBoxes: { gt: 0 } }, data: { giftBoxes: { decrement: 1 } } })
+      if (count === 0) throw new HttpError(409, 'no_gift_box', 'Aucune boîte offerte à ouvrir.')
+    } else if (free) {
       const { count } = await tx.runnerStats.updateMany({
         where: { userId, OR: [{ freeBoxAt: null }, { freeBoxAt: { lte: new Date(now.getTime() - FREE_BOX_MS) } }] },
         data: { freeBoxAt: now },
@@ -123,7 +136,7 @@ export async function openBox(userId: string, free: boolean, now = new Date()): 
     if (roll.refund > 0) await creditStardust(tx, userId, roll.refund, 'runner_refund', { item: roll.item.id })
     return roll
   })
-  return { ...result, free, wardrobe: await wardrobeView(userId, now) }
+  return { ...result, free, source, wardrobe: await wardrobeView(userId, now) }
 }
 
 /** Équipe une tenue : chaque pièce doit être possédée et à son emplacement (400 sinon). */
@@ -142,4 +155,33 @@ export async function setOutfit(userId: string, outfit: Partial<Record<string, s
   }
   await prisma.runnerStats.update({ where: { userId }, data: { outfit: JSON.stringify(next) } })
   return wardrobeView(userId, now)
+}
+
+/** Longueur maximale du mot joint à une boîte offerte. */
+export const GIFT_NOTE_MAX = 140
+
+/**
+ * Offrir une boîte à un autre membre : l'expéditeur la paie (prix d'une boîte), le
+ * destinataire la trouve dans sa garde-robe (`gifts`) et reçoit une notification. 400 pour
+ * soi-même, 404 pour un membre introuvable, 409 `not_enough_stardust`.
+ */
+export async function giftBox(senderId: string, recipientId: string, message: string | null, now = new Date()): Promise<WardrobeView> {
+  accountOnly(senderId)
+  if (senderId === recipientId) throw badRequest('Tu ne peux pas t’offrir une boîte à toi-même.', 'gift_self')
+  const recipient = await prisma.user.findUnique({ where: { id: recipientId }, select: { id: true, suspendedAt: true } })
+  if (!recipient || recipient.suspendedAt) throw notFound('Ce membre est introuvable.')
+  await ensureStats(recipientId)
+  const note = message?.trim().slice(0, GIFT_NOTE_MAX) || null
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.user.updateMany({ where: { id: senderId, stardust: { gte: BOX_PRICE } }, data: { stardust: { decrement: BOX_PRICE } } })
+    if (count === 0) {
+      const user = await tx.user.findUnique({ where: { id: senderId }, select: { stardust: true } })
+      throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', { balance: user?.stardust ?? 0, price: BOX_PRICE })
+    }
+    await tx.stardustEntry.create({ data: { userId: senderId, amount: -BOX_PRICE, reason: 'runner_gift', data: JSON.stringify({ to: recipientId }) } })
+    await tx.runnerStats.update({ where: { userId: recipientId }, data: { giftBoxes: { increment: 1 } } })
+    const sender = await tx.user.findUnique({ where: { id: senderId }, select: { id: true, displayName: true } })
+    await createNotification(tx, recipientId, 'box_gift', { from: { id: senderId, displayName: sender?.displayName ?? null }, message: note })
+  })
+  return wardrobeView(senderId, now)
 }

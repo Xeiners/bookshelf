@@ -35,6 +35,13 @@ export function NotificationThumb({ copy, size = 40 }: { copy: NotificationCopy;
           <BoosterPackArt width={Math.round(size * 0.9)} lit />
         </span>
       )}
+      {visual.kind === 'box' && (
+        <span className="absolute inset-0 m-auto grid size-[78%] -rotate-[6deg] place-items-center overflow-hidden rounded-xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: 'inset 0 0 0 2px #ffc93c, 0 0 14px -2px #b05cff' }}>
+          <span className="absolute inset-y-0 left-1/2 w-[18%] -translate-x-1/2 bg-[#ffc93c]" />
+          <span className="absolute inset-x-0 top-[38%] h-[18%] bg-[#ffc93c]" />
+          <span className="relative font-display text-lg text-[#ffe9a8]">?</span>
+        </span>
+      )}
       {/* Cadeau de l'équipe : un ruban doré dans le coin. */}
       {visual.kind !== 'trade' && (
         <span className="absolute -right-0.5 -bottom-0.5 grid size-5 place-items-center rounded-full bg-gold text-void shadow-[0_0_0_2px_#0b0b12]">

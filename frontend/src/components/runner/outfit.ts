@@ -22,7 +22,7 @@ import { outlineMaterial, toonRamp } from './toon'
 
 /* ---- Repos du modèle ------------------------------------------------------------------ */
 
-const REST_BONES = ['hips', 'chest', 'neck', 'head', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot'] as const satisfies readonly VRMHumanBoneName[]
+const REST_BONES = ['hips', 'chest', 'neck', 'head', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot', 'leftToes', 'rightToes'] as const satisfies readonly VRMHumanBoneName[]
 type RestBone = (typeof REST_BONES)[number]
 
 interface Rest {
@@ -1113,13 +1113,15 @@ const ACCESSORIES: Partial<Record<WardrobeItemId, () => Piece[]>> = {
 /* ---- Chaussures ------------------------------------------------------------------------ */
 
 /** Pied au repos : cheville, longueur de la semelle (du talon au bout), largeur. */
-const FOOT = { ankleY: 0.076, heel: -0.07, toe: 0.2, width: 0.098, x: 0.09 }
+const FOOT = { ankleY: 0.076, heel: -0.075, toe: 0.205, width: 0.098, x: 0.09 }
+/** Chaussures qui couvrent tout le pied (les orteils s'y replient). */
+const CLOSED_SHOES: ReadonlySet<WardrobeItemId> = new Set(['shoes-goku', 'shoes-survey', 'shoes-waraji', 'shoes-deku', 'shoes-saitama', 'shoes-gojo'])
 
 /**
  * Empeigne : une boîte arrondie déformée (bout effilé et plus bas, talon arrondi), posée sur
  * la semelle. `height` : hauteur au cou-de-pied.
  */
-function upperGeometry(height: number, width = FOOT.width, toeLift = 0.45): THREE.BufferGeometry {
+function upperGeometry(height: number, width = FOOT.width + 0.012, toeLift = 0.45): THREE.BufferGeometry {
   const length = FOOT.toe - FOOT.heel
   const geometry = new THREE.BoxGeometry(width, height, length, 6, 4, 12)
   const position = geometry.attributes.position as THREE.BufferAttribute
@@ -1131,13 +1133,47 @@ function upperGeometry(height: number, width = FOOT.width, toeLift = 0.45): THRE
     const lower = t > 0.5 ? 1 - ((t - 0.5) / 0.5) ** 1.6 * (1 - toeLift) : 1
     const narrow = t > 0.75 ? 1 - ((t - 0.75) / 0.25) ** 2 * 0.45 : t < 0.12 ? 1 - ((0.12 - t) / 0.12) ** 2 * 0.3 : 1
     const round = 1 - (y / height) ** 2 * 0.25
-    position.setXYZ(index, x * narrow * round, y * lower, FOOT.heel + t * length)
+    // Le bas de l'empeigne descend dans la semelle : aucun jour entre les deux, même pied fléchi.
+    position.setXYZ(index, x * narrow * round, y * lower - 0.014 * (1 - y / height), FOOT.heel + t * length)
   }
   geometry.computeVertexNormals()
   return geometry
 }
 
-function soleGeometry(thickness: number, width = FOOT.width + 0.012): THREE.BufferGeometry {
+/** Pli des orteils (z, au repos) : l'avant d'une semelle souple plie avec eux. */
+const BALL = 0.142
+
+/** Garde la partie d'un polygone (x, z) comprise entre deux valeurs de z (Sutherland–Hodgman). */
+function clipZ(points: THREE.Vector2[], from: number, to: number): THREE.Vector2[] {
+  let polygon = points
+  for (const [limit, keepAbove] of [
+    [from, true],
+    [to, false],
+  ] as const) {
+    const inside = (point: THREE.Vector2) => (keepAbove ? point.y >= limit : point.y <= limit)
+    const next: THREE.Vector2[] = []
+    polygon.forEach((current, index) => {
+      const previous = polygon[(index + polygon.length - 1) % polygon.length]!
+      const cross = () => previous.clone().lerp(current, (limit - previous.y) / (current.y - previous.y))
+      if (inside(current)) {
+        if (!inside(previous)) next.push(cross())
+        next.push(current)
+      } else if (inside(previous)) next.push(cross())
+    })
+    polygon = next
+  }
+  return polygon
+}
+
+/** Semelle en deux : l'arrière (os du pied) et l'avant (os des orteils), qui plie à la course. */
+function splitSole(thickness: number, material: THREE.Material, width?: number): { back: THREE.Mesh; front: THREE.Mesh } {
+  return {
+    back: mesh(soleGeometry(thickness, width, FOOT.heel - 0.03, BALL + 0.004), material, 0.002),
+    front: mesh(soleGeometry(thickness, width, BALL - 0.004, FOOT.toe + 0.03), material, 0.002),
+  }
+}
+
+function soleGeometry(thickness: number, width = FOOT.width + 0.012, from = -Infinity, to = Infinity): THREE.BufferGeometry {
   const shape = new THREE.Shape()
   const half = width / 2
   shape.moveTo(-half * 0.8, FOOT.heel)
@@ -1146,26 +1182,33 @@ function soleGeometry(thickness: number, width = FOOT.width + 0.012): THREE.Buff
   shape.quadraticCurveTo(half * 0.8, FOOT.toe + 0.005, 0, FOOT.toe + 0.006)
   shape.quadraticCurveTo(-half * 0.8, FOOT.toe + 0.005, -half, FOOT.toe - 0.07)
   shape.quadraticCurveTo(-half, FOOT.heel + 0.06, -half * 0.8, FOOT.heel)
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: 6 })
-  // Dessin dans le plan (x, z) : on couche la forme (profondeur vers le haut).
-  geometry.rotateX(Math.PI / 2)
-  geometry.scale(1, -1, -1)
+  // Dessin dans le plan (x, z) ; on le retourne (z → −z) pour que la rotation qui couche la
+  // forme (profondeur vers le haut) remette la pointe vers l'avant, sans miroir.
+  const points = clipZ(shape.getPoints(8), from, to).map((point) => new THREE.Vector2(point.x, -point.y))
+  const geometry = new THREE.ExtrudeGeometry(new THREE.Shape(points), { depth: thickness, bevelEnabled: false, curveSegments: 6 })
+  geometry.rotateX(-Math.PI / 2)
   return geometry
 }
 
 /** Une tige de botte (tibia) : de la cheville à `top` (hauteur au repos). */
-function shaft(top: number, color: string, bottom = 0.05): THREE.Mesh {
-  const shin = mesh(new THREE.CylinderGeometry(0.052, 0.047, top - bottom, 18), toon(color), 0.003)
+function shaft(top: number, color: string, bottom = 0.03): THREE.Mesh {
+  const shin = mesh(new THREE.CylinderGeometry(0.056, 0.052, top - bottom, 18), toon(color), 0.003)
   shin.position.y = (top + bottom) / 2
   shin.position.z = -0.008
   return shin
 }
 
 /** Une paire : pour chaque pied, le pied (os du pied) et la tige (os du tibia), en miroir. */
-function pair(build: (side: number) => { foot: THREE.Object3D[]; shin?: THREE.Object3D[] }): Piece[] {
+function pair(build: (side: number) => { foot: THREE.Object3D[]; shin?: THREE.Object3D[]; toes?: THREE.Object3D[] }): Piece[] {
   const pieces: Piece[] = []
   for (const side of [1, -1]) {
-    const { foot, shin } = build(side)
+    const { foot, shin, toes } = build(side)
+    if (toes?.length) {
+      const toesGroup = new THREE.Group()
+      toesGroup.add(...toes)
+      toesGroup.position.x = side * FOOT.x
+      pieces.push({ bone: side > 0 ? 'leftToes' : 'rightToes', object: toesGroup })
+    }
     const footGroup = new THREE.Group()
     footGroup.add(...foot)
     footGroup.position.x = side * FOOT.x
@@ -1181,9 +1224,9 @@ function pair(build: (side: number) => { foot: THREE.Object3D[]; shin?: THREE.Ob
 }
 
 /** Sandale ninja : bout ouvert, deux sangles, talon couvert, lien à la cheville. */
-function ninjaSandal(color: string): THREE.Object3D[] {
+function ninjaSandal(color: string): { foot: THREE.Object3D[]; toes: THREE.Object3D[] } {
   const material = toon(color)
-  const sole = mesh(soleGeometry(0.018), material, 0.002)
+  const { back: sole, front } = splitSole(0.018, material)
   const heel = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.075, 18, 1, true, Math.PI * 0.55, Math.PI * 0.9), material, 0.002)
   heel.position.set(0, 0.056, -0.025)
   heel.rotation.y = Math.PI
@@ -1197,7 +1240,7 @@ function ninjaSandal(color: string): THREE.Object3D[] {
   ankle.rotation.x = Math.PI / 2
   ankle.position.set(0, 0.095, -0.01)
   parts.push(ankle)
-  return parts
+  return { foot: parts, toes: [front] }
 }
 
 const SHOES: Partial<Record<WardrobeItemId, () => Piece[]>> = {
@@ -1230,7 +1273,7 @@ const SHOES: Partial<Record<WardrobeItemId, () => Piece[]>> = {
       return { foot: [sole, upper], shin: parts }
     }),
   // Sandales ninja bleues : bout ouvert, sangles, talon couvert.
-  'shoes-ninja': () => pair(() => ({ foot: ninjaSandal('#2b3a7e') })),
+  'shoes-ninja': () => pair(() => ninjaSandal('#2b3a7e')),
   // Waraji : chaussettes tabi blanches sur sandales de paille tressée.
   'shoes-waraji': () =>
     pair(() => {
@@ -1250,7 +1293,7 @@ const SHOES: Partial<Record<WardrobeItemId, () => Piece[]>> = {
   // Sandales de bois à lanière en V.
   'shoes-luffy': () =>
     pair(() => {
-      const sole = mesh(soleGeometry(0.024), toon('#b5874c'), 0.002)
+      const { back: sole, front } = splitSole(0.024, toon('#b5874c'))
       const strapMaterial = toon('#6b3f1f')
       const parts: THREE.Object3D[] = [sole]
       for (const side of [-1, 1]) {
@@ -1259,7 +1302,7 @@ const SHOES: Partial<Record<WardrobeItemId, () => Piece[]>> = {
         strap.rotation.set(Math.PI / 2 - 0.35, 0, side * 0.9)
         parts.push(strap)
       }
-      return { foot: parts }
+      return { foot: parts, toes: [front] }
     }),
   // Baskets montantes rouges, semelle blanche épaisse.
   'shoes-deku': () =>
@@ -1286,7 +1329,7 @@ const SHOES: Partial<Record<WardrobeItemId, () => Piece[]>> = {
   'shoes-geta': () =>
     pair(() => {
       const wood = toon('#c49a6c')
-      const sole = mesh(soleGeometry(0.03, FOOT.width + 0.02), wood, 0.002)
+      const { back: sole, front } = splitSole(0.03, wood, FOOT.width + 0.02)
       const parts: THREE.Object3D[] = [sole]
       for (const side of [-1, 1]) {
         const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.1, 8), toon('#1a1a1a'))
@@ -1294,9 +1337,9 @@ const SHOES: Partial<Record<WardrobeItemId, () => Piece[]>> = {
         strap.rotation.set(Math.PI / 2 - 0.35, 0, side * 0.9)
         parts.push(strap)
       }
-      return { foot: parts }
+      return { foot: parts, toes: [front] }
     }),
-  'shoes-akatsuki': () => pair(() => ({ foot: ninjaSandal('#2a2633') })),
+  'shoes-akatsuki': () => pair(() => ninjaSandal('#2a2633')),
   // Souliers de cuir noir verni.
   'shoes-gojo': () =>
     pair(() => {
@@ -1338,6 +1381,10 @@ export function applyOutfit(vrm: VRM, outfit: Outfit): void {
   paintClothes(state, outfit)
   tintLogo(vrm, outfit.top ? (LOGO_TINTS[outfit.top] ?? null) : null)
   disposeParts(state)
+  // Chaussures fermées : les orteils se replient dedans (en course, ils plient et perceraient
+  // le bout de la chaussure). Sandales et pieds nus : orteils libres.
+  const closed = outfit.shoes !== undefined && CLOSED_SHOES.has(outfit.shoes)
+  for (const bone of ['leftToes', 'rightToes'] as const) vrm.humanoid.getRawBoneNode(bone)?.scale.setScalar(closed ? 0.05 : 1)
   const builders = [outfit.hat && HATS[outfit.hat], outfit.accessory && ACCESSORIES[outfit.accessory], outfit.shoes && SHOES[outfit.shoes]]
   for (const build of builders) {
     if (!build) continue

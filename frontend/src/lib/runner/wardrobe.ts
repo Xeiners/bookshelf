@@ -126,6 +126,9 @@ export const ITEM_INFO: Record<WardrobeItemId, WardrobeItemInfo> = {
   'acc-kakashi': { slot: 'accessory', rarity: 'common', anime: 'Naruto' }, // i18n-ignore (titre d’œuvre)
 }
 
+/** D'où vient une boîte ouverte : la gratuite du jour, une payée, ou une offerte par un membre. */
+export type BoxKind = 'free' | 'paid' | 'gift'
+
 export const isWardrobeItem = (id: string): id is WardrobeItemId => id in ITEM_INFO
 
 /** Une tenue : une pièce (possédée) par emplacement, au plus. */

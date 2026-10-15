@@ -79,6 +79,10 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.wardrobeAccountOnly
     case 'item_not_owned':
       return t.errors.itemNotOwned
+    case 'gift_self':
+      return t.errors.giftSelf
+    case 'no_gift_box':
+      return t.errors.noGiftBox
     case 'not_enough_stardust':
       return t.errors.notEnoughStardust(Math.max(1, numberDetail(error, 'price', 0) - numberDetail(error, 'balance', 0)))
     case 'room_not_found':

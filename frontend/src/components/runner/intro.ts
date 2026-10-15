@@ -5,6 +5,7 @@
  */
 export class IntroClock {
   private start = 0
+  private prepared = false
   private onStart: () => void = () => undefined
   readonly length: number
 
@@ -15,6 +16,15 @@ export class IntroClock {
   /** Ce qu'il faut faire quand l'horloge part (programmer la fin de la cinématique). */
   whenStarted(callback: () => void): void {
     this.onStart = callback
+  }
+
+  /** Tout est prêt sur la carte graphique (shaders compilés, textures envoyées). */
+  markPrepared(): void {
+    this.prepared = true
+  }
+
+  isPrepared(): boolean {
+    return this.prepared
   }
 
   begin(): void {

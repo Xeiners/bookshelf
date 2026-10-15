@@ -41,7 +41,13 @@ export interface CardShareNotification extends NotificationBase {
   data: { cards: TradeCard[]; by: { id: string; displayName: string | null }; message: string | null }
 }
 
-export type AppNotification = TradeAcceptedNotification | TradeMatchNotification | BoosterGiftNotification | CardGiftNotification | CardShareNotification
+/** Un membre m'offre une boîte mystère (garde-robe du Manga Runner). */
+export interface BoxGiftNotification extends NotificationBase {
+  type: 'box_gift'
+  data: { from: { id: string; displayName: string | null }; message: string | null }
+}
+
+export type AppNotification = TradeAcceptedNotification | TradeMatchNotification | BoosterGiftNotification | CardGiftNotification | CardShareNotification | BoxGiftNotification
 
 export interface NotificationList {
   notifications: AppNotification[]

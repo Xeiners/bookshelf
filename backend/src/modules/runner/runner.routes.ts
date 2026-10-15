@@ -5,7 +5,7 @@ import { rateLimit } from '../../middleware/rateLimit.js'
 import { currentUserId, requireAuth } from '../../middleware/auth.js'
 import { requireAdmin } from '../admin/admin.access.js'
 import { finishRunnerRun, reviveRunnerRun, runnerOverview, startRunnerRun } from './runner.service.js'
-import { openBox, setOutfit, wardrobeView } from './runner.wardrobe.service.js'
+import { GIFT_NOTE_MAX, giftBox, openBox, setOutfit, wardrobeView } from './runner.wardrobe.service.js'
 import { WARDROBE_SLOTS } from './runner.wardrobe.js'
 
 /**
@@ -58,12 +58,20 @@ runnerRouter.get('/wardrobe', async (req, res) => {
 })
 
 const boxLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 10_000 : 40 })
-const BoxBody = z.object({ free: z.boolean().default(false) })
+const BoxBody = z.object({ free: z.boolean().default(false), gift: z.boolean().default(false) })
 
 /** Ouvre une boîte mystère : la pièce tirée, doublon remboursé, et la garde-robe à jour. */
 runnerRouter.post('/boxes', boxLimiter, async (req, res) => {
-  const { free } = BoxBody.parse(req.body ?? {})
-  res.status(201).json(await openBox(currentUserId(req), free))
+  const { free, gift } = BoxBody.parse(req.body ?? {})
+  res.status(201).json(await openBox(currentUserId(req), gift ? 'gift' : free ? 'free' : 'paid'))
+})
+
+const GiftBody = z.object({ to: z.string().regex(/^[a-z0-9]{8,40}$/i), message: z.string().max(GIFT_NOTE_MAX).nullable().optional() })
+
+/** Offrir une boîte mystère à un autre membre (payée par l'expéditeur). */
+runnerRouter.post('/gifts', boxLimiter, async (req, res) => {
+  const { to, message } = GiftBody.parse(req.body ?? {})
+  res.status(201).json(await giftBox(currentUserId(req), to, message ?? null))
 })
 
 const OutfitBody = z.object(Object.fromEntries(WARDROBE_SLOTS.map((slot) => [slot, z.string().max(40).nullable().optional()])))

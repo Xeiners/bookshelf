@@ -8,7 +8,7 @@ import { apiErrorMessage } from '../../lib/apiErrors'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { createRun } from '../../lib/runner/engine'
-import { ITEM_INFO, RARITIES, RARITY_COLORS, isWardrobeItem, type Outfit } from '../../lib/runner/wardrobe'
+import { ITEM_INFO, RARITIES, RARITY_COLORS, isWardrobeItem, type BoxKind, type Outfit } from '../../lib/runner/wardrobe'
 import { playBoxBurst, playBoxDrop, playBoxKnock, playRiser } from '../../lib/sfx'
 import { runnerApi, type BoxOpening } from '../../services/runnerApi'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
@@ -45,18 +45,18 @@ function teaseColor(stage: number, rarity: number): string {
 const FOCUS: Record<string, [number, number]> = { hat: [1.62, 2.6], top: [1.2, 3.0], accessory: [1.1, 3.2], bottom: [0.72, 3.0], shoes: [0.3, 2.5] }
 
 export function MysteryBox({
-  free,
+  kind,
   request,
   assets: given,
   onClose,
   onAgain,
 }: {
-  free: boolean
+  kind: BoxKind
   request: number
   /** Modèles du Runner ; `null` (ouverture depuis les activités) : chargés ici, pendant que la boîte tombe. */
   assets: RunnerAssets | null
   onClose: () => void
-  onAgain: (free: boolean) => void
+  onAgain: (kind: BoxKind) => void
 }) {
   const t = useT()
   const receive = useRunnerWardrobe((state) => state.receive)
@@ -94,7 +94,7 @@ export function MysteryBox({
     playBoxDrop()
     vibrate(20)
     runnerApi
-      .openBox(free, request)
+      .openBox(kind, request)
       .then((opened) => {
         if (!alive) return
         setResult(opened)
@@ -108,7 +108,7 @@ export function MysteryBox({
     return () => {
       alive = false
     }
-  }, [free, request, receive, t])
+  }, [kind, request, receive, t])
 
   const knock = useCallback(() => {
     if (phase !== 'charge' || !result || !timeline.landed(LAND)) return
@@ -161,8 +161,8 @@ export function MysteryBox({
   const revealOutfit: Outfit = item ? { ...outfit, [ITEM_INFO[item].slot]: item } : outfit
   const colors = RARITY_COLORS[RARITIES[rarity]!]
   const view = result?.wardrobe
-  const canFree = view ? view.freeAt === null : false
-  const canBuy = view ? view.balance >= view.price : false
+  // La suivante : une offerte d'abord, puis la gratuite du jour, puis une payée.
+  const next: BoxKind | null = !view ? null : view.gifts > 0 ? 'gift' : view.freeAt === null ? 'free' : view.balance >= view.price ? 'paid' : null
 
   const wear = async () => {
     if (!item) return
@@ -272,12 +272,12 @@ export function MysteryBox({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => (canFree || canBuy) && onAgain(canFree)}
-                  disabled={!canFree && !canBuy}
+                  onClick={() => next && onAgain(next)}
+                  disabled={!next}
                   className="inline-flex h-12 items-center justify-center gap-1.5 rounded-full border border-gold/40 bg-gold/15 text-sm font-bold text-gold disabled:opacity-45"
                 >
                   <Sparkles size={15} aria-hidden />
-                  {canFree ? t.runner.wardrobe.box.againFree : t.runner.wardrobe.box.again(view?.price ?? 0)}
+                  {next === 'gift' ? t.runner.wardrobe.box.againGift : next === 'free' ? t.runner.wardrobe.box.againFree : t.runner.wardrobe.box.again(view?.price ?? 0)}
                 </button>
                 <button type="button" onClick={onClose} className="h-12 rounded-full border border-white/15 bg-white/[0.06] text-sm font-semibold text-cream">
                   {t.runner.wardrobe.box.close}

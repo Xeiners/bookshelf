@@ -9,7 +9,7 @@ import { installMangadexMock, prepareEnvironment, startServer, type TestClient }
 
 prepareEnvironment('runner')
 // Le Runner est réservé aux administrateurs pour l'instant.
-process.env.ADMIN_EMAILS = 'ana-runner@example.com, chef-runner@example.com, dressing-runner@example.com'
+process.env.ADMIN_EMAILS = 'ana-runner@example.com, chef-runner@example.com, dressing-runner@example.com, giver-runner@example.com, taker-runner@example.com'
 installMangadexMock()
 const { client, close } = await startServer()
 after(close)
@@ -196,5 +196,26 @@ describe('Manga Runner — garde-robe', () => {
     const wrongSlot = wardrobe.WARDROBE_SLOTS.find((other) => other !== slot)!
     assert.equal((await dressing.request('PATCH', '/runner/outfit', { [wrongSlot]: mine })).status, 400)
     assert.deepEqual((await dressing.request('PATCH', '/runner/outfit', { [slot]: null })).body.outfit, {})
+  })
+
+  it('offrir une boîte : payée par l’expéditeur, ouverte par le destinataire, notifiée', async () => {
+    const giver = await account('Giver', 'giver-runner@example.com')
+    const taker = await account('Taker', 'taker-runner@example.com')
+    assert.equal((await giver.request('POST', '/runner/gifts', { to: taker.userId })).body.error.code, 'not_enough_stardust')
+    await prisma.user.update({ where: { id: giver.userId }, data: { stardust: wardrobe.BOX_PRICE + 10 } })
+    assert.equal((await giver.request('POST', '/runner/gifts', { to: giver.userId })).status, 400)
+    const sent = await giver.request('POST', '/runner/gifts', { to: taker.userId, message: '  Bonne course !  ' })
+    assert.equal(sent.status, 201, JSON.stringify(sent.body))
+    assert.equal(sent.body.balance, 10)
+    const notification = await prisma.notification.findFirst({ where: { userId: taker.userId, type: 'box_gift' } })
+    assert.ok(notification)
+    assert.equal(JSON.parse(notification.data).message, 'Bonne course !')
+    assert.equal((await taker.request('GET', '/runner/wardrobe')).body.gifts, 1)
+    const opened = await taker.request('POST', '/runner/boxes', { gift: true })
+    assert.equal(opened.status, 201, JSON.stringify(opened.body))
+    assert.equal(opened.body.source, 'gift')
+    assert.equal(opened.body.wardrobe.gifts, 0)
+    assert.equal(opened.body.wardrobe.balance, 0)
+    assert.equal((await taker.request('POST', '/runner/boxes', { gift: true })).body.error.code, 'no_gift_box')
   })
 })

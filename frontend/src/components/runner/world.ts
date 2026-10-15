@@ -748,6 +748,9 @@ const SCALE: Record<string, [number, number]> = {
   Pebble: [0.8, 1.4],
 }
 const family = (name: string) => name.split('_')[0]!
+/** Version lointaine d'un arbre, et la distance (m) à partir de laquelle on la pose. */
+const FAR = '__far'
+const FAR_FROM = 38
 
 /**
  * La végétation : chaque case de 4 m, de chaque côté, tire (de sa position) ses herbes,
@@ -770,13 +773,17 @@ export class NaturePart implements ScenePart {
     for (const flora of Object.values(FLORA)) for (const list of [flora.near, flora.far, flora.bushes, flora.flowers, flora.grass]) list.forEach((name) => names.add(name))
     for (const name of names) {
       const kind = family(name)
-      const max = kind === 'Grass' ? 420 : ['CherryBlossom', 'CommonTree', 'Birch', 'Pine', 'GiantPine', 'DeadTree'].includes(kind) ? 70 : 90
-      const batch = new PropBatch(assets.nature.get(name), max, {
-        material: (source) => natureMaterial(source, cache),
-        tinted: (source) => /Leaves|Leaf/.test(source.name),
-      })
-      this.batches.set(name, batch)
-      this.object.add(batch.group)
+      const tree = ['CherryBlossom', 'CommonTree', 'Birch', 'Pine', 'GiantPine', 'DeadTree', 'TwistedTree'].includes(kind)
+      const max = kind === 'Grass' ? 420 : tree ? 70 : 90
+      // Les arbres ont aussi leur version lointaine, allégée (cf. `assets.ts`).
+      for (const variant of tree && assets.nature.has(`${name}${FAR}`) ? [name, `${name}${FAR}`] : [name]) {
+        const batch = new PropBatch(assets.nature.get(variant), max, {
+          material: (source) => natureMaterial(source, cache),
+          tinted: (source) => /Leaves|Leaf/.test(source.name),
+        })
+        this.batches.set(variant, batch)
+        this.object.add(batch.group)
+      }
     }
     const blob = canvasTexture(64, 64, (context) => {
       const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32)
@@ -807,7 +814,8 @@ export class NaturePart implements ScenePart {
 
   /** Pose un modèle au sol, à sa place dans le monde. */
   private plant(name: string, x: number, s: number, distance: number, seed: number, scale = 1, tints?: string[]): number {
-    const batch = this.batches.get(name)
+    // Au loin, la version allégée (même silhouette, bien moins de triangles).
+    const batch = (s - distance > FAR_FROM || Math.abs(x) > 40 ? this.batches.get(`${name}${FAR}`) : undefined) ?? this.batches.get(name)
     if (!batch) return 0
     const [low, high] = SCALE[family(name)] ?? [1, 1]
     const size = (low + (high - low) * hash(seed, 31)) * scale

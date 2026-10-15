@@ -1,4 +1,4 @@
-import type { Outfit, Rarity, WardrobeSlot } from '../lib/runner/wardrobe'
+import type { BoxKind, Outfit, Rarity, WardrobeSlot } from '../lib/runner/wardrobe'
 import { api } from './api'
 
 /** Manga Runner 3D (cf. `backend/src/modules/runner/`). Un compte, ou un invité du BookshelfDLE. */
@@ -47,6 +47,8 @@ export interface WardrobeView {
   pity: number
   pityMax: number
   boxes: number
+  /** Boîtes offertes par d'autres membres, à ouvrir. */
+  gifts: number
   weights: Record<Rarity, number>
   refunds: Record<Rarity, number>
   balance: number
@@ -73,11 +75,13 @@ export const runnerApi = {
     api<RunnerResult>(`/runner/runs/${encodeURIComponent(id)}/end`, { method: 'POST', body: run }),
   wardrobe: (signal?: AbortSignal) => api<WardrobeView>('/runner/wardrobe', { signal }),
   /** Boîte mystère : 409 `free_box_not_ready` / `not_enough_stardust`. */
-  openBox: (free: boolean, request: number) => {
-    const pending = openings.get(request) ?? api<BoxOpening>('/runner/boxes', { method: 'POST', body: { free } })
+  openBox: (kind: BoxKind, request: number) => {
+    const pending = openings.get(request) ?? api<BoxOpening>('/runner/boxes', { method: 'POST', body: { free: kind === 'free', gift: kind === 'gift' } })
     openings.set(request, pending)
     if (openings.size > 8) openings.delete(openings.keys().next().value!)
     return pending
   },
+  /** Offrir une boîte à un membre (payée par l'expéditeur) : la garde-robe de l'expéditeur, à jour. */
+  giftBox: (to: string, message: string | null) => api<WardrobeView>('/runner/gifts', { method: 'POST', body: { to, message } }),
   setOutfit: (outfit: Outfit) => api<WardrobeView>('/runner/outfit', { method: 'PATCH', body: outfit }),
 }

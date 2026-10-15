@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Crown, Footprints, Gift, Lock, Shirt, Sparkles, Sword, X } from 'lucide-react'
+import { Check, Crown, Footprints, Gift, Lock, Send, Shirt, Sparkles, Sword, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { ITEM_INFO, RARITIES, RARITY_COLORS, WARDROBE_ITEMS, WARDROBE_SLOTS, type Outfit, type WardrobeItemId, type WardrobeSlot } from '../../lib/runner/wardrobe'
+import { ITEM_INFO, RARITIES, RARITY_COLORS, WARDROBE_ITEMS, WARDROBE_SLOTS, type BoxKind, type Outfit, type WardrobeItemId, type WardrobeSlot } from '../../lib/runner/wardrobe'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { useUiStore } from '../../store/useUiStore'
 import { StardustBadge } from '../dle/StardustBadge'
 import type { RunnerAssets } from './assets'
+import { GiftBoxSheet } from './GiftBoxSheet'
 import { HeroPreview } from './HeroPreview'
 import { MysteryBox } from './MysteryBox'
 import { useItemIcons } from './wardrobeIcons'
@@ -70,7 +71,8 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
   const [slot, setSlot] = useState<WardrobeSlot>('hat')
   /** Essayage : la tenue montrée en vitrine (pièces verrouillées comprises). */
   const [trying, setTrying] = useState<Outfit | null>(null)
-  const [box, setBox] = useState<{ free: boolean; key: number } | null>(null)
+  const [box, setBox] = useState<{ kind: BoxKind; key: number } | null>(null)
+  const [gifting, setGifting] = useState(false)
   const [autoOpened, setAutoOpened] = useState(false)
 
   useEffect(() => {
@@ -82,6 +84,7 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
   const freeAt = view?.freeAt ? Date.parse(view.freeAt) : null
   const freeReady = view !== null && (freeAt === null || freeAt <= now)
   const canBuy = view !== null && view.balance >= view.price
+  const gifts = view?.gifts ?? 0
   const pityLeft = view ? Math.max(1, view.pityMax - view.pity) : null
 
   // Ouverture directe (bouton de l'accueil) : la boîte gratuite si elle est prête.
@@ -90,10 +93,11 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
     // Après l'apparition de l'écran (sa propre animation d'entrée d'abord).
     const timer = window.setTimeout(() => {
       setAutoOpened(true)
-      if (freeReady) setBox({ free: true, key: Date.now() })
+      if (gifts > 0) setBox({ kind: 'gift', key: Date.now() })
+      else if (freeReady) setBox({ kind: 'free', key: Date.now() })
     }, 350)
     return () => window.clearTimeout(timer)
-  }, [openBox, autoOpened, view, assets, freeReady])
+  }, [openBox, autoOpened, view, assets, freeReady, gifts])
 
   useGSAP(
     () => {
@@ -126,11 +130,11 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
     }
   }
 
-  const openTheBox = (free: boolean) => {
+  const openTheBox = (kind: BoxKind) => {
     if (!assets) return
     setTrying(null)
     vibrate(12)
-    setBox({ free, key: Date.now() })
+    setBox({ kind, key: Date.now() })
   }
 
   return createPortal(
@@ -205,7 +209,7 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => openTheBox(true)}
+                onClick={() => openTheBox('free')}
                 disabled={!freeReady || !assets}
                 className="relative inline-flex h-12 items-center justify-center gap-1.5 overflow-hidden rounded-full px-2 text-[13px] font-bold text-void disabled:bg-white/[0.06] disabled:text-cream/55"
                 style={freeReady ? { background: 'linear-gradient(135deg, #fff0a8, #ffc23a 55%, #ff8a3d)', boxShadow: '0 0 24px -4px #ffc23a' } : undefined}
@@ -215,12 +219,36 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
               </button>
               <button
                 type="button"
-                onClick={() => (canBuy ? openTheBox(false) : notify(t.runner.wardrobe.box.short(view?.price ?? 0), 'nope'))}
+                onClick={() => (canBuy ? openTheBox('paid') : notify(t.runner.wardrobe.box.short(view?.price ?? 0), 'nope'))}
                 disabled={!view || !assets}
                 className={`inline-flex h-12 items-center justify-center gap-1.5 rounded-full border text-sm font-bold ${canBuy ? 'border-[#b05cff]/60 bg-[#b05cff]/20 text-cream' : 'border-white/10 bg-white/[0.04] text-cream/50'}`}
               >
                 <Sparkles size={15} aria-hidden />
                 {t.runner.wardrobe.box.buy(view?.price ?? 0)}
+              </button>
+              {gifts > 0 && (
+                <button
+                  type="button"
+                  onClick={() => openTheBox('gift')}
+                  disabled={!assets}
+                  className="col-span-2 inline-flex h-12 items-center justify-center gap-1.5 rounded-full text-sm font-bold text-void"
+                  style={{ background: 'linear-gradient(135deg, #ffd1f0, #ff6fb5 60%, #b05cff)', boxShadow: '0 0 24px -4px #ff6fb5' }}
+                >
+                  <Gift size={16} aria-hidden />
+                  {t.runner.wardrobe.box.gifted(gifts)}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  vibrate(8)
+                  setGifting(true)
+                }}
+                disabled={!view}
+                className="col-span-2 inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] text-[13px] font-semibold text-cream/85"
+              >
+                <Send size={14} aria-hidden />
+                {t.runner.wardrobe.gift.open}
               </button>
             </div>
           )}
@@ -314,8 +342,9 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
       </div>
 
       {box && assets && (
-        <MysteryBox key={box.key} request={box.key} free={box.free} assets={assets} onClose={() => setBox(null)} onAgain={(free) => setBox({ free, key: Date.now() })} />
+        <MysteryBox key={box.key} request={box.key} kind={box.kind} assets={assets} onClose={() => setBox(null)} onAgain={(kind) => setBox({ kind, key: Date.now() })} />
       )}
+      {gifting && <GiftBoxSheet onClose={() => setGifting(false)} />}
     </div>,
     document.body,
   )

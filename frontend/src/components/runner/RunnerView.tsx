@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Cloud, Gamepad2, Gift, HelpCircle, Loader2, Magnet, Play, RotateCcw, Shirt, Sparkles, Trophy } from 'lucide-react'
+import { Check, ChevronDown, Cloud, Gamepad2, Gift, HelpCircle, Loader2, Magnet, Play, RotateCcw, Shirt, Sparkles, Trophy } from 'lucide-react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useT } from '../../i18n'
@@ -458,7 +458,12 @@ function RunnerHome({
             {starting || !assets ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <Play size={20} className="fill-void" aria-hidden />}
             {assets ? t.runner.home.play : loading === null ? t.runner.home.loadFailed : t.runner.home.loading(Math.round(loading * 100))}
           </button>
-          {overview && <p className="mt-2 text-center text-[11px] text-cream/50">{t.runner.home.games(overview.me.games)}</p>}
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-cream/50">
+            {assets ? <Check size={12} className="text-[#5ef2b0]" aria-hidden /> : <Loader2 size={12} className="animate-spin" aria-hidden />}
+            <span>{assets ? t.runner.home.packReady : t.runner.home.packLoading}</span>
+            {overview && <span aria-hidden>·</span>}
+            {overview && <span>{t.runner.home.games(overview.me.games)}</span>}
+          </p>
           {!signedIn && <p className="mt-2 text-[11px] leading-relaxed text-cream/55">{t.runner.home.guest}</p>}
           {sourceOf(look).kind === 'vrm' && <p className="mt-2 text-center text-[10px] text-cream/35">{t.runner.home.modelCredit}</p>}
         </div>

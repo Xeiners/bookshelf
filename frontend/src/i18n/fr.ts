@@ -352,6 +352,10 @@ export const fr = {
   },
 
   notifications: {
+    boxGift: {
+      title: (who: string) => `${who} t’offre une boîte mystère !`,
+      body: (message: string | null) => message ?? 'Elle t’attend dans la boutique des Activités.',
+    },
     boosterGift: {
       title: (count: number) => `L’équipe t’offre ${count} booster${plural(count, '', 's')} !`,
       body: (message: string | null) => message ?? 'Ils t’attendent dans les Activités.',
@@ -1442,6 +1446,8 @@ export const fr = {
       body: 'Cours entre les tomes géants, les torii et le Manga Express. Ramasse les ✦ !',
     },
     home: {
+      packReady: 'Pack 3D prêt · jouable hors ligne',
+      packLoading: 'Téléchargement du pack 3D…',
       todayShort: '✦ du jour',
       howTo: 'Commandes, bonus et réglages',
       tagline: 'Trois voies, des tomes géants, un train qui fonce : jusqu’où iras-tu ?',
@@ -1571,6 +1577,17 @@ export const fr = {
         'acc-gojo': 'Bandeau des Six Yeux',
         'acc-kakashi': 'Masque du ninja copieur',
       } as Record<string, string>,
+      gift: {
+        open: 'Offrir une boîte',
+        title: 'Offrir une boîte mystère',
+        subtitle: (price: number) => `Tu paies ${price} ✦ : le membre choisi l’ouvre dans sa garde-robe.`,
+        search: 'Chercher un membre',
+        none: 'Aucun membre trouvé.',
+        message: 'Un petit mot (facultatif)',
+        pick: 'Choisis un membre',
+        send: (who: string, price: number) => `Offrir à ${who} · ${price} ✦`,
+        sent: (who: string) => `Boîte offerte à ${who} ! Une notification l’attend.`,
+      },
       box: {
         title: 'Boîte mystère',
         free: 'Ouvrir gratuitement',
@@ -1587,6 +1604,8 @@ export const fr = {
         guaranteed: 'garantie',
         again: (price: number) => `Encore · ${price} ✦`,
         againFree: 'Encore (gratuite)',
+        againGift: 'Suivante (offerte)',
+        gifted: (count: number) => (count > 1 ? `Ouvrir une boîte offerte · ×${count}` : 'Ouvrir ta boîte offerte'),
         close: 'Fermer',
         complete: 'Collection complète !',
       },
@@ -2140,6 +2159,8 @@ export const fr = {
     freeBoxNotReady: 'La boîte gratuite n’est pas encore prête.',
     wardrobeAccountOnly: 'La garde-robe demande un compte.',
     itemNotOwned: 'Cette pièce n’est pas encore à toi.',
+    giftSelf: 'Tu ne peux pas t’offrir une boîte à toi-même.',
+    noGiftBox: 'Plus de boîte offerte à ouvrir.',
     invalidCredentials: 'E-mail ou mot de passe incorrect.',
     emailTaken: 'Un compte existe déjà avec cet e-mail.',
     rateLimited: 'Trop de tentatives. Réessaie dans quelques minutes.',

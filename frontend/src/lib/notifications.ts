@@ -53,7 +53,7 @@ export type NotificationTarget =
 
 export function targetOf(item: AppNotification): NotificationTarget {
   if (item.type === 'trade_accepted') return { kind: 'my-trades' }
-  if (item.type === 'booster_gift') return { kind: 'boosters' }
+  if (item.type === 'booster_gift' || item.type === 'box_gift') return { kind: 'boosters' }
   if (item.type === 'card_gift') return { kind: 'collection' }
   // Cartes montrées par un membre : on rejoue leur présentation.
   if (item.type === 'card_share') return { kind: 'showcase' }
@@ -99,6 +99,7 @@ export type NotificationVisual =
   | { kind: 'trade'; card: TradeCard; behind: TradeCard }
   | { kind: 'card'; card: TradeCard; count: number }
   | { kind: 'booster'; count: number }
+  | { kind: 'box' }
 
 export interface NotificationCopy {
   title: string
@@ -110,7 +111,7 @@ export interface NotificationCopy {
 const GOLD = '#ffc46b'
 
 /** Couleur d'accent d'une notification : la rareté de la carte, l'or pour un booster. */
-export const accentOf = (visual: NotificationVisual): string => (visual.kind === 'booster' ? GOLD : RARITY_STYLE[visual.card.rarity].color)
+export const accentOf = (visual: NotificationVisual): string => (visual.kind === 'booster' ? GOLD : visual.kind === 'box' ? '#b05cff' : RARITY_STYLE[visual.card.rarity].color)
 
 /** Phrase d'une notification, rédigée dans la langue de l'app (le serveur n'envoie que des données). */
 export function notificationCopy(item: AppNotification, t: Dictionary): NotificationCopy {
@@ -120,6 +121,12 @@ export function notificationCopy(item: AppNotification, t: Dictionary): Notifica
         title: t.notifications.boosterGift.title(item.data.count),
         body: t.notifications.boosterGift.body(item.data.message),
         visual: { kind: 'booster', count: item.data.count },
+      }
+    case 'box_gift':
+      return {
+        title: t.notifications.boxGift.title(partyName(item.data.from, t.trades.anonymous)),
+        body: t.notifications.boxGift.body(item.data.message),
+        visual: { kind: 'box' },
       }
     case 'card_gift':
       return {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { CatmullRomCurve3, MathUtils, Mesh, PerspectiveCamera, Texture, Vector3 } from 'three'
+import { CatmullRomCurve3, MathUtils, Mesh, PerspectiveCamera, Texture, Vector3, type Object3D } from 'three'
 import { step, type QuizQuestion, type RunState } from '../../lib/runner/engine'
 import type { RunnerAssets } from './assets'
 import { BIOME_STYLE } from './biomes'
@@ -45,9 +45,9 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       gl={{ antialias: !lite, powerPreference: 'high-performance', alpha: false, stencil: false }}
       camera={{ fov: 62, near: 0.2, far: 900, position: [0, 3.4, 6.8] }}
       style={{ touchAction: 'none' }}
-      onCreated={({ gl }) => {
+      onCreated={({ gl, scene }) => {
         // Développement : compteurs de rendu (triangles, appels de dessin) pour les tests.
-        if (import.meta.env.DEV) (window as unknown as { __runnerGl?: unknown }).__runnerGl = gl
+        if (import.meta.env.DEV) Object.assign(window, { __runnerGl: gl, __runnerScene: scene })
       }}
     >
       <color attach="background" args={[BIOME_STYLE.sakura.horizon]} />
@@ -65,7 +65,7 @@ export function RunnerScene({ state, paused, ask, onTick, lite, look, assets, in
       <Part state={state} make={() => createHero(look, assets, false, outfit)!} />
       <Part state={state} make={() => new PetalsPart(lite ? 90 : 260)} />
       <Camera state={state} intro={intro} />
-      <Warmup />
+      <Warmup intro={intro} />
       <AdaptiveResolution start={dpr} />
     </Canvas>
   )
@@ -91,22 +91,40 @@ function budgetDpr(lite: boolean): number {
  * la carte graphique, y compris ce qui n'apparaîtra que plus loin (arbres d'automne, pins
  * de la nuit…). Sans cela, leur première apparition, en pleine vitesse, ferait un à-coup.
  */
-function Warmup() {
+function Warmup({ intro }: { intro: IntroClock }) {
   const gl = useThree((three) => three.gl)
   const scene = useThree((three) => three.scene)
   const camera = useThree((three) => three.camera)
   useEffect(() => {
+    let alive = true
     const frame = requestAnimationFrame(() => {
-      gl.compile(scene, camera)
+      // Tout ce qui est caché (nuage, aura de l'Éveil, éclats, monstres en réserve…) est
+      // compilé aussi : sans cela, sa première apparition, en pleine course, ferait un à-coup.
+      const hidden: Object3D[] = []
+      scene.traverse((node) => {
+        if (node.visible) return
+        hidden.push(node)
+        node.visible = true
+      })
+      const compiled = gl.compileAsync(scene, camera)
+      for (const node of hidden) node.visible = false
       scene.traverse((node) => {
         if (!(node instanceof Mesh)) return
         for (const material of [node.material].flat()) {
           for (const value of Object.values(material)) if (value instanceof Texture) gl.initTexture(value)
         }
       })
+      // La cinématique (et la course) ne partent qu'une fois tout prêt.
+      void compiled.catch(() => undefined).then(() => alive && intro.markPrepared())
     })
-    return () => cancelAnimationFrame(frame)
-  }, [gl, scene, camera])
+    // Jamais plus de quelques secondes d'attente, même sur un appareil très lent.
+    const fallback = window.setTimeout(() => intro.markPrepared(), 6000)
+    return () => {
+      alive = false
+      cancelAnimationFrame(frame)
+      window.clearTimeout(fallback)
+    }
+  }, [gl, scene, camera, intro])
   return null
 }
 
@@ -209,7 +227,14 @@ function Part({ state, make }: { state: RefObject<RunState>; make: () => ScenePa
   useEffect(() => () => part.dispose(), [part])
   useFrame(({ clock }, delta) => {
     const run = state.current
-    if (run) part.update(run, clock.elapsedTime, delta)
+    if (!run) return
+    if (import.meta.env.DEV) {
+      // Développement : temps passé par partie (profilage depuis les tests).
+      const begin = performance.now()
+      part.update(run, clock.elapsedTime, delta)
+      const times = ((window as unknown as { __runnerTimes?: Record<string, number> }).__runnerTimes ??= {})
+      times[part.constructor.name] = (times[part.constructor.name] ?? 0) + performance.now() - begin
+    } else part.update(run, clock.elapsedTime, delta)
   })
   return <primitive object={part.object} />
 }
@@ -274,7 +299,7 @@ function Camera({ state, intro }: { state: RefObject<RunState>; intro: IntroCloc
     if (!run) return
     // Avant le premier pas de la course : la cinématique ; ensuite, la caméra de jeu.
     // L'horloge part après quelques images : la toute première porte la préparation (compilation).
-    if (run.t === 0 && ++frames.current >= 3) intro.begin()
+    if (run.t === 0 && intro.isPrepared() && ++frames.current >= 3) intro.begin()
     const progress = intro.progress()
     const cinematic = run.t === 0 && progress < 1 && camera instanceof PerspectiveCamera
     view.all = cinematic

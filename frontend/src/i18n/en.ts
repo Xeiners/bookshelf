@@ -343,6 +343,10 @@ export const en: Dictionary = {
   },
 
   notifications: {
+    boxGift: {
+      title: (who: string) => `${who} sent you a mystery box!`,
+      body: (message: string | null) => message ?? 'It’s waiting in the Activities shop.',
+    },
     boosterGift: {
       title: (count: number) => `The team gave you ${count} ${plural(count, 'booster', 'boosters')}!`,
       body: (message: string | null) => message ?? 'They’re waiting for you in Activities.',
@@ -1427,6 +1431,8 @@ export const en: Dictionary = {
       body: 'Dash between giant volumes, torii gates and the Manga Express. Grab the ✦!',
     },
     home: {
+      packReady: '3D pack ready · playable offline',
+      packLoading: 'Downloading the 3D pack…',
       todayShort: "Today's ✦",
       howTo: 'Controls, bonuses & settings',
       tagline: 'Three lanes, giant volumes, a speeding train: how far will you go?',
@@ -1556,6 +1562,17 @@ export const en: Dictionary = {
         'acc-gojo': 'Six Eyes blindfold',
         'acc-kakashi': "Copy ninja's mask",
       } as Record<string, string>,
+      gift: {
+        open: 'Gift a box',
+        title: 'Gift a mystery box',
+        subtitle: (price: number) => `You pay ${price} ✦: the member you pick opens it in their wardrobe.`,
+        search: 'Search for a member',
+        none: 'No member found.',
+        message: 'A short note (optional)',
+        pick: 'Pick a member',
+        send: (who: string, price: number) => `Gift to ${who} · ${price} ✦`,
+        sent: (who: string) => `Box gifted to ${who}! A notification is waiting for them.`,
+      },
       box: {
         title: 'Mystery box',
         free: 'Open for free',
@@ -1572,6 +1589,8 @@ export const en: Dictionary = {
         guaranteed: 'guaranteed',
         again: (price: number) => `Again · ${price} ✦`,
         againFree: 'Again (free)',
+        againGift: 'Next (gift)',
+        gifted: (count: number) => (count > 1 ? `Open a gifted box · ×${count}` : 'Open your gifted box'),
         close: 'Close',
         complete: 'Collection complete!',
       },
@@ -2125,6 +2144,8 @@ export const en: Dictionary = {
     freeBoxNotReady: 'The free box isn’t ready yet.',
     wardrobeAccountOnly: 'The wardrobe needs an account.',
     itemNotOwned: 'You don’t own this piece yet.',
+    giftSelf: 'You can’t gift a box to yourself.',
+    noGiftBox: 'No gifted box left to open.',
     invalidCredentials: 'Incorrect email or password.',
     emailTaken: 'An account already exists with this email.',
     rateLimited: 'Too many attempts. Try again in a few minutes.',
