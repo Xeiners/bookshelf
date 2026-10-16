@@ -309,13 +309,14 @@ async function build(level: number, x: number, y: number): Promise<Buffer | null
   )
   const present = children.filter((child): child is { input: Buffer; left: number; top: number } => child !== null)
   if (present.length === 0) return null
-  return limited(() =>
-    sharp({ create: { width: TILE_PX * 2, height: TILE_PX * 2, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+  // Deux passes : `sharp` redimensionne avant de superposer, d'où des enfants collés hors du cadre.
+  return limited(async () => {
+    const joined = await sharp({ create: { width: TILE_PX * 2, height: TILE_PX * 2, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
       .composite(present)
-      .resize(TILE_PX, TILE_PX, { kernel: 'lanczos3' })
-      .png({ compressionLevel: 6 })
-      .toBuffer(),
-  )
+      .png({ compressionLevel: 0 })
+      .toBuffer()
+    return sharp(joined).resize(TILE_PX, TILE_PX, { kernel: 'lanczos3' }).png({ compressionLevel: 6 }).toBuffer()
+  })
 }
 
 export interface TileResult {

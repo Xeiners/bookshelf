@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { after, describe, it } from 'node:test'
+import sharp from 'sharp'
 import WebSocket from 'ws'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
@@ -556,6 +557,22 @@ describe('Toile — persistance, tuiles, saisons', () => {
     assert.ok(changed.k.some((entry: number[]) => entry[0] === 0 && entry[1] === x && entry[2] === y))
     const bad = await ana.send('GET', '/canvas/tiles/99/0/0.png')
     assert.equal(bad.status, 400)
+    // Une tuile assemblée garde ses quatre enfants (pas seulement celui du coin haut-gauche) :
+    // ce dessin tombe dans l'enfant de droite / du bas (indices impairs).
+    const odd = 501_300
+    await tab.op({ k: 'c', id: id(), o: rect(odd, odd, 300, 300, { f: '#cc0000' }) })
+    const ox = Math.floor(odd / 1024)
+    assert.equal(ox % 2, 1)
+    const inked = async (level: number) => {
+      const size = 1024 * 2 ** level
+      const response = await ana.send('GET', `/canvas/tiles/${level}/${Math.floor(odd / size)}/${Math.floor(odd / size)}.png`)
+      assert.equal(response.status, 200)
+      const { data, info } = await sharp(Buffer.from(await response.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      let count = 0
+      for (let at = 3; at < data.length; at += 4) if (data[at]! > 0) count += 1
+      return { count, width: info.width }
+    }
+    for (const level of [1, 2, 4]) assert.ok((await inked(level)).count > 20, `niveau ${level} : le dessin est visible`)
     tab.close()
     watcher.close()
   })
