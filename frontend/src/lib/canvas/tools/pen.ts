@@ -20,6 +20,11 @@ export class PenTool implements Tool {
   private points: number[] = []
   private id = ''
   private active = false
+  /** Le doigt / le stylet est posé, même si rien ne se trace (on est dans un cadre réservé). */
+  private held = false
+  private warned = false
+  /** Le trait reprend après un cadre réservé : un point isolé n'est qu'une bavure, on ne le garde pas. */
+  private resumed = false
   private lastX = 0
   private lastY = 0
   private sent = 0
@@ -41,16 +46,35 @@ export class PenTool implements Tool {
 
   down(e: PointerInfo): void {
     if (!this.ctx.canDraw()) return this.ctx.notify('cannot_draw')
-    if (this.ctx.lockedAt(e.x, e.y)) return this.ctx.notify('frame_locked')
+    this.held = true
+    this.warned = false
+    this.resumed = false
+    this.pointerType = e.pointerType
+    if (this.blocked(e.x, e.y, e.x, e.y)) return this.warn()
+    this.begin(e.x, e.y, e.pressure)
+  }
+
+  private begin(x: number, y: number, pressure: number): void {
     this.active = true
     this.id = this.ctx.newId()
-    this.pointerType = e.pointerType
     this.points = []
     this.sent = 0
-    this.lastX = e.x
-    this.lastY = e.y
-    this.add(e.x, e.y, e.pressure)
+    this.lastX = x
+    this.lastY = y
+    this.add(x, y, pressure)
     this.ctx.redraw()
+  }
+
+  /** Le serveur refuse tout trait dont l'emprise (épaisseur comprise) touche un cadre réservé à un autre. */
+  private blocked(fromX: number, fromY: number, x: number, y: number): boolean {
+    const box = boundsOf({ ...this.style(), p: [fromX, fromY, 0.5, x, y, 0.5] })
+    return this.ctx.lockedAt(0, 0, { minX: box.minX - 1, minY: box.minY - 1, maxX: box.maxX + 1, maxY: box.maxY + 1 })
+  }
+
+  private warn(): void {
+    if (this.warned) return
+    this.warned = true
+    this.ctx.notify('frame_locked')
   }
 
   private add(x: number, y: number, pressure: number): void {
@@ -63,12 +87,27 @@ export class PenTool implements Tool {
 
   move(e: PointerInfo): void {
     this.hoverAt = { sx: e.sx, sy: e.sy }
-    if (!this.active) return
+    if (!this.held) return
     const gap = 0.8 / this.ctx.camera.zoom
     const samples = e.coalesced.length > 0 ? e.coalesced : [{ x: e.x, y: e.y, pressure: e.pressure }]
     for (const sample of samples) {
-      if (Math.hypot(sample.x - this.lastX, sample.y - this.lastY) < gap) continue
-      this.add(sample.x, sample.y, sample.pressure)
+      if (this.active && Math.hypot(sample.x - this.lastX, sample.y - this.lastY) < gap) continue
+      // Un cadre réservé : le trait s'arrête à son bord (il reste ce qui est déjà tracé) et reprend
+      // dehors. Sans cela le serveur refuserait tout le trait et il disparaîtrait d'un coup.
+      if (this.blocked(this.active ? this.lastX : sample.x, this.active ? this.lastY : sample.y, sample.x, sample.y)) {
+        if (this.active) this.finish()
+        this.warn()
+        continue
+      }
+      if (this.active) this.add(sample.x, sample.y, sample.pressure)
+      else {
+        this.begin(sample.x, sample.y, sample.pressure)
+        this.resumed = true
+      }
+    }
+    if (!this.active) {
+      this.ctx.redraw()
+      return
     }
     this.splitIfTooBig()
     this.flushLive(false)
@@ -112,6 +151,11 @@ export class PenTool implements Tool {
   private finish(): void {
     if (!this.active) return
     this.active = false
+    if (this.resumed && this.points.length < 9) {
+      this.ctx.liveEnd(this.id)
+      this.points = []
+      return
+    }
     this.flushLive(true)
     while (this.sent < this.points.length) this.flushLive(true)
     const tolerance = Math.max(0.25, 0.45 / this.ctx.camera.zoom)
@@ -123,11 +167,13 @@ export class PenTool implements Tool {
   }
 
   up(): void {
+    this.held = false
     this.finish()
     this.ctx.redraw()
   }
 
   cancel(): void {
+    this.held = false
     if (!this.active) return
     this.active = false
     this.ctx.liveEnd(this.id)
