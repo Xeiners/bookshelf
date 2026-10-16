@@ -40,6 +40,8 @@ export interface RenderEnv {
   admin: boolean
   mode: 'vector' | 'tiles'
   maxTileLevel: number
+  /** Objets tout juste posés ou reçus : en mode tuiles, on les dessine par-dessus en attendant que la tuile les contienne. */
+  fresh?: ReadonlyMap<string, number>
 }
 
 /* ---- Objets ---------------------------------------------------------------------------- */
@@ -265,38 +267,14 @@ export class Renderer {
     if (withReferences) this.references.draw(ctx, false)
     if (env.mode === 'tiles') {
       this.drawTiles(ctx, view, env.maxTileLevel)
+      if (env.fresh && env.fresh.size > 0) for (const object of this.scene.query(view)) if (env.fresh.has(object.id)) this.drawObject(ctx, object, env)
       if (withReferences) this.references.draw(ctx, true)
       this.lastCount = 0
       return
     }
     const objects = this.scene.query(view)
     this.lastCount = objects.length
-    const zoom = this.camera.zoom
-    for (const object of objects) {
-      const data = object.data
-      // Trop petit pour se voir : un point de sa couleur.
-      const extent = Math.max(object.box.maxX - object.box.minX, object.box.maxY - object.box.minY) * zoom
-      if (extent < 0.6) continue
-      if (extent < 2.2 && data.t !== 'f') {
-        ctx.fillStyle = data.c
-        ctx.globalAlpha = 0.7
-        ctx.fillRect((object.box.minX + object.box.maxX) / 2 - 0.5 / zoom, (object.box.minY + object.box.maxY) / 2 - 0.5 / zoom, 1 / zoom, 1 / zoom)
-        ctx.globalAlpha = 1
-        continue
-      }
-      if (object.hidden) ctx.globalAlpha = 0.35
-      if (data.t === 'f') drawFrame(ctx, object, data, zoom, env)
-      else drawData(ctx, data)
-      if (object.hidden) {
-        ctx.globalAlpha = 1
-        ctx.save()
-        ctx.strokeStyle = '#e0245e'
-        ctx.lineWidth = 2 / zoom
-        ctx.setLineDash([6 / zoom, 4 / zoom])
-        ctx.strokeRect(object.box.minX, object.box.minY, object.box.maxX - object.box.minX, object.box.maxY - object.box.minY)
-        ctx.restore()
-      }
-    }
+    for (const object of objects) this.drawObject(ctx, object, env)
     if (withReferences) this.references.draw(ctx, true)
   }
 
@@ -319,6 +297,34 @@ export class Renderer {
         const [sx, sy] = this.camera.toScreen(x0 + column * spacing, y0 + row * spacing)
         ctx.fillRect(Math.round(sx * this.dpr - dot / 2), Math.round(sy * this.dpr - dot / 2), dot, dot)
       }
+    }
+  }
+
+  /** Un objet du monde, simplifié quand il est trop petit pour se voir. */
+  private drawObject(ctx: CanvasRenderingContext2D, object: CanvasObject, env: RenderEnv): void {
+    const zoom = this.camera.zoom
+    const data = object.data
+    // Trop petit pour se voir : un point de sa couleur.
+    const extent = Math.max(object.box.maxX - object.box.minX, object.box.maxY - object.box.minY) * zoom
+    if (extent < 0.6) return
+    if (extent < 2.2 && data.t !== 'f') {
+      ctx.fillStyle = data.c
+      ctx.globalAlpha = 0.7
+      ctx.fillRect((object.box.minX + object.box.maxX) / 2 - 0.5 / zoom, (object.box.minY + object.box.maxY) / 2 - 0.5 / zoom, 1 / zoom, 1 / zoom)
+      ctx.globalAlpha = 1
+      return
+    }
+    if (object.hidden) ctx.globalAlpha = 0.35
+    if (data.t === 'f') drawFrame(ctx, object, data, zoom, env)
+    else drawData(ctx, data)
+    if (object.hidden) {
+      ctx.globalAlpha = 1
+      ctx.save()
+      ctx.strokeStyle = '#e0245e'
+      ctx.lineWidth = 2 / zoom
+      ctx.setLineDash([6 / zoom, 4 / zoom])
+      ctx.strokeRect(object.box.minX, object.box.minY, object.box.maxX - object.box.minX, object.box.maxY - object.box.minY)
+      ctx.restore()
     }
   }
 

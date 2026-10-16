@@ -114,6 +114,9 @@ interface Peer {
   liveBucket: Bucket
   cursorBucket: Bucket
   viewBucket: Bucket
+  /** Dernière vue reçue pendant que le seau était vide : appliquée dès qu'il se remplit (jamais perdue). */
+  viewLater: Json | null
+  viewTimer: ReturnType<typeof setTimeout> | null
   lastChat: number
   lastReact: number
   strikes: number
@@ -365,7 +368,18 @@ function dropCells(peer: Peer, keys: string[]): void {
 function handleView(peer: Peer, message: Json): void {
   const b = message.b
   if (!Array.isArray(b) || b.length !== 4 || !b.every(isNumber)) return strike(peer)
-  if (!peer.viewBucket.take()) return
+  if (!peer.viewBucket.take()) {
+    // Trop de vues d'affilée (zoom prolongé) : on garde la dernière, sinon le serveur resterait sur une vue périmée
+    // et les objets n'arriveraient plus au retour du zoom.
+    peer.viewLater = message
+    peer.viewTimer ??= setTimeout(() => {
+      peer.viewTimer = null
+      const later = peer.viewLater
+      peer.viewLater = null
+      if (later && peer.ws.readyState === 1) handleView(peer, later)
+    }, 250)
+    return
+  }
   const [x0, y0, x1, y1] = b as [number, number, number, number]
   const width = Math.max(1, x1 - x0)
   const height = Math.max(1, y1 - y0)
@@ -563,6 +577,8 @@ function connect(ws: WebSocket, access: CanvasAccess): void {
     liveBucket: new Bucket(LIVE_BUCKET.capacity, LIVE_BUCKET.refillPerSecond),
     cursorBucket: new Bucket(CURSOR_BUCKET.capacity, CURSOR_BUCKET.refillPerSecond),
     viewBucket: new Bucket(10, 6),
+    viewLater: null,
+    viewTimer: null,
     lastChat: 0,
     lastReact: 0,
     strikes: 0,
@@ -586,6 +602,8 @@ function connect(ws: WebSocket, access: CanvasAccess): void {
   ws.on('error', () => undefined)
   ws.on('close', () => {
     peers.delete(peer.conn)
+    if (peer.viewTimer) clearTimeout(peer.viewTimer)
+    peer.viewLater = null
     for (const key of peer.cells) world.unwatch(key)
     peer.cells.clear()
     for (const id of [...peer.live.keys()]) endLive(peer, id)

@@ -50,6 +50,9 @@ interface Float {
   at: number
 }
 
+/** Combien de temps un objet neuf reste dessiné par-dessus les tuiles (le serveur refait la tuile ~2 s plus tard). */
+const FRESH_MS = 6000
+
 export class CanvasEngine {
   readonly camera = new Camera()
   readonly scene = new Scene()
@@ -85,6 +88,8 @@ export class CanvasEngine {
   private lastToolSend = 0
   private disposed = false
   private ownDeletes = new Set<string>()
+  /** Objets posés ou reçus depuis peu (id → fin de validité) : visibles en mode tuiles avant que la tuile ne les contienne. */
+  private fresh = new Map<string, number>()
   private localZ = 0
   private floats: Float[] = []
   private editor: { element: HTMLElement; x: number; y: number; size: number; align: 0 | 1 | 2 } | null = null
@@ -222,11 +227,20 @@ export class CanvasEngine {
       this.viewDirty = true
     }
     this.updateMode()
+    if (this.fresh.size > 0) {
+      let expired = false
+      for (const [id, until] of this.fresh) {
+        if (until > now) continue
+        this.fresh.delete(id)
+        expired = true
+      }
+      if (expired && this.mode === 'tiles') this.baseDirty = true
+    }
     if (this.scene.revision !== this.seenRevision) {
       this.seenRevision = this.scene.revision
       this.baseDirty = true
     }
-    if (this.viewDirty && now - this.lastView > 140) this.sendView(now)
+    if (this.viewDirty && now - this.lastView > 180) this.sendView(now)
     if (now - this.lastZoomPush > 150) {
       this.lastZoomPush = now
       if (Math.abs(state.zoom - this.camera.zoom) > 1e-6) store.setState({ zoom: this.camera.zoom })
@@ -246,7 +260,7 @@ export class CanvasEngine {
 
   private env(): RenderEnv {
     const me = store.getState().me
-    return { userId: me?.userId ?? '', admin: me?.admin ?? false, mode: this.mode, maxTileLevel: this.limits?.tile.maxLevel ?? 11 }
+    return { userId: me?.userId ?? '', admin: me?.admin ?? false, mode: this.mode, maxTileLevel: this.limits?.tile.maxLevel ?? 11, fresh: this.fresh }
   }
 
   /** Vecteur ou tuiles, avec hystérésis : pas de bascule nerveuse autour du seuil. */
@@ -351,7 +365,7 @@ export class CanvasEngine {
         return
       }
       case 'drop': {
-        for (const key of message.k as string[]) this.scene.dropCell(key)
+        for (const key of message.k as string[]) this.scene.dropCell(key, (id) => this.fresh.has(id))
         this.dropSelectionGone()
         return
       }
@@ -527,8 +541,14 @@ export class CanvasEngine {
     const wire = message as unknown as WireObject
     const object = fromWire(wire)
     this.scene.upsert(object, cellKey(limits, object.box))
+    this.markFresh(object.id)
     for (const [key, ghost] of this.scene.ghosts) if (ghost.id === object.id) this.scene.ghosts.delete(key)
     this.localZ = Math.max(this.localZ, object.z)
+  }
+
+  private markFresh(id: string): void {
+    this.fresh.set(id, performance.now() + FRESH_MS)
+    if (this.mode === 'tiles') this.baseDirty = true
   }
 
   private dropSelectionGone(): void {
@@ -548,6 +568,7 @@ export class CanvasEngine {
         const data = op.o as Data
         const box = boundsOf(data)
         this.scene.upsert({ id: op.id, owner: me?.userId ?? '', data, z: (this.localZ += 1), v: 0, likes: 0, hidden: false, box }, cellKey(limits, box))
+        this.markFresh(op.id)
         return
       }
       case 'u': {
@@ -555,6 +576,7 @@ export class CanvasEngine {
         if (!known) return
         const data = op.o as Data
         this.scene.upsert({ ...known, data, box: boundsOf(data) }, cellKey(limits, boundsOf(data)))
+        this.markFresh(op.id)
         return
       }
       case 'd':
