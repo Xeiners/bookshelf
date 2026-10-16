@@ -5,6 +5,7 @@ import { dragonBallPortraits, jjkPortraits, jojoPortraits, mhaPortraits, narutoP
 import { refreshWorkCovers } from './modules/higherlower/hl.covers.js'
 import { ensureSeries3 } from './modules/cards/series3.seed.js'
 import { startCatalogSync } from './services/catalog.service.js'
+import { attachCanvas, ensureCanvas, shutdownCanvas } from './modules/canvas/canvas.boot.js'
 
 const app = createApp()
 
@@ -27,9 +28,15 @@ const server = app.listen(config.port, () => {
   console.log(`[api] Bookshelf API prête sur http://localhost:${config.port}/api (${config.env})`)
 })
 
+// Toile partagée : WebSocket sur le même serveur, saison du mois prête avant la première connexion.
+const detachCanvas = attachCanvas(server)
+if (config.env !== 'test') void ensureCanvas().catch((error) => console.error('[canvas] démarrage', error))
+
 async function shutdown(signal: string) {
   console.log(`[api] ${signal} reçu, arrêt en cours…`)
+  detachCanvas()
   server.close()
+  await shutdownCanvas().catch((error) => console.error('[canvas] arrêt', error))
   await prisma.$disconnect()
   process.exit(0)
 }

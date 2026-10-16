@@ -113,6 +113,8 @@ export interface TestClient {
    * vérification (201 + session), ou celle de la 1ʳᵉ étape si elle échoue.
    */
   signUp: (body: { email: string; password: string; initialData?: unknown; guestPacks?: string[]; [key: string]: unknown }) => Promise<{ status: number; body: any }>
+  /** Le cookie de session de ce client (pour ouvrir un WebSocket en son nom). */
+  cookie: () => string
   /** Requête brute (corps binaire, en-têtes libres, réponse non lue), avec le cookie de ce client. */
   send: (method: string, route: string, init?: { body?: RequestInit['body']; headers?: Record<string, string> }) => Promise<Response>
 }
@@ -130,6 +132,9 @@ export async function startServer() {
   const { createApp } = await import('../src/app.js')
   const server = createApp().listen(0)
   await new Promise<void>((resolve) => server.once('listening', () => resolve()))
+  // La toile partagée (WebSocket) sur le même serveur, comme en production.
+  const { attachCanvas, shutdownCanvas } = await import('../src/modules/canvas/canvas.boot.js')
+  const detachCanvas = attachCanvas(server)
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`
 
   /** Chaque client a son propre cookie : un « appareil ». */
@@ -158,6 +163,7 @@ export async function startServer() {
     return {
       request,
       send,
+      cookie: () => cookie,
       async signUp({ initialData, guestPacks, ...form }) {
         const started = await request('POST', '/auth/register', form)
         if (started.status !== 202) return started
@@ -168,11 +174,15 @@ export async function startServer() {
   }
 
   const close = async () => {
+    detachCanvas()
+    await shutdownCanvas()
+    server.closeAllConnections?.()
     await new Promise<void>((resolve) => server.close(() => resolve()))
     const { prisma } = await import('../src/db.js')
     await prisma.$disconnect()
   }
 
   /** `base` : URL de l'API, pour les requêtes binaires (images) que le client JSON ne lit pas. */
-  return { client, close, base }
+  const port = (server.address() as AddressInfo).port
+  return { client, close, base, port }
 }

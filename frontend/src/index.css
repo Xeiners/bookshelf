@@ -626,3 +626,35 @@
     transform: scale(1);
   }
 }
+
+/* La Toile : curseurs des curseurs de réglage (teinte, épaisseur, opacité…). */
+.canvas-range {
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 9999px;
+  outline: none;
+  touch-action: pan-x;
+}
+.canvas-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #7c5cff;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+.canvas-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #7c5cff;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+.canvas-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgb(124 92 255 / 0.5);
+}

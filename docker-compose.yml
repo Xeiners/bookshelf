@@ -81,6 +81,8 @@ services:
       BOOKS_QUOTA_MB: ${BOOKS_QUOTA_MB:-2048}
       BOOKS_METADATA_LOOKUP: ${BOOKS_METADATA_LOOKUP:-on}
       GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+      # La Toile : âge minimal d'un compte (minutes) avant de pouvoir dessiner (il peut regarder avant).
+      CANVAS_MIN_ACCOUNT_AGE_MIN: ${CANVAS_MIN_ACCOUNT_AGE_MIN:-30}
     volumes:
       # EPUB importés et couvertures extraites : survivent aux reconstructions de l'image.
       # À sauvegarder avec la base (les fiches `UserBook` y renvoient).

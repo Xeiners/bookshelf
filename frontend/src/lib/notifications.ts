@@ -51,11 +51,14 @@ export type NotificationTarget =
   | { kind: 'collection' }
   | { kind: 'showcase' }
   | { kind: 'reward' }
+  | { kind: 'canvas'; x?: number; y?: number }
 
 export function targetOf(item: AppNotification): NotificationTarget {
   if (item.type === 'trade_accepted') return { kind: 'my-trades' }
   if (item.type === 'booster_gift' || item.type === 'box_gift' || item.type === 'promotion') return { kind: 'boosters' }
   if (item.type === 'record_reward') return { kind: 'reward' }
+  if (item.type === 'canvas_invite') return { kind: 'canvas', x: item.data.x, y: item.data.y }
+  if (item.type === 'canvas_moderated' || item.type === 'canvas_reward') return { kind: 'canvas' }
   if (item.type === 'card_gift') return { kind: 'collection' }
   // Cartes montrées par un membre : on rejoue leur présentation.
   if (item.type === 'card_share') return { kind: 'showcase' }
@@ -104,6 +107,7 @@ export type NotificationVisual =
   | { kind: 'box' }
   | { kind: 'promo'; price: number; regular: number }
   | { kind: 'trophy' }
+  | { kind: 'canvas' }
 
 export interface NotificationCopy {
   title: string
@@ -116,7 +120,7 @@ const GOLD = '#ffc46b'
 
 /** Couleur d'accent d'une notification : la rareté de la carte, l'or pour un booster. */
 export const accentOf = (visual: NotificationVisual): string =>
-  visual.kind === 'booster' || visual.kind === 'trophy' ? GOLD : visual.kind === 'box' ? '#b05cff' : visual.kind === 'promo' ? '#ff4d6d' : RARITY_STYLE[visual.card.rarity].color
+  visual.kind === 'booster' || visual.kind === 'trophy' ? GOLD : visual.kind === 'canvas' ? '#2bc3ff' : visual.kind === 'box' ? '#b05cff' : visual.kind === 'promo' ? '#ff4d6d' : RARITY_STYLE[visual.card.rarity].color
 
 /** Phrase d'une notification, rédigée dans la langue de l'app (le serveur n'envoie que des données). */
 export function notificationCopy(item: AppNotification, t: Dictionary): NotificationCopy {
@@ -165,6 +169,24 @@ export function notificationCopy(item: AppNotification, t: Dictionary): Notifica
         title: t.notifications.recordReward.title(t.recordReward.games[item.data.game]),
         body: item.active ? t.notifications.recordReward.body(item.data.score, item.data.previous) : t.notifications.recordReward.claimed,
         visual: { kind: 'trophy' },
+      }
+    case 'canvas_invite':
+      return {
+        title: t.notifications.canvasInvite.title(partyName(item.data.by, t.trades.anonymous), item.data.title),
+        body: t.notifications.canvasInvite.body,
+        visual: { kind: 'canvas' },
+      }
+    case 'canvas_moderated':
+      return {
+        title: t.notifications.canvasModerated.title(item.data.action),
+        body: t.notifications.canvasModerated.body(item.data.action, item.data.reason),
+        visual: { kind: 'canvas' },
+      }
+    case 'canvas_reward':
+      return {
+        title: t.notifications.canvasReward.title(item.data.kind, item.data.rank ?? null, item.data.brush ? (t.canvas.brushes[item.data.brush] ?? item.data.brush) : null),
+        body: t.notifications.canvasReward.body(item.data.kind, item.data.stardust ?? null, item.data.title ?? null),
+        visual: item.data.kind === 'podium' ? { kind: 'trophy' } : { kind: 'canvas' },
       }
     case 'trade_match':
       return {

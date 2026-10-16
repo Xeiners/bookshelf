@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth.js'
 import { storedAvatar } from '../users/avatarUpload.js'
 import { currentAdmin, requireAdmin } from './admin.access.js'
+import { adminOverview as canvasOverview, banUser, purgeUser, removeObject, restoreObject, unbanUser } from '../canvas/canvas.moderation.js'
+import { ensureCanvas } from '../canvas/canvas.boot.js'
 import { PROMOTION_MAX_HOURS, PROMOTION_MESSAGE_MAX, PROMOTION_TARGETS, createPromotion, endPromotion, listPromotions } from '../promotions/promotions.service.js'
 import {
   MAX_GIFT_BOOSTERS,
@@ -128,6 +130,44 @@ adminRouter.post('/promotions', async (req, res) => {
 
 adminRouter.post('/promotions/:id/end', async (req, res) => {
   res.json({ promotion: await endPromotion(currentAdmin(req), z.string().min(1).max(40).parse(req.params.id)) })
+})
+
+/* ---- Toile partagée ------------------------------------------------------------------- */
+
+const CanvasObjectId = z.string().regex(/^[0-9a-f]{16}$/)
+
+adminRouter.get('/canvas', async (_req, res) => {
+  await ensureCanvas()
+  res.json(await canvasOverview())
+})
+
+adminRouter.post('/canvas/objects/:id/remove', async (req, res) => {
+  await ensureCanvas()
+  await removeObject(currentAdmin(req), CanvasObjectId.parse(req.params.id))
+  res.json({ ok: true })
+})
+
+adminRouter.post('/canvas/objects/:id/restore', async (req, res) => {
+  await ensureCanvas()
+  await restoreObject(currentAdmin(req), CanvasObjectId.parse(req.params.id))
+  res.json({ ok: true })
+})
+
+adminRouter.post('/canvas/users/:id/purge', async (req, res) => {
+  await ensureCanvas()
+  res.json({ removed: await purgeUser(currentAdmin(req), UserId.parse(req.params.id)) })
+})
+
+adminRouter.post('/canvas/users/:id/ban', async (req, res) => {
+  await ensureCanvas()
+  await banUser(currentAdmin(req), UserId.parse(req.params.id), SuspendBody.parse(req.body ?? {}).reason)
+  res.json({ ok: true })
+})
+
+adminRouter.post('/canvas/users/:id/unban', async (req, res) => {
+  await ensureCanvas()
+  await unbanUser(currentAdmin(req), UserId.parse(req.params.id))
+  res.json({ ok: true })
 })
 
 adminRouter.get('/audit', async (req, res) => {

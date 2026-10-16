@@ -1206,6 +1206,55 @@ plafonds. **Booster** : 150 ✦, débit conditionnel (`where stardust >= prix`) 
 que l'ajout à `giftedBoosters` — deux achats simultanés ne passent jamais à découvert. Le front ouvre le
 booster aussitôt.
 
+## 7 terdecies. La Toile — dessin collectif en temps réel (`src/modules/canvas/`)
+
+Un tableau presque infini (±2 000 000 unités) où tous les comptes dessinent en même temps, avec
+curseurs, traits et formes vus en direct. Une saison par mois (UTC).
+
+**Temps réel : WebSocket** (`/api/canvas/ws`, session par le cookie de connexion, origine vérifiée,
+3 onglets par compte). `canvas.hub.ts` : le client annonce la zone qu'il regarde (`view`) et reçoit
+les objets des *cases* (4 096 unités) qui la touchent ; les curseurs (30 Hz côté client) sont regroupés
+et renvoyés ~15 fois par seconde, seulement à ceux qui les voient ; traits et formes en cours
+(`lp`, `lo`, `le`) sont relayés par petits paquets aux voisins ; bulles et réactions aussi.
+Très dézoomé, le client passe aux **tuiles raster** (`canvas.tiles.ts`, pyramide rendue par `sharp` :
+512 px pour 1 024 unités au niveau 0, assemblée niveau par niveau, mémoire plafonnée, tables
+d'occupation pour ne jamais rendre le vide) ; les clients en mode tuiles sont prévenus (`tv`) des
+tuiles modifiées. Nginx a un `location = /api/canvas/ws` (en-têtes `Upgrade`), Caddy n'a rien à régler.
+
+**Objets vectoriels** (`canvas.schema.ts`) : trait, rectangle, ellipse, ligne, flèche, polygone,
+courbe de Bézier, texte, cadre. Le client propose, le serveur **normalise** (nombres arrondis,
+encombrement recalculé, limites de taille : 4 096 unités, 3 000 points…). Aucun CRDT : chacun ne
+modifie que ses propres objets ; le dernier écrit gagne, objet par objet (numéro de version).
+`canvas.world.ts` tient les cases en mémoire (chargées à la demande, évacuées si personne ne les regarde)
+et **écrit en base par lots** (toutes les 1,5 s) : la base ne voit jamais la cadence des traits.
+Une seule instance de l'API tient la toile.
+
+**Règles d'écriture** : propriétaire de l'objet ; **cadres réservables** (3 par compte et par saison,
+8 invités au plus, jamais chevauchants, jamais au-dessus du dessin d'un autre) où seuls l'auteur et ses
+invités dessinent, l'auteur effaçant ce qu'on y laisse ; budget d'encre de 25 000 objets par saison ;
+pinceaux débloqués (3 de départ ; les autres s'achètent en Poussières ou se débloquent avec les « j'aime »
+reçus) ; seaux de jetons par connexion (opérations, aperçus, curseur) ; messages invalides → coupure.
+Un compte doit avoir `CANVAS_MIN_ACCOUNT_AGE_MIN` minutes (30 par défaut) pour dessiner ; il peut regarder avant.
+
+**Social et modération** (`canvas.social.ts`, `canvas.moderation.ts`) : « j'aime » (un par compte et par
+objet, 40 par jour) qui rapportent 1 ✦ à l'auteur (60 par jour au plus) ; signalements : **trois comptes
+différents masquent un objet** (invisible sauf pour l'équipe) ; file de modération dans l'administration
+(supprimer, rendre visible, tout effacer chez un compte, exclure de la toile), tout inscrit au journal et
+notifié. **Saisons** (`canvas.seasons.ts`) : au changement de mois, le podium (3 cadres les plus aimés)
+gagne 100 / 60 / 30 ✦, une image d'ensemble est archivée (dossier `canvas/` du volume `books_data`),
+l'ancienne toile reste consultable (galerie, time-lapse).
+
+| Route | |
+|---|---|
+| `GET /api/canvas` | saison, droits, pinceaux, artistes en ligne |
+| `GET /api/canvas/tiles/:niveau/:x/:y.png` | tuile raster (204 = vide) |
+| `GET /api/canvas/frames`, `/gallery`, `/seasons`, `/seasons/:id/image`, `/seasons/:id/timelapse` | cadres, galerie, saisons |
+| `POST /api/canvas/objects/:id/like`, `/report` ; `GET /objects/:id` | « j'aime », signalement, fiche |
+| `GET /api/canvas/brushes`, `POST /brushes/:id/buy` | pinceaux |
+| `GET /api/admin/canvas`, `POST /admin/canvas/objects/:id/remove\|restore`, `/users/:id/purge\|ban\|unban` | modération |
+
+Tests : `test/canvas.test.ts` (19 : WebSocket, règles, cadres, débits, pinceaux, « j'aime », signalements, administration, persistance, tuiles, saisons).
+
 ## 8. Limites connues et suites possibles
 
 - Les entrées de bibliothèque créées du temps d'AniList depuis une carte

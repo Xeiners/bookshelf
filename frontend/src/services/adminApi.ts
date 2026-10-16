@@ -29,7 +29,7 @@ export interface AdminUserRow {
   boostersOpened: number
 }
 
-export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end'
+export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end' | 'canvas_remove' | 'canvas_restore' | 'canvas_purge' | 'canvas_ban' | 'canvas_unban'
 
 export interface AdminAuditEntry {
   id: string
@@ -75,6 +75,12 @@ const userPath = (id: string) => `/admin/users/${encodeURIComponent(id)}`
 
 export const adminApi = {
   overview: () => api<AdminOverview>('/admin/overview'),
+  canvas: () => api<import('./canvasApi').CanvasAdminOverview>('/admin/canvas'),
+  canvasRemove: (id: string) => api<{ ok: true }>(`/admin/canvas/objects/${id}/remove`, { method: 'POST' }),
+  canvasRestore: (id: string) => api<{ ok: true }>(`/admin/canvas/objects/${id}/restore`, { method: 'POST' }),
+  canvasPurge: (userId: string) => api<{ removed: number }>(`/admin/canvas/users/${userId}/purge`, { method: 'POST' }),
+  canvasBan: (userId: string, reason: string | null) => api<{ ok: true }>(`/admin/canvas/users/${userId}/ban`, { method: 'POST', body: { reason } }),
+  canvasUnban: (userId: string) => api<{ ok: true }>(`/admin/canvas/users/${userId}/unban`, { method: 'POST' }),
   users: (query: { q: string; filter: AdminUserFilter; cursor?: string }, signal?: AbortSignal) => {
     const params = new URLSearchParams({ q: query.q, filter: query.filter })
     if (query.cursor) params.set('cursor', query.cursor)

@@ -25,6 +25,8 @@ const apiProxy = {
   '/api': {
     target: env.API_PROXY_TARGET ?? 'http://localhost:5000',
     changeOrigin: false,
+    // La toile partagée parle en WebSocket (`/api/canvas/ws`).
+    ws: true,
   },
 }
 

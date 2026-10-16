@@ -4,6 +4,7 @@ import { targetOf, unreadTrades } from '../lib/notifications'
 import { playChime } from '../lib/sfx'
 import type { AppNotification } from '../services/notificationsApi'
 import { useAuthStore } from '../store/useAuthStore'
+import { useCanvasStore } from '../store/useCanvasStore'
 import { setArrivalHandler, useNotificationStore } from '../store/useNotificationStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useRecordRewards } from '../store/useRecordRewards'
@@ -78,6 +79,12 @@ export function openNotification(item: AppNotification) {
   // Record battu : la fenêtre du choix de la récompense.
   if (target.kind === 'reward') {
     void useRecordRewards.getState().load(true)
+    return
+  }
+  // La Toile : on y va (et, pour une invitation, la caméra vole jusqu'au cadre).
+  if (target.kind === 'canvas') {
+    if (target.x !== undefined && target.y !== undefined) useCanvasStore.setState({ pendingTarget: { x: target.x, y: target.y } })
+    ui.openActivity('canvas')
     return
   }
   if (target.kind === 'showcase') {

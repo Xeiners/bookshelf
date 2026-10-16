@@ -59,6 +59,24 @@ export interface RecordRewardNotification extends NotificationBase {
   data: { rewardId: string; game: RecordGame; score: number; previous: number }
 }
 
+/** Un membre m'invite à dessiner dans son cadre de la Toile. */
+export interface CanvasInviteNotification extends NotificationBase {
+  type: 'canvas_invite'
+  data: { frameId: string; title: string; by: { id: string; displayName: string | null }; x: number; y: number }
+}
+
+/** Décision de modération sur un de mes dessins, ou sur mon accès à la Toile. */
+export interface CanvasModeratedNotification extends NotificationBase {
+  type: 'canvas_moderated'
+  data: { action: 'hidden' | 'removed' | 'restored' | 'banned' | 'unbanned'; kind: string | null; reason: string | null }
+}
+
+/** Podium de fin de saison, ou pinceau débloqué par les « j'aime » reçus. */
+export interface CanvasRewardNotification extends NotificationBase {
+  type: 'canvas_reward'
+  data: { kind: 'podium' | 'brush'; season?: string; rank?: number; stardust?: number; brush?: string; title?: string }
+}
+
 export type RecordGame = 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower'
 
 export type AppNotification =
@@ -70,6 +88,9 @@ export type AppNotification =
   | BoxGiftNotification
   | PromotionNotification
   | RecordRewardNotification
+  | CanvasInviteNotification
+  | CanvasModeratedNotification
+  | CanvasRewardNotification
 
 export interface NotificationList {
   notifications: AppNotification[]

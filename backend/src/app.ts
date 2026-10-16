@@ -26,6 +26,7 @@ import { bombRouter, warmBombDictionary } from './modules/bomb/bomb.routes.js'
 import { runnerRouter } from './modules/runner/runner.routes.js'
 import { promotionsRouter } from './modules/promotions/promotions.routes.js'
 import { rewardsRouter } from './modules/rewards/rewards.routes.js'
+import { canvasRouter } from './modules/canvas/canvas.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -66,6 +67,7 @@ export function createApp() {
   app.use('/api/stardust', stardustRouter)
   app.use('/api/promotions', promotionsRouter)
   app.use('/api/rewards', rewardsRouter)
+  app.use('/api/canvas', canvasRouter)
   app.use('/api/higher-lower', higherLowerRouter)
   app.use('/api/bomb', bombRouter)
   app.use('/api/runner', runnerRouter)

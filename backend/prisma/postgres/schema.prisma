@@ -80,6 +80,10 @@ model User {
   tradesAccepted TradeOffer[] @relation("TradeResponder")
   notifications  Notification[]
   stardustEntries StardustEntry[]
+  canvasObjects  CanvasObject[]
+  canvasLikes    CanvasLike[]
+  canvasReports  CanvasReport[]
+  canvasProfile  CanvasProfile?
   dleDailies     DleDaily[]
   dleStats       DleStats?
   higherLowerStats HigherLowerStats?
@@ -615,4 +619,111 @@ model RecordReward {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, claimedAt])
+}
+
+/// Toile partagée (cf. `src/modules/canvas/`) : une saison par mois. La saison en cours n'a pas de
+/// `endedAt` ; à sa clôture on garde ses objets (consultables, time-lapse) et une image d'ensemble.
+model CanvasSeason {
+  id        String    @id @default(cuid())
+  /// 'YYYY-MM' (UTC).
+  key       String    @unique
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  /// Image d'ensemble de l'archive (nom de fichier dans le dossier de données), une fois la saison close.
+  archive   String?
+  /// Statistiques figées à la clôture (JSON) : objets, artistes, cadres les plus aimés.
+  stats     String    @default("{}")
+
+  objects CanvasObject[]
+}
+
+/// Un objet vectoriel de la toile : trait, forme, texte, cadre… `data` porte la géométrie et le style
+/// (JSON validé par `canvas.schema.ts`). Le serveur recalcule l'encombrement (`minX`…) et la case
+/// d'ancrage (`cx`, `cy` : celle du coin supérieur gauche) : c'est elles qui servent aux requêtes.
+model CanvasObject {
+  /// Fabriqué par le client (16 caractères hexadécimaux), vérifié par le serveur.
+  id           String    @id
+  seasonId     String
+  ownerId      String
+  /// 's' trait, 'r' rectangle, 'e' ellipse, 'l' ligne, 'a' flèche, 'g' polygone, 'b' courbe de Bézier, 'x' texte, 'f' cadre.
+  type         String
+  data         String
+  minX         Float
+  minY         Float
+  maxX         Float
+  maxY         Float
+  cx           Int
+  cy           Int
+  /// Ordre d'empilement (croissant : le plus récent au-dessus).
+  z            Int
+  version      Int       @default(1)
+  likes        Int       @default(0)
+  /// Masqué (signalements) : invisible pour tous sauf les administrateurs, en attendant leur verdict.
+  hiddenAt     DateTime?
+  hiddenReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  season  CanvasSeason   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  likers  CanvasLike[]
+  reports CanvasReport[]
+
+  @@index([seasonId, cx, cy])
+  @@index([seasonId, type])
+  @@index([seasonId, createdAt])
+  @@index([ownerId, seasonId])
+}
+
+/// « J'aime » sur un objet (le plus souvent un cadre : c'est lui, l'œuvre). Un seul par compte et par objet.
+model CanvasLike {
+  objectId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  object CanvasObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([objectId, userId])
+  @@index([userId, createdAt])
+}
+
+/// Signalement d'un objet. Trois comptes différents suffisent à le masquer (cf. `canvas.moderation.ts`).
+model CanvasReport {
+  id         String    @id @default(cuid())
+  objectId   String
+  reporterId String
+  /// 'inappropriate' | 'spam' | 'hate' | 'other'
+  reason     String
+  createdAt  DateTime  @default(now())
+  /// Traité par un administrateur.
+  resolvedAt DateTime?
+
+  object   CanvasObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  reporter User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([objectId, reporterId])
+  @@index([resolvedAt, createdAt])
+}
+
+/// Ce que la toile sait d'un compte : exclusion, pinceaux débloqués, compteurs de « j'aime ».
+model CanvasProfile {
+  userId           String    @id
+  /// Exclu de la toile par un administrateur : il la regarde, ne dessine plus.
+  bannedAt         DateTime?
+  bannedReason     String?
+  /// JSON `string[]` : pinceaux débloqués (hors ceux de départ).
+  brushes          String    @default("[]")
+  /// « J'aime » reçus, tous temps confondus.
+  likesReceived    Int       @default(0)
+  /// Jour (UTC, YYYY-MM-DD) des compteurs ci-dessous.
+  day              String?
+  /// « J'aime » donnés ce jour-là (plafonnés).
+  likesGivenToday  Int       @default(0)
+  /// Poussières gagnées ce jour-là grâce aux « j'aime » reçus (plafonnées).
+  rewardedToday    Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

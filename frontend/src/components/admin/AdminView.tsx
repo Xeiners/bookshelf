@@ -10,13 +10,14 @@ import { useUiStore } from '../../store/useUiStore'
 import { Pressable } from '../ui/Pressable'
 import { AccountAvatar } from './AccountAvatar'
 import { AdminAudit } from './AdminAudit'
+import { AdminCanvas } from './AdminCanvas'
 import { AdminPromotions } from './AdminPromotions'
 import { AdminUserPanel } from './AdminUserPanel'
 
 /** Au-delà de cette largeur : la liste à gauche, la fiche à droite. En dessous, la fiche passe par-dessus. */
 const WIDE = 900
 
-type Tab = 'users' | 'audit' | 'promos'
+type Tab = 'users' | 'audit' | 'promos' | 'canvas'
 
 /**
  * Administration, en plein écran (comptes de `ADMIN_EMAILS`) : chiffres clés,
@@ -86,6 +87,10 @@ export function AdminView() {
           <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <AdminPromotions />
           </div>
+        ) : tab === 'canvas' ? (
+          <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <AdminCanvas />
+          </div>
         ) : tab === 'audit' ? (
           <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <AdminAudit onOpenUser={openUser} />
@@ -129,7 +134,7 @@ export function AdminView() {
 function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
-  const tabs: Tab[] = ['users', 'promos', 'audit']
+  const tabs: Tab[] = ['users', 'promos', 'canvas', 'audit']
   useGSAP(
     () => {
       gsap.to('[data-tab-thumb]', { xPercent: tabs.indexOf(tab) * 100, duration: 0.35, ease: 'power3.out' })
@@ -137,8 +142,8 @@ function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }
     { scope: ref, dependencies: [tab] },
   )
   return (
-    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative grid shrink-0 grid-cols-3 rounded-full p-1">
-      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-full bg-cream will-change-transform" />
+    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative grid shrink-0 grid-cols-4 rounded-full p-1">
+      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/4)] rounded-full bg-cream will-change-transform" />
       {tabs.map((value) => (
         <button
           key={value}

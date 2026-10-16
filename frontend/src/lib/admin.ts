@@ -30,6 +30,16 @@ export function describeAction(entry: AdminAuditEntry, t: Dictionary): string {
       return copy.promotion(details.target === 'box' ? 'box' : 'booster', count(details.price), count(details.regular), count(details.hours))
     case 'promotion_end':
       return copy.promotionEnd(details.target === 'box' ? 'box' : 'booster')
+    case 'canvas_remove':
+      return copy.canvasRemove(text(details.kind) ?? '?')
+    case 'canvas_restore':
+      return copy.canvasRestore
+    case 'canvas_purge':
+      return copy.canvasPurge(typeof details.removed === 'number' ? details.removed : 0)
+    case 'canvas_ban':
+      return copy.canvasBan(text(details.reason))
+    case 'canvas_unban':
+      return copy.canvasUnban
     case 'moderate': {
       const fields = Array.isArray(details.fields) ? details.fields : []
       const labels = MODERATED_FIELDS.filter((field) => fields.includes(field)).map((field) => copy.fields[field])

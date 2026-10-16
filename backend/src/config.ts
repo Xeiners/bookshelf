@@ -136,6 +136,12 @@ const EnvSchema = z.object({
   YOUTUBE_API_KEY: z.string().trim().optional(),
   /** `off` : aucune requête vers YouTube (la recherche répond 503). */
   MUSIC_SEARCH: z.enum(['on', 'off']).optional(),
+
+  /**
+   * Toile partagée (cf. src/modules/canvas/) : âge minimal d'un compte, en minutes, avant de
+   * pouvoir dessiner (freine les comptes jetables ; il peut regarder avant). 0 en test.
+   */
+  CANVAS_MIN_ACCOUNT_AGE_MIN: z.coerce.number().int().min(0).max(10_080).optional(),
 })
 
 const csv = (value: string | undefined) =>
@@ -247,6 +253,10 @@ export const config = {
     quotaBytes: env.BOOKS_QUOTA_MB * 1024 * 1024,
     metadataLookup: (env.BOOKS_METADATA_LOOKUP ?? (env.NODE_ENV === 'test' ? 'off' : 'on')) === 'on',
     googleApiKey: env.GOOGLE_BOOKS_API_KEY || undefined,
+  },
+  canvas: {
+    minAccountAgeMs: (env.CANVAS_MIN_ACCOUNT_AGE_MIN ?? (env.NODE_ENV === 'test' ? 0 : 30)) * 60_000,
+    dir: path.join(path.isAbsolute(env.BOOKS_DIR) ? env.BOOKS_DIR : path.resolve(BACKEND_ROOT, env.BOOKS_DIR), 'canvas'),
   },
   music: {
     search: (env.MUSIC_SEARCH ?? 'on') === 'on',

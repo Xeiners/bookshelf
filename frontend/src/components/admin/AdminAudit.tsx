@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BadgePercent, Ban, Gift, Loader2, PackageOpen, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react'
+import { BadgePercent, Ban, Brush, Eraser, Gift, Loader2, PackageOpen, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react'
 import { useT } from '../../i18n'
 import { describeAction } from '../../lib/admin'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
@@ -14,6 +14,11 @@ const ICON: Record<AdminActionType, typeof Gift> = {
   moderate: ShieldCheck,
   promotion: BadgePercent,
   promotion_end: BadgePercent,
+  canvas_remove: Eraser,
+  canvas_restore: Brush,
+  canvas_purge: Eraser,
+  canvas_ban: Ban,
+  canvas_unban: Brush,
 }
 
 const TINT: Record<AdminActionType, string> = {
@@ -24,6 +29,11 @@ const TINT: Record<AdminActionType, string> = {
   moderate: 'text-glow bg-glow/15', // i18n-ignore : classes CSS
   promotion: 'text-[#ff4d6d] bg-[#ff4d6d]/15', // i18n-ignore : classes CSS
   promotion_end: 'text-cream/60 bg-white/10', // i18n-ignore : classes CSS
+  canvas_remove: 'text-nope bg-nope/12', // i18n-ignore : classes CSS
+  canvas_restore: 'text-like bg-like/12', // i18n-ignore : classes CSS
+  canvas_purge: 'text-nope bg-nope/12', // i18n-ignore : classes CSS
+  canvas_ban: 'text-nope bg-nope/12', // i18n-ignore : classes CSS
+  canvas_unban: 'text-like bg-like/12', // i18n-ignore : classes CSS
 }
 
 /** Une ligne du journal : qui, quoi, sur quel compte (cliquable), quand. */

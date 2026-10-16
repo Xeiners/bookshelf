@@ -15,7 +15,7 @@ import { isAdminEmail } from './admin.access.js'
  * au journal (`AdminAction`) et chaque cadeau prévient le compte (notification).
  */
 
-export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end'] as const
+export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end', 'canvas_remove', 'canvas_restore', 'canvas_purge', 'canvas_ban', 'canvas_unban'] as const
 export type AdminActionType = (typeof ADMIN_ACTIONS)[number]
 
 export interface Admin {
@@ -31,7 +31,7 @@ const USERS_PAGE = 30
 const AUDIT_PAGE = 50
 const DAY_MS = 24 * 60 * 60 * 1000
 
-async function record(
+export async function record(
   client: Prisma.TransactionClient | typeof prisma,
   admin: Admin,
   action: AdminActionType,

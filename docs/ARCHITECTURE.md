@@ -678,6 +678,29 @@ faisait clignoter toute la page. Correctif : `overflow: hidden` sur
 `html, body, #root` (coquille applicative — chaque vue gère son propre
 défilement) et sur `<main>`.
 
+## 4 sexies bis. La Toile (`src/lib/canvas/`, `src/components/canvas/`)
+
+Le moteur est une classe (`CanvasEngine`) **hors de React** : la caméra, la scène et le rendu changent
+à chaque image, l'interface ne lit que le store (`useCanvasStore` : outil, style, sélection, artistes en
+ligne). Les boutons appellent le moteur courant (`getEngine()`) dans leurs gestionnaires.
+
+- **Deux calques** : `base` (papier, grille, tuiles ou objets ; redessiné quand la vue ou la scène change)
+  et `overlay` (curseurs lissés, aperçus des autres, geste en cours, poignées). Un index spatial (R-tree)
+  ne donne que les objets visibles ; chaque trait est un `Path2D` en unités du monde (perfect-freehand),
+  net à tous les zooms. Sous 30 % de zoom : tuiles raster du serveur (avec images de repli le temps du
+  chargement).
+- **Optimiste, le serveur arbitre** : un geste s'applique tout de suite en local, part par lots
+  (`ops`, accusé par `cid`) et se laisse corriger (le serveur renvoie l'état réel des objets refusés).
+  Annuler / rétablir = de nouvelles opérations (jamais un état local).
+- **Outils** (`tools/`) : pinceau (pression du stylet, aperçu en direct), gomme, formes, polygone, plume de
+  Bézier, texte, cadre, pipette, cœur, sélection (déplacer, redimensionner, tourner, éditer les points).
+  Un outil ne touche ni réseau ni écran : il lit la scène et `commit` une entrée d'historique.
+- **Gestes** : souris, doigt et stylet (rejet de la paume), deux doigts, molette / pavé tactile, Espace,
+  bouton du milieu ; double-clic compté à la main (les événements « pointer » n'ont pas de compteur).
+- **Portail sur `body`** : les écrans des Activités glissent (`transform`), ce qui piégerait un `fixed`.
+- **Hors React** : `net.ts` (WebSocket qui se rétablit seul), `tilecache.ts`, `render.ts`, `brushes.ts`.
+  Tests : `test/canvas.test.ts` (géométrie identique à celle du serveur, caméra, scène, historique).
+
 ## 4 septies. Installation (PWA)
 
 Le profil propose d'installer l'app. Sur Android, Chrome empaquette réellement

@@ -1,4 +1,4 @@
-import { Gift, Trophy } from 'lucide-react'
+import { Gift, Palette, Trophy } from 'lucide-react'
 import { accentOf, type NotificationCopy } from '../../lib/notifications'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CollectibleCard } from '../cards/CollectibleCard'
@@ -53,8 +53,13 @@ export function NotificationThumb({ copy, size = 40 }: { copy: NotificationCopy;
           <Trophy size={Math.round(size * 0.5)} strokeWidth={2.4} />
         </span>
       )}
+      {visual.kind === 'canvas' && (
+        <span className="absolute inset-0 m-auto grid size-[82%] -rotate-[6deg] place-items-center rounded-xl text-white" style={{ background: 'linear-gradient(150deg, #2bc3ff, #7c5cff 60%, #ff5cb4)', boxShadow: '0 0 14px -2px #2bc3ff' }}>
+          <Palette size={Math.round(size * 0.5)} strokeWidth={2.2} />
+        </span>
+      )}
       {/* Cadeau de l'équipe : un ruban doré dans le coin. */}
-      {visual.kind !== 'trade' && visual.kind !== 'promo' && visual.kind !== 'trophy' && (
+      {visual.kind !== 'trade' && visual.kind !== 'promo' && visual.kind !== 'trophy' && visual.kind !== 'canvas' && (
         <span className="absolute -right-0.5 -bottom-0.5 grid size-5 place-items-center rounded-full bg-gold text-void shadow-[0_0_0_2px_#0b0b12]">
           <Gift size={11} strokeWidth={2.5} />
         </span>

@@ -31,6 +31,7 @@
     "nodemailer": "^10.0.10",
     "prisma": "7.10.0",
     "sharp": "^0.35.5",
+    "ws": "^8.22.0",
     "zod": "^4.6.5"
   },
   "optionalDependencies": {
@@ -42,6 +43,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.2",
+    "@types/ws": "^8.18.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

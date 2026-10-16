@@ -26,6 +26,7 @@ import { StardustBadge } from '../dle/StardustBadge'
 import { EnergyRing } from './EnergyRing'
 import { ShopBanners } from './ShopBanners'
 import { inkText } from '../../lib/ink'
+import { canvasApi } from '../../services/canvasApi'
 
 /** Texte néon : lueur de la couleur donnée. */
 const neon = (color: string): CSSProperties => ({ color, textShadow: `0 0 6px ${color}, 0 0 18px ${color}` })
@@ -113,6 +114,7 @@ export function ActivitiesHub() {
         <HigherLowerArtefact />
       </div>
       <RunnerArtefact />
+      <CanvasArtefact />
       <BombArtefact />
       <MarketArtefact />
     </div>
@@ -127,7 +129,7 @@ const surface = (tint: string): CSSProperties => ({
   borderColor: `${tint}38`,
 })
 
-const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5' } as const
+const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff' } as const
 
 /**
  * Lueur incandescente autour d'un artefact « chargé ». Fixe : une grande ombre
@@ -583,6 +585,103 @@ function RunnerEmblem() {
 
 /** Mèche de l'artefact : elle brûle en boucle (bleu → rouge), sans tic-tac. */
 const HUB_FUSE_MS = 9000
+
+const CANVAS_GRADIENT = 'linear-gradient(135deg, #2bc3ff, #7c5cff 55%, #ff5cb4)'
+
+/**
+ * La Toile : un tableau presque infini où tout le monde dessine en même temps. L'emblème montre
+ * la grille, un trait qui se trace et trois curseurs d'artistes qui flottent ; sous le titre, combien
+ * d'artistes sont en ligne. Sans compte, le clic mène à l'inscription.
+ */
+function CanvasArtefact() {
+  const t = useT()
+  const ref = useRef<HTMLButtonElement>(null)
+  const openActivity = useUiStore((state) => state.openActivity)
+  const openAuth = useUiStore((state) => state.openAuth)
+  const covered = useUiStore((state) => state.boosterOpen)
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const [online, setOnline] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!signedIn) return
+    let alive = true
+    canvasApi
+      .home()
+      .then((home) => alive && setOnline(home.online))
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [signedIn])
+
+  useGSAP(
+    () => {
+      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      gsap.to('[data-canvas-c1]', { x: 5, y: -4, duration: 1.7, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      gsap.to('[data-canvas-c2]', { x: -4, y: 5, duration: 2.1, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      gsap.to('[data-canvas-c3]', { x: 3, y: 4, duration: 1.4, ease: 'sine.inOut', repeat: -1, yoyo: true })
+      gsap.fromTo('[data-canvas-stroke]', { strokeDashoffset: 60 }, { strokeDashoffset: 0, duration: 2.4, ease: 'power1.inOut', repeat: -1, repeatDelay: 0.8 })
+    },
+    { scope: ref, dependencies: [covered], revertOnUpdate: true },
+  )
+
+  return (
+    <button ref={ref} type="button" data-artefact onClick={() => (signedIn ? openActivity('canvas') : openAuth())} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={surface(TINT.canvas)}>
+      <span className="flex items-center gap-5 p-5">
+        <span aria-hidden className="relative block size-[4.5rem] shrink-0 overflow-hidden rounded-[1.4rem]" style={{ boxShadow: '0 0 28px -6px rgba(43,195,255,0.8), inset 0 0 0 2px rgba(124,92,255,0.55)' }}>
+          <CanvasEmblem />
+        </span>
+        <span className="block min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-2xl" style={inkText(CANVAS_GRADIENT)}>
+              {t.canvas.title}
+            </span>
+            <span className="rounded-full bg-[#2bc3ff]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#7fd9ff] uppercase">{t.canvas.hub.eyebrow}</span>
+            {online !== null && online > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-like/15 px-2 py-0.5 text-[10px] font-semibold text-like">
+                <span className="size-1.5 rounded-full bg-like" aria-hidden />
+                {t.canvas.hub.online(online)}
+              </span>
+            )}
+          </span>
+          <span className="mt-1.5 block text-xs leading-relaxed text-cream/65">{t.canvas.hub.body}</span>
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
+      </span>
+    </button>
+  )
+}
+
+/** L'emblème de la Toile : grille de points, trait de pinceau, trois curseurs. */
+function CanvasEmblem() {
+  return (
+    <svg viewBox="0 0 72 72" className="block size-full">
+      <defs>
+        <linearGradient id="canvas-bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#1b1450" />
+          <stop offset="1" stopColor="#0c2a52" />
+        </linearGradient>
+        <pattern id="canvas-dots" width="8" height="8" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="0.8" fill="#9db4ff" fillOpacity="0.35" />
+        </pattern>
+      </defs>
+      <rect width="72" height="72" fill="url(#canvas-bg)" />
+      <rect width="72" height="72" fill="url(#canvas-dots)" />
+      <path data-canvas-stroke d="M10 50 C 20 24, 30 60, 42 36 S 58 22, 64 30" fill="none" stroke="#ffc46b" strokeWidth="3.4" strokeLinecap="round" strokeDasharray="60 60" />
+      <rect x="40" y="46" width="20" height="14" rx="2" fill="#ff5cb4" fillOpacity="0.85" />
+      <circle cx="22" cy="20" r="6" fill="none" stroke="#2bc3ff" strokeWidth="2.2" />
+      <g data-canvas-c1>
+        <path d="M14 8 L14 22 L18 18.5 L21 25 L23.5 23.8 L20.6 17.6 L26 17.6 Z" fill="#2fd1a0" stroke="#fff" strokeWidth="1.2" strokeLinejoin="round" />
+      </g>
+      <g data-canvas-c2>
+        <path d="M44 38 L44 52 L48 48.5 L51 55 L53.5 53.8 L50.6 47.6 L56 47.6 Z" fill="#ff4d6d" stroke="#fff" strokeWidth="1.2" strokeLinejoin="round" />
+      </g>
+      <g data-canvas-c3>
+        <path d="M28 40 L28 54 L32 50.5 L35 57 L37.5 55.8 L34.6 49.6 L40 49.6 Z" fill="#9a6bff" stroke="#fff" strokeWidth="1.2" strokeLinejoin="round" />
+      </g>
+    </svg>
+  )
+}
 
 /**
  * L'Anime Bomb Party : une syllabe, une bombe, un mot avant l'explosion. Sur l'artefact,

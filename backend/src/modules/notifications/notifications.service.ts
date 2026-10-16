@@ -10,7 +10,7 @@ import type { CardDto } from '../cards/cards.service.js'
  * aucune connexion permanente à tenir derrière Caddy et Nginx.
  */
 
-export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift', 'card_share', 'box_gift', 'promotion', 'record_reward'] as const
+export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift', 'card_share', 'box_gift', 'promotion', 'record_reward', 'canvas_invite', 'canvas_moderated', 'canvas_reward'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
 export interface NotificationParty {
@@ -85,6 +85,34 @@ export interface RecordRewardData {
   previous: number
 }
 
+/** Un membre m'a invité à dessiner dans son cadre de la toile. */
+export interface CanvasInviteData {
+  frameId: string
+  title: string
+  by: NotificationParty
+  /** Centre du cadre : « aller voir » ouvre la toile à cet endroit. */
+  x: number
+  y: number
+}
+
+/** Décision de modération sur un de mes dessins (ou sur mon accès à la toile). */
+export interface CanvasModeratedData {
+  action: 'hidden' | 'removed' | 'restored' | 'banned' | 'unbanned'
+  /** Type de l'objet concerné (trait, forme, texte, cadre), s'il y en a un. */
+  kind: string | null
+  reason: string | null
+}
+
+/** Récompense de la toile : podium de fin de saison, ou pinceau débloqué. */
+export interface CanvasRewardData {
+  kind: 'podium' | 'brush'
+  season?: string
+  rank?: number
+  stardust?: number
+  brush?: string
+  title?: string
+}
+
 interface DataOf {
   trade_accepted: TradeAcceptedData
   trade_match: TradeMatchData
@@ -94,6 +122,9 @@ interface DataOf {
   box_gift: BoxGiftData
   promotion: PromotionData
   record_reward: RecordRewardData
+  canvas_invite: CanvasInviteData
+  canvas_moderated: CanvasModeratedData
+  canvas_reward: CanvasRewardData
 }
 
 export type NotificationDto = {

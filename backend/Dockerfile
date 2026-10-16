@@ -12,7 +12,7 @@ ARG NODE_VERSION=22
 # ---- Base commune --------------------------------------------------------------
 FROM node:${NODE_VERSION}-alpine AS base
 # OpenSSL : requis par le moteur de migration Prisma sur Alpine (musl).
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl fontconfig ttf-dejavu
 WORKDIR /app
 
 # ---- Développement (docker-compose.dev.yml) ---------------------------------------

@@ -189,6 +189,7 @@ Les conteneurs redémarrent seuls après un reboot du VPS (`restart: unless-stop
 | « Trop de tentatives » pour tout le monde | `TRUST_PROXY` trop bas (ex. `1`) : tous les visiteurs ont l'IP du proxy |
 | 502 Bad Gateway (Caddy) | pile arrêtée ou `PORT` différent de celui du bloc Caddy : `docker compose ps` |
 | `POSTGRES_PASSWORD` refusé après modification | la base garde le mot de passe initial (voir §2) |
+| La Toile reste sur « Connexion perdue » | le WebSocket `/api/canvas/ws` ne passe pas : le Nginx du front doit avoir son `location = /api/canvas/ws` (en-têtes `Upgrade`, cf. `frontend/nginx.conf`) ; Caddy relaie les WebSockets sans réglage, un autre proxy intermédiaire doit les autoriser |
 | Le port 8082 répond depuis l'extérieur | il a été republié sans `127.0.0.1:` dans `docker-compose.yml` |
 
 ## Variante : Caddy tourne dans un conteneur d'une autre pile
