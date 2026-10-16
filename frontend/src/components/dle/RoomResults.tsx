@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Handshake, Loader2, RotateCcw, Sparkle, UserPlus } from 'lucide-react'
+import { Handshake, Loader2, Play, RotateCcw, Sparkle, UserPlus } from 'lucide-react'
 import { useNow } from '../../hooks/useNow'
 import { useLanguage, useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
@@ -7,13 +7,14 @@ import { formatSolveTime, msUntil, podiumOrder, standingOf } from '../../lib/dle
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playReveal } from '../../lib/sfx'
-import type { RoomView, Standing } from '../../services/dleApi'
+import type { RoomSettings, RoomView, Standing } from '../../services/dleApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { AnswerCard } from './AnswerCard'
 import { STARDUST_GRADIENT, modeLabel } from './dleStyle'
 import { PlayerAvatar } from './PlayerToken'
+import { RoomSettingsPanel } from './RoomSettingsPanel'
 import { inkText } from '../../lib/ink'
 
 /** Hauteur des marches du podium (1ᵉʳ, 2ᵉ, 3ᵉ), et leur métal. */
@@ -32,6 +33,8 @@ export function RoomResults({ room }: { room: RoomView }) {
   const t = useT()
   const language = useLanguage()
   const rematch = useDleStore((state) => state.rematch)
+  const startRoom = useDleStore((state) => state.startRoom)
+  const setRoomSettings = useDleStore((state) => state.setRoomSettings)
   const notify = useUiStore((state) => state.notify)
   const rootRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
@@ -83,11 +86,15 @@ export function RoomResults({ room }: { room: RoomView }) {
     )
   }
 
-  const again = async () => {
+  const settle = (settings: RoomSettings) => setRoomSettings(settings).catch((error: unknown) => notify(apiErrorMessage(error, t), 'nope'))
+
+  /** Rejouer tout de suite (`launch`) avec les réglages choisis, ou retourner à la salle d'attente. */
+  const again = async (launch: boolean) => {
     vibrate(12)
     setBusy(true)
     try {
       await rematch()
+      if (launch) await startRoom()
     } catch (error) {
       notify(apiErrorMessage(error, t), 'nope')
     } finally {
@@ -242,18 +249,33 @@ export function RoomResults({ room }: { room: RoomView }) {
             {t.dle.room.nextStage(modeLabel(t, room.category, nextMode), Math.ceil(nextIn / 1000))}
           </p>
         ) : isHost ? (
-          <button
-            type="button"
-            onClick={() => void again()}
-            disabled={busy}
-            className="inline-flex h-12 items-center gap-2 rounded-full px-7 text-sm font-semibold text-[#2a1a02] transition-transform active:scale-95 disabled:opacity-70"
-            style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)', boxShadow: '0 0 26px rgba(255,196,107,0.5), inset 0 1px 0 rgba(255,255,255,0.7)' }}
-          >
-            {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <RotateCcw size={16} aria-hidden />}
-            {t.dle.room.rematch}
-          </button>
+          // L'hôte change d'univers, de format ou de type comme il veut, avec les mêmes joueurs.
+          <section className="flex w-full flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <p className="text-center text-xs font-semibold tracking-[0.12em] text-mist uppercase">{t.dle.room.nextGame}</p>
+            <RoomSettingsPanel room={room} isHost settle={settle} />
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => void again(true)}
+                disabled={busy}
+                className="inline-flex h-12 items-center gap-2 rounded-full px-7 text-sm font-semibold text-[#2a1a02] transition-transform active:scale-95 disabled:opacity-70"
+                style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)', boxShadow: '0 0 26px rgba(255,196,107,0.5), inset 0 1px 0 rgba(255,255,255,0.7)' }}
+              >
+                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Play size={16} className="fill-current" aria-hidden />}
+                {t.dle.room.replay}
+              </button>
+              <button
+                type="button"
+                onClick={() => void again(false)}
+                disabled={busy}
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-white/[0.07] px-5 text-sm font-semibold text-cream transition-colors hover:bg-white/[0.12] disabled:opacity-70"
+              >
+                <RotateCcw size={15} aria-hidden />
+                {t.dle.room.rematch}
+              </button>
+            </div>
+          </section>
         ) : null}
-        {isHost && nextIn === null && <p className="max-w-xs text-center text-xs text-mist">{t.dle.room.rematchHint}</p>}
       </div>
       <ParticleBurst burst={burst} />
     </div>

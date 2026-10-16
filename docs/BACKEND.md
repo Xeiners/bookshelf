@@ -1196,7 +1196,10 @@ la transaction sous PostgreSQL), puis verrou optimiste sur la liste des essais.
 **Salon : changer d'univers sans le recréer.** `POST /rooms/:code/settings` accepte `category` (en plus de
 `kind`, `modes`, `maxGuesses`, `roundSeconds`) : l'hôte change d'univers dans la salle d'attente ou une fois la
 partie finie (puis « Revanche »), jamais en pleine manche (`room_started`) ; les œuvres déjà cherchées sont
-oubliées et les autres joueurs suivent au prochain rafraîchissement du salon.
+oubliées et les autres joueurs suivent au prochain rafraîchissement du salon. Côté interface, le même panneau
+de réglages (`RoomSettingsPanel` : type, univers, formats, essais, durée) sert dans la salle d'attente et sur
+l'écran des résultats, où « Rejouer » enchaîne `rematch` puis `start` d'un geste (« Retour au salon » : l'ancien
+parcours, pour attendre des amis).
 
 **Portraits** (`dle.jikan.ts`, une `portraitSource` par univers).
 
