@@ -12,9 +12,9 @@ export const BOOSTER_INTERVAL_MS = 3 * 60 * 60 * 1000
 export const CARDS_PER_PACK = 4
 /** Le 400e booster consécutif sans Mythique en garantit une sur son dernier slot. */
 export const HARD_PITY_PACKS = 400
-/** Le 120e booster consécutif sans Légendaire (ni Mythique) en garantit une sur son dernier slot. */
-export const LEGENDARY_PITY_PACKS = 120
-/** Chances d'une carte, quel que soit son emplacement dans le booster : Légendaire 0,5 %, Mythique 0,20 %. */
+/** Le 125e booster consécutif sans Légendaire (ni Mythique) en garantit une sur son dernier slot. */
+export const LEGENDARY_PITY_PACKS = 125
+/** Chances d'une carte des emplacements 3 et 4 : Légendaire 0,5 %, Mythique 0,20 % (jamais sur les cartes 1 et 2). */
 export const LEGENDARY_RATE = 0.005
 export const MYTHIC_RATE = 0.002
 
@@ -24,18 +24,18 @@ export type Rarity = (typeof RARITIES)[number]
 export const isRarity = (value: string): value is Rarity => (RARITIES as readonly string[]).includes(value)
 
 /**
- * Chaque emplacement a le même taux de Légendaire (0,5 %) et de Mythique (0,20 %) ; ce qui reste
- * se répartit comme avant entre les raretés basses du slot (la part retirée vient de la plus
- * fréquente). Sur un booster de 4 cartes : ≈ 1,99 % d'avoir au moins une Légendaire, ≈ 0,80 % une Mythique.
+ * Cartes 1 et 2 : jamais de Légendaire ni de Mythique. Cartes 3 et 4 : Légendaire 0,5 % et Mythique
+ * 0,20 % chacune (la part retirée vient de la rareté la plus fréquente du slot). Sur un booster :
+ * ≈ 1,00 % d'avoir au moins une Légendaire, ≈ 0,40 % une Mythique.
  */
 
 /** Premiers slots (1 et 2) : cartes de base. */
 export const BASE_SLOT_RATES: Record<Rarity, number> = {
-  COMMON: 0.693,
+  COMMON: 0.7,
   RARE: 0.25,
   EPIC: 0.05,
-  LEGENDARY: LEGENDARY_RATE,
-  MYTHIC: MYTHIC_RATE,
+  LEGENDARY: 0,
+  MYTHIC: 0,
 }
 
 /** Avant-dernier slot (3) : wildcard Rare+. */
@@ -56,7 +56,7 @@ export const HIGH_RARITY_SLOT_RATES: Record<Rarity, number> = {
   MYTHIC: MYTHIC_RATE,
 }
 
-/** Dernier slot du 120e booster sans Légendaire : Légendaire ou mieux, dans la proportion 0,5 / 0,2. */
+/** Dernier slot du 125e booster sans Légendaire : Légendaire ou mieux, dans la proportion 0,5 / 0,2. */
 const LEGENDARY_PITY_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
@@ -221,7 +221,7 @@ export function chooseSeries(available: readonly number[], choice: SeriesChoice,
 export const hasReachedHardPity = (boostersSinceLastMythic: number): boolean =>
   boostersSinceLastMythic >= HARD_PITY_PACKS - 1
 
-/** Le prochain booster est le 120e sans Légendaire : son dernier slot est Légendaire ou mieux. */
+/** Le prochain booster est le 125e sans Légendaire : son dernier slot est Légendaire ou mieux. */
 export const hasReachedLegendaryPity = (boostersSinceLastLegendary: number): boolean =>
   boostersSinceLastLegendary >= LEGENDARY_PITY_PACKS - 1
 

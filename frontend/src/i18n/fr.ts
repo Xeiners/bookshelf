@@ -127,6 +127,12 @@ export const fr = {
       newSeries: 'Nouveau',
       title: 'Ouvrir un booster',
       body: '4 cartes à collectionner. Un booster toutes les 3 h, 3 en réserve au plus.',
+      pity: (every: number, left: number | null) =>
+        left === null
+          ? `Une Légendaire garantie tous les ${every} boosters.`
+          : left <= 1
+            ? `Légendaire garantie dans ton prochain booster ! (une tous les ${every})`
+            : `Une Légendaire garantie tous les ${every} boosters · prochaine dans ${left}.`,
       open: 'Ouvrir',
       next: (time: string) => `Prochain booster dans ${time}`,
       full: 'Réserve pleine',

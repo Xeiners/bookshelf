@@ -120,6 +120,12 @@ export const en: Dictionary = {
       newSeries: 'New',
       title: 'Open a booster',
       body: '4 cards to collect. One booster every 3 hours, up to 3 in reserve.',
+      pity: (every: number, left: number | null) =>
+        left === null
+          ? `A Legendary is guaranteed every ${every} boosters.`
+          : left <= 1
+            ? `A Legendary is guaranteed in your next booster! (one every ${every})`
+            : `A Legendary is guaranteed every ${every} boosters · next one in ${left}.`,
       open: 'Open',
       next: (time: string) => `Next booster in ${time}`,
       full: 'Reserve full',

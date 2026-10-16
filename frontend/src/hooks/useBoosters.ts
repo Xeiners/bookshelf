@@ -22,6 +22,9 @@ export interface BoosterView {
   unlimited: boolean
   /** Un booster peut être ouvert maintenant (stock, ou recette). */
   canOpen: boolean
+  /** Une Légendaire garantie tous les N boosters, et dans combien de boosters (`null` : inconnu). */
+  legendaryEvery: number
+  legendaryIn: number | null
 }
 
 /**
@@ -30,6 +33,9 @@ export interface BoosterView {
  * sur l'horloge monotone du navigateur (cf. `lib/boosters.ts`). Invité : les
  * boosters d'essai restants, comptés sur l'appareil (le serveur a le dernier mot).
  */
+/** Valeur d'affichage tant que le serveur n'a pas répondu (le serveur fait foi : `legendaryEvery`). */
+const LEGENDARY_EVERY = 125
+
 export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
   const tick = options.tick ?? true
   const signedIn = useAuthStore((state) => state.user !== null)
@@ -77,6 +83,8 @@ export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
       offline: false,
       unlimited: false,
       canOpen: left > 0,
+      legendaryEvery: LEGENDARY_EVERY,
+      legendaryIn: null,
     }
   }
 
@@ -91,5 +99,7 @@ export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
     offline,
     unlimited: status?.unlimited === true,
     canOpen: signedIn && status !== null && !offline && (status.unlimited === true || status.available > 0),
+    legendaryEvery: status?.legendaryEvery ?? LEGENDARY_EVERY,
+    legendaryIn: status?.legendaryIn ?? null,
   }
 }

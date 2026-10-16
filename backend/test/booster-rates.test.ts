@@ -51,11 +51,11 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       }
     })
 
-    // Même taux à chaque slot : Légendaire 0,5 % et Mythique 0,20 % par carte, soit ≈ 1,99 % et ≈ 0,80 % par booster.
-    const legendary = 1 - 0.995 ** CARDS_PER_PACK
-    const mythic = 1 - 0.998 ** CARDS_PER_PACK
-    assert.ok(Math.abs(mythicPacks / packs - mythic) < 0.004, `boosters mythiques : ${mythicPacks}`)
-    assert.ok(Math.abs(legendaryPacks / packs - legendary) < 0.006, `boosters légendaires : ${legendaryPacks}`)
+    // Cartes 3 et 4 : Légendaire 0,5 % et Mythique 0,20 % chacune, soit ≈ 1,00 % et ≈ 0,40 % par booster.
+    const legendary = 1 - 0.995 ** 2
+    const mythic = 1 - 0.998 ** 2
+    assert.ok(Math.abs(mythicPacks / packs - mythic) < 0.003, `boosters mythiques : ${mythicPacks}`)
+    assert.ok(Math.abs(legendaryPacks / packs - legendary) < 0.004, `boosters légendaires : ${legendaryPacks}`)
     assert.ok(Math.abs(bySeries[1] / (packs * CARDS_PER_PACK) - 0.5) < 0.015, `Série 1 : ${bySeries[1]}`)
     assert.ok(Math.abs(bySeries[2] / (packs * CARDS_PER_PACK) - 0.5) < 0.015, `Série 2 : ${bySeries[2]}`)
   })
@@ -70,17 +70,18 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
     assert.equal(nextPityCount(HARD_PITY_PACKS - 1, cards.map((card) => card.rarity)), 0)
   })
 
-  it('chaque slot a les mêmes taux de Légendaire (0,5 %) et de Mythique (0,20 %), et chaque table fait 100 %', () => {
+  it('cartes 1 et 2 : 0 % de Légendaire et de Mythique ; cartes 3 et 4 : 0,5 % et 0,20 % ; chaque table fait 100 %', () => {
     for (let slot = 0; slot < CARDS_PER_PACK; slot += 1) {
       const rates = slotRates(slot, CARDS_PER_PACK)
-      assert.equal(rates.LEGENDARY, 0.005)
-      assert.equal(rates.MYTHIC, 0.002)
+      const base = slot < 2
+      assert.equal(rates.LEGENDARY, base ? 0 : 0.005, `slot ${slot + 1}`)
+      assert.equal(rates.MYTHIC, base ? 0 : 0.002, `slot ${slot + 1}`)
       assert.ok(Math.abs(RARITIES.reduce((sum, rarity) => sum + rates[rarity], 0) - 1) < 1e-12, `slot ${slot + 1}`)
     }
   })
 
-  it('garantit une Légendaire (ou mieux) au 120e booster sec, puis remet le compteur à zéro', () => {
-    assert.equal(LEGENDARY_PITY_PACKS, 120)
+  it('garantit une Légendaire (ou mieux) au 125e booster sec, puis remet le compteur à zéro', () => {
+    assert.equal(LEGENDARY_PITY_PACKS, 125)
     assert.equal(hasReachedLegendaryPity(LEGENDARY_PITY_PACKS - 2), false)
     assert.equal(hasReachedLegendaryPity(LEGENDARY_PITY_PACKS - 1), true)
     for (const roll of [0, 0.5, 0.7142, 0.72, 0.9999]) {
@@ -92,7 +93,7 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
     assert.equal(nextLegendaryPityCount(50, ['COMMON', 'RARE', 'EPIC', 'EPIC']), 51)
   })
 
-  it('simulation : au plus 120 boosters sans Légendaire ou mieux, avec la garantie', () => {
+  it('simulation : au plus 125 boosters sans Légendaire ou mieux, avec la garantie', () => {
     const random = seededRandom('legendary-pity')
     let dry = 0
     let longest = 0

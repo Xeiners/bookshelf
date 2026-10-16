@@ -246,6 +246,7 @@ function BoosterAltar() {
               {t.activities.booster.title}
             </h2>
             <p className="mt-1.5 text-sm text-cream/65">{boosters.signedIn ? t.activities.booster.body : guestDone ? t.activities.guest.body : t.activities.guest.trialBody(boosters.available)}</p>
+            <p className="mt-1 text-xs font-semibold text-[#ffc46b]/85">{t.activities.booster.pity(boosters.legendaryEvery, boosters.signedIn && !boosters.unlimited ? boosters.legendaryIn : null)}</p>
           </div>
 
           <div className="flex min-w-0 items-center gap-3 sm:gap-4">

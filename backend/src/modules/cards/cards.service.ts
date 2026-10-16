@@ -17,6 +17,7 @@ import {
   drawPack,
   hasReachedHardPity,
   hasReachedLegendaryPity,
+  LEGENDARY_PITY_PACKS,
   initialState,
   isRarity,
   nextLegendaryPityCount,
@@ -256,12 +257,16 @@ export interface BoosterStatus {
   serverTime: string
   /** Mode recette (`BOOSTER_UNLIMITED_MODE`) : ni stock ni minuteur. */
   unlimited: boolean
+  /** Une Légendaire (ou mieux) est garantie tous les N boosters. */
+  legendaryEvery: number
+  /** Dans combien de boosters la garantie tombe (1 : le prochain) ; `null` en mode recette. */
+  legendaryIn: number | null
 }
 
 const toState = (row: { availableBoosters: number; nextBoosterAt: Date | null; lastClaimedAt: Date | null } | null): BoosterState =>
   row ? { available: row.availableBoosters, nextBoosterAt: row.nextBoosterAt, lastClaimedAt: row.lastClaimedAt } : initialState()
 
-function statusOf(state: BoosterState, now: Date, unlimited = false, gifted = 0): BoosterStatus {
+function statusOf(state: BoosterState, now: Date, unlimited = false, gifted = 0, sinceLegendary = 0): BoosterStatus {
   const current = unlimited ? { ...initialState() } : regenerate(state, now)
   const bonus = unlimited ? 0 : Math.max(0, gifted)
   return {
@@ -273,12 +278,14 @@ function statusOf(state: BoosterState, now: Date, unlimited = false, gifted = 0)
     intervalSeconds: BOOSTER_INTERVAL_MS / 1000,
     serverTime: now.toISOString(),
     unlimited,
+    legendaryEvery: LEGENDARY_PITY_PACKS,
+    legendaryIn: unlimited ? null : LEGENDARY_PITY_PACKS - Math.min(Math.max(0, sinceLegendary), LEGENDARY_PITY_PACKS - 1),
   }
 }
 
 export async function boosterStatus(userId: string, now = new Date(), unlimited = config.cards.unlimited): Promise<BoosterStatus> {
   const row = await prisma.userBooster.findUnique({ where: { userId } })
-  return statusOf(toState(row), now, unlimited, row?.giftedBoosters ?? 0)
+  return statusOf(toState(row), now, unlimited, row?.giftedBoosters ?? 0, row?.boostersSinceLastLegendary ?? 0)
 }
 
 /* ---- Ouverture ----------------------------------------------------------------------- */
@@ -340,7 +347,7 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
         if (count === 1) return { state: regenerate(toState(row), now), boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary, gifted: gifted - 1 }
         continue
       }
-      const status = statusOf(toState(row), now)
+      const status = statusOf(toState(row), now, false, 0, row?.boostersSinceLastLegendary ?? 0)
       throw new HttpError(409, 'no_booster', 'Aucun booster disponible pour le moment.', {
         secondsUntilNext: status.secondsUntilNext,
       })
@@ -392,6 +399,7 @@ export async function openBooster(
       forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
       forceLegendary: !unlimited && hasReachedLegendaryPity(spent.boostersSinceLastLegendary),
     })
+    const legendarySince = unlimited ? 0 : nextLegendaryPityCount(spent.boostersSinceLastLegendary, drawn.map((card) => card.rarity))
     const cards: PulledCard[] = []
     for (const { id } of drawn) {
       const key = { userId_cardId: { userId, cardId: id } }
@@ -414,14 +422,11 @@ export async function openBooster(
             spent.boostersSinceLastMythic,
             drawn.map((card) => card.rarity),
           ),
-          boostersSinceLastLegendary: nextLegendaryPityCount(
-            spent.boostersSinceLastLegendary,
-            drawn.map((card) => card.rarity),
-          ),
+          boostersSinceLastLegendary: legendarySince,
         },
       })
     }
-    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted), series }
+    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted, legendarySince), series }
   })
 }
 

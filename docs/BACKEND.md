@@ -898,19 +898,22 @@ retard n'est pas perdu) ; stock plein → plus de minuteur ; ouvrir depuis un
 stock plein lance le minuteur, ouvrir ensuite ne le remet pas à zéro.
 
 **Tirage** : 4 cartes, une table de raretés par emplacement
-(`boosters.logic.ts`). Chaque emplacement a le **même taux de Légendaire
-(0,5 %) et de Mythique (0,20 %)** — soit ≈ 1,99 % et ≈ 0,80 % des boosters qui en
-contiennent au moins une. Le reste : cartes 1-2 Commune 69,3 % / Rare 25 % /
-Épique 5 % ; carte 3 (Rare ou mieux) Rare 74,3 % / Épique 25 % ; carte 4
-(Épique ou mieux) Épique 99,3 %. Puis une carte au hasard dans la rareté, sans
-doublon dans un même booster tant que le set le permet ; rareté absente → la
-voisine. Doublons entre boosters : `count` augmente.
+(`boosters.logic.ts`). Cartes 1 et 2 : Commune 70 % / Rare 25 % / Épique 5 %,
+**jamais de Légendaire ni de Mythique**. Carte 3 (Rare ou mieux) : Rare 74,3 % /
+Épique 25 % / **Légendaire 0,5 % / Mythique 0,20 %**. Carte 4 (Épique ou mieux) :
+Épique 99,3 % / **Légendaire 0,5 % / Mythique 0,20 %**. Soit ≈ 1,00 % des boosters
+avec au moins une Légendaire et ≈ 0,40 % avec une Mythique. Puis une carte au
+hasard dans la rareté, sans doublon dans un même booster tant que le set le
+permet ; rareté absente → la voisine. Doublons entre boosters : `count` augmente.
 
-**Garanties (pity)** : le 120ᵉ booster consécutif sans Légendaire ni Mythique
+**Garanties (pity)** : le 125ᵉ booster consécutif sans Légendaire ni Mythique
 (`boostersSinceLastLegendary`) a une Légendaire ou mieux sur sa 4ᵉ carte
 (proportion 0,5 / 0,2) ; le 400ᵉ sans Mythique (`boostersSinceLastMythic`) a une
 Mythique. Une Mythique remet les deux compteurs à zéro, une Légendaire seulement
-le premier ; la garantie Mythique est prioritaire.
+le premier ; la garantie Mythique est prioritaire. L'état du stock
+(`GET /boosters/status`, réponse de `POST /boosters/open`) expose
+`legendaryEvery` (125) et `legendaryIn` (dans combien de boosters la garantie
+tombe, 1 = le prochain ; `null` en mode recette) : l'écran des boosters l'affiche.
 
 **Ouverture atomique** : dépense et cartes dans une même transaction ; la
 dépense n'aboutit que si `(availableBoosters, nextBoosterAt)` n'a pas changé
