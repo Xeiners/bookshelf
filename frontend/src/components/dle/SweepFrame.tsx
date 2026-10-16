@@ -65,7 +65,7 @@ function grain(context: CanvasRenderingContext2D, random: () => number, count: n
   }
 }
 
-/** Peint la saleté d'un univers : buée, fumée, sable, peinture, énergie occulte, nuage magique ou gravats. */
+/** Peint la saleté d'un univers : buée, fumée, sable, peinture, énergie occulte, nuage magique, gravats, vapeur de Titan ou aura de Nen. */
 function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): void {
   const random = seeded(category.length * 7919 + category.charCodeAt(0))
   const W = SWEEP_WIDTH
@@ -211,6 +211,76 @@ function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): vo
       }
       break
     }
+    case 'aot': {
+      // Vapeur de Titan : le mur de Maria, briques lézardées, noyé sous une vapeur brûlante.
+      base([[0, '#8a7a6a'], [0.5, '#6e6155'], [1, '#4d443b']])
+      const brickH = 34
+      const brickW = 78
+      for (let row = 0; row * brickH < H; row += 1) {
+        for (let column = -1; column * brickW < W; column += 1) {
+          const x = column * brickW + (row % 2 === 0 ? 0 : brickW / 2) + (random() - 0.5) * 3
+          const tone = 92 + Math.floor(random() * 46)
+          context.fillStyle = `rgb(${tone + 14},${tone},${tone - 14})`
+          context.fillRect(x + 2, row * brickH + 2, brickW - 4, brickH - 4)
+          context.fillStyle = 'rgba(0,0,0,0.18)'
+          context.fillRect(x + 2, row * brickH + brickH - 6, brickW - 4, 4)
+        }
+      }
+      // Lézardes.
+      context.strokeStyle = 'rgba(25,20,16,0.6)'
+      context.lineCap = 'round'
+      for (let index = 0; index < 8; index += 1) {
+        let x = random() * W
+        let y = random() * H
+        context.lineWidth = 1.5 + random() * 2
+        context.beginPath()
+        context.moveTo(x, y)
+        for (let step = 0; step < 6; step += 1) {
+          x += (random() - 0.5) * 70
+          y += 18 + random() * 40
+          context.lineTo(x, y)
+        }
+        context.stroke()
+      }
+      // La vapeur : de gros nuages blancs qui rougeoient au cœur.
+      for (let index = 0; index < 38; index += 1) {
+        const x = random() * W
+        const y = random() * H
+        const radius = 45 + random() * 110
+        const steam = context.createRadialGradient(x, y, radius * 0.1, x, y, radius)
+        steam.addColorStop(0, `rgba(255,236,228,${0.55 + random() * 0.3})`)
+        steam.addColorStop(0.5, `rgba(255,196,176,${0.3 + random() * 0.2})`)
+        steam.addColorStop(1, 'rgba(255,170,150,0)')
+        context.fillStyle = steam
+        context.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+      }
+      grain(context, random, 1400, ['rgba(255,255,255,0.4)', 'rgba(60,40,30,0.3)'], [1, 2])
+      break
+    }
+    case 'hxh': {
+      // Aura de Nen : une nuit profonde où montent des flammes d'aura vertes et violettes.
+      base([[0, '#0f1f2c'], [0.5, '#102a2a'], [1, '#0a1620']])
+      for (let index = 0; index < 28; index += 1) blob(context, random() * W, random() * H, 60 + random() * 140, random() > 0.5 ? `rgba(60,230,150,${0.14 + random() * 0.18})` : `rgba(150,90,255,${0.12 + random() * 0.18})`)
+      // Rubans d'aura qui ondulent vers le haut, avec un halo.
+      for (let index = 0; index < 22; index += 1) {
+        const green = random() > 0.45
+        context.strokeStyle = green ? 'rgba(120,255,185,0.7)' : 'rgba(190,140,255,0.65)'
+        context.shadowColor = green ? 'rgba(60,255,150,0.9)' : 'rgba(150,90,255,0.9)'
+        context.shadowBlur = 14
+        context.lineCap = 'round'
+        context.lineWidth = 2 + random() * 4
+        const x = random() * W
+        const y = H * (0.3 + random() * 0.7)
+        context.beginPath()
+        context.moveTo(x, y)
+        context.bezierCurveTo(x + (random() - 0.5) * 120, y - 60, x + (random() - 0.5) * 120, y - 120, x + (random() - 0.5) * 80, y - 150 - random() * 90)
+        context.stroke()
+      }
+      context.shadowBlur = 0
+      context.shadowColor = 'transparent'
+      grain(context, random, 700, ['rgba(190,255,220,0.8)', 'rgba(215,190,255,0.75)'], [1, 2.5])
+      break
+    }
     case 'mha': {
       // Gravats : béton éventré après un combat, poussière, et les éclairs verts de One For All.
       base([[0, '#9a978f'], [0.5, '#77746d'], [1, '#55524c']])
@@ -277,7 +347,7 @@ function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): vo
 }
 
 /** Matière de chaque univers : couleur du chiffon et des étincelles. */
-const SPARK_COLOR: Record<DleCategory, string> = { manga: '#ffffff', naruto: '#ffb86b', onepiece: '#fff4c8', jojo: '#ffd23f', jjk: '#b69bff', dragonball: '#ffe27a', mha: '#86ff9e' }
+const SPARK_COLOR: Record<DleCategory, string> = { manga: '#ffffff', naruto: '#ffb86b', onepiece: '#fff4c8', jojo: '#ffd23f', jjk: '#b69bff', dragonball: '#ffe27a', mha: '#86ff9e', aot: '#ffd9c8', hxh: '#9dffcf' }
 
 /* ---- Le cadre ------------------------------------------------------------------------- */
 

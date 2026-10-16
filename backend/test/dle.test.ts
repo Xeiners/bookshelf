@@ -17,10 +17,10 @@ const { default: sharp } = await import('sharp')
 const PORTRAIT_PNG = await sharp({ create: { width: 60, height: 80, channels: 3, background: { r: 200, g: 40, b: 90 } } }).png().toBuffer()
 
 // Jikan simulé : quelques personnages de Naruto (romanisations de MyAnimeList) et leurs portraits.
-const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki", 'Son, Gokuu', 'Vegeta', 'Freeza', 'Midoriya, Izuku', 'Bakugou, Katsuki', 'Yagi, Toshinori']
+const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki", 'Son, Gokuu', 'Vegeta', 'Freeza', 'Midoriya, Izuku', 'Bakugou, Katsuki', 'Yagi, Toshinori', 'Levi', 'Yeager, Eren', 'Zoldyck, Killua', 'Freecss, Gon']
 mockedHosts.add('api.jikan.moe')
 mockedHosts.add('cdn.myanimelist.net')
-for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'dragonball.fandom.com', 'myheroacademia.fandom.com', 'kitsu.app', 'graphql.anilist.co']) mockedHosts.add(host)
+for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'dragonball.fandom.com', 'myheroacademia.fandom.com', 'attackontitan.fandom.com', 'hunterxhunter.fandom.com', 'kitsu.app', 'graphql.anilist.co']) mockedHosts.add(host)
 extraMocks.push((url) => {
   // Kitsu : aucun personnage (les portraits des tests viennent du Jikan simulé).
   if (url.hostname === 'kitsu.app') return new Response(JSON.stringify({ data: [], included: [], links: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -874,7 +874,7 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
     // Fiches identiques jusque dans la couleur des cheveux, faute d'un attribut qui les sépare.
     const twins = new Set(['naruto:kiba|shino', 'jjk:hanami|jogo', 'dragonball:gamma1|gamma2'])
     const found: string[] = []
-    for (const category of ['naruto', 'onepiece', 'jjk', 'jojo', 'dragonball', 'mha'] as const) {
+    for (const category of ['naruto', 'onepiece', 'jjk', 'jojo', 'dragonball', 'mha', 'aot', 'hxh'] as const) {
       const game = gameOf(category)
       assert.ok(game.attributes.includes('hair'), `${category} : colonne cheveux`)
       const { list } = await game.pool()
@@ -896,8 +896,8 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
     assert.equal(jojo.compare(jojoPool.byId.get('diavolo')!, jojoPool.byId.get('trish')!).hair.verdict, 'partial', 'cheveux roses tachetés de vert')
   })
 
-  it('énigmes du jour et portraits des deux univers', async () => {
-    for (const category of ['dragonball', 'mha'] as const) {
+  it('énigmes du jour et portraits des univers Dragon Ball, My Hero Academia, Attaque des Titans et Hunter × Hunter', async () => {
+    for (const category of ['dragonball', 'mha', 'aot', 'hxh'] as const) {
       const classic = await chloe.request('GET', `/dle/daily/${category}/classic`)
       assert.equal(classic.status, 200, JSON.stringify(classic.body))
       assert.ok(category in (await chloe.request('GET', '/dle')).body.daily)
@@ -908,6 +908,55 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
   })
 })
 
+
+describe('dle — L’Attaque des Titans et Hunter × Hunter', () => {
+  it('Attaque des Titans : colonnes, Titans comparés comme des ensembles, arcs ordonnés', async () => {
+    const { AOT_CHARACTERS, AOT_ARCS, AOT_ATTRIBUTES, compareAot } = await import('../src/modules/dle/aot.characters.js')
+    const find = (id: string) => AOT_CHARACTERS.find((character) => character.id === id)!
+    const feedback = compareAot(find('reiner'), find('bertholdt'))
+    assert.equal(feedback.affiliation.verdict, 'exact', 'même cellule de guerriers infiltrés')
+    assert.equal(feedback.titan.verdict, 'wrong', 'cuirassé ≠ colossal')
+    assert.equal(compareAot(find('eren'), find('grisha')).titan.verdict, 'exact', 'Assaillant et Fondateur chez les deux')
+    assert.equal(compareAot(find('mikasa'), find('levi')).titan.verdict, 'exact', 'ni l’un ni l’autre n’a de Titan')
+    assert.equal(compareAot(find('historia'), find('frieda')).titan.verdict, 'wrong')
+    assert.deepEqual(compareAot(find('eren'), find('levi')).debut, { verdict: 'wrong', direction: 'higher' })
+    assert.equal(compareAot(find('levi'), find('erwin')).height.direction, 'higher')
+    assert.equal(new Set(AOT_CHARACTERS.map((character) => character.id)).size, AOT_CHARACTERS.length)
+    assert.ok(AOT_CHARACTERS.length >= 60)
+    assert.ok(AOT_CHARACTERS.every((character) => (AOT_ARCS as readonly string[]).includes(character.debut)))
+    assert.deepEqual(AOT_ATTRIBUTES, ['affiliation', 'titan', 'role', 'gender', 'hair', 'height', 'status', 'debut'])
+    // Un soldat ordinaire de la 104e promotion est un Titan pur à son tour, sans devenir métamorphe.
+    assert.ok(find('connie').titan.includes('pure'))
+  })
+
+  it('Hunter × Hunter : types de Nen, Brigade fantôme et arcs ordonnés', async () => {
+    const { HXH_CHARACTERS, HXH_ARCS, HXH_ATTRIBUTES, compareHxh } = await import('../src/modules/dle/hxh.characters.js')
+    const find = (id: string) => HXH_CHARACTERS.find((character) => character.id === id)!
+    const feedback = compareHxh(find('gon'), find('killua'))
+    assert.equal(feedback.nen.verdict, 'wrong', 'renforcement ≠ transformation')
+    assert.equal(feedback.debut.verdict, 'exact', 'tous deux à l’examen')
+    assert.equal(compareHxh(find('nobunaga'), find('uvogin')).nen.verdict, 'exact', 'deux Renforceurs de la Brigade')
+    assert.equal(compareHxh(find('feitan'), find('machi')).affiliation.verdict, 'exact')
+    assert.equal(compareHxh(find('gon'), find('hisoka')).affiliation.verdict, 'partial', 'tous deux passés par l’examen')
+    assert.deepEqual(compareHxh(find('gon'), find('meruem')).debut, { verdict: 'wrong', direction: 'higher' })
+    assert.deepEqual(compareHxh(find('gon'), find('silva')).debut, { verdict: 'partial', direction: 'higher' })
+    assert.equal(new Set(HXH_CHARACTERS.map((character) => character.id)).size, HXH_CHARACTERS.length)
+    assert.ok(HXH_CHARACTERS.length >= 60)
+    assert.ok(HXH_CHARACTERS.every((character) => (HXH_ARCS as readonly string[]).includes(character.debut)))
+    assert.deepEqual(HXH_ATTRIBUTES, ['affiliation', 'nen', 'role', 'gender', 'hair', 'height', 'debut'])
+  })
+
+  it('énigmes du jour, liste des personnages et portraits des deux univers', async () => {
+    for (const [category, name, id] of [['aot', 'Levi Ackerman', 'levi'], ['hxh', 'Killua Zoldyck', 'killua']] as const) {
+      const classic = await chloe.request('GET', `/dle/daily/${category}/classic`)
+      assert.equal(classic.status, 200, JSON.stringify(classic.body))
+      assert.ok(category in (await chloe.request('GET', '/dle')).body.daily)
+      const works = await chloe.request('GET', `/dle/works?category=${category}`)
+      assert.ok(works.body.works.some((entry: { name: string }) => entry.name === name), `${category} : ${name} proposé à la saisie`)
+      assert.equal((await chloe.send('GET', `/dle/characters/${category}/${id}/image`)).status, 200)
+    }
+  })
+})
 
 describe('dle — images d’énigme', () => {
   it('un personnage absent de la liste de l’anime : fiche MyAnimeList retrouvée par recherche, énigme ≠ vignette', async () => {
@@ -924,7 +973,69 @@ describe('dle — images d’énigme', () => {
       puzzle = (await source.puzzleImage(character, 'graine')).body.toString('latin1')
     }
     assert.notEqual(puzzle, thumbnail, 'l’énigme ne reprend plus la vignette')
-    assert.match(puzzle, /\/images\/characters\/2\/3242[ab]\.jpg$/)
+    assert.match(puzzle, /\/images\/characters\/2\/3242[ab]l?\.jpg$/)
+  })
+})
+
+describe('dle — images d’énigme belles et variées', () => {
+  it('grand format MyAnimeList : « …/12.jpg » devient « …/12l.jpg », les autres hôtes ne bougent pas', async () => {
+    const { largeOf } = await import('../src/modules/dle/dle.jikan.js')
+    assert.equal(largeOf('https://cdn.myanimelist.net/images/characters/3/12345.jpg'), 'https://cdn.myanimelist.net/images/characters/3/12345l.jpg')
+    assert.equal(largeOf('https://cdn.myanimelist.net/images/characters/3/12345.webp?s=abc'), 'https://cdn.myanimelist.net/images/characters/3/12345l.webp?s=abc')
+    assert.equal(largeOf('https://cdn.myanimelist.net/images/characters/3/12345l.jpg'), 'https://cdn.myanimelist.net/images/characters/3/12345l.jpg')
+    assert.equal(largeOf('https://static.wikia.nocookie.net/x/images/a/ab/Levi.png'), 'https://static.wikia.nocookie.net/x/images/a/ab/Levi.png')
+  })
+
+  it('galerie du wiki : seules les grandes images qui portent le nom du personnage, les plus grandes d’abord', async () => {
+    const { wikiGallery } = await import('../src/modules/dle/dle.jikan.js')
+    mockedHosts.add('gallery.fandom.com')
+    const image = (title: string, width: number, height: number, mime = 'image/png') => ({
+      title: `File:${title}`,
+      imageinfo: [{ thumburl: `https://static.wikia.nocookie.net/gallery/${encodeURIComponent(title)}`, thumbwidth: 900, thumbheight: 600, width, height, mime }],
+    })
+    extraMocks.unshift((url) => {
+      if (url.hostname !== 'gallery.fandom.com') return undefined
+      const pages = {
+        1: image('Levi Ackerman Anime.png', 1920, 1080),
+        2: image('Levi Season 3 Key Visual.jpg', 1200, 1700, 'image/jpeg'),
+        3: image('Levi Icon.png', 1920, 1080),
+        4: image('Eren Yeager Anime.png', 1920, 1080),
+        5: image('Levi Chibi.png', 120, 120),
+        6: image('Levi Theme.ogg', 1920, 1080, 'audio/ogg'),
+      }
+      return new Response(JSON.stringify({ query: { pages } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    const urls = await wikiGallery('gallery.fandom.com', { id: 'levi', name: 'Levi Ackerman', aliases: ['Levi'] })
+    assert.ok(urls)
+    assert.deepEqual(urls.map((url) => decodeURIComponent(url.split('/').pop()!)), ['Levi Ackerman Anime.png', 'Levi Season 3 Key Visual.jpg'], 'ni icône, ni autre personnage, ni miniature, ni son')
+  })
+
+  it('les images d’énigme alternent les sources et ne reprennent jamais la vignette', async () => {
+    const { portraitSource } = await import('../src/modules/dle/dle.jikan.js')
+    mockedHosts.add('mix.fandom.com')
+    extraMocks.unshift((url) => {
+      if (url.hostname !== 'mix.fandom.com') return undefined
+      if (url.searchParams.get('generator') === 'images') {
+        const pages = Object.fromEntries(['Gogeta Art One.png', 'Gogeta Art Two.png'].map((title, index) => [index, { title: `File:${title}`, imageinfo: [{ thumburl: `https://static.wikia.nocookie.net/mix/${index}.png`, thumbwidth: 900, thumbheight: 600, width: 1600 - index * 100, height: 900, mime: 'image/png' }] }]))
+        return new Response(JSON.stringify({ query: { pages } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ query: { pages: {} } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    mockedHosts.add('static.wikia.nocookie.net')
+    extraMocks.unshift((url) => (url.hostname === 'static.wikia.nocookie.net' ? new Response(new Uint8Array(Buffer.concat([PORTRAIT_PNG, Buffer.from(url.pathname)])), { status: 200, headers: { 'Content-Type': 'image/png' } }) : undefined))
+    const source = portraitSource('Mix', [1], [], 'mix.fandom.com', [{ id: 'gogeta', name: 'Gogeta' }])
+    const character = { id: 'gogeta', name: 'Gogeta' }
+    assert.ok((await source.charactersWithPortrait()).has('gogeta'))
+    const thumbnail = (await source.portraitImage(character)).body.toString('latin1')
+    const seen = new Set<string>()
+    for (let tries = 0; tries < 60; tries += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']) seen.add((await source.puzzleImage(character, seed)).body.toString('latin1'))
+      if (seen.size > 2) break
+    }
+    assert.ok([...seen].every((body) => body !== thumbnail), 'jamais la vignette')
+    assert.ok([...seen].some((body) => /mix\/\d\.png$/.test(body)), 'une image du wiki parmi les énigmes')
+    assert.ok([...seen].some((body) => /characters\/2\/3242[ab]l?\.jpg$/.test(body)), 'et une de la galerie MyAnimeList')
   })
 })
 

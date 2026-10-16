@@ -1,6 +1,7 @@
 import { config } from '../../config.js'
 import { TtlCache } from '../../lib/cache.js'
 import { notFound } from '../../lib/errors.js'
+import sharp from 'sharp'
 import type { CachedImage } from '../manga/manga.routes.js'
 
 /*
@@ -10,7 +11,11 @@ import type { CachedImage } from '../manga/manga.routes.js'
  * portraits, sur fond), l'image de la fiche du personnage sur le wiki Fandom de l'univers
  * (souvent un détourage sur fond transparent), puis AniList. Les images d'énigme viennent de
  * la galerie MyAnimeList du personnage (sa fiche est retrouvée par recherche si son nom ne
- * figure pas tel quel dans la liste de l'anime), du wiki et d'AniList : jamais la vignette.
+ * figure pas tel quel dans la liste de l'anime), de la fiche du wiki (image principale + images
+ * de la page qui portent son nom : dessins, visuels officiels, captures) et d'AniList : jamais la
+ * vignette. Elles sont mélangées source après source (une énigme varie d'un jour à l'autre) et
+ * seules les belles images servent : en grand format quand MyAnimeList en a un, et jamais en
+ * dessous d'une taille minimale.
  * Lu une fois par jour, chaque image relayée et gardée en
  * cache : les joueurs ne voient jamais l'adresse d'origine (le format Portrait
  * ne doit pas trahir le nom).
@@ -25,6 +30,10 @@ const ANILIST_HOST = 's4.anilist.co'
 /** Écart entre deux recherches par nom (Jikan, AniList limitent le débit) ; nul en test. */
 const SEARCH_GAP_MS = config.env === 'test' ? 0 : 450
 const FANDOM_HOST = 'static.wikia.nocookie.net'
+/** Côté le plus court d'une image d'énigme : en dessous, elle est floue une fois agrandie (nul en test, où les images sont minuscules). */
+const MIN_PUZZLE_SIDE = config.env === 'test' ? 0 : 220
+/** Côté d'une image du wiki demandé pour les énigmes (les portraits de saisie restent à 500). */
+const WIKI_PUZZLE_WIDTH = 900
 /** Les images des wikis Fandom ne se servent qu'à un navigateur venu du wiki. */
 const BROWSER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
 
@@ -201,12 +210,12 @@ interface WikiPages {
  * suivant les redirections (« Will A. Zeppeli » → « Will Anthonio Zeppeli »).
  * `undefined` : le wiki n'a pas répondu.
  */
-async function wikiPortraits(wikiHost: string, characters: readonly PortraitCharacter[]): Promise<Map<string, string> | undefined> {
+async function wikiPortraits(wikiHost: string, characters: readonly PortraitCharacter[], width = 500): Promise<Map<string, string> | undefined> {
   const found = new Map<string, string>()
   for (let start = 0; start < characters.length; start += 50) {
     const batch = characters.slice(start, start + 50)
     const titles = batch.map((character) => character.wiki ?? character.name)
-    const params = new URLSearchParams({ action: 'query', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '500', redirects: '1', format: 'json', titles: titles.join('|') })
+    const params = new URLSearchParams({ action: 'query', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: String(width), redirects: '1', format: 'json', titles: titles.join('|') })
     try {
       const response = await fetch(`https://${wikiHost}/api.php?${params.toString()}`, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': BROWSER_AGENT } })
       if (!response.ok) return undefined
@@ -228,6 +237,59 @@ async function wikiPortraits(wikiHost: string, characters: readonly PortraitChar
   return found
 }
 
+interface WikiGallery {
+  query?: {
+    pages?: Record<string, { title?: string; imageinfo?: { thumburl?: string; thumbwidth?: number; thumbheight?: number; width?: number; height?: number; mime?: string }[] }>
+  }
+}
+
+/** Fichiers d'une fiche qui ne sont jamais un beau visuel du personnage (icônes, logos, bannières, cartes, sons…). */
+const WIKI_JUNK = /icon|logo|symbol|flag|banner|button|badge|stub|infobox|map|chart|signature|emblem|sprite|gif|\.svg|\.ogg|\.webm|\.mp4|portrait ?small|thumb|site-|wiki|favicon|placeholder|no ?image|blank/i
+
+/** Mots d'un nom (≥ 3 lettres) : un fichier de la fiche doit en porter au moins un pour être « à lui ». */
+const nameTokens = (character: PortraitCharacter) => new Set([character.wiki ?? character.name, character.name, ...(character.aliases ?? [])].flatMap((name) => nameKey(name).split(' ')).filter((token) => token.length >= 3))
+
+/**
+ * Les belles images de la fiche d'un personnage sur son wiki Fandom : celles de la page, assez
+ * grandes, qui portent son nom (dessins officiels, visuels d'anime, couvertures…). `undefined` :
+ * le wiki n'a pas répondu.
+ */
+export async function wikiGallery(wikiHost: string, character: PortraitCharacter): Promise<string[] | undefined> {
+  const params = new URLSearchParams({
+    action: 'query',
+    generator: 'images',
+    titles: character.wiki ?? character.name,
+    gimlimit: '40',
+    prop: 'imageinfo',
+    iiprop: 'url|size|mime',
+    iiurlwidth: String(WIKI_PUZZLE_WIDTH),
+    redirects: '1',
+    format: 'json',
+  })
+  try {
+    const response = await fetch(`https://${wikiHost}/api.php?${params.toString()}`, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': BROWSER_AGENT } })
+    if (!response.ok) return undefined
+    const tokens = nameTokens(character)
+    const found: { url: string; area: number }[] = []
+    for (const page of Object.values(((await response.json()) as WikiGallery).query?.pages ?? {})) {
+      const info = page.imageinfo?.[0]
+      const title = page.title ?? ''
+      const url = info?.thumburl
+      if (!url || !info || !/^image\/(jpeg|png|webp)$/.test(info.mime ?? '') || WIKI_JUNK.test(title)) continue
+      if (new URL(url).hostname !== FANDOM_HOST) continue
+      const width = info.width ?? 0
+      const height = info.height ?? 0
+      if (Math.min(width, height) < Math.max(300, MIN_PUZZLE_SIDE)) continue
+      if (![...nameTokens({ id: '', name: title.replace(/^File:/i, '').replace(/\.[a-z0-9]+$/i, '') })].some((token) => tokens.has(token))) continue
+      found.push({ url, area: width * height })
+    }
+    // Les plus grandes d'abord (les plus soignées), quelques-unes seulement.
+    return found.sort((a, b) => b.area - a.area).slice(0, 6).map((entry) => entry.url)
+  } catch {
+    return undefined
+  }
+}
+
 /** Autres images d'un personnage (galerie MyAnimeList) ; `undefined` : Jikan n'a pas répondu. */
 async function jikanPictures(malId: number): Promise<string[] | undefined> {
   try {
@@ -243,6 +305,16 @@ async function jikanPictures(malId: number): Promise<string[] | undefined> {
 /** Même image, quelle que soit la taille demandée à MyAnimeList (`…/131317.jpg`, `…/131317l.jpg`). */
 const imageKey = (url: string) => url.replace(/^https?:\/\/[^/]+/, '').replace(/[lt]?\.(jpe?g|webp|png)(\?.*)?$/i, '')
 
+/** Le grand format d'une image MyAnimeList (`…/131317.jpg` → `…/131317l.jpg`) ; les autres hôtes : l'adresse inchangée. */
+export function largeOf(url: string): string {
+  try {
+    if (new URL(url).hostname !== MAL_HOST) return url
+  } catch {
+    return url
+  }
+  return url.replace(/(\/\d+)\.(jpe?g|webp|png)(\?.*)?$/i, '$1l.$2$3')
+}
+
 interface PortraitList {
   /** Id du personnage → adresse du portrait. */
   portraits: Map<string, string>
@@ -255,7 +327,7 @@ interface PortraitList {
 /** Au-dessous, trop peu de personnages ont une image d'énigme distincte : on garde les portraits. */
 export const MIN_PUZZLE_CHARACTERS = 10
 /** Images d'énigme gardées par personnage. */
-const MAX_ALTERNATES = 6
+const MAX_ALTERNATES = 10
 
 export interface PortraitSource {
   /** Personnages dont on a un portrait : vignettes de la saisie et du plateau. */
@@ -391,29 +463,50 @@ export function portraitSource(
    * MyAnimeList — jamais la vignette de la saisie.
    */
   const loadAlternates = async (from: PortraitList): Promise<void> => {
-    const found = new Map<string, string[]>()
-    const add = (id: string, url: string) => {
-      const main = from.portraits.get(id)
-      if (main && imageKey(main) === imageKey(url)) return
-      const current = found.get(id) ?? []
-      if (current.length < MAX_ALTERNATES && !current.some((known) => imageKey(known) === imageKey(url))) found.set(id, [...current, url])
+    // Chaque personnage : une liste par source, mélangées ensuite une à une (une énigme ne
+    // se limite pas à la galerie MyAnimeList, souvent faite de variantes du même dessin).
+    const sources = new Map<string, { wikiMain: string[]; wikiGallery: string[]; mal: string[]; aniList: string[] }>()
+    const slot = (id: string) => {
+      let entry = sources.get(id)
+      if (!entry) sources.set(id, (entry = { wikiMain: [], wikiGallery: [], mal: [], aniList: [] }))
+      return entry
     }
     let complete = true
-    const wiki = await wikiPortraits(wikiHost, characters)
+    const wiki = await wikiPortraits(wikiHost, characters, WIKI_PUZZLE_WIDTH)
     if (!wiki) complete = false
-    for (const [id, url] of wiki ?? []) add(id, url)
+    for (const [id, url] of wiki ?? []) slot(id).wikiMain.push(url)
     for (const character of characters) {
+      await pause(SEARCH_GAP_MS)
+      const gallery = await wikiGallery(wikiHost, character)
+      if (gallery === undefined) complete = false
+      else slot(character.id).wikiGallery.push(...gallery)
       const malId = from.malIds.get(character.id)
       if (malId) {
         await pause(SEARCH_GAP_MS)
         const pictures = await serial(() => jikanPictures(malId))
         if (pictures === undefined) complete = false
-        for (const url of pictures ?? []) add(character.id, url)
+        else slot(character.id).mal.push(...pictures)
       }
       // Le dessin AniList : une image d'énigme de plus, différente de la vignette.
       await pause(SEARCH_GAP_MS)
       const aniList = await aniListPortrait(character)
-      if (aniList) add(character.id, aniList)
+      if (aniList) slot(character.id).aniList.push(aniList)
+    }
+    const found = new Map<string, string[]>()
+    for (const [id, entry] of sources) {
+      const main = from.portraits.get(id)
+      const lists = [entry.wikiGallery, entry.mal, entry.wikiMain, entry.aniList]
+      const merged: string[] = []
+      // Tour à tour une image de chaque source : wiki, MyAnimeList, page, AniList.
+      for (let round = 0; merged.length < MAX_ALTERNATES && lists.some((list) => round < list.length); round += 1) {
+        for (const list of lists) {
+          const url = list[round]
+          if (!url || merged.length >= MAX_ALTERNATES) continue
+          if (main && imageKey(main) === imageKey(url)) continue
+          if (!merged.some((known) => imageKey(known) === imageKey(url))) merged.push(url)
+        }
+      }
+      if (merged.length > 0) found.set(id, merged)
     }
     // Un chargement raté ne remplace jamais une liste plus fournie.
     if (!alternates || complete || found.size >= alternates.size) alternates = found
@@ -446,19 +539,43 @@ export function portraitSource(
   }
 
   /** Les octets d'une image relayée (hôtes connus seulement : jamais un relais ouvert). */
-  const fetchImage = async (url: string): Promise<CachedImage> => {
+  const fetchImage = async (url: string, attempts = 2): Promise<CachedImage> => {
     const host = new URL(url).hostname
     if (host !== MAL_HOST && host !== KITSU_HOST && host !== FANDOM_HOST && host !== ANILIST_HOST) throw notFound('Portrait indisponible.')
     // Fandom : l'image ne se sert qu'avec un navigateur venu du wiki.
     const headers: Record<string, string> = host === FANDOM_HOST ? { 'User-Agent': BROWSER_AGENT, Referer: `https://${wikiHost}/` } : {}
     // Un hoquet du CDN (MyAnimeList sature vite) : un second essai, plutôt qu'une image cassée.
     let response = await fetch(url, { signal: AbortSignal.timeout(10_000), headers }).catch(() => null)
-    if (!response?.ok) {
+    if (!response?.ok && attempts > 1) {
       await pause(config.env === 'test' ? 0 : 800)
       response = await fetch(url, { signal: AbortSignal.timeout(10_000), headers }).catch(() => null)
     }
     if (!response?.ok) throw notFound('Portrait indisponible.')
     return { body: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get('content-type') ?? 'image/jpeg' }
+  }
+
+  /** Images d'énigme refusées (trop petites, ou disparues) : on ne les retente pas. */
+  const rejected = new Set<string>()
+
+  /**
+   * Une image d'énigme digne d'être agrandie : en grand format chez MyAnimeList quand il existe,
+   * sinon telle quelle ; refusée si son plus petit côté est sous le seuil.
+   */
+  const fetchBeautiful = async (url: string): Promise<CachedImage> => {
+    const large = largeOf(url)
+    const candidates = large === url ? [url] : [large, url]
+    for (const [index, candidate] of candidates.entries()) {
+      try {
+        const image = await fetchImage(candidate, index === candidates.length - 1 ? 2 : 1)
+        const { width = 0, height = 0 } = await sharp(image.body).metadata().catch(() => ({ width: 0, height: 0 }))
+        // Octets illisibles : on ne juge pas, l'image est servie telle quelle.
+        if (width === 0 || Math.min(width, height) >= MIN_PUZZLE_SIDE) return image
+      } catch {
+        // Grand format absent : l'original.
+      }
+    }
+    rejected.add(url)
+    throw notFound('Image d’énigme indisponible.')
   }
 
   const portraitImage = async (character: PortraitCharacter): Promise<CachedImage> => {
@@ -477,15 +594,19 @@ export function portraitSource(
     portraitImage,
     puzzleImage: async (character, seed) => {
       await portraits()
-      const choices = alternates?.get(character.id) ?? []
-      if (choices.length === 0) return portraitImage(character)
-      const url = choices[seedIndex(seed, choices.length)] as string
-      try {
-        return await puzzleBytes.getOrLoad(url, () => fetchImage(url))
-      } catch {
-        // Image d'énigme disparue : le portrait, plutôt qu'une énigme sans image.
-        return portraitImage(character)
+      const choices = (alternates?.get(character.id) ?? []).filter((url) => !rejected.has(url))
+      // La graine fixe l'image de départ ; si elle est refusée, la suivante.
+      const start = seedIndex(seed, choices.length)
+      for (let step = 0; step < Math.min(choices.length, 4); step += 1) {
+        const url = choices[(start + step) % choices.length] as string
+        try {
+          return await puzzleBytes.getOrLoad(url, () => fetchBeautiful(url))
+        } catch {
+          // Image d'énigme disparue ou trop petite : la suivante.
+        }
       }
+      // Aucune ne convient : le portrait, plutôt qu'une énigme sans image.
+      return portraitImage(character)
     },
     forget: () => {
       list = null
@@ -494,6 +615,7 @@ export function portraitSource(
       alternatesExpire = 0
       images.clear()
       puzzleBytes.clear()
+      rejected.clear()
     },
   }
 }

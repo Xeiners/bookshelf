@@ -24,6 +24,8 @@ const FACES: Record<CharacterCategory, string[]> = {
   jjk: ['yuji', 'gojo', 'sukuna'],
   dragonball: ['vegeta', 'goku', 'frieza'],
   mha: ['bakugo', 'deku', 'all_might'],
+  aot: ['levi', 'eren', 'mikasa'],
+  hxh: ['gon', 'killua', 'hisoka'],
 }
 
 /**
@@ -50,6 +52,8 @@ export function BentoHome({ overview }: { overview: DleOverview }) {
     void loadWorks('jjk')
     void loadWorks('dragonball')
     void loadWorks('mha')
+    void loadWorks('aot')
+    void loadWorks('hxh')
   }, [loadWorks])
 
   useGSAP(
@@ -107,7 +111,7 @@ export function BentoHome({ overview }: { overview: DleOverview }) {
             </span>
           </BentoCard>
 
-          {(['naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha'] as const).map((category) => (
+          {(['naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha', 'aot', 'hxh'] as const).map((category) => (
             <BentoCard key={category} category={category} overview={overview} showStatus={signedIn} className="col-span-1 h-44 sm:h-56" onOpen={() => openCategory(category)}>
               <span aria-hidden className="absolute -top-1 -right-4 flex items-start sm:-right-3">
                 {facesOf(category).map((work, index) => (

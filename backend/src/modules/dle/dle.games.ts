@@ -11,6 +11,8 @@ import { NARUTO_ATTRIBUTES, NARUTO_CHARACTERS, characterValues, compareCharacter
 import { JJK_ATTRIBUTES, JJK_CHARACTERS, compareJjk, jjkValues } from './jjk.characters.js'
 import { DRAGONBALL_ATTRIBUTES, DRAGONBALL_CHARACTERS, compareDragonBall, dragonBallValues } from './dragonball.characters.js'
 import { MHA_ATTRIBUTES, MHA_CHARACTERS, compareMha, mhaValues } from './mha.characters.js'
+import { AOT_ATTRIBUTES, AOT_CHARACTERS, aotValues, compareAot } from './aot.characters.js'
+import { HXH_ATTRIBUTES, HXH_CHARACTERS, compareHxh, hxhValues } from './hxh.characters.js'
 import { JOJO_ATTRIBUTES, JOJO_CHARACTERS, compareJojo, jojoValues } from './jojo.characters.js'
 import { ONEPIECE_ATTRIBUTES, ONEPIECE_CHARACTERS, compareOnePiece, onePieceValues } from './onepiece.characters.js'
 
@@ -167,6 +169,10 @@ export const jjkPortraits = portraitSource('Jujutsu Kaisen', [40748, 51009, 4856
 export const dragonBallPortraits = portraitSource('Dragon Ball', [813, 223, 30694, 36946], [], 'dragonball.fandom.com', DRAGONBALL_CHARACTERS)
 /** My Hero Academia : les saisons de l'anime, de la première à la septième. */
 export const mhaPortraits = portraitSource('My Hero Academia', [31964, 33486, 36456, 38408, 41587, 49918, 54789], [], 'myheroacademia.fandom.com', MHA_CHARACTERS)
+/** L'Attaque des Titans : les quatre saisons de l'anime (la saison finale en deux parties et ses chapitres finaux). */
+export const aotPortraits = portraitSource('L’Attaque des Titans', [16498, 25777, 35760, 38524, 40028, 48583, 51535], [7442], 'attackontitan.fandom.com', AOT_CHARACTERS)
+/** Hunter × Hunter : l'anime de 2011 (l'élection et le Continent Noir viennent du manga). */
+export const hxhPortraits = portraitSource('Hunter × Hunter', [11061], [6642], 'hunterxhunter.fandom.com', HXH_CHARACTERS)
 
 const narutoGame = characterGame({
   category: 'naruto',
@@ -222,7 +228,25 @@ const mhaGame = characterGame({
   portraits: mhaPortraits,
 })
 
-const CHARACTER_GAMES = { naruto: narutoGame, onepiece: onePieceGame, jojo: jojoGame, jjk: jjkGame, dragonball: dragonBallGame, mha: mhaGame } satisfies Record<Exclude<DleCategory, 'manga'>, unknown>
+const aotGame = characterGame({
+  category: 'aot',
+  attributes: AOT_ATTRIBUTES,
+  characters: AOT_CHARACTERS,
+  compare: compareAot,
+  values: aotValues,
+  portraits: aotPortraits,
+})
+
+const hxhGame = characterGame({
+  category: 'hxh',
+  attributes: HXH_ATTRIBUTES,
+  characters: HXH_CHARACTERS,
+  compare: compareHxh,
+  values: hxhValues,
+  portraits: hxhPortraits,
+})
+
+const CHARACTER_GAMES = { naruto: narutoGame, onepiece: onePieceGame, jojo: jojoGame, jjk: jjkGame, dragonball: dragonBallGame, mha: mhaGame, aot: aotGame, hxh: hxhGame } satisfies Record<Exclude<DleCategory, 'manga'>, unknown>
 
 /** Un personnage d'une catégorie de personnages, et son portrait ; `undefined` sinon. */
 export function characterOf(category: DleCategory, id: string): { character: PortraitCharacter; image: () => Promise<CachedImage> } | undefined {

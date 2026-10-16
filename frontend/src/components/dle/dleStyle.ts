@@ -39,6 +39,10 @@ export const CATEGORY_STYLE: Record<DleCategory, { gradient: string; glow: strin
   dragonball: { gradient: 'linear-gradient(135deg, #ffe066, #ff8a1a 45%, #1f4fd8)', glow: 'rgba(255,138,26,0.55)', ink: '#ffd9a8', accent: '#ff8a1a' },
   // Le vert de Deku, le rouge et le bleu d'All Might.
   mha: { gradient: 'linear-gradient(135deg, #b8ff6b, #22c55e 45%, #1d4ed8)', glow: 'rgba(34,197,94,0.5)', ink: '#c8f7d6', accent: '#22c55e' },
+  // Le rouge des murs de Paradis et le bleu acier de l'équipement tridimensionnel.
+  aot: { gradient: 'linear-gradient(135deg, #f4d58d, #b23a3a 45%, #1f3a5f)', glow: 'rgba(178,58,58,0.55)', ink: '#f2d3c4', accent: '#c94a4a' },
+  // Le vert de l'aura de Gon, l'or de la licence de Hunter, le violet du Nen.
+  hxh: { gradient: 'linear-gradient(135deg, #b8f27a, #2fbf71 40%, #7a3df0)', glow: 'rgba(47,191,113,0.55)', ink: '#d4f7e0', accent: '#2fbf71' },
 }
 
 /** Nom d'un format : « Classique », et « Couverture » (mangas) ou « Portrait » (personnages). */

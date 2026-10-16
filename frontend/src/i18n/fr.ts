@@ -2264,7 +2264,7 @@ export const fr = {
       aria: 'Vitre à nettoyer : frotte avec le doigt ou la souris pour dévoiler l’image',
       solved: 'Écran nettoyé !',
       opponent: (percent: number) => `${percent} %`,
-      material: { manga: 'Buée', naruto: 'Fumée', onepiece: 'Sable', jojo: 'Peinture', jjk: 'Énergie occulte', dragonball: 'Nuage magique', mha: 'Gravats' } as Record<string, string>,
+      material: { manga: 'Buée', naruto: 'Fumée', onepiece: 'Sable', jojo: 'Peinture', jjk: 'Énergie occulte', dragonball: 'Nuage magique', mha: 'Gravats', aot: 'Vapeur de Titan', hxh: 'Aura de Nen' } as Record<string, string>,
     },
     categories: {
       manga: { title: 'Manga & Manhwa', hint: 'Les grands classiques' },
@@ -2274,6 +2274,8 @@ export const fr = {
       jjk: { title: 'Jujutsu Kaisen', hint: 'Exorcistes, fléaux et extensions du territoire' },
       dragonball: { title: 'Dragon Ball', hint: 'Saiyans, dieux et Dragon Balls' },
       mha: { title: 'My Hero Academia', hint: 'Héros, vilains et Alters' },
+      aot: { title: 'L’Attaque des Titans', hint: 'Soldats, Titans et murs de Paradis' },
+      hxh: { title: 'Hunter × Hunter', hint: 'Hunters, Nen et Brigade fantôme' },
       soon: 'Prochainement',
       locked: 'Verrouillé',
     },
@@ -2306,6 +2308,51 @@ export const fr = {
         broly: 'Broly', moro: 'Moro', super_hero: 'Super Hero',
       } as Record<string, string>,
       none: 'Aucune',
+    },
+    aot: {
+      attributes: { work: 'Perso', affiliation: 'Affiliation', titan: 'Titan', role: 'Rôle', gender: 'Genre', hair: 'Cheveux', height: 'Taille', status: 'Statut', debut: 'Arc' },
+      hair: {
+        black: 'Noirs', brown: 'Bruns', blond: 'Blonds', red: 'Roux', orange: 'Orange', white: 'Blancs', grey: 'Gris', green: 'Verts', blue: 'Bleus',
+        purple: 'Violets', pink: 'Roses', none: 'Aucun',
+      } as Record<string, string>,
+      affiliation: {
+        survey: 'Exploration', garrison: 'Garnison', mp: 'Gendarmerie', training: 'Cadets', warriors: 'Guerriers', marley_army: 'Armée',
+        yeagerists: 'Jaegeristes', volunteers: 'Volontaires', royal: 'Royauté', hizuru: 'Hizuru', other: 'Autre',
+      } as Record<string, string>,
+      titan: {
+        attack: 'Assaillant', founding: 'Fondateur', armored: 'Cuirassé', colossal: 'Colossal', female: 'Féminin', beast: 'Bestial', jaw: 'Mâchoire',
+        cart: 'Charrette', warhammer: 'Marteau de guerre', pure: 'Titan pur',
+      } as Record<string, string>,
+      role: { soldier: 'Soldat', officer: 'Officier', warrior: 'Guerrier', civilian: 'Civil', noble: 'Noble' } as Record<string, string>,
+      gender: { male: 'Homme', female: 'Femme' } as Record<string, string>,
+      status: { alive: 'Vivant', dead: 'Décédé' } as Record<string, string>,
+      arc: {
+        shiganshina: 'Shiganshina', training: 'Cadets', trost: 'Trost', trial: 'Procès', female_titan: 'Titan féminin', stohess: 'Stohess', utgard: 'Utgard',
+        uprising: 'Coup d’État', reclamation: 'Reprise de Wall Maria', marley: 'Marley', paradis: 'Paradis',
+      } as Record<string, string>,
+      none: 'Aucun',
+    },
+    hxh: {
+      attributes: { work: 'Perso', affiliation: 'Affiliation', nen: 'Nen', role: 'Rôle', gender: 'Genre', hair: 'Cheveux', height: 'Taille', debut: 'Arc' },
+      hair: {
+        black: 'Noirs', brown: 'Bruns', blond: 'Blonds', red: 'Roux', orange: 'Orange', white: 'Blancs', grey: 'Gris', green: 'Verts', blue: 'Bleus',
+        purple: 'Violets', pink: 'Roses', none: 'Aucun',
+      } as Record<string, string>,
+      affiliation: {
+        hunters: 'Hunters', troupe: 'Brigade', zoldyck: 'Zoldyck', ants: 'Fourmis', exam: 'Examen', arena: 'Arène',
+        mafia: 'Mafia', zodiacs: 'Zodiaque', kakin: 'Kakin', greed: 'Greed Island', other: 'Autre',
+      } as Record<string, string>,
+      nen: {
+        enhancer: 'Renforcement', transmuter: 'Transformation', emitter: 'Émission', conjurer: 'Matérialisation', manipulator: 'Manipulation', specialist: 'Spécialisation',
+        none: 'Aucun / inconnu',
+      } as Record<string, string>,
+      role: { hunter: 'Hunter', criminal: 'Criminel', assassin: 'Assassin', ant: 'Fourmi-Chimère', civilian: 'Civil', royal: 'Royal' } as Record<string, string>,
+      gender: { male: 'Homme', female: 'Femme' } as Record<string, string>,
+      arc: {
+        hunter_exam: 'Examen', zoldyck: 'Zoldyck', arena: 'Arène', yorknew: 'York Shin', greed_island: 'Greed Island',
+        chimera_ant: 'Fourmis', election: 'Élection', dark_continent: 'Continent Noir',
+      } as Record<string, string>,
+      none: 'Aucun',
     },
     mha: {
       attributes: { work: 'Perso', affiliation: 'Affiliation', quirk: 'Alter', role: 'Rôle', gender: 'Genre', hair: 'Cheveux', height: 'Taille', status: 'Statut', debut: 'Arc' },

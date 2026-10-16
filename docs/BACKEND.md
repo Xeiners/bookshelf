@@ -597,7 +597,7 @@ Toutes authentifiées. Une offre porte `mine`, `canAccept` (exemplaire libre de 
 
 ### BookshelfDLE (cf. §7 undecies)
 
-`:category` ∈ `manga` · `naruto` · `onepiece` · `jojo` · `jjk` ; `:mode` ∈ `classic` · `zoom` · `pixel`.
+`:category` ∈ `manga` · `naruto` · `onepiece` · `jojo` · `jjk` · `dragonball` · `mha` · `aot` · `hxh` ; `:mode` ∈ `classic` · `zoom` · `pixel`.
 
 | Méthode | Route | Accès | Réponse |
 | --- | --- | --- | --- |
@@ -1139,7 +1139,7 @@ Mini-jeu façon Loldle : deviner une œuvre ou un personnage.
 | `dle.logic.ts` | logique pure (testée) : comparaisons, paliers, zoom, gains, classement, jour de Paris, codes de salon |
 | `dle.games.ts` | une catégorie = un `DleGame` : propositions, colonnes, comparaison, résumé, image |
 | `dle.works.ts` + `dle.famous.ts` | catégorie `manga` : les cartes du set **célèbres** (110 titres choisis à la main) |
-| `naruto.characters.ts`, `onepiece.characters.ts`, `jojo.characters.ts`, `jjk.characters.ts` | fiches de personnages rédigées à la main |
+| `naruto.characters.ts`, `onepiece.characters.ts`, `jojo.characters.ts`, `jjk.characters.ts`, `dragonball.characters.ts`, `mha.characters.ts`, `aot.characters.ts`, `hxh.characters.ts` | fiches de personnages rédigées à la main |
 | `dle.jikan.ts` | portraits : Jikan → Kitsu → wiki Fandom → recherche Jikan |
 | `dle.daily.ts` | énigmes du jour, gains, série |
 | `dle.rooms.ts` | salons multijoueurs en mémoire, attente longue |
@@ -1147,7 +1147,7 @@ Mini-jeu façon Loldle : deviner une œuvre ou un personnage.
 
 **Catégories et formats.**
 
-- `manga` (110 œuvres), `naruto` (58), `onepiece` (55), `jojo` (60), `jjk` (45).
+- `manga` (110 œuvres), `naruto` (58), `onepiece` (55), `jojo` (60), `jjk` (45), `dragonball` (70), `mha` (64), `aot` (62), `hxh` (73).
 - **Classique** : six colonnes par catégorie, vert (identique), orange (proche : ensembles qui se
   recoupent, valeur ordonnée à un cran), rouge, et une flèche ↑ ↓ pour les valeurs ordonnées (année,
   rareté, paliers de popularité ou de prime, grade, arc d'apparition).
@@ -1201,6 +1201,14 @@ la transaction sous PostgreSQL), puis verrou optimiste sur la liste des essais.
    images souvent détourées sur fond transparent). Les images Fandom ne se servent qu'avec un
    `User-Agent` de navigateur et un `Referer` du wiki.
 4. Recherche Jikan par nom, pour les derniers manquants.
+
+**Images d'énigme** (zoom, pixels, chiffon, portrait) : jamais la vignette, et belles. Les sources sont
+mélangées une à une (galerie du wiki, galerie MyAnimeList, image de la fiche, AniList) : la graine du jour
+choisit l'image de départ, donc une énigme varie d'un jour à l'autre. Galerie du wiki
+(`wikiGallery`, `generator=images`) : seuls les fichiers de la fiche, d'au moins 300 px de côté, au format
+image, dont le nom porte celui du personnage (ni icône, ni logo, ni bannière), les plus grandes d'abord.
+Chez MyAnimeList, le grand format (`…/12l.jpg`) est tenté avant l'original ; une image dont le petit côté
+fait moins de 220 px est écartée (la suivante sert), le portrait en dernier recours.
 
 Les noms se comparent par `nameKey` (romanisations : Hyuuga = Hyuga, Kuujou = Kujo, ordre indifférent) ;
 `mal` et `wiki` corrigent les cas particuliers. La liste est servie même périmée pendant qu'une
