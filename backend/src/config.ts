@@ -255,7 +255,7 @@ export const config = {
     googleApiKey: env.GOOGLE_BOOKS_API_KEY || undefined,
   },
   canvas: {
-    minAccountAgeMs: (env.CANVAS_MIN_ACCOUNT_AGE_MIN ?? (env.NODE_ENV === 'test' ? 0 : 30)) * 60_000,
+    minAccountAgeMs: (env.CANVAS_MIN_ACCOUNT_AGE_MIN ?? (env.NODE_ENV === 'test' ? 0 : 5)) * 60_000,
     dir: path.join(path.isAbsolute(env.BOOKS_DIR) ? env.BOOKS_DIR : path.resolve(BACKEND_ROOT, env.BOOKS_DIR), 'canvas'),
   },
   music: {

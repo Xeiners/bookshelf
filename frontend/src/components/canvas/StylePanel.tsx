@@ -4,6 +4,7 @@ import { getEngine } from '../../lib/canvas/current'
 import type { ToolId } from '../../lib/canvas/types'
 import { useCanvasStore, type Style } from '../../store/useCanvasStore'
 import { ColorPicker } from './ColorPicker'
+import { AddImageButton, ImageControls } from './ImagesPanel'
 
 /*
  * Le style : couleur du trait, remplissage, épaisseur, opacité, pointillés, coins, pinceau, texte.
@@ -49,6 +50,7 @@ export function StylePanel({ onShop }: { onShop: () => void }) {
     return object && (object.owner === state.me?.userId || state.me?.admin)
   })
   const types = editable.map((id) => engine!.scene.get(id)!.data.t)
+  if (tool === 'image') return <ImageQuick />
   const bySelection = tool === 'select' && editable.length > 0
   const sections = bySelection ? sectionsOfSelection(types) : (SECTIONS[tool] ?? [])
   if (sections.length === 0 && editable.length === 0) return null
@@ -220,5 +222,26 @@ function SelectionActions({ count }: { count: number }) {
         </button>
       </div>
     </section>
+  )
+}
+
+/** L'outil Image : réglages de l'image choisie (opacité surtout), ou de quoi en ajouter une. */
+function ImageQuick() {
+  const t = useT()
+  const refs = useCanvasStore((state) => state.refs)
+  const selected = useCanvasStore((state) => state.refSelected)
+  const item = refs.find((entry) => entry.id === selected)
+  return (
+    <div className="glass pointer-events-auto flex w-[15.5rem] flex-col gap-3 rounded-3xl p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.45)] max-md:w-full max-md:rounded-2xl">
+      {item ? (
+        <>
+          <ImageControls item={item} />
+          <p className="text-[10px] leading-snug text-mist">{item.locked ? t.canvas.images.locked : t.canvas.images.move}</p>
+        </>
+      ) : (
+        <p className="text-[11px] leading-snug text-mist">{refs.length === 0 ? t.canvas.images.empty : t.canvas.images.pick}</p>
+      )}
+      <AddImageButton className="flex h-10 items-center justify-center gap-2 rounded-full bg-glow px-4 text-sm font-semibold text-white active:scale-95" />
+    </div>
   )
 }

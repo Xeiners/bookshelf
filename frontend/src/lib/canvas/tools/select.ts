@@ -1,6 +1,7 @@
 import { boundsOf, compose, containsPoint, frameArea, inflate, overlaps, rotation, scaling, textSize, topObjectAt, transformData, translation, unionBox, type Affine } from '../geometry'
 import type { Op } from '../history'
 import type { BezierData, Box, CanvasObject, Data, LineData, PolyData } from '../types'
+import { reach } from '../pointer'
 import { editExisting } from './misc'
 import type { Overlay, PointerInfo, Tool, ToolContext } from './context'
 import { deleteSelected, duplicateSelected, editable, nudgeSelected, restackSelected, selectAllEditable, selectedObjects } from './selection'
@@ -115,7 +116,7 @@ export class SelectTool implements Tool {
     for (const handle of list) {
       const [wx, wy] = this.handlePoint(frame, handle)
       const [px, py] = this.ctx.camera.toScreen(wx, wy)
-      if (Math.hypot(px - sx, py - sy) <= 10) return handle
+      if (Math.hypot(px - sx, py - sy) <= reach(10)) return handle
     }
     return null
   }
@@ -348,7 +349,7 @@ export class SelectTool implements Tool {
     const object = this.pathObject()
     if (!object) return null
     let best: NodeRef | null = null
-    let bestDistance = 11
+    let bestDistance = reach(11)
     for (const node of this.nodeList(object)) {
       const [px, py] = this.ctx.camera.toScreen(node.x, node.y)
       const distance = Math.hypot(px - sx, py - sy)

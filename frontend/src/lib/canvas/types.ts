@@ -105,7 +105,7 @@ export interface Ghost {
   at: number
 }
 
-export type ToolId = 'hand' | 'select' | 'pen' | 'eraser' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'bezier' | 'text' | 'frame' | 'pick' | 'heart'
+export type ToolId = 'hand' | 'select' | 'pen' | 'eraser' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'bezier' | 'text' | 'frame' | 'pick' | 'heart' | 'image'
 
 export interface PeerInfo {
   conn: number

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Brush, Circle, Eraser, Frame, Hand, Heart, Minus, MousePointer2, Pentagon, PenTool, Pipette, Redo2, Square, Type, Undo2, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, Brush, Circle, Eraser, Frame, Hand, Heart, ImagePlus, Minus, MousePointer2, Pentagon, PenTool, Pipette, Redo2, Square, Type, Undo2, type LucideIcon } from 'lucide-react'
 import { useT } from '../../i18n'
 import { getEngine } from '../../lib/canvas/current'
 import type { ToolId } from '../../lib/canvas/types'
@@ -18,6 +18,7 @@ const TOOLS: { id: ToolId; icon: LucideIcon; key: string }[] = [
   { id: 'bezier', icon: PenTool, key: 'P' },
   { id: 'text', icon: Type, key: 'T' },
   { id: 'frame', icon: Frame, key: 'F' },
+  { id: 'image', icon: ImagePlus, key: 'M' },
   { id: 'pick', icon: Pipette, key: 'I' },
   { id: 'heart', icon: Heart, key: 'K' },
 ]
@@ -57,7 +58,7 @@ export function Toolbar() {
               vibrate(4)
               setTool(id)
             }}
-            className={`grid size-9 shrink-0 place-items-center rounded-xl transition-colors active:scale-95 md:size-9 ${active ? 'bg-glow text-white shadow-[0_0_16px_-2px_rgba(124,92,255,0.9)]' : id === 'heart' ? 'text-nope/90 hover:bg-white/10' : 'text-cream/75 hover:bg-white/10'}`}
+            className={`grid size-11 shrink-0 place-items-center rounded-xl transition-colors active:scale-95 md:size-9 ${active ? 'bg-glow text-white shadow-[0_0_16px_-2px_rgba(124,92,255,0.9)]' : id === 'heart' ? 'text-nope/90 hover:bg-white/10' : 'text-cream/75 hover:bg-white/10'}`}
           >
             <Icon size={19} strokeWidth={active ? 2.4 : 2} aria-hidden />
           </button>
@@ -69,7 +70,7 @@ export function Toolbar() {
 
 function ActionButton({ label, shortcut, disabled, onClick, children }: { label: string; shortcut: string; disabled: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" title={`${label} (${shortcut})`} aria-label={label} disabled={disabled} onClick={onClick} className="grid size-9 shrink-0 place-items-center rounded-xl text-cream/75 transition-colors hover:bg-white/10 active:scale-95 disabled:opacity-30">
+    <button type="button" title={`${label} (${shortcut})`} aria-label={label} disabled={disabled} onClick={onClick} className="grid size-11 shrink-0 place-items-center rounded-xl text-cream/75 transition-colors hover:bg-white/10 active:scale-95 disabled:opacity-30 md:size-9">
       {children}
     </button>
   )

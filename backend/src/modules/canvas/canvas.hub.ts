@@ -446,7 +446,7 @@ function strike(peer: Peer): void {
   if (peer.strikes > MAX_STRIKES) peer.ws.close(1008, 'invalid')
 }
 
-const TOOLS = new Set(['hand', 'select', 'pen', 'eraser', 'rect', 'ellipse', 'line', 'arrow', 'polygon', 'bezier', 'text', 'frame', 'pick', 'heart'])
+const TOOLS = new Set(['hand', 'select', 'pen', 'eraser', 'rect', 'ellipse', 'line', 'arrow', 'polygon', 'bezier', 'text', 'frame', 'pick', 'heart', 'image'])
 
 function onMessage(peer: Peer, raw: RawData): void {
   const size = Array.isArray(raw) ? raw.reduce((sum, chunk) => sum + chunk.length, 0) : raw instanceof ArrayBuffer ? raw.byteLength : raw.length
@@ -615,7 +615,9 @@ function originAllowed(request: IncomingMessage): boolean {
   if (!origin) return true
   try {
     const url = new URL(origin)
-    if (url.host === request.headers.host) return true
+    // Derrière Caddy puis Nginx, `Host` peut avoir perdu son port : on accepte aussi l'hôte annoncé par le proxy.
+    const forwarded = String(request.headers['x-forwarded-host'] ?? '').split(',')[0]?.trim()
+    if (url.host === request.headers.host || (forwarded && url.host === forwarded)) return true
   } catch {
     return false
   }

@@ -1234,7 +1234,7 @@ Une seule instance de l'API tient la toile.
 invités dessinent, l'auteur effaçant ce qu'on y laisse ; budget d'encre de 25 000 objets par saison ;
 pinceaux débloqués (3 de départ ; les autres s'achètent en Poussières ou se débloquent avec les « j'aime »
 reçus) ; seaux de jetons par connexion (opérations, aperçus, curseur) ; messages invalides → coupure.
-Un compte doit avoir `CANVAS_MIN_ACCOUNT_AGE_MIN` minutes (30 par défaut) pour dessiner ; il peut regarder avant.
+Un compte doit avoir `CANVAS_MIN_ACCOUNT_AGE_MIN` minutes (5 par défaut) pour dessiner ; il peut regarder avant.
 
 **Social et modération** (`canvas.social.ts`, `canvas.moderation.ts`) : « j'aime » (un par compte et par
 objet, 40 par jour) qui rapportent 1 ✦ à l'auteur (60 par jour au plus) ; signalements : **trois comptes

@@ -697,6 +697,16 @@ ligne). Les boutons appellent le moteur courant (`getEngine()`) dans leurs gesti
   Un outil ne touche ni réseau ni écran : il lit la scène et `commit` une entrée d'historique.
 - **Gestes** : souris, doigt et stylet (rejet de la paume), deux doigts, molette / pavé tactile, Espace,
   bouton du milieu ; double-clic compté à la main (les événements « pointer » n'ont pas de compteur).
+- **Images de référence** (`references.ts`, `tools/image.ts`) : pour calquer. **Privées** : stockées dans
+  IndexedDB (une base par compte), jamais envoyées au serveur ni vues des autres, absentes de l'export PNG.
+  Position, taille, rotation, opacité (50 % par défaut), dessus/dessous, visible, verrou ; 8 images au plus,
+  réduites à 2 048 px. Ajout par le bouton, Ctrl+V ou glisser-déposer. Une image verrouillée n'attrape plus
+  les gestes : on dessine par-dessus sans la déplacer.
+- **Téléphone** : une seule disposition montée à la fois (`useDesktop`, media query) ; barre d'outils et
+  panneaux en bas sous le pouce, couleurs / épaisseur rapides (`QuickBar`), menu « … » pour les panneaux,
+  zones de saisie agrandies au tactile (`pointer.ts`), `touch-action: none`, gestes Safari bloqués, saisie
+  à 16 px (pas de zoom iOS). Un doigt dessine, deux déplacent / zooment ; un message explique tout refus
+  (compte trop récent, bloqué, hors ligne).
 - **Portail sur `body`** : les écrans des Activités glissent (`transform`), ce qui piégerait un `fixed`.
 - **Hors React** : `net.ts` (WebSocket qui se rétablit seul), `tilecache.ts`, `render.ts`, `brushes.ts`.
   Tests : `test/canvas.test.ts` (géométrie identique à celle du serveur, caméra, scène, historique).

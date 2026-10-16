@@ -1,4 +1,5 @@
 import { boundsOf } from '../geometry'
+import { reach } from '../pointer'
 import { drawData } from '../render'
 import type { BezierData, Data, PolyData } from '../types'
 import { commonStyle, type Overlay, type PointerInfo, type Tool, type ToolContext } from './context'
@@ -11,7 +12,7 @@ import { commonStyle, type Overlay, type PointerInfo, type Tool, type ToolContex
  * Échap abandonne.
  */
 
-const CLOSE_RADIUS_PX = 11
+const closeRadius = () => reach(11)
 const LIVE_EVERY_MS = 80
 
 abstract class PathTool implements Tool {
@@ -167,7 +168,7 @@ export class PolygonTool extends PathTool {
       // Le double-clic a déjà posé son premier point : on termine sans le doubler.
       return this.finish(false)
     }
-    const near = this.count() >= 3 && Math.hypot(e.x - this.points[0]!, e.y - this.points[1]!) * this.ctx.camera.zoom < CLOSE_RADIUS_PX
+    const near = this.count() >= 3 && Math.hypot(e.x - this.points[0]!, e.y - this.points[1]!) * this.ctx.camera.zoom < closeRadius()
     if (near) return this.finish(true)
     this.points.push(Math.round(e.x * 100) / 100, Math.round(e.y * 100) / 100)
     if (this.points.length / 2 >= 250) this.finish(false)
@@ -236,7 +237,7 @@ export class BezierTool extends PathTool {
       return this.finish(false)
     }
     const first = this.nodes[0]
-    if (first && this.nodes.length >= 3 && Math.hypot(e.x - first.x, e.y - first.y) * this.ctx.camera.zoom < CLOSE_RADIUS_PX) {
+    if (first && this.nodes.length >= 3 && Math.hypot(e.x - first.x, e.y - first.y) * this.ctx.camera.zoom < closeRadius()) {
       return this.finish(true)
     }
     this.nodes.push({ x: e.x, y: e.y, ix: e.x, iy: e.y, ox: e.x, oy: e.y })

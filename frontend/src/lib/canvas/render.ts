@@ -2,6 +2,7 @@ import { drawStroke } from './brushes'
 import { Camera, tileLevelFor } from './camera'
 import { flattenBezier, textSize } from './geometry'
 import type { Scene } from './scene'
+import type { ReferenceLayer } from './references'
 import { tileSize, type TileCache } from './tilecache'
 import type { Box, CanvasObject, Data, FrameData, ToolId } from './types'
 
@@ -225,13 +226,15 @@ export class Renderer {
   private readonly camera: Camera
   private readonly scene: Scene
   private readonly tiles: TileCache
+  private readonly references: ReferenceLayer
 
-  constructor(base: HTMLCanvasElement, overlay: HTMLCanvasElement, camera: Camera, scene: Scene, tiles: TileCache) {
+  constructor(base: HTMLCanvasElement, overlay: HTMLCanvasElement, camera: Camera, scene: Scene, tiles: TileCache, references: ReferenceLayer) {
     this.base = base
     this.overlay = overlay
     this.camera = camera
     this.scene = scene
     this.tiles = tiles
+    this.references = references
     this.baseContext = base.getContext('2d', { alpha: false })!
     this.overlayContext = overlay.getContext('2d')!
   }
@@ -250,7 +253,8 @@ export class Renderer {
     ctx.setTransform(scale, 0, 0, scale, -this.camera.x * scale, -this.camera.y * scale)
   }
 
-  drawBase(env: RenderEnv): void {
+  /** `withReferences: false` : sans les images de référence (enregistrement de la vue). */
+  drawBase(env: RenderEnv, withReferences = true): void {
     const ctx = this.baseContext
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.fillStyle = PAPER
@@ -258,8 +262,10 @@ export class Renderer {
     this.drawGrid(ctx)
     const view = this.camera.bounds()
     this.world(ctx)
+    if (withReferences) this.references.draw(ctx, false)
     if (env.mode === 'tiles') {
       this.drawTiles(ctx, view, env.maxTileLevel)
+      if (withReferences) this.references.draw(ctx, true)
       this.lastCount = 0
       return
     }
@@ -291,6 +297,7 @@ export class Renderer {
         ctx.restore()
       }
     }
+    if (withReferences) this.references.draw(ctx, true)
   }
 
   /** Points de repère : une grille qui s'adapte au zoom (jamais plus d'un point tous les ~24 px). */

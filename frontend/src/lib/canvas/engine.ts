@@ -1,12 +1,15 @@
 import { canvasApi } from '../../services/canvasApi'
 import { useCanvasStore } from '../../store/useCanvasStore'
+import { reach } from './pointer'
 import { Camera, MAX_ZOOM, MIN_ZOOM, VECTOR_ENTER, VECTOR_LEAVE, tileLevelFor } from './camera'
 import { boundsOf, containsPoint, frameArea, inflate, overlaps, unionBox } from './geometry'
 import { History, type Entry, type Op } from './history'
 import { CanvasSocket, type SocketStatus } from './net'
+import { ReferenceLayer, type ReferencePatch } from './references'
 import { Renderer, drawCursor, drawData, drawReactions, type CursorView, type RenderEnv } from './render'
 import { Scene, fromWire, type WireObject } from './scene'
 import { TileCache } from './tilecache'
+import { ImageTool } from './tools/image'
 import { HeartTool, HandTool, PickTool, TextTool } from './tools/misc'
 import { BezierTool, PolygonTool } from './tools/paths'
 import { EraserTool } from './tools/eraser'
@@ -38,7 +41,7 @@ const hex = () => {
 
 const cellKey = (limits: Limits, box: Box) => `${Math.floor(box.minX / limits.cell)}:${Math.floor(box.minY / limits.cell)}`
 
-const TOOL_KEYS: Record<string, ToolId> = { v: 'select', h: 'hand', b: 'pen', e: 'eraser', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', g: 'polygon', p: 'bezier', t: 'text', f: 'frame', i: 'pick', k: 'heart' }
+const TOOL_KEYS: Record<string, ToolId> = { m: 'image', v: 'select', h: 'hand', b: 'pen', e: 'eraser', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', g: 'polygon', p: 'bezier', t: 'text', f: 'frame', i: 'pick', k: 'heart' }
 
 interface Float {
   emoji: string
@@ -54,6 +57,8 @@ export class CanvasEngine {
   readonly peers = new Map<number, CursorView>()
   /** Où l'on a vu chaque joueur pour la dernière fois (même loin) : « aller vers ». */
   readonly places = new Map<number, { x: number; y: number }>()
+  /** Images de référence : privées, jamais envoyées au serveur. */
+  readonly references: ReferenceLayer
   limits: Limits | null = null
 
   private readonly container: HTMLElement
@@ -90,8 +95,10 @@ export class CanvasEngine {
   private panning: { sx: number; sy: number; samples: { t: number; sx: number; sy: number }[] } | null = null
   private toolActive = false
   private spaceDown = false
-  private penSeenAt = 0
+  /** Dernière fois qu'un stylet a touché l'écran (jamais, au départ) : le doigt devient alors la main. */
+  private penSeenAt = -Infinity
   /** Dernier appui (les événements « pointer » n'ont pas de compteur de clics : on le tient). */
+  private previousOverscroll = ''
   private lastDown = { time: 0, sx: 0, sy: 0, count: 0 }
 
   constructor(container: HTMLElement, base: HTMLCanvasElement, overlay: HTMLCanvasElement) {
@@ -101,7 +108,8 @@ export class CanvasEngine {
     this.tiles = new TileCache(() => {
       this.baseDirty = true
     })
-    this.renderer = new Renderer(base, overlay, this.camera, this.scene, this.tiles)
+    this.references = new ReferenceLayer(() => this.onReferences())
+    this.renderer = new Renderer(base, overlay, this.camera, this.scene, this.tiles, this.references)
     this.socket = new CanvasSocket({ onStatus: (status) => this.onStatus(status), onMessage: (message) => this.onMessage(message) })
     this.tool = this.makeTool('pen')
     this.tools.set('pen', this.tool)
@@ -119,11 +127,18 @@ export class CanvasEngine {
     this.overlay.addEventListener('pointercancel', this.onPointerUp)
     this.overlay.addEventListener('wheel', this.onWheel, { passive: false })
     this.overlay.addEventListener('contextmenu', this.preventDefault)
+    // Safari iOS : pas de zoom de la page par pincement (le zoom est celui de la toile).
+    for (const name of ['gesturestart', 'gesturechange', 'gestureend']) this.overlay.addEventListener(name, this.preventDefault)
+    this.previousOverscroll = document.documentElement.style.overscrollBehavior
+    document.documentElement.style.overscrollBehavior = 'none'
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
     window.addEventListener('blur', this.onBlur)
     document.addEventListener('visibilitychange', this.onVisibility)
     window.addEventListener('online', this.onOnline)
+    window.addEventListener('paste', this.onPaste)
+    this.overlay.addEventListener('dragover', this.onDragOver)
+    this.overlay.addEventListener('drop', this.onDrop)
     this.unsubscribe = store.subscribe((state, previous) => {
       if (state.tool !== previous.tool) this.useTool(state.tool)
       if (state.tool !== previous.tool || state.ink !== previous.ink || state.width !== previous.width) this.sendTool()
@@ -146,14 +161,20 @@ export class CanvasEngine {
     this.overlay.removeEventListener('pointercancel', this.onPointerUp)
     this.overlay.removeEventListener('wheel', this.onWheel)
     this.overlay.removeEventListener('contextmenu', this.preventDefault)
+    for (const name of ['gesturestart', 'gesturechange', 'gestureend']) this.overlay.removeEventListener(name, this.preventDefault)
+    document.documentElement.style.overscrollBehavior = this.previousOverscroll
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
     document.removeEventListener('visibilitychange', this.onVisibility)
     window.removeEventListener('online', this.onOnline)
+    window.removeEventListener('paste', this.onPaste)
+    this.overlay.removeEventListener('dragover', this.onDragOver)
+    this.overlay.removeEventListener('drop', this.onDrop)
     this.unsubscribe?.()
     for (const tool of this.tools.values()) tool.dispose?.()
     this.closeEditor()
+    this.references.dispose()
     if (this.cursorTimer) clearTimeout(this.cursorTimer)
     this.socket.dispose()
     this.tiles.dispose()
@@ -440,6 +461,7 @@ export class CanvasEngine {
     })
     this.sendTool()
     this.viewDirty = true
+    void this.references.attach(me.u).catch(() => undefined)
   }
 
   private addPeer(raw: Record<string, unknown>, into?: Record<number, PeerInfo>): void {
@@ -631,6 +653,8 @@ export class CanvasEngine {
         return new PickTool(ctx)
       case 'heart':
         return new HeartTool(ctx)
+      case 'image':
+        return new ImageTool(ctx, { layer: this.references, selected: () => store.getState().refSelected, select: (id) => store.setState({ refSelected: id }) })
       case 'hand':
         return new HandTool()
     }
@@ -667,7 +691,7 @@ export class CanvasEngine {
       newId: hex,
       canEdit: (object) => object.owner === store.getState().me?.userId || (store.getState().me?.admin ?? false) || engine.ownsFrameOver(object),
       lockedAt: (x, y, box) => engine.lockedAt(x, y, box),
-      tolerance: () => 7 / this.camera.zoom,
+      tolerance: () => reach(7) / this.camera.zoom,
       commit: (entry) => this.commit(entry),
       previewObject: (object) => {
         this.scene.upsert(object)
@@ -700,7 +724,11 @@ export class CanvasEngine {
       state.notify('offline')
       return false
     }
-    if (!state.me?.draw) return false
+    if (!state.me?.draw) {
+      // Jamais en silence : on dit pourquoi on ne peut pas encore dessiner.
+      state.notify(state.me?.reason === 'banned' ? 'banned' : state.me?.reason === 'young' ? 'young' : 'cannot_draw')
+      return false
+    }
     return true
   }
 
@@ -804,7 +832,8 @@ export class CanvasEngine {
     const editor = this.editor
     if (!editor) return
     const [sx, sy] = this.camera.toScreen(editor.x, editor.y)
-    const size = Math.max(10, editor.size * this.camera.zoom)
+    // 16 px au moins : en dessous, Safari iOS zoome la page à l'ouverture du clavier.
+    const size = Math.max(16, editor.size * this.camera.zoom)
     const element = editor.element as HTMLElement
     element.style.left = `${sx - 4}px`
     element.style.top = `${sy - 3}px`
@@ -1155,9 +1184,84 @@ export class CanvasEngine {
     this.commit({ undo: [{ k: 'u', id, o: object.data }], redo: [{ k: 'u', id, o: next }] })
   }
 
-  /** L'image de ce qui est affiché (PNG). */
-  exportPng(): Promise<Blob | null> {
-    return new Promise((resolve) => this.base.toBlob((blob) => resolve(blob), 'image/png'))
+  /** L'image de ce qui est affiché (PNG), sans les images de référence (elles sont privées et à calquer). */
+  async exportPng(): Promise<Blob | null> {
+    this.renderer.drawBase(this.env(), false)
+    const blob = await new Promise<Blob | null>((resolve) => this.base.toBlob((result) => resolve(result), 'image/png'))
+    this.baseDirty = true
+    return blob
+  }
+
+  /* ---- Images de référence ---------------------------------------------------------------- */
+
+  private refSignature = ''
+
+  /** Une image a changé : on redessine, et l'interface suit si ce qu'elle affiche a changé. */
+  private onReferences(): void {
+    this.baseDirty = true
+    this.overlayDirty = true
+    const items = this.references.items
+    const signature = items.map((item) => `${item.id}:${item.visible}:${item.locked}:${item.opacity.toFixed(2)}:${item.above}`).join('|')
+    if (signature === this.refSignature) return
+    this.refSignature = signature
+    const selected = store.getState().refSelected
+    store.setState({
+      refs: items.map((item) => ({ id: item.id, visible: item.visible, locked: item.locked, opacity: item.opacity, above: item.above, thumb: item.thumb })),
+      ...(selected && !items.some((item) => item.id === selected) ? { refSelected: null } : {}),
+    })
+  }
+
+  /** Pose une image au centre de la vue, la sélectionne et passe à l'outil Image. */
+  async addImage(file: Blob): Promise<void> {
+    const [cx, cy] = this.camera.center()
+    const span = (Math.min(this.camera.width, this.camera.height) * 0.7) / this.camera.zoom
+    const result = await this.references.add(file, [cx, cy], span)
+    if (result === 'limit' || result === 'failed') {
+      store.getState().notify(result === 'limit' ? 'image_limit' : 'image_failed')
+      return
+    }
+    store.setState({ refSelected: result.id })
+    store.getState().setTool('image')
+  }
+
+  /** Choisit une image à régler : l'outil Image prend la main. */
+  selectReference(id: string | null): void {
+    store.setState({ refSelected: id })
+    if (id) store.getState().setTool('image')
+  }
+
+  updateReference(id: string, patch: ReferencePatch): void {
+    this.references.update(id, patch)
+  }
+
+  removeReference(id: string): void {
+    this.references.remove(id)
+  }
+
+  /** Cadre une image dans la vue. */
+  locateReference(id: string): void {
+    const item = this.references.get(id)
+    if (!item) return
+    this.camera.fit({ minX: item.x, minY: item.y, maxX: item.x + item.w, maxY: item.y + item.h })
+  }
+
+  private onPaste = (event: ClipboardEvent) => {
+    if (this.typing(event as unknown as KeyboardEvent)) return
+    const file = [...(event.clipboardData?.files ?? [])].find((entry) => entry.type.startsWith('image/'))
+    if (!file) return
+    event.preventDefault()
+    void this.addImage(file)
+  }
+
+  private onDragOver = (event: DragEvent) => {
+    if (event.dataTransfer?.types.includes('Files')) event.preventDefault()
+  }
+
+  private onDrop = (event: DragEvent) => {
+    const file = [...(event.dataTransfer?.files ?? [])].find((entry) => entry.type.startsWith('image/'))
+    if (!file) return
+    event.preventDefault()
+    void this.addImage(file)
   }
 
   /** Pour la mini-carte : la vue, les curseurs. */

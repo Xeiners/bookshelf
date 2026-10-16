@@ -34,6 +34,16 @@ export interface Style {
   align: 0 | 1 | 2
 }
 
+/** Une image de référence, vue par l'interface (la bitmap reste dans le moteur). */
+export interface RefView {
+  id: string
+  visible: boolean
+  locked: boolean
+  opacity: number
+  above: boolean
+  thumb: string
+}
+
 export interface Notice {
   id: number
   kind: 'error' | 'info'
@@ -65,6 +75,9 @@ interface CanvasState extends Style {
   online: number
   /** Un cadre à rejoindre dès l'ouverture (venu d'une notification). */
   pendingTarget: { x: number; y: number } | null
+  /** Images de référence (privées, sur cet appareil) et celle qu'on règle. */
+  refs: RefView[]
+  refSelected: string | null
 
   set: (patch: Partial<CanvasState>) => void
   setTool: (tool: ToolId) => void
@@ -109,6 +122,8 @@ const initial = {
   following: null,
   online: 0,
   pendingTarget: null as { x: number; y: number } | null,
+  refs: [] as RefView[],
+  refSelected: null as string | null,
 }
 
 export const useCanvasStore = create<CanvasState>()((set, get) => ({
