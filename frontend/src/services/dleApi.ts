@@ -160,6 +160,8 @@ export const GUESS_OPTIONS = [null, 5, 10, 15, 20, 30] as const
 export const DURATION_OPTIONS = [60, 120, 180, 300, 600] as const
 
 export interface RoomSettings {
+  /** L'univers du jeu : l'hôte en change sans recréer le salon. */
+  category?: DleCategory
   kind?: RoomKind
   /** Formats joués l'un après l'autre (Classique, Couverture ou les deux). */
   modes?: DleMode[]

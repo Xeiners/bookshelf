@@ -745,6 +745,8 @@ export async function joinRoom(participant: Participant, code: string): Promise<
 }
 
 export interface RoomSettings {
+  /** L'univers du jeu (Naruto, One Piece…) : on en change sans recréer le salon. */
+  category?: DleCategory
   kind?: RoomKind
   /** Formats joués l'un après l'autre (Classique, Couverture ou les deux). */
   modes?: DleMode[]
@@ -759,6 +761,12 @@ export async function setRoomSettings(userId: string, code: string, settings: Ro
   if (room.hostId !== userId) throw new HttpError(403, 'not_host', 'Seul l’hôte peut régler la partie.')
   if (room.phase !== 'lobby' && !(room.phase === 'results' && room.nextStageAt === null)) throw conflict('La partie a déjà commencé.', 'room_started')
   if (settings.kind !== undefined) room.kind = settings.kind
+  if (settings.category !== undefined && settings.category !== room.category) {
+    // Le nouvel univers doit être prêt avant d'être choisi ; ses œuvres n'ont rien à voir avec celles déjà cherchées.
+    await gameOf(settings.category).pool()
+    room.category = settings.category
+    room.used = new Set()
+  }
   if (settings.modes !== undefined) {
     room.modes = normalizeModes(settings.modes)
     room.mode = room.modes[0] ?? 'classic'

@@ -193,6 +193,7 @@ dleRouter.post('/rooms/:code/kind', roomLimiter, async (req, res) => {
 })
 
 const SettingsBody = z.object({
+  category: Category.optional(),
   kind: Kind.optional(),
   modes: Modes.optional(),
   maxGuesses: z
@@ -208,7 +209,7 @@ const SettingsBody = z.object({
     .optional(),
 })
 
-/** L'hôte règle la partie : type, essais par manche (illimités ou non), durée. */
+/** L'hôte règle la partie : univers, type, formats, essais par manche (illimités ou non), durée. */
 dleRouter.post('/rooms/:code/settings', roomLimiter, async (req, res) => {
   res.json(await setRoomSettings(currentPlayer(req).id, Code.parse(req.params.code), SettingsBody.parse(req.body)))
 })

@@ -1193,6 +1193,11 @@ la transaction sous PostgreSQL), puis verrou optimiste sur la liste des essais.
   connexion ou à l'inscription : une fois chacun, tous comptes confondus ; périmé à 14 jours ; 300 ✦
   d'invité au plus par compte (pas de ferme à comptes jetables).
 
+**Salon : changer d'univers sans le recréer.** `POST /rooms/:code/settings` accepte `category` (en plus de
+`kind`, `modes`, `maxGuesses`, `roundSeconds`) : l'hôte change d'univers dans la salle d'attente ou une fois la
+partie finie (puis « Revanche »), jamais en pleine manche (`room_started`) ; les œuvres déjà cherchées sont
+oubliées et les autres joueurs suivent au prochain rafraîchissement du salon.
+
 **Portraits** (`dle.jikan.ts`, une `portraitSource` par univers).
 
 1. Listes de personnages des séries sur Jikan (MyAnimeList).

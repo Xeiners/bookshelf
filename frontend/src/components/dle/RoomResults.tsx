@@ -253,6 +253,7 @@ export function RoomResults({ room }: { room: RoomView }) {
             {t.dle.room.rematch}
           </button>
         ) : null}
+        {isHost && nextIn === null && <p className="max-w-xs text-center text-xs text-mist">{t.dle.room.rematchHint}</p>}
       </div>
       <ParticleBurst burst={burst} />
     </div>

@@ -2523,7 +2523,7 @@ export const en: Dictionary = {
       nextStage: (mode: string, seconds: number) => `Next round: ${mode} in ${seconds}s`,
       overall: 'Overall ranking',
       points: (count: number) => `${count} pt${plural(count, '', 's')}`,
-      settings: { modes: 'Formats', guesses: 'Guesses', duration: 'Duration', unlimited: '∞', minutes: (minutes: number) => `${minutes} min` },
+      settings: { category: 'Universe', modes: 'Formats', guesses: 'Guesses', duration: 'Duration', unlimited: '∞', minutes: (minutes: number) => `${minutes} min` },
       kindLabel: 'Game type',
       kind: {
         versus: { title: 'VERSUS', hint: 'Your own grid: fastest wins.' },
@@ -2562,6 +2562,7 @@ export const en: Dictionary = {
       capped: 'Daily cap reached',
       training: 'Practice: no Stardust',
       rematch: 'Rematch',
+      rematchHint: 'In the lobby you can change universe and format before starting again.',
       closed: 'The room has closed.',
       solvedToast: (name: string) => `${name} found it!`,
       anonymous: 'Player',

@@ -7,7 +7,7 @@ import { displayRoomCode } from '../../lib/dle'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playJoin, playLeave } from '../../lib/sfx'
-import { DLE_MODES, DURATION_OPTIONS, GUESS_OPTIONS, type DleMode, type RoomPlayer, type RoomSettings, type RoomView } from '../../services/dleApi'
+import { DLE_CATEGORIES, DLE_MODES, DURATION_OPTIONS, GUESS_OPTIONS, type DleCategory, type DleMode, type RoomPlayer, type RoomSettings, type RoomView } from '../../services/dleApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
 import { STARDUST_GRADIENT, auraOf, modeLabel, playerName } from './dleStyle'
@@ -97,6 +97,14 @@ export function RoomLobby({ room, onShare }: { room: RoomView; onShare: () => vo
         {/* Réglages : l'hôte choisit, les autres voient. */}
         <div className="mx-auto flex w-full max-w-md flex-col gap-3">
           <KindPicker value={room.kind} disabled={!isHost} onChange={(kind) => void settle({ kind })} />
+          {/* L'univers se change ici, quand on veut : plus besoin de recréer le salon. */}
+          <CategoryRow
+            label={t.dle.room.settings.category}
+            value={room.category}
+            disabled={!isHost}
+            labelOf={(category) => t.dle.categories[category].title}
+            onChange={(category) => void settle({ category })}
+          />
           <ModesRow
             label={t.dle.room.settings.modes}
             modes={room.modes}
@@ -224,6 +232,49 @@ function PlayerCard({ player, you, index }: { player: RoomPlayer; you: boolean; 
             {t.dle.room.you}
           </span>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** L'univers de la partie : une rangée de pastilles défilante (lecture seule pour les autres joueurs). */
+function CategoryRow({
+  label,
+  value,
+  disabled,
+  labelOf,
+  onChange,
+}: {
+  label: string
+  value: DleCategory
+  disabled: boolean
+  labelOf: (category: DleCategory) => string
+  onChange: (category: DleCategory) => void
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-16 shrink-0 text-[11px] font-semibold tracking-[0.12em] text-mist uppercase">{label}</span>
+      <div role="radiogroup" aria-label={label} className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+        {DLE_CATEGORIES.map((category) => {
+          const active = category === value
+          return (
+            <button
+              key={category}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={disabled && !active}
+              onClick={() => {
+                if (disabled || active) return
+                vibrate(6)
+                onChange(category)
+              }}
+              className={`h-9 rounded-full px-3.5 text-sm font-semibold whitespace-nowrap transition-colors disabled:opacity-35 ${active ? 'bg-cream text-void' : 'bg-white/[0.06] text-cream/80 hover:bg-white/[0.1]'} ${disabled ? 'cursor-default' : ''}`}
+            >
+              {labelOf(category)}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

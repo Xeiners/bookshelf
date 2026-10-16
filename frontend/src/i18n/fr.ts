@@ -2538,7 +2538,7 @@ export const fr = {
       nextStage: (mode: string, seconds: number) => `Manche suivante : ${mode} dans ${seconds} s`,
       overall: 'Classement général',
       points: (count: number) => `${count} pt${plural(count, '', 's')}`,
-      settings: { modes: 'Formats', guesses: 'Essais', duration: 'Durée', unlimited: '∞', minutes: (minutes: number) => `${minutes} min` },
+      settings: { category: 'Univers', modes: 'Formats', guesses: 'Essais', duration: 'Durée', unlimited: '∞', minutes: (minutes: number) => `${minutes} min` },
       kindLabel: 'Type de partie',
       kind: {
         versus: { title: 'VERSUS', hint: 'Chacun sa grille : le plus rapide gagne.' },
@@ -2577,6 +2577,7 @@ export const fr = {
       capped: 'Plafond du jour atteint',
       training: 'Entraînement : pas de Poussières',
       rematch: 'Revanche',
+      rematchHint: 'Dans le salon, tu pourras changer d’univers et de format avant de relancer.',
       closed: 'Le salon a fermé.',
       solvedToast: (name: string) => `${name} a trouvé !`,
       anonymous: 'Joueur',

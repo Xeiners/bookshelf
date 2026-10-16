@@ -697,6 +697,37 @@ describe('dle — invités, COOP, 10 joueurs', () => {
 })
 
 describe('dle — réglages de l’hôte', () => {
+  it('l’hôte change d’univers sans recréer le salon : en salle d’attente et après une partie, jamais en pleine manche', async () => {
+    const created = await alice.request('POST', '/dle/rooms', { category: 'naruto', modes: ['classic'] })
+    const code = created.body.code
+    assert.equal(created.body.category, 'naruto')
+    await bastien.request('POST', `/dle/rooms/${code}/join`)
+    assert.equal((await bastien.request('POST', `/dle/rooms/${code}/settings`, { category: 'onepiece' })).body.error.code, 'not_host')
+    assert.equal((await alice.request('POST', `/dle/rooms/${code}/settings`, { category: 'inconnu' })).status, 400)
+    const onePiece = await alice.request('POST', `/dle/rooms/${code}/settings`, { category: 'onepiece' })
+    assert.equal(onePiece.body.category, 'onepiece')
+    assert.equal((await bastien.request('GET', `/dle/rooms/${code}`)).body.category, 'onepiece', 'les autres joueurs suivent')
+
+    const { ONEPIECE_CHARACTERS } = await import('../src/modules/dle/onepiece.characters.js')
+    const { JJK_CHARACTERS } = await import('../src/modules/dle/jjk.characters.js')
+    await alice.request('POST', `/dle/rooms/${code}/start`)
+    assert.ok(ONEPIECE_CHARACTERS.some((character) => character.id === rooms.roomAnswerForTests(code)), 'la réponse vient de One Piece')
+    assert.equal((await alice.request('POST', `/dle/rooms/${code}/settings`, { category: 'jjk' })).body.error.code, 'room_started', 'pas en pleine manche')
+
+    await alice.request('POST', `/dle/rooms/${code}/forfeit`)
+    const ended = await bastien.request('POST', `/dle/rooms/${code}/forfeit`)
+    assert.equal(ended.body.phase, 'results')
+    // Après la partie : on change d'univers, et la revanche se joue dans le nouvel univers.
+    const jjk = await alice.request('POST', `/dle/rooms/${code}/settings`, { category: 'jjk', modes: ['classic'] })
+    assert.equal(jjk.body.category, 'jjk')
+    assert.equal((await alice.request('POST', `/dle/rooms/${code}/rematch`)).body.phase, 'lobby')
+    assert.equal((await alice.request('GET', `/dle/rooms/${code}`)).body.category, 'jjk')
+    await alice.request('POST', `/dle/rooms/${code}/start`)
+    assert.ok(JJK_CHARACTERS.some((character) => character.id === rooms.roomAnswerForTests(code)), 'la réponse vient de Jujutsu Kaisen')
+    await alice.request('POST', `/dle/rooms/${code}/leave`)
+    await bastien.request('POST', `/dle/rooms/${code}/leave`)
+  })
+
   it('essais illimités par défaut ; l’hôte règle les essais et la durée, les autres non', async () => {
     const created = await alice.request('POST', '/dle/rooms', { mode: 'classic' })
     assert.equal(created.body.maxGuesses, null)
