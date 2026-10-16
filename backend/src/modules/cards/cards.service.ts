@@ -16,8 +16,10 @@ import {
   consume,
   drawPack,
   hasReachedHardPity,
+  hasReachedLegendaryPity,
   initialState,
   isRarity,
+  nextLegendaryPityCount,
   nextPityCount,
   numberSet,
   prestige,
@@ -317,6 +319,7 @@ const isUniqueViolation = (error: unknown) =>
 interface SpentBooster {
   state: BoosterState
   boostersSinceLastMythic: number
+  boostersSinceLastLegendary: number
   /** Boosters offerts restants après cette ouverture. */
   gifted: number
 }
@@ -331,10 +334,10 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
       // pour que son minuteur reparte au plus tôt ; les cadeaux, eux, ne se perdent jamais.
       if (row && gifted > 0) {
         const { count } = await tx.userBooster.updateMany({
-          where: { userId, giftedBoosters: gifted, boostersSinceLastMythic: row.boostersSinceLastMythic },
+          where: { userId, giftedBoosters: gifted, boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary },
           data: { giftedBoosters: { decrement: 1 } },
         })
-        if (count === 1) return { state: regenerate(toState(row), now), boostersSinceLastMythic: row.boostersSinceLastMythic, gifted: gifted - 1 }
+        if (count === 1) return { state: regenerate(toState(row), now), boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary, gifted: gifted - 1 }
         continue
       }
       const status = statusOf(toState(row), now)
@@ -346,7 +349,7 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
     if (!row) {
       try {
         await tx.userBooster.create({ data: { userId, ...data } })
-        return { state: next, boostersSinceLastMythic: 0, gifted: 0 }
+        return { state: next, boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0 }
       } catch (error) {
         if (isUniqueViolation(error)) continue
         throw error
@@ -358,10 +361,11 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
         availableBoosters: row.availableBoosters,
         nextBoosterAt: row.nextBoosterAt,
         boostersSinceLastMythic: row.boostersSinceLastMythic,
+        boostersSinceLastLegendary: row.boostersSinceLastLegendary,
       },
       data,
     })
-    if (count === 1) return { state: next, boostersSinceLastMythic: row.boostersSinceLastMythic, gifted }
+    if (count === 1) return { state: next, boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary, gifted }
   }
   throw conflict('Ouverture déjà en cours, réessaie.', 'booster_busy')
 }
@@ -382,10 +386,11 @@ export async function openBooster(
   // Dépense et cartes ensemble : un booster n'est jamais dépensé sans ses cartes.
   return prisma.$transaction(async (tx) => {
     const spent = unlimited
-      ? { state: initialState(), boostersSinceLastMythic: 0, gifted: 0 }
+      ? { state: initialState(), boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0 }
       : await spendBooster(tx, userId, now)
     const drawn = drawPack(pool, random, {
       forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
+      forceLegendary: !unlimited && hasReachedLegendaryPity(spent.boostersSinceLastLegendary),
     })
     const cards: PulledCard[] = []
     for (const { id } of drawn) {
@@ -407,6 +412,10 @@ export async function openBooster(
         data: {
           boostersSinceLastMythic: nextPityCount(
             spent.boostersSinceLastMythic,
+            drawn.map((card) => card.rarity),
+          ),
+          boostersSinceLastLegendary: nextLegendaryPityCount(
+            spent.boostersSinceLastLegendary,
             drawn.map((card) => card.rarity),
           ),
         },

@@ -12,40 +12,57 @@ export const BOOSTER_INTERVAL_MS = 3 * 60 * 60 * 1000
 export const CARDS_PER_PACK = 4
 /** Le 400e booster consécutif sans Mythique en garantit une sur son dernier slot. */
 export const HARD_PITY_PACKS = 400
+/** Le 120e booster consécutif sans Légendaire (ni Mythique) en garantit une sur son dernier slot. */
+export const LEGENDARY_PITY_PACKS = 120
+/** Chances d'une carte, quel que soit son emplacement dans le booster : Légendaire 0,5 %, Mythique 0,20 %. */
+export const LEGENDARY_RATE = 0.005
+export const MYTHIC_RATE = 0.002
 
 export const RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] as const
 export type Rarity = (typeof RARITIES)[number]
 
 export const isRarity = (value: string): value is Rarity => (RARITIES as readonly string[]).includes(value)
 
+/**
+ * Chaque emplacement a le même taux de Légendaire (0,5 %) et de Mythique (0,20 %) ; ce qui reste
+ * se répartit comme avant entre les raretés basses du slot (la part retirée vient de la plus
+ * fréquente). Sur un booster de 4 cartes : ≈ 1,99 % d'avoir au moins une Légendaire, ≈ 0,80 % une Mythique.
+ */
+
 /** Premiers slots (1 et 2) : cartes de base. */
 export const BASE_SLOT_RATES: Record<Rarity, number> = {
-  COMMON: 0.7,
+  COMMON: 0.693,
   RARE: 0.25,
   EPIC: 0.05,
-  LEGENDARY: 0,
-  MYTHIC: 0,
+  LEGENDARY: LEGENDARY_RATE,
+  MYTHIC: MYTHIC_RATE,
 }
 
-/**
- * Avant-dernier slot (3) : wildcard Rare+. Légendaires et Mythiques sont
- * rarissimes : sur un booster, ≈ 0,05 % de Légendaire et ≈ 0,03 % de Mythique.
- */
+/** Avant-dernier slot (3) : wildcard Rare+. */
 export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
-  RARE: 0.74985,
+  RARE: 0.743,
   EPIC: 0.25,
-  LEGENDARY: 0.0001,
-  MYTHIC: 0.00005,
+  LEGENDARY: LEGENDARY_RATE,
+  MYTHIC: MYTHIC_RATE,
 }
 
 /** Dernier slot (4) : Épique+ garantie. */
 export const HIGH_RARITY_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
-  EPIC: 0.99935,
-  LEGENDARY: 0.0004,
-  MYTHIC: 0.00025,
+  EPIC: 0.993,
+  LEGENDARY: LEGENDARY_RATE,
+  MYTHIC: MYTHIC_RATE,
+}
+
+/** Dernier slot du 120e booster sans Légendaire : Légendaire ou mieux, dans la proportion 0,5 / 0,2. */
+const LEGENDARY_PITY_RATES: Record<Rarity, number> = {
+  COMMON: 0,
+  RARE: 0,
+  EPIC: 0,
+  LEGENDARY: LEGENDARY_RATE / (LEGENDARY_RATE + MYTHIC_RATE),
+  MYTHIC: MYTHIC_RATE / (LEGENDARY_RATE + MYTHIC_RATE),
 }
 
 const MYTHIC_ONLY_RATES: Record<Rarity, number> = {
@@ -139,12 +156,12 @@ function nearestAvailable(rarity: Rarity, has: (rarity: Rarity) => boolean): Rar
 
 /**
  * Table d'un slot, comptée depuis la fin du booster : le dernier est à haute
- * rareté (Mythique forcée par le hard pity), l'avant-dernier est la wildcard,
+ * rareté (Mythique ou Légendaire forcée par les pity), l'avant-dernier est la wildcard,
  * les autres sont de base. Changer `CARDS_PER_PACK` ne retire donc jamais les
  * deux garanties.
  */
-export function slotRates(slot: number, size: number, forceMythic = false): Record<Rarity, number> {
-  if (slot === size - 1) return forceMythic ? MYTHIC_ONLY_RATES : HIGH_RARITY_SLOT_RATES
+export function slotRates(slot: number, size: number, forceMythic = false, forceLegendary = false): Record<Rarity, number> {
+  if (slot === size - 1) return forceMythic ? MYTHIC_ONLY_RATES : forceLegendary ? LEGENDARY_PITY_RATES : HIGH_RARITY_SLOT_RATES
   if (slot === size - 2) return WILDCARD_SLOT_RATES
   return BASE_SLOT_RATES
 }
@@ -158,7 +175,7 @@ export function slotRates(slot: number, size: number, forceMythic = false): Reco
 export function drawPack<C extends { id: string; rarity: string }>(
   cards: readonly C[],
   random: () => number,
-  options: { size?: number; forceMythic?: boolean } = {},
+  options: { size?: number; forceMythic?: boolean; forceLegendary?: boolean } = {},
 ): C[] {
   const size = options.size ?? CARDS_PER_PACK
   const byRarity = new Map<Rarity, C[]>(RARITIES.map((rarity) => [rarity, []]))
@@ -167,7 +184,7 @@ export function drawPack<C extends { id: string; rarity: string }>(
   const picked: C[] = []
   const used = new Set<string>()
   for (let slot = 0; slot < size; slot += 1) {
-    const wanted = drawRarity(random, slotRates(slot, size, options.forceMythic))
+    const wanted = drawRarity(random, slotRates(slot, size, options.forceMythic, options.forceLegendary))
     const fresh = (rarity: Rarity) => byRarity.get(rarity)!.some((card) => !used.has(card.id))
     const any = (rarity: Rarity) => byRarity.get(rarity)!.length > 0
     const rarity = nearestAvailable(wanted, fresh) ?? nearestAvailable(wanted, any)
@@ -203,6 +220,15 @@ export function chooseSeries(available: readonly number[], choice: SeriesChoice,
 /** Le prochain booster est le 400e de la série sèche : son dernier slot est forcé. */
 export const hasReachedHardPity = (boostersSinceLastMythic: number): boolean =>
   boostersSinceLastMythic >= HARD_PITY_PACKS - 1
+
+/** Le prochain booster est le 120e sans Légendaire : son dernier slot est Légendaire ou mieux. */
+export const hasReachedLegendaryPity = (boostersSinceLastLegendary: number): boolean =>
+  boostersSinceLastLegendary >= LEGENDARY_PITY_PACKS - 1
+
+/** Compteur Légendaire : une Légendaire ou une Mythique (plus rare encore) le remet à zéro. */
+export function nextLegendaryPityCount(boostersSinceLastLegendary: number, rarities: readonly string[]): number {
+  return rarities.includes('LEGENDARY') || rarities.includes('MYTHIC') ? 0 : boostersSinceLastLegendary + 1
+}
 
 /** Compteur après attribution : toute Mythique le remet immédiatement à zéro. */
 export function nextPityCount(boostersSinceLastMythic: number, rarities: readonly string[]): number {

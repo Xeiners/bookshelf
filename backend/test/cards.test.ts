@@ -108,13 +108,17 @@ describe('boosters — régénération (1 toutes les 3 h, 3 au plus)', () => {
 /* ---- Tirage ------------------------------------------------------------------------ */
 
 describe('boosters — tirage aléatoire', () => {
-  it('slots 1–3 : probabilités cumulées 70 / 25 / 5', () => {
+  it('slots de base : probabilités cumulées 69,3 / 25 / 5 / 0,5 / 0,20', () => {
     assert.equal(drawRarity(() => 0), 'COMMON')
-    assert.equal(drawRarity(() => 0.6999), 'COMMON')
-    assert.equal(drawRarity(() => 0.7), 'RARE')
-    assert.equal(drawRarity(() => 0.9499), 'RARE')
-    assert.equal(drawRarity(() => 0.95), 'EPIC')
-    assert.equal(drawRarity(() => 0.99999999), 'EPIC')
+    assert.equal(drawRarity(() => 0.6929), 'COMMON')
+    assert.equal(drawRarity(() => 0.6931), 'RARE')
+    assert.equal(drawRarity(() => 0.9429), 'RARE')
+    assert.equal(drawRarity(() => 0.9431), 'EPIC')
+    assert.equal(drawRarity(() => 0.9929), 'EPIC')
+    assert.equal(drawRarity(() => 0.9931), 'LEGENDARY')
+    assert.equal(drawRarity(() => 0.9979), 'LEGENDARY')
+    assert.equal(drawRarity(() => 0.9981), 'MYTHIC')
+    assert.equal(drawRarity(() => 0.99999999), 'MYTHIC')
   })
 
   it('chaque table de slot somme à 1 et respecte ses raretés garanties', () => {
@@ -122,9 +126,9 @@ describe('boosters — tirage aléatoire', () => {
     for (const rates of [BASE_SLOT_RATES, WILDCARD_SLOT_RATES, HIGH_RARITY_SLOT_RATES]) {
       assert.ok(Math.abs(sum(rates) - 1) < 1e-9)
     }
-    assert.deepEqual(BASE_SLOT_RATES, { COMMON: 0.7, RARE: 0.25, EPIC: 0.05, LEGENDARY: 0, MYTHIC: 0 })
-    assert.deepEqual(WILDCARD_SLOT_RATES, { COMMON: 0, RARE: 0.74985, EPIC: 0.25, LEGENDARY: 0.0001, MYTHIC: 0.00005 })
-    assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.99935, LEGENDARY: 0.0004, MYTHIC: 0.00025 })
+    assert.deepEqual(BASE_SLOT_RATES, { COMMON: 0.693, RARE: 0.25, EPIC: 0.05, LEGENDARY: 0.005, MYTHIC: 0.002 })
+    assert.deepEqual(WILDCARD_SLOT_RATES, { COMMON: 0, RARE: 0.743, EPIC: 0.25, LEGENDARY: 0.005, MYTHIC: 0.002 })
+    assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.993, LEGENDARY: 0.005, MYTHIC: 0.002 })
   })
 
   it('4 cartes : deux de base, la wildcard Rare+, puis la haute rareté (forcée Mythique par le pity)', () => {
@@ -157,8 +161,8 @@ describe('boosters — tirage aléatoire', () => {
         assert.ok(Math.abs(slot[rarity] / packs - expected[index]![rarity]) < 0.015, `slot ${index + 1} ${rarity}`)
       }
     })
-    // 1 - (99,995 % × 99,975 %) ≈ 0,03 % des boosters contiennent naturellement une Mythique.
-    assert.ok(mythicPacks / packs < 0.002, `boosters mythiques : ${mythicPacks}`)
+    // Mythique 0,20 % par carte : ≈ 0,80 % des boosters en contiennent une.
+    assert.ok(Math.abs(mythicPacks / packs - 0.008) < 0.004, `boosters mythiques : ${mythicPacks}`)
   })
 
   it('un booster : 4 cartes distinctes, avant-dernier slot Rare+ et dernier Épique+', () => {
@@ -185,7 +189,7 @@ describe('boosters — tirage aléatoire', () => {
     const noMythic = SET.filter((card) => card.rarity !== 'MYTHIC')
     const cards = drawPack(noMythic, () => 0.9999)
     assert.equal(cards.length, CARDS_PER_PACK)
-    assert.deepEqual(cards.map((card) => card.rarity), ['EPIC', 'EPIC', 'LEGENDARY', 'LEGENDARY'])
+    assert.deepEqual(cards.map((card) => card.rarity), ['LEGENDARY', 'LEGENDARY', 'LEGENDARY', 'LEGENDARY'])
   })
 
   it('set minuscule : les doublons d’un même booster sont tolérés plutôt que de manquer une carte', () => {

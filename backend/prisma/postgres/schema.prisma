@@ -190,8 +190,10 @@ model UserBooster {
   availableBoosters Int       @default(3)
   /// Boosters offerts par un administrateur : hors plafond, jamais perdus, ouverts après le stock normal.
   giftedBoosters    Int       @default(0)
-  /// Boosters consécutifs sans Mythique ; le 30e force le dernier slot.
+  /// Boosters consécutifs sans Mythique ; le 400e force le dernier slot.
   boostersSinceLastMythic Int  @default(0)
+  /// Boosters consécutifs sans Légendaire ni Mythique ; le 120e force le dernier slot.
+  boostersSinceLastLegendary Int @default(0)
   /// Dernière ouverture.
   lastClaimedAt     DateTime?
   /// Arrivée du prochain booster ; `null` quand le stock est plein.
