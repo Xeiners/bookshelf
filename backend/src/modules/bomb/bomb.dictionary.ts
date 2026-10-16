@@ -6,6 +6,7 @@ import { DRAGONBALL_CHARACTERS } from '../dle/dragonball.characters.js'
 import { MHA_CHARACTERS } from '../dle/mha.characters.js'
 import { AOT_CHARACTERS } from '../dle/aot.characters.js'
 import { HXH_CHARACTERS } from '../dle/hxh.characters.js'
+import { FIREFORCE_CHARACTERS } from '../dle/fireforce.characters.js'
 import { JOJO_CHARACTERS } from '../dle/jojo.characters.js'
 import { NARUTO_CHARACTERS } from '../dle/naruto.characters.js'
 import { ONEPIECE_CHARACTERS } from '../dle/onepiece.characters.js'
@@ -133,7 +134,7 @@ interface NamedEntry {
 }
 
 function mangaEntries(): NamedEntry[] {
-  const characters = [...NARUTO_CHARACTERS, ...ONEPIECE_CHARACTERS, ...JOJO_CHARACTERS, ...JJK_CHARACTERS, ...DRAGONBALL_CHARACTERS, ...MHA_CHARACTERS, ...AOT_CHARACTERS, ...HXH_CHARACTERS].map((character) => ({
+  const characters = [...NARUTO_CHARACTERS, ...ONEPIECE_CHARACTERS, ...JOJO_CHARACTERS, ...JJK_CHARACTERS, ...DRAGONBALL_CHARACTERS, ...MHA_CHARACTERS, ...AOT_CHARACTERS, ...HXH_CHARACTERS, ...FIREFORCE_CHARACTERS].map((character) => ({
     display: character.name,
     names: [character.name, ...(character.aliases ?? [])],
   }))

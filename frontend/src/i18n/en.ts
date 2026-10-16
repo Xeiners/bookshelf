@@ -2249,7 +2249,7 @@ export const en: Dictionary = {
       aria: 'Glass to clean: rub with your finger or mouse to reveal the picture',
       solved: 'Screen cleaned!',
       opponent: (percent: number) => `${percent}%`,
-      material: { manga: 'Steam', naruto: 'Smoke', onepiece: 'Sand', jojo: 'Paint', jjk: 'Cursed energy', dragonball: 'Flying Nimbus', mha: 'Rubble', aot: 'Titan steam', hxh: 'Nen aura' } as Record<string, string>,
+      material: { manga: 'Steam', naruto: 'Smoke', onepiece: 'Sand', jojo: 'Paint', jjk: 'Cursed energy', dragonball: 'Flying Nimbus', mha: 'Rubble', aot: 'Titan steam', hxh: 'Nen aura', fireforce: 'Ashes' } as Record<string, string>,
     },
     categories: {
       manga: { title: 'Manga & Manhwa', hint: 'The great classics' },
@@ -2261,6 +2261,7 @@ export const en: Dictionary = {
       mha: { title: 'My Hero Academia', hint: 'Heroes, villains and Quirks' },
       aot: { title: 'Attack on Titan', hint: 'Soldiers, Titans and the walls of Paradis' },
       hxh: { title: 'Hunter × Hunter', hint: 'Hunters, Nen and the Phantom Troupe' },
+      fireforce: { title: 'Fire Force', hint: 'Pyrokinetic firefighters and the White-Clad' },
       soon: 'Coming soon',
       locked: 'Locked',
     },
@@ -2337,6 +2338,20 @@ export const en: Dictionary = {
         hunter_exam: 'Exam', zoldyck: 'Zoldyck', arena: 'Arena', yorknew: 'Yorknew City', greed_island: 'Greed Island',
         chimera_ant: 'Ants', election: 'Election', dark_continent: 'Dark Continent',
       } as Record<string, string>,
+      none: 'None',
+    },
+    fireforce: {
+      attributes: { work: 'Character', affiliation: 'Affiliation', power: 'Power', role: 'Role', gender: 'Gender', hair: 'Hair', debut: 'Season' },
+      hair: {
+        black: 'Black', brown: 'Brown', blond: 'Blond', red: 'Red', white: 'White', blue: 'Blue', pink: 'Pink', none: 'None',
+      } as Record<string, string>,
+      affiliation: {
+        company_8: 'Company 8', fire_force: 'Other Company', academy: 'Academy', holy_sol: 'Holy Sol', white_clad: 'White-Clad', haijima: 'Haijima', empire: 'Empire',
+      } as Record<string, string>,
+      power: { second: 'Generation 2', third: 'Generation 3', none: 'None' } as Record<string, string>,
+      role: { firefighter: 'Firefighter', captain: 'Captain', villain: 'Enemy', scientist: 'Scientist', clergy: 'Clergy' } as Record<string, string>,
+      gender: { male: 'Male', female: 'Female' } as Record<string, string>,
+      arc: { season_1: 'Season 1', season_2: 'Season 2', season_3: 'Season 3' } as Record<string, string>,
       none: 'None',
     },
     mha: {

@@ -2264,7 +2264,7 @@ export const fr = {
       aria: 'Vitre à nettoyer : frotte avec le doigt ou la souris pour dévoiler l’image',
       solved: 'Écran nettoyé !',
       opponent: (percent: number) => `${percent} %`,
-      material: { manga: 'Buée', naruto: 'Fumée', onepiece: 'Sable', jojo: 'Peinture', jjk: 'Énergie occulte', dragonball: 'Nuage magique', mha: 'Gravats', aot: 'Vapeur de Titan', hxh: 'Aura de Nen' } as Record<string, string>,
+      material: { manga: 'Buée', naruto: 'Fumée', onepiece: 'Sable', jojo: 'Peinture', jjk: 'Énergie occulte', dragonball: 'Nuage magique', mha: 'Gravats', aot: 'Vapeur de Titan', hxh: 'Aura de Nen', fireforce: 'Cendres' } as Record<string, string>,
     },
     categories: {
       manga: { title: 'Manga & Manhwa', hint: 'Les grands classiques' },
@@ -2276,6 +2276,7 @@ export const fr = {
       mha: { title: 'My Hero Academia', hint: 'Héros, vilains et Alters' },
       aot: { title: 'L’Attaque des Titans', hint: 'Soldats, Titans et murs de Paradis' },
       hxh: { title: 'Hunter × Hunter', hint: 'Hunters, Nen et Brigade fantôme' },
+      fireforce: { title: 'Fire Force', hint: 'Pompiers pyrokinésistes et Vêtus de Blanc' },
       soon: 'Prochainement',
       locked: 'Verrouillé',
     },
@@ -2352,6 +2353,20 @@ export const fr = {
         hunter_exam: 'Examen', zoldyck: 'Zoldyck', arena: 'Arène', yorknew: 'York Shin', greed_island: 'Greed Island',
         chimera_ant: 'Fourmis', election: 'Élection', dark_continent: 'Continent Noir',
       } as Record<string, string>,
+      none: 'Aucun',
+    },
+    fireforce: {
+      attributes: { work: 'Perso', affiliation: 'Affiliation', power: 'Pouvoir', role: 'Rôle', gender: 'Genre', hair: 'Cheveux', debut: 'Saison' },
+      hair: {
+        black: 'Noirs', brown: 'Bruns', blond: 'Blonds', red: 'Roux', white: 'Blancs', blue: 'Bleus', pink: 'Roses', none: 'Aucun',
+      } as Record<string, string>,
+      affiliation: {
+        company_8: 'Compagnie 8', fire_force: 'Autre Compagnie', academy: 'Académie', holy_sol: 'Soleil Sacré', white_clad: 'Vêtus de Blanc', haijima: 'Haijima', empire: 'Empire',
+      } as Record<string, string>,
+      power: { second: 'Génération 2', third: 'Génération 3', none: 'Aucun' } as Record<string, string>,
+      role: { firefighter: 'Pompier', captain: 'Capitaine', villain: 'Ennemi', scientist: 'Scientifique', clergy: 'Clergé' } as Record<string, string>,
+      gender: { male: 'Homme', female: 'Femme' } as Record<string, string>,
+      arc: { season_1: 'Saison 1', season_2: 'Saison 2', season_3: 'Saison 3' } as Record<string, string>,
       none: 'Aucun',
     },
     mha: {

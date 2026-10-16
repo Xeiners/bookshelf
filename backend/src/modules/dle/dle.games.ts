@@ -13,6 +13,7 @@ import { DRAGONBALL_ATTRIBUTES, DRAGONBALL_CHARACTERS, compareDragonBall, dragon
 import { MHA_ATTRIBUTES, MHA_CHARACTERS, compareMha, mhaValues } from './mha.characters.js'
 import { AOT_ATTRIBUTES, AOT_CHARACTERS, aotValues, compareAot } from './aot.characters.js'
 import { HXH_ATTRIBUTES, HXH_CHARACTERS, compareHxh, hxhValues } from './hxh.characters.js'
+import { FIREFORCE_ATTRIBUTES, FIREFORCE_CHARACTERS, compareFireForce, fireForceValues } from './fireforce.characters.js'
 import { JOJO_ATTRIBUTES, JOJO_CHARACTERS, compareJojo, jojoValues } from './jojo.characters.js'
 import { ONEPIECE_ATTRIBUTES, ONEPIECE_CHARACTERS, compareOnePiece, onePieceValues } from './onepiece.characters.js'
 
@@ -173,6 +174,8 @@ export const mhaPortraits = portraitSource('My Hero Academia', [31964, 33486, 36
 export const aotPortraits = portraitSource('L’Attaque des Titans', [16498, 25777, 35760, 38524, 40028, 48583, 51535], [7442], 'attackontitan.fandom.com', AOT_CHARACTERS)
 /** Hunter × Hunter : l'anime de 2011 (l'élection et le Continent Noir viennent du manga). */
 export const hxhPortraits = portraitSource('Hunter × Hunter', [11061], [6642], 'hunterxhunter.fandom.com', HXH_CHARACTERS)
+/** Fire Force : les saisons 1 à 3 de l'anime ; le wiki et la recherche par nom en secours. */
+export const fireForcePortraits = portraitSource('Fire Force', [38671, 40956, 51818], [], 'fire-force.fandom.com', FIREFORCE_CHARACTERS)
 
 const narutoGame = characterGame({
   category: 'naruto',
@@ -246,7 +249,16 @@ const hxhGame = characterGame({
   portraits: hxhPortraits,
 })
 
-const CHARACTER_GAMES = { naruto: narutoGame, onepiece: onePieceGame, jojo: jojoGame, jjk: jjkGame, dragonball: dragonBallGame, mha: mhaGame, aot: aotGame, hxh: hxhGame } satisfies Record<Exclude<DleCategory, 'manga'>, unknown>
+const fireForceGame = characterGame({
+  category: 'fireforce',
+  attributes: FIREFORCE_ATTRIBUTES,
+  characters: FIREFORCE_CHARACTERS,
+  compare: compareFireForce,
+  values: fireForceValues,
+  portraits: fireForcePortraits,
+})
+
+const CHARACTER_GAMES = { naruto: narutoGame, onepiece: onePieceGame, jojo: jojoGame, jjk: jjkGame, dragonball: dragonBallGame, mha: mhaGame, aot: aotGame, hxh: hxhGame, fireforce: fireForceGame } satisfies Record<Exclude<DleCategory, 'manga'>, unknown>
 
 /** Un personnage d'une catégorie de personnages, et son portrait ; `undefined` sinon. */
 export function characterOf(category: DleCategory, id: string): { character: PortraitCharacter; image: () => Promise<CachedImage> } | undefined {

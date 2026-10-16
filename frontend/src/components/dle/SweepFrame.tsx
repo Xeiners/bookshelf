@@ -65,7 +65,7 @@ function grain(context: CanvasRenderingContext2D, random: () => number, count: n
   }
 }
 
-/** Peint la saleté d'un univers : buée, fumée, sable, peinture, énergie occulte, nuage magique, gravats, vapeur de Titan ou aura de Nen. */
+/** Peint la saleté d'un univers : buée, fumée, sable, peinture, énergie occulte, nuage magique, gravats, vapeur de Titan, aura de Nen ou cendres. */
 function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): void {
   const random = seeded(category.length * 7919 + category.charCodeAt(0))
   const W = SWEEP_WIDTH
@@ -281,6 +281,36 @@ function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): vo
       grain(context, random, 700, ['rgba(190,255,220,0.8)', 'rgba(215,190,255,0.75)'], [1, 2.5])
       break
     }
+    case 'fireforce': {
+      // Cendres : une ville calcinée, de la suie, des braises qui montent et des langues de feu.
+      base([[0, '#2a1512'], [0.5, '#1c0e0d'], [1, '#100808']])
+      for (let index = 0; index < 34; index += 1) blob(context, random() * W, random() * H, 50 + random() * 120, random() > 0.5 ? `rgba(255,${90 + Math.floor(random() * 60)},30,${0.1 + random() * 0.18})` : `rgba(10,6,6,${0.25 + random() * 0.25})`)
+      // Langues de feu : des flammes effilées, plus claires au cœur.
+      for (let index = 0; index < 26; index += 1) {
+        const x = random() * W
+        const y = H * (0.35 + random() * 0.65)
+        const height = 50 + random() * 110
+        const flame = context.createLinearGradient(x, y, x, y - height)
+        flame.addColorStop(0, 'rgba(255,200,90,0.85)')
+        flame.addColorStop(0.5, 'rgba(255,100,30,0.6)')
+        flame.addColorStop(1, 'rgba(180,30,20,0)')
+        context.fillStyle = flame
+        context.beginPath()
+        context.moveTo(x - 14, y)
+        context.quadraticCurveTo(x - 10 + (random() - 0.5) * 16, y - height * 0.55, x + (random() - 0.5) * 12, y - height)
+        context.quadraticCurveTo(x + 10 + (random() - 0.5) * 16, y - height * 0.5, x + 14, y)
+        context.closePath()
+        context.fill()
+      }
+      // Braises.
+      context.shadowColor = 'rgba(255,140,40,0.9)'
+      context.shadowBlur = 8
+      grain(context, random, 380, ['rgba(255,190,90,0.95)', 'rgba(255,120,40,0.9)'], [1, 3])
+      context.shadowBlur = 0
+      context.shadowColor = 'transparent'
+      grain(context, random, 1600, ['rgba(0,0,0,0.35)', 'rgba(90,60,50,0.3)'], [1, 2.2])
+      break
+    }
     case 'mha': {
       // Gravats : béton éventré après un combat, poussière, et les éclairs verts de One For All.
       base([[0, '#9a978f'], [0.5, '#77746d'], [1, '#55524c']])
@@ -347,7 +377,7 @@ function paintDirt(context: CanvasRenderingContext2D, category: DleCategory): vo
 }
 
 /** Matière de chaque univers : couleur du chiffon et des étincelles. */
-const SPARK_COLOR: Record<DleCategory, string> = { manga: '#ffffff', naruto: '#ffb86b', onepiece: '#fff4c8', jojo: '#ffd23f', jjk: '#b69bff', dragonball: '#ffe27a', mha: '#86ff9e', aot: '#ffd9c8', hxh: '#9dffcf' }
+const SPARK_COLOR: Record<DleCategory, string> = { manga: '#ffffff', naruto: '#ffb86b', onepiece: '#fff4c8', jojo: '#ffd23f', jjk: '#b69bff', dragonball: '#ffe27a', mha: '#86ff9e', aot: '#ffd9c8', hxh: '#9dffcf', fireforce: '#ffb347' }
 
 /* ---- Le cadre ------------------------------------------------------------------------- */
 

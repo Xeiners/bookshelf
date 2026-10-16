@@ -26,7 +26,10 @@ const FACES: Record<CharacterCategory, string[]> = {
   mha: ['bakugo', 'deku', 'all_might'],
   aot: ['levi', 'eren', 'mikasa'],
   hxh: ['gon', 'killua', 'hisoka'],
+  fireforce: ['arthur', 'shinra', 'maki'],
 }
+
+const CHARACTER_CATEGORIES = ['naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha', 'aot', 'hxh', 'fireforce'] as const
 
 /**
  * Entrée du BookshelfDLE : une grille Bento des catégories. Une grande carte pour
@@ -54,6 +57,7 @@ export function BentoHome({ overview }: { overview: DleOverview }) {
     void loadWorks('mha')
     void loadWorks('aot')
     void loadWorks('hxh')
+    void loadWorks('fireforce')
   }, [loadWorks])
 
   useGSAP(
@@ -111,8 +115,9 @@ export function BentoHome({ overview }: { overview: DleOverview }) {
             </span>
           </BentoCard>
 
-          {(['naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha', 'aot', 'hxh'] as const).map((category) => (
-            <BentoCard key={category} category={category} overview={overview} showStatus={signedIn} className="col-span-1 h-44 sm:h-56" onOpen={() => openCategory(category)}>
+          {CHARACTER_CATEGORIES.map((category, index) => (
+            // Nombre impair d'univers : le dernier occupe toute la largeur, sans trou dans la grille.
+            <BentoCard key={category} category={category} overview={overview} showStatus={signedIn} className={`${CHARACTER_CATEGORIES.length % 2 === 1 && index === CHARACTER_CATEGORIES.length - 1 ? 'col-span-2' : 'col-span-1'} h-44 sm:h-56`} onOpen={() => openCategory(category)}>
               <span aria-hidden className="absolute -top-1 -right-4 flex items-start sm:-right-3">
                 {facesOf(category).map((work, index) => (
                   <img

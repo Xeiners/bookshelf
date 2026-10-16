@@ -597,7 +597,7 @@ Toutes authentifiées. Une offre porte `mine`, `canAccept` (exemplaire libre de 
 
 ### BookshelfDLE (cf. §7 undecies)
 
-`:category` ∈ `manga` · `naruto` · `onepiece` · `jojo` · `jjk` · `dragonball` · `mha` · `aot` · `hxh` ; `:mode` ∈ `classic` · `zoom` · `pixel`.
+`:category` ∈ `manga` · `naruto` · `onepiece` · `jojo` · `jjk` · `dragonball` · `mha` · `aot` · `hxh` · `fireforce` ; `:mode` ∈ `classic` · `zoom` · `pixel`.
 
 | Méthode | Route | Accès | Réponse |
 | --- | --- | --- | --- |
@@ -1139,7 +1139,7 @@ Mini-jeu façon Loldle : deviner une œuvre ou un personnage.
 | `dle.logic.ts` | logique pure (testée) : comparaisons, paliers, zoom, gains, classement, jour de Paris, codes de salon |
 | `dle.games.ts` | une catégorie = un `DleGame` : propositions, colonnes, comparaison, résumé, image |
 | `dle.works.ts` + `dle.famous.ts` | catégorie `manga` : les cartes du set **célèbres** (110 titres choisis à la main) |
-| `naruto.characters.ts`, `onepiece.characters.ts`, `jojo.characters.ts`, `jjk.characters.ts`, `dragonball.characters.ts`, `mha.characters.ts`, `aot.characters.ts`, `hxh.characters.ts` | fiches de personnages rédigées à la main |
+| `naruto.characters.ts`, `onepiece.characters.ts`, `jojo.characters.ts`, `jjk.characters.ts`, `dragonball.characters.ts`, `mha.characters.ts`, `aot.characters.ts`, `hxh.characters.ts`, `fireforce.characters.ts` | fiches de personnages rédigées à la main |
 | `dle.jikan.ts` | portraits : Jikan → Kitsu → wiki Fandom → recherche Jikan |
 | `dle.daily.ts` | énigmes du jour, gains, série |
 | `dle.rooms.ts` | salons multijoueurs en mémoire, attente longue |
@@ -1147,7 +1147,7 @@ Mini-jeu façon Loldle : deviner une œuvre ou un personnage.
 
 **Catégories et formats.**
 
-- `manga` (110 œuvres), `naruto` (58), `onepiece` (55), `jojo` (60), `jjk` (45), `dragonball` (70), `mha` (64), `aot` (62), `hxh` (73).
+- `manga` (110 œuvres), `naruto` (58), `onepiece` (55), `jojo` (60), `jjk` (45), `dragonball` (70), `mha` (64), `aot` (62), `hxh` (73), `fireforce` (22).
 - **Classique** : six colonnes par catégorie, vert (identique), orange (proche : ensembles qui se
   recoupent, valeur ordonnée à un cran), rouge, et une flèche ↑ ↓ pour les valeurs ordonnées (année,
   rareté, paliers de popularité ou de prime, grade, arc d'apparition).

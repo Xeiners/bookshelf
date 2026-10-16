@@ -17,10 +17,10 @@ const { default: sharp } = await import('sharp')
 const PORTRAIT_PNG = await sharp({ create: { width: 60, height: 80, channels: 3, background: { r: 200, g: 40, b: 90 } } }).png().toBuffer()
 
 // Jikan simulé : quelques personnages de Naruto (romanisations de MyAnimeList) et leurs portraits.
-const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki", 'Son, Gokuu', 'Vegeta', 'Freeza', 'Midoriya, Izuku', 'Bakugou, Katsuki', 'Yagi, Toshinori', 'Levi', 'Yeager, Eren', 'Zoldyck, Killua', 'Freecss, Gon']
+const JIKAN_NAMES = ['Uzumaki, Naruto', 'Uchiha, Sasuke', 'Hyuuga, Neji', 'Kankurou', 'Killer Bee', 'Monkey D., Luffy', 'Roronoa, Zoro', 'Nami', 'Kuujou, Joutarou', 'Giovanna, Giorno', 'Itadori, Yuuji', 'Gojou, Satoru', "Zen'in, Maki", 'Son, Gokuu', 'Vegeta', 'Freeza', 'Midoriya, Izuku', 'Bakugou, Katsuki', 'Yagi, Toshinori', 'Levi', 'Yeager, Eren', 'Zoldyck, Killua', 'Freecss, Gon', 'Kusakabe, Shinra']
 mockedHosts.add('api.jikan.moe')
 mockedHosts.add('cdn.myanimelist.net')
-for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'dragonball.fandom.com', 'myheroacademia.fandom.com', 'attackontitan.fandom.com', 'hunterxhunter.fandom.com', 'kitsu.app', 'graphql.anilist.co']) mockedHosts.add(host)
+for (const host of ['naruto.fandom.com', 'onepiece.fandom.com', 'jojo.fandom.com', 'jujutsu-kaisen.fandom.com', 'dragonball.fandom.com', 'myheroacademia.fandom.com', 'attackontitan.fandom.com', 'hunterxhunter.fandom.com', 'fire-force.fandom.com', 'kitsu.app', 'graphql.anilist.co']) mockedHosts.add(host)
 extraMocks.push((url) => {
   // Kitsu : aucun personnage (les portraits des tests viennent du Jikan simulé).
   if (url.hostname === 'kitsu.app') return new Response(JSON.stringify({ data: [], included: [], links: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -874,7 +874,7 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
     // Fiches identiques jusque dans la couleur des cheveux, faute d'un attribut qui les sépare.
     const twins = new Set(['naruto:kiba|shino', 'jjk:hanami|jogo', 'dragonball:gamma1|gamma2'])
     const found: string[] = []
-    for (const category of ['naruto', 'onepiece', 'jjk', 'jojo', 'dragonball', 'mha', 'aot', 'hxh'] as const) {
+    for (const category of ['naruto', 'onepiece', 'jjk', 'jojo', 'dragonball', 'mha', 'aot', 'hxh', 'fireforce'] as const) {
       const game = gameOf(category)
       assert.ok(game.attributes.includes('hair'), `${category} : colonne cheveux`)
       const { list } = await game.pool()
@@ -946,8 +946,25 @@ describe('dle — L’Attaque des Titans et Hunter × Hunter', () => {
     assert.deepEqual(HXH_ATTRIBUTES, ['affiliation', 'nen', 'role', 'gender', 'hair', 'height', 'debut'])
   })
 
+  it('Fire Force : générations de pyrokinésistes, Vêtus de Blanc et saisons ordonnées', async () => {
+    const { FIREFORCE_CHARACTERS, FIREFORCE_ARCS, FIREFORCE_ATTRIBUTES, compareFireForce } = await import('../src/modules/dle/fireforce.characters.js')
+    const find = (id: string) => FIREFORCE_CHARACTERS.find((character) => character.id === id)!
+    const feedback = compareFireForce(find('shinra'), find('arthur'))
+    assert.equal(feedback.affiliation.verdict, 'exact', 'Compagnie 8 et Académie')
+    assert.equal(feedback.power.verdict, 'exact', 'deux troisièmes générations')
+    assert.equal(feedback.hair.verdict, 'wrong')
+    assert.equal(compareFireForce(find('shinra'), find('maki')).power.verdict, 'wrong')
+    assert.equal(compareFireForce(find('haumea'), find('sho')).affiliation.verdict, 'exact', 'Vêtus de Blanc')
+    assert.equal(compareFireForce(find('hibana'), find('iris')).affiliation.verdict, 'partial', 'Temple du Soleil Sacré en commun')
+    assert.deepEqual(compareFireForce(find('shinra'), find('inca')).debut, { verdict: 'partial', direction: 'higher' })
+    assert.equal(new Set(FIREFORCE_CHARACTERS.map((character) => character.id)).size, FIREFORCE_CHARACTERS.length)
+    assert.ok(FIREFORCE_CHARACTERS.length >= 20)
+    assert.ok(FIREFORCE_CHARACTERS.every((character) => (FIREFORCE_ARCS as readonly string[]).includes(character.debut)))
+    assert.deepEqual(FIREFORCE_ATTRIBUTES, ['affiliation', 'power', 'role', 'gender', 'hair', 'debut'])
+  })
+
   it('énigmes du jour, liste des personnages et portraits des deux univers', async () => {
-    for (const [category, name, id] of [['aot', 'Levi Ackerman', 'levi'], ['hxh', 'Killua Zoldyck', 'killua']] as const) {
+    for (const [category, name, id] of [['aot', 'Levi Ackerman', 'levi'], ['hxh', 'Killua Zoldyck', 'killua'], ['fireforce', 'Shinra Kusakabe', 'shinra']] as const) {
       const classic = await chloe.request('GET', `/dle/daily/${category}/classic`)
       assert.equal(classic.status, 200, JSON.stringify(classic.body))
       assert.ok(category in (await chloe.request('GET', '/dle')).body.daily)

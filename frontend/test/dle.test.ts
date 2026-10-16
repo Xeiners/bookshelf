@@ -139,7 +139,7 @@ describe('mode classique — rythme du retournement', () => {
 })
 
 describe('nextPuzzle', () => {
-  const categories = ['manga', 'naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha', 'aot', 'hxh'] as const
+  const categories = ['manga', 'naruto', 'onepiece', 'jojo', 'jjk', 'dragonball', 'mha', 'aot', 'hxh', 'fireforce'] as const
   const modes = ['classic', 'zoom', 'pixel', 'sweep'] as const
   const board = (solved: string[]) =>
     Object.fromEntries(categories.map((category) => [category, Object.fromEntries(modes.map((mode) => [mode, { attempts: 0, reward: 0, solved: solved.includes(`${category}:${mode}`) }]))])) as Parameters<typeof nextPuzzle>[0]
@@ -160,7 +160,9 @@ describe('nextPuzzle', () => {
     const aotDone = modes.map((mode) => `aot:${mode}`)
     assert.deepEqual(nextPuzzle(board(aotDone), 'aot', 'sweep'), { category: 'hxh', mode: 'classic' })
     const hxhDone = modes.map((mode) => `hxh:${mode}`)
-    assert.deepEqual(nextPuzzle(board(hxhDone), 'hxh', 'sweep'), { category: 'manga', mode: 'classic' })
+    assert.deepEqual(nextPuzzle(board(hxhDone), 'hxh', 'sweep'), { category: 'fireforce', mode: 'classic' })
+    const fireDone = modes.map((mode) => `fireforce:${mode}`)
+    assert.deepEqual(nextPuzzle(board(fireDone), 'fireforce', 'sweep'), { category: 'manga', mode: 'classic' })
     const all = categories.flatMap((category) => modes.map((mode) => `${category}:${mode}`))
     assert.equal(nextPuzzle(board(all), 'manga', 'classic'), null)
   })

@@ -1,7 +1,7 @@
 import { createApp } from './app.js'
 import { config } from './config.js'
 import { prisma } from './db.js'
-import { aotPortraits, dragonBallPortraits, hxhPortraits, jjkPortraits, jojoPortraits, mhaPortraits, narutoPortraits, onePiecePortraits } from './modules/dle/dle.games.js'
+import { aotPortraits, dragonBallPortraits, fireForcePortraits, hxhPortraits, jjkPortraits, jojoPortraits, mhaPortraits, narutoPortraits, onePiecePortraits } from './modules/dle/dle.games.js'
 import { refreshWorkCovers } from './modules/higherlower/hl.covers.js'
 import { ensureSeries3 } from './modules/cards/series3.seed.js'
 import { startCatalogSync } from './services/catalog.service.js'
@@ -13,7 +13,7 @@ const app = createApp()
 if (config.catalogSync) startCatalogSync()
 // Portraits du BookshelfDLE (Jikan, lent) : préparés en tâche de fond, aucun joueur ne les attend.
 if (config.env !== 'test') {
-  for (const source of [narutoPortraits, onePiecePortraits, jojoPortraits, jjkPortraits, dragonBallPortraits, mhaPortraits, aotPortraits, hxhPortraits]) void source.charactersWithPortrait().catch(() => undefined)
+  for (const source of [narutoPortraits, onePiecePortraits, jojoPortraits, jjkPortraits, dragonBallPortraits, mhaPortraits, aotPortraits, hxhPortraits, fireForcePortraits]) void source.charactersWithPortrait().catch(() => undefined)
   // Couvertures du Higher or Lower (catalogue, puis recherche MangaDex).
   void refreshWorkCovers()
   // Série 3 des cartes (personnages, Jikan) : dès le démarrage, puis toutes les cinq minutes

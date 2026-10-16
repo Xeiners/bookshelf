@@ -43,6 +43,8 @@ export const CATEGORY_STYLE: Record<DleCategory, { gradient: string; glow: strin
   aot: { gradient: 'linear-gradient(135deg, #f4d58d, #b23a3a 45%, #1f3a5f)', glow: 'rgba(178,58,58,0.55)', ink: '#f2d3c4', accent: '#c94a4a' },
   // Le vert de l'aura de Gon, l'or de la licence de Hunter, le violet du Nen.
   hxh: { gradient: 'linear-gradient(135deg, #b8f27a, #2fbf71 40%, #7a3df0)', glow: 'rgba(47,191,113,0.55)', ink: '#d4f7e0', accent: '#2fbf71' },
+  // Le feu des Compagnies : braise orangée, rouge sombre et la nuit d'une ville qui brûle.
+  fireforce: { gradient: 'linear-gradient(135deg, #ffd166, #ff5a1f 45%, #7a1020)', glow: 'rgba(255,90,31,0.55)', ink: '#ffd7bd', accent: '#ff6a2b' },
 }
 
 /** Nom d'un format : « Classique », et « Couverture » (mangas) ou « Portrait » (personnages). */
