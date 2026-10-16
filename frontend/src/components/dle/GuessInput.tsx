@@ -29,7 +29,7 @@ export function GuessInput({ works, excluded, disabled = false, characters = fal
   const boxRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   /** Place de la liste : sous le champ, ou au-dessus quand l'écran (ou le clavier) n'en laisse pas assez. */
-  const [placement, setPlacement] = useState<{ up: boolean; maxHeight: number }>({ up: false, maxHeight: 320 })
+  const [placement, setPlacement] = useState<{ up: boolean; maxHeight: number }>({ up: false, maxHeight: 400 })
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
@@ -58,7 +58,7 @@ export function GuessInput({ works, excluded, disabled = false, characters = fal
       const below = bottom - rect.bottom - 12
       const above = rect.top - top - 12
       const up = below < 220 && above > below
-      setPlacement({ up, maxHeight: Math.max(96, Math.min(320, up ? above : below)) })
+      setPlacement({ up, maxHeight: Math.max(96, Math.min(400, up ? above : below)) })
     }
     measure()
     const clip = scrollParent(box)
@@ -168,10 +168,10 @@ export function GuessInput({ works, excluded, disabled = false, characters = fal
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => void choose(work)}
                   onMouseEnter={() => setActive(index)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors ${index === active ? 'bg-white/[0.08]' : ''}`}
+                  className={`flex w-full items-center gap-3.5 rounded-xl px-2 py-1.5 text-left transition-colors ${index === active ? 'bg-white/[0.08]' : ''}`}
                 >
-                  <PortraitImage src={work.imageUrl} name={work.name} className="h-11 w-8 shrink-0 rounded-md bg-ink object-cover object-top" />
-                  <span className="min-w-0 flex-1 truncate text-sm text-cream">{work.name}</span>
+                  <PortraitImage src={work.imageUrl} name={work.name} className="h-[4.5rem] w-14 shrink-0 rounded-lg bg-ink object-cover object-top sm:h-20 sm:w-16" />
+                  <span className="min-w-0 flex-1 truncate text-base font-medium text-cream">{work.name}</span>
                   {work.rarity && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: RARITY_STYLE[work.rarity].color }} />}
                 </button>
               </li>
