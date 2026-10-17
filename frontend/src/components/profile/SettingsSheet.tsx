@@ -32,6 +32,7 @@ import { useAmbientStore } from '../../store/useAmbientStore'
 import { useAuthStore, usePendingSync } from '../../store/useAuthStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useNovelStore } from '../../store/useNovelStore'
+import { useSettingsStore } from '../../store/useSettingsStore'
 import { useDownloadStore, type DownloadedChapter } from '../../store/useDownloadStore'
 import { useProfileStore } from '../../store/useProfileStore'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
@@ -525,6 +526,8 @@ function StorageSection() {
   const hasLibrary = useLibraryStore((state) => Object.keys(state.entries).length > 0)
   const resetAll = useLibraryStore((state) => state.resetAll)
   const notify = useUiStore((state) => state.notify)
+  const autoDownload = useSettingsStore((state) => state.autoDownloadNovels)
+  const setAutoDownload = useSettingsStore((state) => state.setAutoDownloadNovels)
 
   const [books, setBooks] = useState<BooksStorage | null>(null)
   const [device, setDevice] = useState<number | null | undefined>(undefined)
@@ -557,6 +560,8 @@ function StorageSection() {
     }
     setClearing(true)
     await clearLocalCache()
+    // Place libérée à dessein : les romans ne se retéléchargent pas d'eux-mêmes tout de suite.
+    useSettingsStore.getState().setAutoDownloadNovels(false)
     // Les romans restent listés, mais plus téléchargés sur l'appareil.
     useNovelStore.setState((state) => ({ books: state.books?.map((entry) => ({ ...entry, downloaded: false })) ?? null }))
     setDevice(await deviceUsage())
@@ -602,7 +607,25 @@ function StorageSection() {
             {device === undefined ? '…' : device === null ? t.settings.storage.deviceUnknown : formatBytes(device, t.locale)}
           </span>
         </div>
-        <p className="mt-1.5 text-[10px] leading-relaxed text-mist">{t.settings.storage.clearHint}</p>
+        {user && (
+          <label className="mt-3 flex items-start justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block text-xs text-cream/85">{t.settings.storage.autoDownload}</span>
+              <span className="mt-0.5 block text-[10px] leading-relaxed text-mist">{t.settings.storage.autoDownloadHint}</span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={autoDownload}
+              onChange={(event) => {
+                setAutoDownload(event.target.checked)
+                if (event.target.checked && user) void useNovelStore.getState().prefetch(user.id)
+              }}
+              className="mt-0.5 size-5 shrink-0 accent-[var(--color-glow)]"
+            />
+          </label>
+        )}
+        <p className="mt-3 text-[10px] leading-relaxed text-mist">{t.settings.storage.clearHint}</p>
         <button
           type="button"
           onClick={() => void clear()}

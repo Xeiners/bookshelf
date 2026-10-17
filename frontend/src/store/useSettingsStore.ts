@@ -29,6 +29,9 @@ interface SettingsState {
   /** Carillon à l'arrivée d'une notification. Propre à l'appareil. */
   notificationSound: boolean
   toggleNotificationSound: () => void
+  /** Romans du compte téléchargés en arrière-plan pour la lecture hors-ligne. Propre à l'appareil. */
+  autoDownloadNovels: boolean
+  setAutoDownloadNovels: (value: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -52,6 +55,9 @@ export const useSettingsStore = create<SettingsState>()(
       notificationSound: true,
       toggleNotificationSound: () => set((state) => ({ notificationSound: !state.notificationSound })),
 
+      autoDownloadNovels: true,
+      setAutoDownloadNovels: (autoDownloadNovels) => set({ autoDownloadNovels }),
+
       applyAccountLanguage: (language) => {
         if (get().language === language) return
         set({ language })
@@ -66,11 +72,12 @@ export const useSettingsStore = create<SettingsState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         guestBannerDismissed: state.guestBannerDismissed,
         notificationSound: state.notificationSound,
+        autoDownloadNovels: state.autoDownloadNovels,
       }),
       // Valeur corrompue ou d'une langue retirée : on revient à la détection.
       merge: (persisted, current) => {
         const saved = persisted as
-          | { language?: unknown; sidebarCollapsed?: unknown; guestBannerDismissed?: unknown; notificationSound?: unknown }
+          | { language?: unknown; sidebarCollapsed?: unknown; guestBannerDismissed?: unknown; notificationSound?: unknown; autoDownloadNovels?: unknown }
           | undefined
         return {
           ...current,
@@ -79,6 +86,7 @@ export const useSettingsStore = create<SettingsState>()(
           guestBannerDismissed: saved?.guestBannerDismissed === true,
           // Absent (réglages d'avant les notifications) : activé.
           notificationSound: saved?.notificationSound !== false,
+          autoDownloadNovels: saved?.autoDownloadNovels !== false,
         }
       },
     },

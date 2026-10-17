@@ -230,6 +230,7 @@ export const fr = {
     rarity: { COMMON: 'Commune', RARE: 'Rare', EPIC: 'Épique', LEGENDARY: 'Légendaire', MYTHIC: 'Mythique' },
     progress: (owned: number, total: number) => `${owned}/${total} cartes débloquées`,
     filters: {
+      favorites: 'Favoris',
       forMe: 'Qui me manquent',
       label: 'Filtres de l’album',
       series: 'Série',
@@ -1029,6 +1030,8 @@ export const fr = {
   },
 
   library: {
+    kinds: { label: 'Livres / cartes', books: 'Livres', cards: 'Cartes' },
+    cardTabs: { owned: 'Possédées', favorites: 'Favoris', emptyOwned: 'Aucune carte possédée pour l’instant : ouvre un booster !', emptyFavorites: 'Aucune carte favorite : touche le cœur sur une carte pour la retrouver ici.' },
     showGrid: 'Afficher en grille',
     showShelf: 'Afficher en vitrine',
     featured: 'À la une',
@@ -1130,6 +1133,7 @@ export const fr = {
     memberSince: (date: string) => `Membre depuis ${date}`,
     signInToCustomize: 'Crée un compte pour choisir ton avatar, ta bio et ta vitrine.',
     showcase: {
+      added: (name: string) => `${name} ajoutée à ta vitrine`,
       title: 'Vitrine',
       subtitle: 'Tes trois cartes préférées',
       automatic: 'Tes dernières lectures',
@@ -1299,6 +1303,8 @@ export const fr = {
       usage: (used: string, quota: string) => `${used} sur ${quota}`,
       device: 'Sur cet appareil',
       deviceUnknown: 'Espace inconnu',
+      autoDownload: 'Télécharger mes romans automatiquement',
+      autoDownloadHint: 'Les romans de ton compte se téléchargent en arrière-plan (en ligne) pour s’ouvrir sans connexion, même après des semaines.',
       clearCache: 'Vider le cache local',
       clearConfirm: 'Vider quand même',
       clearing: 'Vidage…',

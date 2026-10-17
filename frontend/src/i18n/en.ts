@@ -222,6 +222,7 @@ export const en: Dictionary = {
     rarity: { COMMON: 'Common', RARE: 'Rare', EPIC: 'Epic', LEGENDARY: 'Legendary', MYTHIC: 'Mythic' },
     progress: (owned: number, total: number) => `${owned}/${total} cards unlocked`,
     filters: {
+      favorites: 'Favorites',
       forMe: 'Missing for me',
       label: 'Album filters',
       series: 'Series',
@@ -1017,6 +1018,8 @@ export const en: Dictionary = {
   },
 
   library: {
+    kinds: { label: 'Books / cards', books: 'Books', cards: 'Cards' },
+    cardTabs: { owned: 'Owned', favorites: 'Favorites', emptyOwned: 'No cards owned yet: open a booster!', emptyFavorites: 'No favorite cards yet: tap the heart on a card to find it here.' },
     showGrid: 'Show as grid',
     showShelf: 'Show as showcase',
     featured: 'Featured',
@@ -1117,6 +1120,7 @@ export const en: Dictionary = {
     memberSince: (date: string) => `Member since ${date}`,
     signInToCustomize: 'Create an account to pick your avatar, bio and showcase.',
     showcase: {
+      added: (name: string) => `${name} added to your showcase`,
       title: 'Showcase',
       subtitle: 'Your three favourite cards',
       automatic: 'Your latest reads',
@@ -1285,6 +1289,8 @@ export const en: Dictionary = {
       usage: (used: string, quota: string) => `${used} of ${quota}`,
       device: 'On this device',
       deviceUnknown: 'Unknown usage',
+      autoDownload: 'Download my novels automatically',
+      autoDownloadHint: 'Your account’s novels download in the background (when online) so they open without a connection, even weeks later.',
       clearCache: 'Clear local cache',
       clearConfirm: 'Clear anyway',
       clearing: 'Clearing…',

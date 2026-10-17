@@ -43,10 +43,19 @@ export function usePendingNovelProgress(): void {
   const userId = useAuthStore((state) => state.user?.id ?? null)
   useEffect(() => {
     if (!userId) return
-    const flush = () => void useNovelStore.getState().flushPending(userId)
+    const store = useNovelStore.getState()
+    const flush = () => void store.flushPending(userId)
+    // Au démarrage et au retour du réseau : liste à jour, puis romans manquants téléchargés en arrière-plan
+    // (c'est ce qui les rend lisibles sans connexion, sans avoir à les ouvrir une fois en ligne).
+    const sync = () => void store.refresh(userId).catch(() => {})
     flush()
-    window.addEventListener('online', flush)
-    return () => window.removeEventListener('online', flush)
+    if (navigator.onLine) sync()
+    const onOnline = () => {
+      flush()
+      sync()
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
   }, [userId])
 }
 

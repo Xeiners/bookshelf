@@ -12,6 +12,7 @@ import { LIBRARY_TABS } from '../../types/book'
 import { Pressable } from '../ui/Pressable'
 import { BookTile } from './BookTile'
 import { FeaturedBook } from './FeaturedBook'
+import { LibraryCards } from './LibraryCards'
 import { NovelsStrip } from './NovelsStrip'
 import { SegmentedTabs } from './SegmentedTabs'
 import { ShowcaseShelves } from './ShowcaseShelves'
@@ -57,6 +58,8 @@ export function LibraryView() {
   const tab = useUiStore((state) => state.libraryTab)
   const setTab = useUiStore((state) => state.setLibraryTab)
   const [layout, setLayout] = useState<LibraryLayout>('shelf')
+  // Livres (statuts, romans) ou cartes (possédées, favoris) : deux rayons de la même bibliothèque.
+  const [kind, setKind] = useState<'books' | 'cards'>('books')
   const scrollRef = useRef<HTMLDivElement>(null)
   const [container, setContainer] = useState({ width: 0, height: 0 })
 
@@ -146,9 +149,40 @@ export function LibraryView() {
   const empty = t.library.empty[tab]
   const EmptyIcon = EMPTY_ICON[tab]
 
+  const kindSwitch = (
+    <div role="tablist" aria-label={t.library.kinds.label} className="glass mx-5 flex shrink-0 self-start rounded-full p-1">
+      {(['books', 'cards'] as const).map((id) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          aria-selected={kind === id}
+          onClick={() => {
+            if (id === kind) return
+            vibrate(6)
+            setKind(id)
+          }}
+          className={`rounded-full px-5 py-2 text-xs font-semibold transition-colors ${kind === id ? 'bg-glow text-white' : 'text-cream/75'}`}
+        >
+          {t.library.kinds[id]}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (kind === 'cards') {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {kindSwitch}
+        <LibraryCards />
+      </div>
+    )
+  }
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 px-5">
-      <div className="flex items-center gap-2 md:max-w-lg">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {kindSwitch}
+      <div className="flex items-center gap-2 px-5 md:max-w-lg">
         <SegmentedTabs value={tab} counts={counts} onChange={setTab} />
 
         <Pressable
@@ -167,7 +201,7 @@ export function LibraryView() {
 
       <div
         ref={scrollRef}
-        className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4"
+        className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4"
       >
         {items.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 pb-10 text-center">

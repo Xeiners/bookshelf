@@ -11,6 +11,7 @@ import { useLibraryStore } from '../../store/useLibraryStore'
 import { useProfileStore } from '../../store/useProfileStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CardZoom } from '../cards/CardZoom'
+import { ProfileCardAdder } from './ProfileCardAdder'
 import { InstallCard } from './InstallCard'
 import { ProfileHeader } from './ProfileHeader'
 import { ProfileShowcase } from './ProfileShowcase'
@@ -39,6 +40,7 @@ export function ProfileView() {
   const openAuth = useUiStore((state) => state.openAuth)
   const openActivity = useUiStore((state) => state.openActivity)
   const [zoomed, setZoomed] = useState<ProfileCard | null>(null)
+  const [adding, setAdding] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const signedIn = user !== null
@@ -136,7 +138,7 @@ export function ProfileView() {
             cards={own?.profile.featured ?? []}
             recentWorks={own?.profile.recentReads ?? localRecentReads}
             signedIn={signedIn}
-            onAddCard={signedIn ? openProfileEditor : openAuth}
+            onAddCard={signedIn ? (own ? () => setAdding(true) : openProfileEditor) : openAuth}
             onOpenCard={setZoomed}
           />
         </div>
@@ -160,6 +162,7 @@ export function ProfileView() {
         </div>
       </div>
 
+      {adding && createPortal(<ProfileCardAdder featured={own?.profile.featured ?? []} onClose={() => setAdding(false)} />, document.body)}
       {zoomed && createPortal(<CardZoom card={zoomed} onClose={() => setZoomed(null)} />, document.body)}
     </div>
   )

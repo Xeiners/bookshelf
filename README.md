@@ -88,7 +88,13 @@ la lecture reprend **à la même phrase** du téléphone à l'ordinateur — mê
 hors-ligne, la position suit dès le retour du réseau. Six polices (dont
 Merriweather et une police pour la dyslexie), thèmes sombre, OLED et sépia,
 sommaire et barre de progression. La recherche trouve aussi n'importe quel roman,
-en français ou en anglais.
+en français ou en anglais. Tes romans se téléchargent aussi tout seuls en arrière-plan
+(réglage désactivable) : ils s'ouvrent sans connexion, même après des semaines.
+
+🃏 **Tes cartes dans la bibliothèque**
+Onglet « Cartes » de la bibliothèque : cartes possédées et favoris d'un coup d'œil,
+avec filtres et zoom. Depuis le Profil, « Exposer une carte » ajoute une carte à ta
+vitrine sans passer par l'éditeur.
 
 ☁️ **Sans compte d'abord, synchronisé ensuite**
 Aucune inscription pour commencer : tout vit sur l'appareil. Crée un compte depuis

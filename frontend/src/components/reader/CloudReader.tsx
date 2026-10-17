@@ -19,6 +19,9 @@ import type { CloudBook, CloudPosition } from '../../types/novel'
 import { EpubReader, type EpubSource } from './EpubReader'
 import { ReaderMessage } from './ReaderMessage'
 
+/** Fichier déjà sur l'appareil : au-delà, on ouvre la copie locale sans attendre la position du compte. */
+const FRESH_TIMEOUT_MS = 3000
+
 type Failure = 'signin' | 'missing' | 'offline' | 'error'
 
 interface Opened {
@@ -51,19 +54,36 @@ export function CloudReader({ bookId }: { bookId: string }) {
 
     const load = async (): Promise<Opened> => {
       const cached = await getCachedBook(userId, bookId).catch(() => undefined)
+      // Le fichier lui-même fait foi, pas l'indicateur `downloaded` : s'il est là, le livre s'ouvre.
+      let blob = await getCachedBlob(bookId).catch(() => undefined)
       let book = cached?.book ?? null
       let offline = false
-      try {
-        book = await booksApi.get(bookId, controller.signal)
-        await cacheBook(userId, book).catch(() => {})
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 404) throw new Error('missing')
-        if (!isNetworkError(error)) throw error
+
+      // Hors-ligne déclaré : inutile d'attendre l'API. En ligne : une réponse rapide ou rien — avec le
+      // fichier sous la main, une connexion capricieuse (wifi sans accès, métro) ne doit jamais bloquer la lecture.
+      if (!navigator.onLine && book) {
         offline = true
+      } else {
+        const fresh = new AbortController()
+        const forward = () => fresh.abort()
+        controller.signal.addEventListener('abort', forward, { once: true })
+        const timer = blob && book ? window.setTimeout(forward, FRESH_TIMEOUT_MS) : undefined
+        try {
+          book = await booksApi.get(bookId, fresh.signal)
+          await cacheBook(userId, book).catch(() => {})
+        } catch (error) {
+          if (controller.signal.aborted) throw error
+          if (error instanceof ApiError && error.status === 404) throw new Error('missing')
+          const unreachable = isNetworkError(error) || fresh.signal.aborted || (error instanceof ApiError && error.status >= 500)
+          if (!unreachable) throw error
+          offline = true
+        } finally {
+          window.clearTimeout(timer)
+          controller.signal.removeEventListener('abort', forward)
+        }
       }
       if (!book) throw new Error('offline')
 
-      let blob = cached?.downloaded ? await getCachedBlob(bookId).catch(() => undefined) : undefined
       if (!blob) {
         if (offline) throw new Error('offline')
         setDownload(0)

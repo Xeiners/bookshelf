@@ -783,8 +783,8 @@ components/reader/
   PagedView         simple / double page, RTL / LTR, swipe, tiers de l'écran, pincement
   EpubReader        moteur « texte » (epub.js) : typographie, thèmes, temps restant, barre de progression ;
                     lit une `EpubSource` : fichier de l'appareil, ou roman du compte via…
-  CloudReader       …roman du compte : fiche + position (API, repli IndexedDB), fichier téléchargé
-                    une fois puis lu hors-ligne, position synchronisée (ProgressSync)
+  CloudReader       …roman du compte : copie locale d'abord (fichier IndexedDB), API avec 3 s de délai
+                    seulement pour reprendre la position la plus récente ; position synchronisée (ProgressSync)
   ReadingProgressBar  fine barre d'avancement (pure, rendue dans les tests)
   PdfReader         moteur « document » (pdf.js, canevas) : pincement, Ctrl + molette
   ReaderControls    en-tête + pied de page en surimpression ; ReaderStatus (heure, batterie)
@@ -862,6 +862,14 @@ sur le compte (`POST /api/books/upload`, cf. docs/BACKEND.md §7 sexies).
   précalculées : un gros roman ne les recalcule plus à chaque ouverture, fichiers de
   l'appareil compris). La déconnexion volontaire efface tout, couvertures du Service
   Worker comprises (cache `bookshelf-private-*`).
+- *Préchargement* : `useNovelStore.prefetch` (au démarrage et au retour du réseau, via
+  `usePendingNovelProgress`) télécharge en arrière-plan les EPUB manquants — lectures récentes
+  d'abord, terminés en dernier, budget 250 Mo par passe (`lib/reader/novelPrefetch.ts`, testé) —
+  et demande `navigator.storage.persist()` pour que le navigateur ne purge pas un roman resté des
+  semaines sans ouverture. `reconcileDownloads` aligne l'indicateur `downloaded` sur les fichiers
+  réellement présents. Réglage « Télécharger mes romans automatiquement » (Profil › Réglages,
+  `autoDownloadNovels`) ; « Vider le cache local » le désactive (la place libérée le reste).
+  Le lecteur teste le fichier lui-même, pas l'indicateur.
 - *Synchronisation* (`lib/reader/cloudSync.ts`, testé) : à chaque page tournée, le CFI
   est écrit tout de suite dans IndexedDB (« en attente »), puis envoyé à l'API une
   seconde après la dernière page (`ProgressSync`) ; immédiatement, en `keepalive`,

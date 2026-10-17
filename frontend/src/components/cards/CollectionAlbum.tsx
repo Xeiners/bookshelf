@@ -30,7 +30,7 @@ const ROWS_PER_PAGE = 8
 const columnsFor = (width: number) => (width >= 1100 ? 6 : width >= 760 ? 5 : width >= 480 ? 4 : 3)
 
 /** « Qui me manquent » : sur l'album d'un autre, ses cartes que je n'ai pas (de quoi lui proposer un échange). */
-type AlbumOwnership = Ownership | 'forMe'
+type AlbumOwnership = Ownership | 'forMe' | 'favorites'
 type AlbumFilter = Omit<CollectionFilter, 'ownership'> & { ownership: AlbumOwnership }
 
 interface CollectionAlbumProps {
@@ -44,6 +44,13 @@ interface CollectionAlbumProps {
    * portent un badge, et un filtre « Qui me manquent » les isole.
    */
   mine?: ReadonlySet<string> | null
+  /**
+   * Filtre de possession imposé par l'écran (bibliothèque : « Possédées » ou
+   * « Favoris ») : le sélecteur de possession disparaît, le reste des filtres demeure.
+   */
+  lockedOwnership?: 'owned' | 'favorites'
+  /** Remplace « Aucune carte ne correspond » quand le filtre ne retient rien. */
+  emptyLabel?: string
 }
 
 /**
@@ -52,7 +59,7 @@ interface CollectionAlbumProps {
  * chez un autre, celles qui me manquent), titre de l'œuvre. Toucher une carte
  * obtenue l'affiche en grand. Sert « Ma collection » et l'album d'un membre.
  */
-export function CollectionAlbum({ data, status, retry, intro, mine = null }: CollectionAlbumProps) {
+export function CollectionAlbum({ data, status, retry, intro, mine = null, lockedOwnership, emptyLabel }: CollectionAlbumProps) {
   const t = useT()
   const [filter, setFilter] = useState<AlbumFilter>(DEFAULT_FILTER)
   const [zoomed, setZoomed] = useState<CollectionCard | null>(null)
@@ -67,11 +74,13 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null }: Col
     return () => observer.disconnect()
   }, [])
 
+  const ownership = lockedOwnership ?? filter.ownership
   const cards = useMemo(() => {
     if (!data) return []
-    if (filter.ownership !== 'forMe') return filterCollection(data.cards, { ...filter, ownership: filter.ownership })
+    if (ownership === 'favorites') return filterCollection(data.cards, { ...filter, ownership: 'owned' }).filter((card) => card.isFavorite)
+    if (ownership !== 'forMe') return filterCollection(data.cards, { ...filter, ownership })
     return filterCollection(data.cards, { ...filter, ownership: 'owned' }).filter((card) => !mine?.has(card.id))
-  }, [data, filter, mine])
+  }, [data, filter, ownership, mine])
   const columns = columnsFor(gridWidth)
   const cardWidth = gridWidth > 0 ? Math.floor((gridWidth - GAP * (columns - 1)) / columns) : 0
 
@@ -106,10 +115,11 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null }: Col
     { scope: progressRef, dependencies: [percent] },
   )
 
-  const ownership: { id: AlbumOwnership; label: string }[] = [
+  const ownershipOptions: { id: AlbumOwnership; label: string }[] = [
     { id: 'all', label: t.cards.filters.all },
     { id: 'owned', label: t.cards.filters.owned },
     { id: 'missing', label: t.cards.filters.missing },
+    { id: 'favorites', label: t.cards.filters.favorites },
     ...(mine ? [{ id: 'forMe' as const, label: t.cards.filters.forMe }] : []),
   ]
 
@@ -181,8 +191,9 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null }: Col
             )
           })}
         </div>
+        {!lockedOwnership && (
         <div className="glass flex self-start rounded-full p-1" role="radiogroup" aria-label={t.cards.filters.label}>
-          {ownership.map((option) => (
+          {ownershipOptions.map((option) => (
             <button
               key={option.id}
               type="button"
@@ -195,6 +206,7 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null }: Col
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* Album */}
@@ -207,7 +219,7 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null }: Col
             </button>
           </div>
         )}
-        {data && cards.length === 0 && <p className="py-10 text-center text-sm text-mist">{t.cards.empty}</p>}
+        {data && cards.length === 0 && <p className="py-10 text-center text-sm text-mist">{emptyLabel ?? t.cards.empty}</p>}
         {cardWidth > 0 && cards.length > 0 && (
           <ul className="grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: GAP }}>
             {cards.slice(0, shown).map((card) => (

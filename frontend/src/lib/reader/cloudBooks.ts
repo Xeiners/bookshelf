@@ -94,6 +94,38 @@ export async function pendingPositions(userId: string): Promise<{ id: string; po
   return (await listCachedBooks(userId)).flatMap((entry) => (entry.pending && entry.position ? [{ id: entry.id, position: entry.position }] : []))
 }
 
+/**
+ * Demande au navigateur de ne pas purger les fichiers de l'appareil quand la place vient à
+ * manquer (sans cela, un EPUB resté des semaines sans être ouvert peut disparaître : c'est
+ * le cas typique du roman qu'on ne rouvre qu'hors-ligne). Sans effet si déjà accordé.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (await navigator.storage?.persisted?.()) return true
+    return (await navigator.storage?.persist?.()) ?? false
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Aligne l'indicateur `downloaded` sur ce que le navigateur a réellement gardé : un fichier
+ * purgé (manque de place, nettoyage des données du site) ne doit plus passer pour lisible
+ * hors-ligne, et un fichier présent dont l'indicateur a été perdu doit l'être de nouveau.
+ */
+export async function reconcileDownloads(userId: string): Promise<CachedCloudBook[]> {
+  const present = new Set((await run<IDBValidKey[]>([BLOBS], 'readonly', (tx) => tx.objectStore(BLOBS).getAllKeys())).map(String))
+  const entries = await listCachedBooks(userId)
+  const stale = entries.filter((entry) => entry.downloaded !== present.has(entry.id))
+  if (stale.length > 0) {
+    await run([BOOKS], 'readwrite', (tx) => {
+      const store = tx.objectStore(BOOKS)
+      for (const entry of stale) store.put({ ...entry, downloaded: present.has(entry.id) })
+    })
+  }
+  return entries.map((entry) => ({ ...entry, downloaded: present.has(entry.id) }))
+}
+
 export function getCachedBlob(id: string): Promise<Blob | undefined> {
   return run<Blob | undefined>([BLOBS], 'readonly', (tx) => tx.objectStore(BLOBS).get(id))
 }

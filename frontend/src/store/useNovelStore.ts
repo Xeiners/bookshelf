@@ -8,7 +8,10 @@ import {
   forgetCachedBlob,
   listCachedBooks,
   pendingPositions,
+  reconcileDownloads,
   removeCachedBook,
+  requestPersistentStorage,
+  saveCachedBlob,
   saveCachedPosition,
   syncCachedBooks,
   type CachedCloudBook,
@@ -16,10 +19,12 @@ import {
 import { forgetOwnWork, isOwnNovelWork, moveWork, placeInLibrary } from '../lib/novelLibrary'
 import { novelAsBook } from '../lib/novels'
 import { newestPosition, serverPosition } from '../lib/reader/cloudSync'
+import { planNovelDownloads } from '../lib/reader/novelPrefetch'
 import { ApiError, isNetworkError } from '../services/api'
 import { MAX_NOVEL_BYTES, booksApi } from '../services/booksApi'
 import type { Book } from '../types/book'
 import type { CloudBook, CloudBookPatch, ImportMatch } from '../types/novel'
+import { useAuthStore } from './useAuthStore'
 import { useLibraryStore } from './useLibraryStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useUiStore } from './useUiStore'
@@ -69,6 +74,11 @@ interface NovelState {
   remove: (userId: string, id: string) => Promise<void>
   /** Libère la place du fichier sur l'appareil (il reste sur le compte). */
   forgetDownload: (id: string) => Promise<void>
+  /**
+   * Télécharge en arrière-plan les romans du compte pas encore sur l'appareil, pour qu'ils
+   * s'ouvrent hors-ligne même sans avoir été ouverts en ligne ici. Silencieux, une passe à la fois.
+   */
+  prefetch: (userId: string) => Promise<void>
   /** Envoie les positions lues hors-ligne (au démarrage, au retour du réseau). */
   flushPending: (userId: string) => Promise<void>
   /** Déconnexion volontaire : rien du compte ne reste sur l'appareil. */
@@ -102,6 +112,8 @@ function uploadError(error: unknown): UploadError {
 }
 
 let uploadId = 0
+/** Une passe de préchargement à la fois. */
+let prefetching = false
 /** Livres déjà passés au rapprochement automatique pendant cette session (imports d'avant le rattachement). */
 const backfilled = new Set<string>()
 
@@ -126,7 +138,10 @@ export const useNovelStore = create<NovelState>()((set, get) => ({
   refresh: async (userId) => {
     try {
       const books = await booksApi.list()
-      set({ books: await syncCachedBooks(userId, books), offline: false })
+      await syncCachedBooks(userId, books)
+      // L'indicateur « téléchargé » suit ce que le navigateur a réellement gardé.
+      set({ books: await reconcileDownloads(userId).catch(() => listCachedBooks(userId)), offline: false })
+      void get().prefetch(userId)
       // Fiche tirée du fichier absente de la bibliothèque (import interrompu, autre appareil) : recréée.
       const { entries } = useLibraryStore.getState()
       for (const book of books) {
@@ -228,6 +243,33 @@ export const useNovelStore = create<NovelState>()((set, get) => ({
   forgetDownload: async (id) => {
     await forgetCachedBlob(id)
     set((state) => ({ books: state.books?.map((entry) => (entry.id === id ? { ...entry, downloaded: false } : entry)) ?? null }))
+  },
+
+  prefetch: async (userId) => {
+    if (prefetching || !navigator.onLine || !useSettingsStore.getState().autoDownloadNovels) return
+    // Économiseur de données : on ne télécharge rien sans que ce soit demandé.
+    if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return
+    prefetching = true
+    try {
+      void requestPersistentStorage()
+      const entries = await reconcileDownloads(userId)
+      const present = new Set(entries.filter((entry) => entry.downloaded).map((entry) => entry.id))
+      for (const entry of planNovelDownloads(entries, present)) {
+        // Déconnexion ou changement de compte pendant la passe : on s'arrête, rien n'est stocké.
+        if (useAuthStore.getState().user?.id !== userId) return
+        try {
+          const blob = await booksApi.download(entry.id, entry.book.fileSize)
+          if (useAuthStore.getState().user?.id !== userId) return
+          await saveCachedBlob(entry.id, blob)
+          set((state) => ({ books: state.books?.map((item) => (item.id === entry.id ? { ...item, downloaded: true } : item)) ?? null }))
+        } catch (error) {
+          // Réseau perdu : la prochaine passe reprend. Fichier absent du serveur ou stockage plein : on passe au suivant.
+          if (isNetworkError(error)) return
+        }
+      }
+    } finally {
+      prefetching = false
+    }
   },
 
   flushPending: async (userId) => {
