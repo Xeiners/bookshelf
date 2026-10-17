@@ -18,11 +18,20 @@ export const LANE_TIME = 0.21
 
 export const GRAVITY = 42
 export const JUMP_VELOCITY = 13.5
+/**
+ * Saut : un geste donné un instant trop tôt (`JUMP_BUFFER`, s) part à l'atterrissage, et un saut
+ * demandé juste après avoir quitté le bord d'un toit (`COYOTE_TIME`, s) passe encore.
+ */
+export const JUMP_BUFFER = 0.16
+export const COYOTE_TIME = 0.12
+/** Double saut : une impulsion de plus en l'air, utilisable toutes les `DOUBLE_JUMP_COOLDOWN` secondes. */
+export const DOUBLE_JUMP_VELOCITY = 12.6
+export const DOUBLE_JUMP_COOLDOWN = 5
 /** Plongeon en l'air (bas pendant un saut) : on redescend vite, puis on glisse. */
 export const DIVE_VELOCITY = -26
 export const SLIDE_TIME = 0.62
 /** Hauteur de vol sur le nuage magique. */
-export const FLY_HEIGHT = 4.4
+export const FLY_HEIGHT = 7.2
 
 /**
  * Toit du Manga Express (m) : certains trains ont une rampe devant eux, on y monte et l'on
@@ -42,9 +51,13 @@ export const LAUNCH_VELOCITY = 26
 /** Bascule vers le royaume (s après le tremplin ou l'entrée du tunnel), sous l'éclair de transition. */
 export const LAUNCH_SWITCH = 0.55
 export const TUNNEL_SWITCH = 0.3
-/** Route libre (m) à l'arrivée dans un royaume et au retour sur terre. */
-export const REALM_LANDING = 26
-export const REALM_GAP = 30
+/**
+ * Route libre (m) à l'arrivée dans un royaume (le temps de se poser), à la fin du royaume
+ * (`REALM_EXIT_CLEAR`, avant la sortie) et au retour sur terre (`REALM_GAP`, après la sortie).
+ */
+export const REALM_LANDING = 48
+export const REALM_EXIT_CLEAR = 18
+export const REALM_GAP = 70
 export const PORTAL_FIRST = 450
 export const PORTAL_EVERY = 650
 

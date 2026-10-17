@@ -1830,6 +1830,7 @@ export const en: Dictionary = {
       awakenSeal: '覚醒',
       left: 'Left',
       jump: 'Jump',
+      doubleJump: 'Double jump',
       slide: 'Slide',
       right: 'Right',
       middle: 'Middle',

@@ -1845,6 +1845,7 @@ export const fr = {
       awakenSeal: '覚醒',
       left: 'Gauche',
       jump: 'Sauter',
+      doubleJump: 'Double saut',
       slide: 'Glisser',
       right: 'Droite',
       middle: 'Centre',

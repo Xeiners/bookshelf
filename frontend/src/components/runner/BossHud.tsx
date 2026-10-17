@@ -119,12 +119,10 @@ export function BossHud({ view, timerRef }: { view: BossView; timerRef: RefObjec
         </div>
       )}
 
-      {/* Il s'effondre. */}
+      {/* Il s'effondre : un petit bandeau en haut, la scène reste visible. */}
       {view.phase === 'dying' && (
-        <div className="absolute inset-x-0 top-[34%] flex animate-[runner-awaken_3.4s_ease-out_forwards] flex-col items-center gap-1 opacity-0">
-          <span className="font-black text-5xl text-[#fff3c4] uppercase [-webkit-text-stroke:2px_#3a2200]" style={{ textShadow: '0 0 30px #ffc23a' }}>
-            {t.runner.boss.finished}
-          </span>
+        <div className="absolute inset-x-0 top-[max(10.5rem,calc(env(safe-area-inset-top)+9.75rem))] flex animate-[runner-awaken_2.4s_ease-out_forwards] justify-center opacity-0">
+          <span className="rounded-full bg-black/55 px-4 py-1.5 font-black text-xl text-[#fff3c4] uppercase [text-shadow:0_0_16px_#ffc23a]">{t.runner.boss.finished}</span>
         </div>
       )}
 
@@ -149,16 +147,19 @@ export function BossHud({ view, timerRef }: { view: BossView; timerRef: RefObjec
   )
 }
 
-/** Victoire : le titre, le boss vaincu, la récompense. */
+/**
+ * Victoire : un bandeau discret en haut (titre, boss vaincu, récompense) — ni éclair plein
+ * écran ni gros texte au milieu : la route reprend aussitôt, on doit la voir.
+ */
 export function BossVictory({ index }: { index: number }) {
   const t = useT()
   return (
-    <div className="pointer-events-none absolute inset-0" aria-live="polite">
-      <div className="absolute inset-0 animate-[runner-hit_1.2s_ease-out_forwards] bg-[radial-gradient(circle_at_50%_45%,#fff8dc_0%,#ffd35cb0_35%,transparent_75%)]" />
-      <div className="absolute inset-x-0 top-[28%] flex animate-[runner-awaken_3s_ease-out_forwards] flex-col items-center gap-2 opacity-0">
-        <span className="font-black text-6xl leading-none text-[#ffe37a] uppercase [-webkit-text-stroke:2px_#4a1d00] [text-shadow:0_0_26px_#ffb300,0_4px_0_#4a1d00]">{t.runner.boss.victory}</span>
-        <span className="rounded-full bg-black/55 px-4 py-1 text-sm font-bold text-white">{t.runner.boss.defeated(t.runner.boss.names[index % 3]!.name)}</span>
-        <span className="font-display text-3xl text-gold drop-shadow">{t.runner.boss.reward}</span>
+    <div className="pointer-events-none absolute inset-x-0 top-[max(5.5rem,calc(env(safe-area-inset-top)+4.75rem))] flex animate-[runner-victory_2.2s_ease-out_forwards] justify-center px-4 opacity-0" aria-live="polite">
+      <div className="flex max-w-sm flex-col items-center gap-0.5 rounded-2xl bg-black/55 px-4 py-2 text-center shadow-[0_0_24px_rgba(255,179,0,0.35)]">
+        <span className="font-black text-2xl leading-none text-[#ffe37a] uppercase [text-shadow:0_0_14px_#ffb300]">{t.runner.boss.victory}</span>
+        <span className="text-xs font-semibold text-white">
+          {t.runner.boss.defeated(t.runner.boss.names[index % 3]!.name)} · <span className="text-gold">{t.runner.boss.reward}</span>
+        </span>
       </div>
     </div>
   )

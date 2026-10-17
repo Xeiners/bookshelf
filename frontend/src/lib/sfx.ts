@@ -607,11 +607,12 @@ export function playRunnerStar(combo: number): void {
 }
 
 /** Saut : un souffle qui monte. */
-export function playRunnerJump(): void {
+export function playRunnerJump(pitch = 1): void {
   const e = start()
   if (!e) return
   const at = e.ctx.currentTime
-  noiseBurst(e, { at, duration: 0.18, from: 700, to: 2600, q: 1.2, gain: 0.09, send: 0.08 })
+  // `pitch` > 1 : le double saut, plus aigu et plus bref.
+  noiseBurst(e, { at, duration: 0.18 / pitch, from: 700 * pitch, to: 2600 * pitch, q: 1.2, gain: 0.09, send: 0.08 })
 }
 
 /** Glissade : un frottement qui descend. */

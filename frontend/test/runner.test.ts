@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { BOSS_COUNTER, BOSS_DEATH, BOSS_EVERY, BOSS_HP, BOSS_INTRO, BOSS_PENALTY, BOSS_REWARD, BOSS_STRIKE, LANE_WIDTH, MAX_SPEED, PORTAL_FIRST, comboTime, RAMP_LENGTH, REALM_GAP, REALM_TIME, SHOT_COOLDOWN, SHOT_REWARD, SLIDE_TIME, START_SPEED, TRAIN_ROOF, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
+import { BOSS_COUNTER, COYOTE_TIME, DOUBLE_JUMP_COOLDOWN, FLY_HEIGHT, GRAVITY, JUMP_BUFFER, JUMP_VELOCITY, REALM_EXIT_CLEAR, BOSS_DEATH, BOSS_EVERY, BOSS_HP, BOSS_INTRO, BOSS_PENALTY, BOSS_REWARD, BOSS_STRIKE, LANE_WIDTH, MAX_SPEED, PORTAL_FIRST, comboTime, RAMP_LENGTH, REALM_GAP, REALM_TIME, SHOT_COOLDOWN, SHOT_REWARD, SLIDE_TIME, START_SPEED, TRAIN_ROOF, reviveCost, scoreFor, speedAt } from '../src/lib/runner/constants'
 import { OBSTACLE_SPAN, TrackGenerator, act, answerQuiz, createRun, goToLane, isSliding, revive, shoot, step, type ObstacleKind, type QuizQuestion, type RunState, type TrackObject } from '../src/lib/runner/engine'
 import { makeQuiz } from '../src/lib/runner/quiz'
 import { seededRandom } from '../src/lib/runner/random'
@@ -229,6 +229,116 @@ describe('Manga Runner — simulation', () => {
     assert.ok(state.objects[wall - 1]!.smashedAt !== undefined)
     assert.ok(state.events.includes('smash'))
     assert.ok(state.magnetUntil >= state.shieldUntil)
+  })
+})
+
+describe('Manga Runner — sauts', () => {
+  const apex = (fps: number) => {
+    const state = emptyRun()
+    act(state, 'up')
+    let top = 0
+    for (let frame = 0; frame < fps; frame += 1) {
+      step(state, 1 / fps, noQuiz)
+      top = Math.max(top, state.y)
+    }
+    return top
+  }
+
+  it('la hauteur du saut ne dépend pas du nombre d’images par seconde', () => {
+    const exact = (JUMP_VELOCITY * JUMP_VELOCITY) / (2 * GRAVITY)
+    for (const fps of [20, 30, 60, 144]) assert.ok(Math.abs(apex(fps) - exact) < 0.08, `${fps} i/s : ${apex(fps)}`)
+  })
+
+  it('un saut demandé un instant trop tôt part à l’atterrissage ; trop tôt de loin, il est perdu', () => {
+    const state = emptyRun()
+    act(state, 'up')
+    // Fin du saut : le premier est presque terminé, et le double saut déjà dépensé.
+    state.doubleJumpReadyAt = 1e9
+    run(state, 0.55)
+    assert.ok(!state.grounded)
+    act(state, 'up')
+    run(state, 0.3)
+    assert.ok(state.events.filter((event) => event === 'jump').length === 2, 'le second saut est parti tout seul')
+    const early = emptyRun()
+    act(early, 'up')
+    early.doubleJumpReadyAt = 1e9
+    run(early, 0.1)
+    act(early, 'up')
+    run(early, JUMP_BUFFER + 0.6)
+    assert.equal(early.events.filter((event) => event === 'jump').length, 1, 'un geste trop ancien ne ressaute pas')
+  })
+
+  it('temps de grâce : un saut juste après avoir quitté le bord d’un toit passe encore', () => {
+    const state = emptyRun()
+    state.objects.push({ id: 1, kind: 'train', lane: 0, s: -2, length: 2, y: 0, variant: 0, done: false, ramp: false })
+    state.y = TRAIN_ROOF
+    state.ground = TRAIN_ROOF
+    state.grounded = true
+    // Le toit finit : on tombe, et l'on saute dans le temps de grâce.
+    state.objects.length = 0
+    step(state, 1 / 60, noQuiz)
+    assert.ok(!state.grounded, 'tombé du toit')
+    act(state, 'up')
+    assert.ok(state.events.includes('jump'), 'saut normal, pas le double')
+    assert.equal(state.doubleJumpReadyAt, 0, 'le double saut est resté disponible')
+    const late = emptyRun()
+    late.y = TRAIN_ROOF
+    late.grounded = true
+    step(late, 1 / 60, noQuiz)
+    run(late, COYOTE_TIME + 0.05)
+    late.events.length = 0
+    act(late, 'up')
+    assert.ok(late.events.includes('doubleJump') && !late.events.includes('jump'), 'passé le délai : double saut')
+  })
+
+  it('double saut : une impulsion de plus en l’air, puis cinq secondes de recharge', () => {
+    const state = emptyRun()
+    act(state, 'up')
+    run(state, 0.25)
+    const before = state.vy
+    act(state, 'up')
+    assert.ok(state.events.includes('doubleJump'))
+    assert.ok(state.vy > before, 'remonte')
+    assert.ok(Math.abs(state.doubleJumpReadyAt - (state.t + DOUBLE_JUMP_COOLDOWN)) < 1e-9)
+    // Un troisième geste pendant la recharge n'ajoute rien.
+    run(state, 0.1)
+    const vy = state.vy
+    act(state, 'up')
+    assert.equal(state.vy, vy)
+    assert.equal(state.events.filter((event) => event === 'doubleJump').length, 1)
+    // Recharge écoulée : on peut recommencer.
+    run(state, DOUBLE_JUMP_COOLDOWN)
+    state.events.length = 0
+    act(state, 'up')
+    run(state, 0.2)
+    act(state, 'up')
+    assert.ok(state.events.includes('doubleJump'), 'prêt de nouveau')
+    // Le double saut passe plus haut qu'un saut simple.
+    const single = emptyRun()
+    act(single, 'up')
+    let singleTop = 0
+    for (let index = 0; index < 90; index += 1) {
+      step(single, 1 / 60, noQuiz)
+      singleTop = Math.max(singleTop, single.y)
+    }
+    const doubled = emptyRun()
+    act(doubled, 'up')
+    let doubledTop = 0
+    for (let index = 0; index < 90; index += 1) {
+      if (index === 14) act(doubled, 'up')
+      step(doubled, 1 / 60, noQuiz)
+      doubledTop = Math.max(doubledTop, doubled.y)
+    }
+    assert.ok(doubledTop > singleTop + 1, `${doubledTop} > ${singleTop}`)
+  })
+
+  it('le nuage porte le coureur bien haut, au-dessus de tout ce qui se dresse sur la route', () => {
+    assert.ok(FLY_HEIGHT >= 7 && FLY_HEIGHT > TRAIN_ROOF + 3)
+    const state = emptyRun()
+    place(state, 'cloud', 0, 3, 0.8)
+    run(state, 1.5)
+    assert.ok(state.events.includes('cloud'))
+    assert.ok(state.y > FLY_HEIGHT - 0.4, `en vol à ${state.y}`)
   })
 })
 
@@ -482,5 +592,33 @@ describe('Manga Runner — boss', () => {
     state.realmUntil = state.distance + 1000
     run(state, 0.5)
     assert.equal(state.boss, null)
+  })
+})
+
+describe('Manga Runner — la route se libère aux royaumes', () => {
+  it('au tremplin : tout ce qui est devant disparaît aussitôt, avant même la bascule', () => {
+    const state = emptyRun()
+    place(state, 'pad', 0, 6, 1.6, 0)
+    place(state, 'wall', 0, 30, 1.6, 0)
+    place(state, 'train', 1, 45, 12, 0)
+    run(state, 0.55)
+    assert.ok(state.events.includes('launch'))
+    assert.equal(state.realm, 'earth', 'pas encore à Skypia')
+    for (const object of state.objects.filter((entry) => entry.id !== 1)) assert.ok(object.cleared && object.done, `${object.kind} dégagé`)
+  })
+
+  it('à la sortie d’un royaume : rien à moins de REALM_GAP, et la piste céleste finit libre avant la sortie', () => {
+    const state = createRun(21)
+    state.objects.length = 0
+    state.objects.push({ id: 1, kind: 'pad', lane: 0, s: 6, length: 1.6, y: 0, variant: 0, done: false })
+    run(state, 1.2)
+    assert.equal(state.realm, 'sky')
+    state.invulnerableUntil = 1e9
+    run(state, REALM_TIME + 0.5)
+    assert.equal(state.realm, 'earth')
+    const live = state.objects.filter((object) => !object.done && (object.kind === 'wall' || object.kind === 'train' || object.kind === 'low' || object.kind === 'gate'))
+    assert.ok(live.every((object) => object.s >= state.realmUntil + REALM_GAP - 1), 'aucun obstacle avant la route libre')
+    const skyEnd = Math.max(...state.objects.filter((object) => object.realm === 'sky').map((object) => object.s))
+    assert.ok(skyEnd <= state.realmUntil - REALM_EXIT_CLEAR + 3, 'les derniers mètres du royaume sont libres')
   })
 })

@@ -31,10 +31,14 @@ import {
   BOSS_STRIKE,
   CLOUD_TIME,
   comboTime,
+  COYOTE_TIME,
   DIVE_VELOCITY,
+  DOUBLE_JUMP_COOLDOWN,
+  DOUBLE_JUMP_VELOCITY,
   FLY_HEIGHT,
   GRAVITY,
   HIT_INVULNERABILITY,
+  JUMP_BUFFER,
   JUMP_VELOCITY,
   KEEP_BEHIND,
   LANE_TIME,
@@ -51,6 +55,7 @@ import {
   QUIZ_CLEAR_MARGIN,
   QUIZ_TIME,
   RAMP_LENGTH,
+  REALM_EXIT_CLEAR,
   REALM_GAP,
   REALM_LANDING,
   REALM_TIME,
@@ -165,6 +170,7 @@ export type RunAction = 'left' | 'right' | 'up' | 'down'
 export type RunEvent =
   | 'star'
   | 'jump'
+  | 'doubleJump'
   | 'slide'
   | 'lane'
   | 'stumble'
@@ -262,6 +268,12 @@ export interface RunState {
   y: number
   vy: number
   grounded: boolean
+  /** Quitté le sol sans sauter (bord d'un toit) : un saut passe encore un court instant (temps de grâce). */
+  leftGroundAt: number
+  /** Geste de saut donné trop tôt : il part à l'atterrissage s'il est encore frais. */
+  jumpBufferedUntil: number
+  /** Prochain double saut possible (temps de course). */
+  doubleJumpReadyAt: number
   /** Fin de la glissade en cours (temps de course), 0 : debout. */
   slideUntil: number
   /** Glissade demandée en l'air : elle commence à l'atterrissage. */
@@ -330,6 +342,9 @@ export function createRun(seed: number, options: RunOptions = {}): RunState {
     y: 0,
     vy: 0,
     grounded: true,
+    leftGroundAt: -10,
+    jumpBufferedUntil: 0,
+    doubleJumpReadyAt: 0,
     slideUntil: 0,
     slideOnLanding: false,
     lives,
@@ -407,12 +422,20 @@ export function act(state: RunState, action: RunAction): void {
   }
   if (isFlying(state)) return
   if (action === 'up') {
-    if (!state.grounded) return
-    state.slideUntil = 0
-    state.slideOnLanding = false
-    state.vy = JUMP_VELOCITY
-    state.grounded = false
-    state.events.push('jump')
+    // Au sol, ou à peine tombé du bord d'un toit : le saut normal.
+    if (state.grounded || state.t - state.leftGroundAt <= COYOTE_TIME) {
+      jump(state, JUMP_VELOCITY)
+      state.events.push('jump')
+      return
+    }
+    // En l'air : le double saut s'il est prêt ; sinon le geste attend l'atterrissage (un instant).
+    if (state.t >= state.doubleJumpReadyAt) {
+      state.doubleJumpReadyAt = state.t + DOUBLE_JUMP_COOLDOWN
+      jump(state, DOUBLE_JUMP_VELOCITY)
+      state.events.push('doubleJump')
+      return
+    }
+    state.jumpBufferedUntil = state.t + JUMP_BUFFER
     return
   }
   // Bas : en l'air, on plonge et on glisse à l'atterrissage ; au sol, on glisse tout de suite.
@@ -423,6 +446,16 @@ export function act(state: RunState, action: RunAction): void {
   }
   state.slideUntil = state.t + SLIDE_TIME
   state.events.push('slide')
+}
+
+/** Impulsion verticale : on lâche tout appui au sol (glissade), plus de temps de grâce. */
+function jump(state: RunState, velocity: number): void {
+  state.slideUntil = 0
+  state.slideOnLanding = false
+  state.vy = velocity
+  state.grounded = false
+  state.leftGroundAt = -10
+  state.jumpBufferedUntil = 0
 }
 
 /** Aller droit dans une voie (une réponse touchée au quiz : on court vers sa voie). */
@@ -518,26 +551,36 @@ export function step(state: RunState, dt: number, ask: () => QuizQuestion | null
     state.y += (FLY_HEIGHT - state.y) * Math.min(1, dt * 6)
     state.vy = 0
     state.grounded = false
+    state.jumpBufferedUntil = 0
   } else {
     if (state.grounded) {
-      // Au bout du toit, ou d'un pas de côté dans le vide : on tombe. Sur la rampe : on monte.
-      if (ground < state.y - 0.05) state.grounded = false
-      else if (ground > state.y) state.y = Math.min(ground, state.y + Math.max(0.9, 14 * dt))
+      // Au bout du toit, ou d'un pas de côté dans le vide : on tombe (un saut passe encore un instant). Sur la rampe : on monte.
+      if (ground < state.y - 0.05) {
+        state.grounded = false
+        state.leftGroundAt = t
+      } else if (ground > state.y) state.y = Math.min(ground, state.y + Math.max(0.9, 14 * dt))
     }
     if (!state.grounded) {
       const before = state.y
+      // Cinématique exacte : la hauteur du saut ne dépend pas du nombre d'images par seconde.
+      state.y += state.vy * dt - 0.5 * GRAVITY * dt * dt
       state.vy -= GRAVITY * dt
-      state.y += state.vy * dt
       // On se pose sur le toit seulement en arrivant d'au-dessus (pas à travers la caisse).
       const floor = before >= ground - 0.5 ? ground : 0
       if (state.vy <= 0 && state.y <= floor) {
         state.y = floor
         state.vy = 0
         state.grounded = true
+        state.leftGroundAt = -10
         if (state.slideOnLanding) {
           state.slideOnLanding = false
           state.slideUntil = t + SLIDE_TIME
           state.events.push('slide')
+        }
+        // Un saut demandé juste avant de toucher le sol repart aussitôt.
+        if (state.jumpBufferedUntil > t) {
+          jump(state, JUMP_VELOCITY)
+          state.events.push('jump')
         }
       }
     }
@@ -687,10 +730,12 @@ function pickUp(state: RunState, kind: ObjectKind, ask: () => QuizQuestion | nul
     state.slideOnLanding = false
     state.cloudUntil = 0
     state.transitUntil = t + 2
+    clearAhead(state, REALM_CLEAR_AHEAD)
     state.pendingRealm = { realm: 'sky', at: t + LAUNCH_SWITCH }
     state.events.push('launch')
   } else if (kind === 'tunnel') {
     state.transitUntil = t + 1.2
+    clearAhead(state, REALM_CLEAR_AHEAD)
     state.pendingRealm = { realm: 'under', at: t + TUNNEL_SWITCH }
     state.events.push('tunnel')
   } else if (kind === 'quiz') {
@@ -861,8 +906,19 @@ function leaveRealm(state: RunState): void {
     state.grounded = false
   }
   state.realm = 'earth'
-  state.transitUntil = state.t + 1.2
+  state.transitUntil = state.t + 1.6
+  // La route est libre à la sortie : rien de ce qui restait du royaume ne gêne l'atterrissage.
+  clearAhead(state, REALM_GAP)
   state.events.push('realmExit')
+}
+
+/** Vide la piste devant le coureur sur `length` m : entrée ou sortie d'un royaume, rien ne se prend à la volée. */
+function clearAhead(state: RunState, length: number): void {
+  for (const object of state.objects) {
+    if (object.done || object.s + object.length < state.distance - 1 || object.s > state.distance + length) continue
+    object.done = true
+    object.cleared = true
+  }
 }
 
 /** Vitesse probable à l'abscisse `s` (accélération depuis le départ) : pour caler les arcs de ✦ sur le saut. */
@@ -874,6 +930,9 @@ function speedAround(s: number): number {
 /* ---- Piste ------------------------------------------------------------------------ */
 
 const LANES: readonly Lane[] = [-1, 0, 1]
+
+/** Route libre devant le coureur dès qu'il prend un tremplin ou un tunnel (m). */
+const REALM_CLEAR_AHEAD = 70
 
 /** Tire la piste rangée par rangée ; `hardUntil` retient, par voie, la fin du dernier mur ou train. */
 export class TrackGenerator {
@@ -900,7 +959,7 @@ export class TrackGenerator {
   fill(objects: TrackObject[], until: number, quizOpen = false, quietUntil = 0): void {
     while (this.nextRow < until) {
       // Fin du royaume : un peu de route libre, puis la Terre reprend.
-      if (this.realm !== 'earth' && this.nextRow >= this.realmUntil) {
+      if (this.realm !== 'earth' && this.nextRow >= this.realmUntil - REALM_EXIT_CLEAR) {
         this.realm = 'earth'
         this.nextRow = this.realmUntil + REALM_GAP
         for (const lane of LANES) this.hardUntil[lane] = 0

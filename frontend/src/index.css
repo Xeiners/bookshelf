@@ -406,6 +406,23 @@
 }
 
 /* L'Éveil du Manga Runner : titre qui claque, lignes de vitesse dorées qui vibrent. */
+/* Bandeau de victoire du boss : il apparaît, reste un instant, puis s'efface (rien au milieu de l'écran). */
+@keyframes runner-victory {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  12%,
+  70% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
 @keyframes runner-awaken {
   0% {
     opacity: 0;
@@ -562,6 +579,9 @@
 .runner-shot[data-ready='true'] {
   color: #fff;
   filter: drop-shadow(0 0 14px #ff4fd8);
+}
+.runner-double[data-ready='true'] {
+  filter: drop-shadow(0 0 14px #4fc3ff);
 }
 .runner-shot[data-ready='true'] .runner-shot-icon {
   animation: runner-shot-ready 1.2s ease-in-out infinite;

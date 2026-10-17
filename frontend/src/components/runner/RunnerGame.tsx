@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Cloud, Crosshair, Loader2, Flame, Magnet, Mountain, Pause, Play, Sparkles, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronsUp, Cloud, Crosshair, Loader2, Flame, Magnet, Mountain, Pause, Play, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
-import { CLOUD_TIME, MAGNET_TIME, QUIZ_TIME, REALM_TIME, SHIELD_TIME, SHOT_COOLDOWN, comboTime, multiplierFor, reviveCost } from '../../lib/runner/constants'
+import { CLOUD_TIME, DOUBLE_JUMP_COOLDOWN, MAGNET_TIME, QUIZ_TIME, REALM_TIME, SHIELD_TIME, SHOT_COOLDOWN, comboTime, multiplierFor, reviveCost } from '../../lib/runner/constants'
 import { act, createRun, goToLane, revive, scoreOf, shoot, shotReady, type ActiveQuiz, type Lane, type Realm, type RunAction, type RunState } from '../../lib/runner/engine'
 import { makeQuiz, type QuizUniverse } from '../../lib/runner/quiz'
 import { seededRandom } from '../../lib/runner/random'
@@ -125,6 +125,8 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
   const comboTimerRef = useRef<HTMLDivElement>(null)
   const shotRef = useRef<HTMLButtonElement>(null)
   const shotRingRef = useRef<SVGCircleElement>(null)
+  const doubleRef = useRef<HTMLButtonElement>(null)
+  const doubleRingRef = useRef<SVGCircleElement>(null)
   const quizCardsRef = useRef<HTMLDivElement>(null)
   const quizSecondsRef = useRef<HTMLSpanElement>(null)
 
@@ -403,6 +405,16 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         const lane = next ? String(next.lane) : ''
         if (portal.dataset.lane !== lane) portal.dataset.lane = lane
       }
+      // Double saut : même principe, à gauche ; prêt, il s'allume (toutes les 5 s).
+      const double = doubleRef.current
+      if (double) {
+        const charge = Math.min(1, 1 - Math.max(0, run.doubleJumpReadyAt - run.t) / DOUBLE_JUMP_COOLDOWN)
+        const ready = charge >= 1 ? 'true' : 'false'
+        if (double.dataset.ready !== ready) double.dataset.ready = ready
+        doubleRingRef.current?.setAttribute('stroke-dashoffset', String(RING * (1 - charge)))
+        const hiddenDouble = run.quiz !== null || run.boss !== null ? 'hidden' : 'visible'
+        if (double.style.visibility !== hiddenDouble) double.style.visibility = hiddenDouble
+      }
       // Tir : l'anneau se remplit pendant la recharge ; prêt, le bouton s'allume.
       const shot = shotRef.current
       if (shot) {
@@ -441,6 +453,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
           }
           case 'jump':
             playRunnerJump()
+            break
+          case 'doubleJump':
+            playRunnerJump(1.45)
+            vibrate(8)
             break
           case 'slide':
             playRunnerSlide()
@@ -792,6 +808,26 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
           <circle ref={shotRingRef} cx="50" cy="50" r={RING_RADIUS} fill="none" stroke="#ff6fd1" strokeWidth="7" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={0} />
         </svg>
         <Crosshair size={26} className="runner-shot-icon relative" aria-hidden />
+      </button>
+
+      {/* Double saut : un geste de plus en l'air (aussi : glisser vers le haut), prêt toutes les 5 s. Recharge visible. */}
+      <button
+        ref={doubleRef}
+        type="button"
+        data-ready="true"
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          event.preventDefault()
+          perform('up')
+        }}
+        aria-label={t.runner.hud.doubleJump}
+        className={`runner-shot runner-double absolute left-3 grid size-[4.25rem] place-items-center rounded-full transition-opacity duration-500 ${introRunning ? 'opacity-0' : 'opacity-100'} ${buttons ? 'bottom-[max(6rem,calc(env(safe-area-inset-bottom)+5.5rem))]' : 'bottom-[max(1.25rem,env(safe-area-inset-bottom))]'}`}
+      >
+        <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
+          <circle cx="50" cy="50" r={RING_RADIUS} fill="rgba(13,8,40,0.6)" stroke="rgba(255,255,255,0.14)" strokeWidth="7" />
+          <circle ref={doubleRingRef} cx="50" cy="50" r={RING_RADIUS} fill="none" stroke="#6fd8ff" strokeWidth="7" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={0} />
+        </svg>
+        <ChevronsUp size={28} className="relative" aria-hidden />
       </button>
 
       {/* Combat de boss. */}
