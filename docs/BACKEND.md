@@ -1305,6 +1305,26 @@ BookshelfDLE). Compte connecté seulement.
   simultanées ne créditent qu'une fois —, Poussières (`daily_reward` dans `StardustEntry`), boosters
   offerts (`giftedBoosters`, hors plafond), boîtes (`RunnerStats.giftBoxes`), cartes du pack.
 
+## 7 quindecies. Page Stack (`src/modules/stack/`)
+
+Jeu d'arcade : une page de manga glisse d'un bord à l'autre, on la pose sur la pile, ce qui dépasse
+tombe ; le but est le meilleur score. Même modèle que le Manga Runner (`runner.service.ts`) : un
+compte, ou un invité du BookshelfDLE (`requirePlayer`, reçus signés pour ses Poussières).
+
+| Route | Rôle |
+|---|---|
+| `GET /api/stack` | mes records, le plafond du jour, le classement (top 10), mon rang |
+| `POST /api/stack/runs` | ouvre une partie (`id`, une par joueur, en mémoire) |
+| `POST /api/stack/runs/:id/end` | bilan `{ score, pages, perfects }`, borné par le serveur ; records, Poussières |
+
+- **Barème** (`stack.logic.ts`, repris par `frontend/src/lib/stack/constants.ts`) : 10 points par page,
+  +10 si la pose est parfaite, +5 par parfaite d'affilée (jusqu'à 10). Le serveur ne rejoue pas la
+  partie : il borne les pages par le temps (≥ 0,3 s la page), les parfaites par les pages, le score par
+  les deux (`plausible`).
+- **Poussières** : une pour 20 points, plafonnées à 400 par jour (heure de Paris).
+- **Records** : `StackStats` (meilleur score, meilleure pile, parties, parfaites, Poussières du jour) ;
+  battre le record de tous les temps offre la récompense à choisir (`RecordGame` `stack`).
+
 ## 8. Limites connues et suites possibles
 
 - Les entrées de bibliothèque créées du temps d'AniList depuis une carte

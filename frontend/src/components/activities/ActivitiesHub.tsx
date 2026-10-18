@@ -15,6 +15,7 @@ import { useDleStore } from '../../store/useDleStore'
 import { useHigherLowerStore } from '../../store/useHigherLowerStore'
 import { useTradeStore } from '../../store/useTradeStore'
 import { useUiStore } from '../../store/useUiStore'
+import { StackEmblem } from '../stack/StackEmblem'
 import { DailyBanner } from '../daily/DailyBanner'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
@@ -116,6 +117,7 @@ export function ActivitiesHub() {
         <HigherLowerArtefact />
       </div>
       <RunnerArtefact />
+      <StackArtefact />
       <CanvasArtefact />
       <BombArtefact />
       <MarketArtefact />
@@ -131,7 +133,7 @@ const surface = (tint: string): CSSProperties => ({
   borderColor: `${tint}38`,
 })
 
-const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff' } as const
+const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff', stack: '#ff9a5c' } as const
 
 /**
  * Lueur incandescente autour d'un artefact « chargé ». Fixe : une grande ombre
@@ -521,6 +523,42 @@ function RunnerArtefact() {
             <span className="rounded-full bg-[#ff6fb5]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#ff9ccf] uppercase">{t.runner.hub.eyebrow}</span>
           </span>
           <span className="mt-1.5 block text-xs leading-relaxed text-cream/65">{t.runner.hub.body}</span>
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
+      </span>
+    </button>
+  )
+}
+
+/** Page Stack : l'arcade du moment, une pile de pages de manga qui oscille doucement. */
+function StackArtefact() {
+  const t = useT()
+  const ref = useRef<HTMLButtonElement>(null)
+  const openActivity = useUiStore((state) => state.openActivity)
+  const covered = useUiStore((state) => state.boosterOpen)
+
+  useGSAP(
+    () => {
+      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      gsap.to('[data-stack-sway]', { rotation: 2.5, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, transformOrigin: '50% 100%' })
+    },
+    { scope: ref, dependencies: [covered], revertOnUpdate: true },
+  )
+
+  return (
+    <button ref={ref} type="button" data-artefact onClick={() => openActivity('stack')} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={surface(TINT.stack)}>
+      <span className="flex items-center gap-5 p-5">
+        <span aria-hidden className="relative block size-[4.5rem] shrink-0 overflow-hidden rounded-[1.4rem]" style={{ boxShadow: '0 0 28px -6px rgba(255,154,92,0.8), inset 0 0 0 2px rgba(255,211,92,0.55)' }}>
+          <span data-stack-sway className="block size-full">
+            <StackEmblem />
+          </span>
+        </span>
+        <span className="block min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-2xl text-cream">{t.stack.title}</span>
+            <span className="rounded-full bg-[#ff9a5c]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#ffb98a] uppercase">{t.stack.hub.eyebrow}</span>
+          </span>
+          <span className="mt-1.5 block text-xs leading-relaxed text-cream/65">{t.stack.hub.body}</span>
         </span>
         <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
       </span>

@@ -92,6 +92,7 @@ model User {
   runnerItems      RunnerItem[]
   recordRewards    RecordReward[]
   dailyReward      DailyReward?
+  stackStats       StackStats?
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -747,4 +748,23 @@ model DailyReward {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Page Stack (arcade) : meilleur score, meilleure tour, parties jouées, Poussières gagnées aujourd'hui.
+model StackStats {
+  userId     String    @id
+  best       Int       @default(0)
+  bestPages  Int       @default(0)
+  bestAt     DateTime?
+  games      Int       @default(0)
+  totalPages Int       @default(0)
+  perfects   Int       @default(0)
+  /// Jour (heure de Paris) auquel se rapporte `dayEarned`.
+  day        String?
+  dayEarned  Int       @default(0)
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([best])
 }

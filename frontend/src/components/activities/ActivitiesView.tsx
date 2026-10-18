@@ -17,6 +17,7 @@ const HigherLowerView = lazy(() => import('../higherlower/HigherLowerView').then
 // Anime Bomb Party : idem.
 const BombView = lazy(() => import('../bomb/BombView').then((module) => ({ default: module.BombView })))
 // Manga Runner 3D : Three.js n'est chargé qu'à l'ouverture du Runner.
+const StackView = lazy(() => import('../stack/StackView').then((module) => ({ default: module.StackView })))
 const RunnerView = lazy(() => import('../runner/RunnerView').then((module) => ({ default: module.RunnerView })))
 // La Toile : le moteur de dessin n'est chargé qu'à l'ouverture.
 const CanvasView = lazy(() => import('../canvas/CanvasView').then((module) => ({ default: module.CanvasView })))
@@ -45,7 +46,7 @@ export function ActivitiesView() {
       <SanctumBackdrop />
       {activity === 'hub' ? (
         <ActivitiesHub />
-      ) : activity === 'dle' || activity === 'higherlower' || activity === 'bomb' || activity === 'runner' || activity === 'canvas' ? (
+      ) : activity === 'dle' || activity === 'higherlower' || activity === 'bomb' || activity === 'runner' || activity === 'stack' || activity === 'canvas' ? (
         <Suspense
           fallback={
             <div className="grid flex-1 place-items-center">
@@ -53,7 +54,7 @@ export function ActivitiesView() {
             </div>
           }
         >
-          {activity === 'dle' ? <DleView /> : activity === 'bomb' ? <BombView /> : activity === 'runner' ? <RunnerView /> : activity === 'canvas' ? <CanvasView /> : <HigherLowerView />}
+          {activity === 'dle' ? <DleView /> : activity === 'bomb' ? <BombView /> : activity === 'runner' ? <RunnerView /> : activity === 'stack' ? <StackView /> : activity === 'canvas' ? <CanvasView /> : <HigherLowerView />}
         </Suspense>
       ) : (
         <>

@@ -429,6 +429,60 @@ export function playHlOver(): void {
   bell(e, 329.63, at + 0.35, 2, 0.05)
 }
 
+/* ---- Page Stack ---------------------------------------------------------------------- */
+
+/** Gammes pentatoniques : les parfaites d'affilée montent d'une note, comme une petite mélodie. */
+const STACK_SCALE = [0, 2, 4, 7, 9]
+
+/** Une page se pose : un froissement de papier sourd. */
+export function playStackPlace(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.09, from: 1400, to: 380, q: 0.8, gain: 0.07, send: 0.12 })
+  blip(e, 196, at, 0.08, 0.05, 'triangle')
+}
+
+/** Pose parfaite : une cloche dont la hauteur suit la série. */
+export function playStackPerfect(combo: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const step = Math.max(0, combo - 1)
+  const note = STACK_SCALE[step % STACK_SCALE.length]! + 12 * Math.floor(step / STACK_SCALE.length)
+  const shift = Math.pow(2, Math.min(24, note) / 12)
+  noiseBurst(e, { at, duration: 0.06, from: 1800, to: 500, q: 0.8, gain: 0.04, send: 0.1 })
+  bell(e, 659.25 * shift, at, 0.9, 0.07, -0.15)
+  bell(e, 987.77 * shift, at + 0.06, 1.1, 0.05, 0.15)
+  if (combo >= 3) sparkle(e, at + 0.1, 4 + Math.min(6, combo), 1760 * shift, 0.02)
+}
+
+/** Un morceau de page se détache : un petit « tic » sec, de côté. */
+export function playStackCut(): void {
+  const e = start()
+  if (!e) return
+  noiseBurst(e, { at: e.ctx.currentTime + 0.02, duration: 0.08, from: 3200, to: 1600, q: 1.4, gain: 0.03, send: 0.1, pan: 0.3 })
+}
+
+/** Palier de 10 pages : un arpège lumineux. */
+export function playStackMilestone(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[784, 988, 1175, 1568].forEach((frequency, index) => bell(e, frequency, at + index * 0.07, 1.2, 0.05, index * 0.3 - 0.45))
+  sparkle(e, at + 0.2, 8, 2093, 0.02)
+}
+
+/** La page tombe à côté : un souffle qui chute et un choc grave. */
+export function playStackOver(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.5, from: 2400, to: 300, q: 0.9, gain: 0.07, send: 0.2 })
+  boom(e, at + 0.28, 150, 45, 0.5, 0.35)
+  ;[392, 329.63, 261.63].forEach((frequency, index) => bell(e, frequency, at + 0.1 + index * 0.1, 1.4, 0.035, index * 0.3 - 0.3))
+}
+
 /* ---- BookshelfDLE ------------------------------------------------------------------- */
 
 /**

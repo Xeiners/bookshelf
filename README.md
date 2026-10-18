@@ -91,6 +91,12 @@ sommaire et barre de progression. La recherche trouve aussi n'importe quel roman
 en français ou en anglais. Tes romans se téléchargent aussi tout seuls en arrière-plan
 (réglage désactivable) : ils s'ouvrent sans connexion, même après des semaines.
 
+🥞 **Page Stack, l'arcade du moment**
+Empile des pages de manga le plus haut possible : un toucher pour poser la page qui glisse,
+ce qui dépasse tombe, une pose parfaite lance une série (et redonne de la largeur). Le ciel
+change tous les 10 étages — aube, jour, crépuscule, nuit, aurore. Score, record de tous les
+temps (booster ou boîte mystère à la clé), classement et Poussières, en invité comme en compte.
+
 🎁 **Une récompense chaque jour**
 À ta première connexion du jour (de minuit à 23 h 59, heure de Paris), un calendrier de
 30 cases s'ouvre : Poussières d'Étoile, boosters, boîtes mystère de la garde-robe… tout le

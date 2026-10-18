@@ -80,7 +80,7 @@ export interface PromotionData {
 /** Record de tous les temps battu : la récompense est à choisir (booster ou boîte). */
 export interface RecordRewardData {
   rewardId: string
-  game: 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower'
+  game: 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower' | 'stack'
   score: number
   previous: number
 }
