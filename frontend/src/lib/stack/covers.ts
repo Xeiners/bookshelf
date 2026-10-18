@@ -1,17 +1,14 @@
-import { API_BASE } from '../../services/api'
 import { stackApi, type StackCover } from '../../services/stackApi'
 
 /*
- * Affiches d'anime des pages de Page Stack : la liste vient du serveur (relais de MyAnimeList),
- * chaque image est chargée une fois (le navigateur la garde : elle est servie en `immutable`).
- * Sans affiche (hors-ligne, serveur sans accès à MyAnimeList), le jeu dessine ses pages de manga.
+ * Couvertures de tomes de Page Stack : la liste vient du serveur (les mangas du set de cartes, couvertures
+ * relayées par `/api/covers/`), chaque image est chargée une fois et gardée par le navigateur.
+ * Sans couverture (hors-ligne, collection pas prête), le jeu dessine ses tomes.
  */
 
 const LIST_KEY = 'bookshelf:stack:covers'
-/** Affiches utilisées par partie : assez pour varier, peu pour charger vite. */
+/** Couvertures utilisées par partie : assez pour varier, peu pour charger vite. */
 export const COVERS_PER_GAME = 12
-
-const coverUrl = (id: number) => `${API_BASE}/stack/covers/${id}`
 
 function readList(): StackCover[] {
   try {
@@ -40,42 +37,42 @@ export async function coverList(signal?: AbortSignal): Promise<StackCover[]> {
   return readList()
 }
 
-/** Tire `count` affiches au hasard (ou, si `ids` est donné, exactement celles-là). */
-export function chooseCovers(list: readonly StackCover[], count = COVERS_PER_GAME, random: () => number = Math.random): number[] {
+/** Tire `count` couvertures au hasard. */
+export function chooseCovers(list: readonly StackCover[], count = COVERS_PER_GAME, random: () => number = Math.random): StackCover[] {
   const pool = [...list]
   for (let index = pool.length - 1; index > 0; index -= 1) {
     const swap = Math.floor(random() * (index + 1))
     ;[pool[index], pool[swap]] = [pool[swap]!, pool[index]!]
   }
-  return pool.slice(0, count).map((cover) => cover.id)
+  return pool.slice(0, count)
 }
 
-const loaded = new Map<number, Promise<HTMLImageElement | null>>()
+const loaded = new Map<string, Promise<HTMLImageElement | null>>()
 
-/** Une affiche chargée (décodée), ou `null` si elle n'est pas disponible. */
-export function loadCover(id: number): Promise<HTMLImageElement | null> {
-  let promise = loaded.get(id)
+/** Une couverture chargée, ou `null` si elle n'est pas disponible. */
+export function loadCover(url: string): Promise<HTMLImageElement | null> {
+  let promise = loaded.get(url)
   if (!promise) {
     promise = new Promise<HTMLImageElement | null>((resolve) => {
       const image = new Image()
       image.decoding = 'async'
       image.onload = () => resolve(image)
       image.onerror = () => {
-        loaded.delete(id)
+        loaded.delete(url)
         resolve(null)
       }
-      image.src = coverUrl(id)
+      image.src = url
     })
-    loaded.set(id, promise)
+    loaded.set(url, promise)
   }
   return promise
 }
 
-/** Charge ces affiches ; `onImage` reçoit chacune dès qu'elle est prête (la partie n'attend personne). */
-export async function loadCovers(ids: readonly number[], onImage: (image: HTMLImageElement) => void): Promise<void> {
+/** Charge ces couvertures ; `onImage` reçoit chacune dès qu'elle est prête (la partie n'attend personne). */
+export async function loadCovers(covers: readonly StackCover[], onImage: (image: HTMLImageElement) => void): Promise<void> {
   await Promise.all(
-    ids.map(async (id) => {
-      const image = await loadCover(id)
+    covers.map(async (cover) => {
+      const image = await loadCover(cover.url)
       if (image) onImage(image)
     }),
   )

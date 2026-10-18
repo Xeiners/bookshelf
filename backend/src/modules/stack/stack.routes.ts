@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { config } from '../../config.js'
 import { rateLimit } from '../../middleware/rateLimit.js'
 import { currentPlayer, requirePlayer } from '../dle/dle.guests.js'
-import { stackCoverImage, stackCovers } from './stack.covers.js'
+import { stackCovers } from './stack.covers.js'
 import { finishStackRun, stackOverview, startStackRun } from './stack.service.js'
 
 /**
@@ -12,16 +12,10 @@ import { finishStackRun, stackOverview, startStackRun } from './stack.service.js
  */
 export const stackRouter = Router()
 
-/** Les affiches d'anime des pages : publiques, comme les couvertures du reste de l'app. */
+/** Les couvertures de tomes des pages : publiques, comme les couvertures du reste de l'app. */
 stackRouter.get('/covers', async (_req, res) => {
   res.set('Cache-Control', 'public, max-age=900')
   res.json({ covers: await stackCovers() })
-})
-
-stackRouter.get('/covers/:id', async (req, res) => {
-  const image = await stackCoverImage(z.coerce.number().int().positive().max(10_000_000).parse(req.params.id))
-  res.set('Cache-Control', 'public, max-age=604800, immutable')
-  res.type(image.contentType).send(image.body)
 })
 
 stackRouter.use(requirePlayer)

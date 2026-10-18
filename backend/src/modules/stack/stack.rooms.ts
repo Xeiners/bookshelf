@@ -4,7 +4,7 @@ import { seededRandom, shuffle } from '../../lib/seeded.js'
 import { normalizeRoomCode, roomCode, ROOM_CODE } from '../dle/dle.logic.js'
 import { profileOf, type PlayerProfile } from '../dle/dle.rooms.js'
 import type { Participant } from '../dle/dle.guests.js'
-import { stackCovers } from './stack.covers.js'
+import { stackCovers, type StackCover } from './stack.covers.js'
 
 /*
  * Salons de Page Stack, de 2 à 4 joueurs, en temps réel (WebSocket, cf. `stack.socket.ts`).
@@ -30,7 +30,7 @@ export const COUNTDOWN_MS = config.env === 'test' ? 40 : 3500
 /** Une partie versus s'arrête d'elle-même passé ce délai (le meilleur score du moment gagne) ; la coop est plus patiente. */
 export const VERSUS_LIMIT_MS = 4 * 60 * 1000
 export const COOP_LIMIT_MS = 20 * 60 * 1000
-/** Affiches communes à tous les joueurs d'une partie. */
+/** Tomes communs à tous les joueurs d'une partie. */
 const COVERS_PER_GAME = 12
 const IDLE_MS = 60 * 60 * 1000
 
@@ -62,7 +62,7 @@ interface Room {
   players: Map<string, RoomPlayer>
   links: Map<string, Link>
   seed: number
-  covers: number[]
+  covers: StackCover[]
   startsAt: number | null
   /** Coop : à qui de poser. */
   turn: string | null
@@ -110,7 +110,7 @@ export interface StackRoomView {
   hostId: string
   max: number
   seed: number
-  covers: number[]
+  covers: StackCover[]
   /** Heure (ms, horloge du serveur) du départ de la partie. */
   startsAt: number | null
   turn: string | null
@@ -368,9 +368,9 @@ export async function startStackRoom(playerId: string): Promise<StackRoomView> {
   if ([...room.players.values()].filter((player) => player.connected).length < MIN_PLAYERS) throw conflict('Il faut au moins deux joueurs.', 'not_enough_players')
   room.phase = 'countdown'
   room.seed = Math.floor(Math.random() * 2 ** 31)
-  // Les mêmes affiches, dans le même ordre, pour tout le monde.
+  // Les mêmes tomes, dans le même ordre, pour tout le monde.
   const list = await stackCovers().catch(() => [])
-  room.covers = shuffle(list, seededRandom(`stack:${room.seed}`)).slice(0, COVERS_PER_GAME).map((cover) => cover.id)
+  room.covers = shuffle(list, seededRandom(`stack:${room.seed}`)).slice(0, COVERS_PER_GAME)
   room.startsAt = Date.now() + COUNTDOWN_MS
   room.turn = room.mode === 'coop' ? ([...room.players.values()].find((player) => player.connected)?.id ?? null) : null
   broadcast(room)

@@ -3,7 +3,8 @@ import { vibrate } from '../../lib/haptics'
 import { playStackCut, playStackMilestone, playStackOver, playStackPerfect, playStackPlace } from '../../lib/sfx'
 import { INITIAL_WIDTH } from '../../lib/stack/constants'
 import { createStack, drain, pageCount, step, tap, type StackEvent, type StackState } from '../../lib/stack/engine'
-import { PAGES_PER_SKY, camTarget, drawDesk, drawGuides, drawPage, drawPetals, drawSky, makePetals, makeView, rowTop, type PageArt, type Petal, type View } from './scene'
+import { TOME_RATIO, camTarget, drawDesk, drawGuides, drawTome, levelY, makeView, type View } from './scene'
+import { PAGES_PER_WORLD, drawWorlds, worldIndexOf, worldNumber } from './worlds'
 
 /*
  * Une pile : le moteur (`lib/stack/engine.ts`), sa caméra et tous les effets d'une partie (pages
@@ -16,12 +17,18 @@ interface Piece {
   x: number
   y: number
   w: number
+  h: number
   vx: number
   vy: number
   angle: number
   spin: number
   index: number
-  art: PageArt | null
+  /** Couverture d'origine du tome : sa gauche et sa largeur (pixels) au moment de la chute. */
+  spanLeft: number
+  spanWidth: number
+  /** Abscisse de départ de la pièce : la couverture la suit pendant la chute. */
+  originX: number
+  image: HTMLImageElement | null
 }
 
 interface Spark {
@@ -56,8 +63,10 @@ export interface BoardOptions {
   sound: boolean
   /** Moins d'effets (préférence système, ou petit panneau). */
   reduced?: boolean
-  petals?: number
   perfectLabel: string
+  /** Nom de chaque monde, dans l'ordre, et la façon de l'annoncer (« Monde 2 · … »). */
+  worldNames: readonly string[]
+  worldLabel: (number: number) => string
 }
 
 /** Portion de scène (centre, largeur) couverte par chaque page à sa pose : l'affiche s'y prolonge sur le morceau coupé. */
@@ -65,9 +74,6 @@ interface Span {
   x: number
   w: number
 }
-
-/** Point de la hauteur d'une affiche montré dans la page de rang `index` : change à chaque page. */
-const verticalOf = (index: number): number => 0.22 + ((index * 0.6180339) % 1) * 0.5
 
 export class Board {
   state: StackState = createStack()
@@ -86,14 +92,18 @@ export class Board {
   private rings: Ring[] = []
   private floats: Float[] = []
   private shake = 0
-  private petals: Petal[]
+  /** Hauteur de chaque tome posé, et hauteur cumulée jusqu'à son sommet (largeurs de scène). */
+  private heights: number[] = [TOME_RATIO * INITIAL_WIDTH]
+  private levels: number[] = [TOME_RATIO * INITIAL_WIDTH]
+  /** Nombre de tomes, lissé : le monde change en douceur. */
+  private skyPages = 0
+  private banner: { text: string; sub: string; life: number } | null = null
   private readonly options: BoardOptions
   /** Appelé à chaque pose et à la chute finale (mise à jour du tableau de bord). */
   onChange: ((state: StackState) => void) | null = null
 
   constructor(options: BoardOptions) {
     this.options = options
-    this.petals = makePetals(options.reduced ? 6 : (options.petals ?? 30))
   }
 
   /** Solo : une affiche de plus (l'ordre n'a pas d'importance). */
@@ -107,10 +117,10 @@ export class Board {
     this.images[slot] = image
   }
 
-  private art(index: number, span: Span): PageArt | null {
+  /** Couverture du tome de rang `index` : la même suite pour tous les joueurs d'une partie. */
+  private imageOf(index: number): HTMLImageElement | null {
     if (this.images.length === 0) return null
-    const image = this.images[(index + this.coverOffset) % this.images.length]
-    return image ? { image, x: span.x, w: span.w, v: verticalOf(index) } : null
+    return this.images[(index + this.coverOffset) % this.images.length] ?? null
   }
 
   /** Geste du joueur : la page se pose. `false` si la partie est déjà finie. */
@@ -156,27 +166,42 @@ export class Board {
     }
   }
 
+  /** Hauteur (pixels) du tome de rang `row`, et ordonnée de son sommet. */
+  private tomeBox(view: View, row: number): { top: number; height: number } {
+    return { top: levelY(view, this.levels[row]!), height: this.heights[row]! * view.stage }
+  }
+
+  /** Le tome qui glisse : posé sur le sommet de la pile, il en prend la largeur du moment. */
+  private movingBox(view: View): { top: number; height: number } {
+    const count = pageCount(this.state)
+    const height = TOME_RATIO * (this.state.moving?.w ?? 0)
+    return { top: levelY(view, this.levels[count]! + height), height: height * view.stage }
+  }
+
   /** Met en scène ce que le moteur vient de produire. */
   private stage(view: View, events: StackEvent[]): void {
     const { sound, reduced } = this.options
     for (const event of events) {
       if (event.type === 'place') {
-        const top = rowTop(view, event.index)
-        const centre = view.left + event.x * view.stage
         const span: Span = event.cut
           ? { x: (Math.min(event.x - event.w / 2, event.cut.x - event.cut.w / 2) + Math.max(event.x + event.w / 2, event.cut.x + event.cut.w / 2)) / 2, w: Math.max(event.x + event.w / 2, event.cut.x + event.cut.w / 2) - Math.min(event.x - event.w / 2, event.cut.x - event.cut.w / 2) }
           : { x: event.x, w: event.w }
         this.spans[event.index] = span
+        // Le tome garde la hauteur qu'il avait en glissant : sa couverture ne change pas de taille en se posant.
+        this.heights[event.index] = TOME_RATIO * span.w
+        this.levels[event.index] = this.levels[event.index - 1]! + this.heights[event.index]!
         this.placed = event.index
+        const box = this.tomeBox(view, event.index)
+        const centre = view.left + event.x * view.stage
         if (event.perfect) {
           if (sound) {
             playStackPerfect(event.combo)
             vibrate(event.combo >= 3 ? [8, 20, 12] : 8)
           }
-          this.rings.push({ x: centre, y: top + view.page / 2, w: event.w * view.stage, h: view.page, life: 0 })
-          if (!reduced) this.burst(centre, top, 10 + Math.min(14, event.combo * 2), ['#ffd35c', '#ffffff', '#ff8fb8', '#7ad7ff'], view.stage * 0.9)
+          this.rings.push({ x: centre, y: box.top + box.height / 2, w: event.w * view.stage, h: box.height, life: 0 })
+          if (!reduced) this.burst(centre, box.top + box.height * 0.1, 10 + Math.min(14, event.combo * 2), ['#ffd35c', '#ffffff', '#ff8fb8', '#7ad7ff'], view.stage * 0.9)
           // Un seul message à la fois : une nouvelle parfaite remplace la précédente.
-          this.floats = [{ text: this.options.perfectLabel, sub: event.combo > 1 ? `×${event.combo}` : '', x: centre, y: top - view.page * 0.4, life: 0 }]
+          this.floats = [{ text: this.options.perfectLabel, sub: event.combo > 1 ? `×${event.combo}` : '', x: centre, y: box.top - view.stage * 0.06, life: 0 }]
         } else if (sound) {
           playStackPlace()
           vibrate(5)
@@ -184,11 +209,28 @@ export class Board {
         if (event.cut && event.cut.w > 0.004) {
           if (sound) playStackCut()
           const dir = event.cut.x > event.x ? 1 : -1
-          this.pieces.push({ x: view.left + event.cut.x * view.stage, y: top, w: event.cut.w * view.stage, vx: dir * view.stage * 0.25, vy: -view.stage * 0.1, angle: 0, spin: dir * 1.6, index: event.index, art: this.art(event.index, span) })
+          this.pieces.push({
+            x: view.left + (event.cut.x - event.cut.w / 2) * view.stage,
+            y: box.top,
+            w: event.cut.w * view.stage,
+            h: box.height,
+            vx: dir * view.stage * 0.25,
+            vy: -view.stage * 0.1,
+            angle: 0,
+            spin: dir * 1.4,
+            index: event.index,
+            spanLeft: view.left + (span.x - span.w / 2) * view.stage,
+            spanWidth: span.w * view.stage,
+            originX: view.left + (event.cut.x - event.cut.w / 2) * view.stage,
+            image: this.imageOf(event.index),
+          })
         }
-        if (event.index % PAGES_PER_SKY === 0) {
+        // Nouveau monde : son nom s'affiche, une pluie de pétales l'accompagne.
+        if (event.index % PAGES_PER_WORLD === 0) {
           if (sound) playStackMilestone()
-          if (!reduced) this.burst(view.width / 2, view.height * 0.35, 36, ['#ff8fb8', '#ffd1e3', '#ffffff'], view.stage * 1.1)
+          if (!reduced) this.burst(view.width / 2, view.height * 0.4, 36, ['#ff8fb8', '#ffd1e3', '#ffffff'], view.stage * 1.1)
+          const number = worldNumber(event.index)
+          this.banner = { text: this.options.worldNames[worldIndexOf(event.index)] ?? '', sub: this.options.worldLabel(number + 1), life: 0 }
         }
       } else {
         if (sound) {
@@ -198,10 +240,24 @@ export class Board {
         this.shake = 0.55
         this.overFor = 0
         const index = pageCount(this.state) + 1
-        const span: Span = { x: event.x, w: event.w }
+        const box = this.movingBox(view)
         const right = event.x > 0.5
-        // La page ratée tombe de côté, depuis l'endroit où elle glissait.
-        this.pieces.push({ x: view.left + (event.x - event.w / 2) * view.stage, y: rowTop(view, index), w: event.w * view.stage, vx: (right ? 1 : -1) * view.stage * 0.18, vy: -view.stage * 0.2, angle: 0, spin: (right ? 1 : -1) * 1.2, index, art: this.art(index, span) })
+        // Le tome raté tombe de côté, depuis l'endroit où il glissait.
+        this.pieces.push({
+          x: view.left + (event.x - event.w / 2) * view.stage,
+          y: box.top,
+          w: event.w * view.stage,
+          h: box.height,
+          vx: (right ? 1 : -1) * view.stage * 0.18,
+          vy: -view.stage * 0.2,
+          angle: 0,
+          spin: (right ? 1 : -1) * 1.1,
+          index,
+          spanLeft: view.left + (event.x - event.w / 2) * view.stage,
+          spanWidth: event.w * view.stage,
+          originX: view.left + (event.x - event.w / 2) * view.stage,
+          image: this.imageOf(index),
+        })
       }
     }
     if (events.length > 0) this.onChange?.(this.state)
@@ -210,12 +266,19 @@ export class Board {
   /** Avance la pile de `dt` secondes, dans un panneau de `width` × `height` pixels. */
   update(dt: number, width: number, height: number): void {
     this.time += dt
-    const probe = makeView(width, height, this.cam)
-    this.cam += (camTarget(probe, pageCount(this.state)) - this.cam) * (1 - Math.exp(-6 * dt))
-    const view = makeView(width, height, this.cam)
+    // D'abord ce qui vient de se passer (une pose met à jour les hauteurs), puis la caméra.
     step(this.state, dt)
-    this.stage(view, drain(this.state))
+    this.stage(makeView(width, height, this.cam), drain(this.state))
+    const count = pageCount(this.state)
+    this.skyPages += (count - this.skyPages) * (1 - Math.exp(-2.4 * dt))
+    const movingHeight = TOME_RATIO * (this.state.moving?.w ?? this.state.pages[count]!.w)
+    this.cam += (camTarget(makeView(width, height, this.cam), this.levels[count]!, movingHeight) - this.cam) * (1 - Math.exp(-5 * dt))
+    const view = makeView(width, height, this.cam)
     if (this.overFor !== null) this.overFor += dt
+    if (this.banner) {
+      this.banner.life += dt
+      if (this.banner.life > 2.8) this.banner = null
+    }
 
     const gravity = view.stage * 4.2
     for (const piece of this.pieces) {
@@ -224,7 +287,7 @@ export class Board {
       piece.y += piece.vy * dt
       piece.angle += piece.spin * dt
     }
-    this.pieces = this.pieces.filter((piece) => piece.y < view.height + view.page * 3)
+    this.pieces = this.pieces.filter((piece) => piece.y < view.height + piece.h * 1.5)
     for (const spark of this.sparks) {
       spark.life += dt
       spark.vy += view.stage * 1.6 * dt
@@ -246,21 +309,42 @@ export class Board {
     const count = pageCount(state)
     ctx.save()
     if (this.shake > 0 && !this.options.reduced) ctx.translate((Math.random() - 0.5) * 16 * this.shake, (Math.random() - 0.5) * 16 * this.shake)
-    const sky = drawSky(ctx, view, count, this.time)
-    drawPetals(ctx, view, this.petals, this.time, sky)
+    drawWorlds(ctx, view, this.skyPages, this.time)
     drawDesk(ctx, view)
 
-    const first = Math.max(0, Math.floor((view.cam - view.page * 2) / view.page))
-    for (let row = first; row <= count; row += 1) {
-      const top = rowTop(view, row)
-      if (top > view.height + view.page) continue
-      if (top < -view.page * 2) break
+    // Du plus haut visible au plus bas : les tomes s'empilent sans se recouvrir.
+    for (let row = count; row >= 0; row -= 1) {
+      const box = this.tomeBox(view, row)
+      if (box.top > view.height) break
+      if (box.top + box.height < 0) continue
       const page = state.pages[row]!
-      drawPage(ctx, view, page.x, page.w, top, row, { art: this.art(row, this.spans[row] ?? { x: page.x, w: page.w }) })
+      const span = this.spans[row] ?? { x: page.x, w: page.w }
+      drawTome(ctx, {
+        x: view.left + (page.x - page.w / 2) * view.stage,
+        y: box.top,
+        w: page.w * view.stage,
+        h: box.height,
+        spanLeft: view.left + (span.x - span.w / 2) * view.stage,
+        spanWidth: span.w * view.stage,
+        image: this.imageOf(row),
+        index: row,
+      })
     }
     if (state.moving) {
-      drawGuides(ctx, view, state)
-      drawPage(ctx, view, state.moving.x, state.moving.w, rowTop(view, count + 1), count + 1, { art: this.art(count + 1, { x: state.moving.x, w: state.moving.w }) })
+      const box = this.movingBox(view)
+      const topBox = this.tomeBox(view, count)
+      const top = state.pages[count]!
+      drawGuides(ctx, view, top.x, top.w, topBox.top, box.height + view.stage * 0.2)
+      drawTome(ctx, {
+        x: view.left + (state.moving.x - state.moving.w / 2) * view.stage,
+        y: box.top,
+        w: state.moving.w * view.stage,
+        h: box.height,
+        spanLeft: view.left + (state.moving.x - state.moving.w / 2) * view.stage,
+        spanWidth: state.moving.w * view.stage,
+        image: this.imageOf(count + 1),
+        index: count + 1,
+      })
     }
 
     for (const ring of this.rings) {
@@ -268,14 +352,21 @@ export class Board {
       ctx.strokeStyle = `rgba(255,236,170,${1 - grow})`
       ctx.lineWidth = 3
       ctx.beginPath()
-      ctx.roundRect(ring.x - (ring.w / 2) * (1 + grow * 0.25), ring.y - (ring.h / 2) * (1 + grow * 0.9), ring.w * (1 + grow * 0.25), ring.h * (1 + grow * 0.9), 8)
+      ctx.roundRect(ring.x - (ring.w / 2) * (1 + grow * 0.2), ring.y - (ring.h / 2) * (1 + grow * 0.08), ring.w * (1 + grow * 0.2), ring.h * (1 + grow * 0.08), 8)
       ctx.stroke()
     }
     for (const piece of this.pieces) {
-      drawPage(ctx, view, (piece.x + piece.w / 2 - view.left) / view.stage, piece.w / view.stage, piece.y, piece.index, {
+      drawTome(ctx, {
+        x: piece.x,
+        y: piece.y,
+        w: piece.w,
+        h: piece.h,
+        spanLeft: piece.spanLeft + (piece.x - piece.originX),
+        spanWidth: piece.spanWidth,
+        image: piece.image,
+        index: piece.index,
         alpha: Math.max(0, 1 - Math.max(0, piece.y - view.height * 0.9) / 200),
         angle: piece.angle,
-        art: piece.art,
       })
     }
     for (const spark of this.sparks) {
@@ -292,21 +383,51 @@ export class Board {
       ctx.globalAlpha = Math.max(0, 1 - progress * progress)
       ctx.textAlign = 'center'
       ctx.lineJoin = 'round'
-      ctx.font = `800 ${Math.round(view.page * 0.62)}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
+      const unit = view.stage * 0.06
+      ctx.font = `800 ${Math.round(unit * 1.1)}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
       ctx.strokeStyle = 'rgba(40,10,60,0.75)'
       ctx.lineWidth = 5
-      const y = float.y - progress * view.page * 1.4
+      const y = float.y - progress * unit * 2.2
       ctx.strokeText(float.text, float.x, y)
       ctx.fillStyle = '#ffe8a0'
       ctx.fillText(float.text, float.x, y)
       if (float.sub) {
-        ctx.font = `800 ${Math.round(view.page * 0.5)}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
-        ctx.strokeText(float.sub, float.x, y + view.page * 0.6)
+        ctx.font = `800 ${Math.round(unit * 0.9)}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
+        ctx.strokeText(float.sub, float.x, y + unit * 1.05)
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(float.sub, float.x, y + view.page * 0.6)
+        ctx.fillText(float.sub, float.x, y + unit * 1.05)
       }
     }
     ctx.globalAlpha = 1
+    // Annonce du monde : son nom, comme un titre de chapitre.
+    if (this.banner) {
+      const t = this.banner.life / 2.8
+      const alpha = t < 0.15 ? t / 0.15 : t > 0.75 ? (1 - t) / 0.25 : 1
+      const unit = view.stage * 0.07
+      ctx.globalAlpha = Math.max(0, alpha)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.lineJoin = 'round'
+      ctx.fillStyle = 'rgba(14,6,36,0.45)'
+      ctx.fillRect(0, height * 0.36 - unit * 1.9, width, unit * 3.8)
+      ctx.font = `600 ${Math.round(unit * 0.62)}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
+      ctx.fillStyle = 'rgba(255,225,170,0.95)'
+      ctx.fillText(this.banner.sub, width / 2, height * 0.36 - unit * 0.8)
+      // Le titre tient toujours dans la largeur du panneau.
+      let size = Math.round(unit * 1.05)
+      ctx.font = `800 ${size}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
+      const fit = (width * 0.9) / Math.max(1, ctx.measureText(this.banner.text).width)
+      if (fit < 1) {
+        size = Math.floor(size * fit)
+        ctx.font = `800 ${size}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
+      }
+      ctx.lineWidth = 5
+      ctx.strokeStyle = 'rgba(30,10,50,0.7)'
+      ctx.strokeText(this.banner.text, width / 2, height * 0.36 + unit * 0.45)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(this.banner.text, width / 2, height * 0.36 + unit * 0.45)
+      ctx.globalAlpha = 1
+    }
     ctx.restore()
   }
 }

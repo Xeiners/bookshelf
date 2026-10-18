@@ -36,12 +36,14 @@ export interface StackResult {
 }
 
 export interface StackCover {
-  id: number
+  id: string
   title: string
+  /** Couverture relayée par l'API (`/api/covers/…`). */
+  url: string
 }
 
 export const stackApi = {
-  /** Affiches d'anime des pages (liste vide si le serveur n'en a pas : le jeu garde ses pages dessinées). */
+  /** Couvertures de tomes (liste vide si la collection n'est pas prête : le jeu dessine ses tomes). */
   covers: (signal?: AbortSignal) => api<{ covers: StackCover[] }>('/stack/covers', { signal }).then((response) => response.covers),
   overview: (signal?: AbortSignal) => api<StackOverview>('/stack', { signal }),
   start: () => api<{ id: string }>('/stack/runs', { method: 'POST' }),

@@ -36,7 +36,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [count, setCount] = useState<string | null>(null)
   const roomRef = useRef(room)
-  const labels = useRef({ pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting })
+  const labels = useRef({ worlds: t.stack.worlds, world: t.stack.game.world, pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting })
   const turn = useRef<string | null>(room.turn)
   const roomCode = room.code
   const roomSeed = room.seed
@@ -44,7 +44,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
   useEffect(() => {
     roomRef.current = room
     if (room.turn) turn.current = room.turn
-    labels.current = { pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting }
+    labels.current = { worlds: t.stack.worlds, world: t.stack.game.world, pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting }
   })
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
     // Même suite d'affiches pour tout le monde : celles du salon, dans l'ordre du serveur.
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches || players.length > 2
     const make = (id: string, sound: boolean): Panel => {
-      const board = new Board({ sound, reduced, petals: coop ? 26 : 10, perfectLabel: labels.current.perfect })
+      const board = new Board({ sound, reduced, perfectLabel: labels.current.perfect, worldNames: labels.current.worlds, worldLabel: labels.current.world })
       board.coverOffset = room.seed % 1000
       return { id, board, color: colorOf(id) }
     }
@@ -69,8 +69,8 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
     const mine = coop ? panels[0]! : panels.find((panel) => panel.id === meId)
     const controller = new AbortController()
     // Même suite d'affiches pour tout le monde, rangée comme le serveur l'a donnée.
-    room.covers.forEach((id, slot) => {
-      void loadCover(id).then((image) => {
+    room.covers.forEach((cover, slot) => {
+      void loadCover(cover.url).then((image) => {
         if (image && !controller.signal.aborted) for (const panel of panels) panel.board.setImage(slot, room.covers.length, image)
       })
     })

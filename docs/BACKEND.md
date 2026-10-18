@@ -1325,15 +1325,15 @@ compte, ou un invité du BookshelfDLE (`requirePlayer`, reçus signés pour ses 
 - **Records** : `StackStats` (meilleur score, meilleure pile, parties, parfaites, Poussières du jour) ;
   battre le record de tous les temps offre la récompense à choisir (`RecordGame` `stack`).
 
-### Affiches d'anime et salons multijoueur (Page Stack)
+### Couvertures de tomes et salons multijoueur (Page Stack)
 
-- **Affiches** (`stack.covers.ts`) : les anime les plus suivis de MyAnimeList (API Jikan, séries et
-  films tout public), relayés par `GET /api/stack/covers` (liste) et `/api/stack/covers/:id` (image
-  réduite à 440 px en WebP, cache 24 h, `immutable`). Liste rechargée toutes les 6 h (15 min si
-  Jikan est en panne) ; sans liste, le jeu garde ses pages dessinées.
+- **Couvertures** (`stack.covers.ts`) : les mangas les plus suivis du set de cartes (`dleWorks()`,
+  une couverture par œuvre, sans les personnages de la série 3), déjà relayées par `/api/covers/`,
+  listées par `GET /api/stack/covers` (`{ id, title, url }`). Sans collection prête, la liste est vide
+  et le jeu dessine ses propres tomes.
 - **Salons** (`stack.rooms.ts`, `stack.socket.ts`) : WebSocket `/api/stack/ws` (compte ou invité),
   2 à 4 joueurs, code à 6 caractères (`?stack=CODE`). **Versus** : chacun sa pile, mêmes affiches
-  (tirées par le serveur, dans le même ordre), écrans partagés ; fin quand tout le monde est tombé
+  (douze tomes tirés par le serveur, dans le même ordre), écrans partagés ; fin quand tout le monde est tombé
   (ou après 4 min), meilleur score gagnant. **Coop** : une pile commune, une page chacun à son tour
   (ordre d'arrivée, les déconnectés sont sautés). Le serveur ne simule rien : chaque client fait
   tourner le même moteur ; le serveur **relaie** la position de la page (`tk`, ~10/s) et le geste

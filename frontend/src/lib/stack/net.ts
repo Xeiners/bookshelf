@@ -1,4 +1,5 @@
 import { API_BASE } from '../../services/api'
+import type { StackCover } from '../../services/stackApi'
 
 /*
  * Salons de Page Stack (cf. `backend/src/modules/stack/stack.rooms.ts`) : les types échangés par
@@ -42,7 +43,7 @@ export interface StackRoom {
   hostId: string
   max: number
   seed: number
-  covers: number[]
+  covers: StackCover[]
   startsAt: number | null
   turn: string | null
   /** Heure du serveur à l'envoi. */

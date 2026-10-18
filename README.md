@@ -92,13 +92,13 @@ en français ou en anglais. Tes romans se téléchargent aussi tout seuls en arr
 (réglage désactivable) : ils s'ouvrent sans connexion, même après des semaines.
 
 🥞 **Page Stack, l'arcade du moment**
-Empile des pages de manga le plus haut possible : un toucher pour poser la page qui glisse,
-ce qui dépasse tombe, une pose parfaite lance une série (et redonne de la largeur). Le ciel
-change tous les 10 étages — aube, jour, crépuscule, nuit, aurore. Score, record de tous les
-temps (booster ou boîte mystère à la clé), classement et Poussières, en invité comme en compte.
-Les pages portent des **affiches d'anime** (celles des séries les plus suivies de MyAnimeList). À
-plusieurs, de 2 à 4 : en **versus**, l'écran est partagé et chacun voit en direct la pile des autres ;
-en **coop**, une seule pile pour tous, chacun pose une page à son tour. Salon par code ou lien d'invitation.
+Empile des **tomes de manga** (de vraies couvertures) le plus haut possible : un toucher pour poser le
+tome qui glisse, ce qui dépasse tombe, une pose parfaite lance une série (et redonne de la largeur).
+Tous les 10 étages, on change d'**univers japonais** — village au crépuscule, Mont Fuji, temple dans les
+nuages, fête des lanternes, voie lactée de Tanabata, lune et cosmos. Score, record de tous les temps
+(booster ou boîte mystère à la clé), classement et Poussières, en invité comme en compte. À plusieurs,
+de 2 à 4 : en **versus**, l'écran est partagé et chacun voit en direct la pile des autres (dans son propre
+univers) ; en **coop**, une seule pile pour tous, chacun pose un tome à son tour. Salon par code ou lien.
 
 🎁 **Une récompense chaque jour**
 À ta première connexion du jour (de minuit à 23 h 59, heure de Paris), un calendrier de

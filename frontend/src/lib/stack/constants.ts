@@ -10,8 +10,8 @@ export const PERFECT_BONUS = 10
 export const COMBO_STEP = 5
 export const COMBO_CAP = 10
 
-/** Largeur de la première page (et plafond de la largeur regagnée), hauteur d'une page, en largeurs de scène. */
-export const INITIAL_WIDTH = 0.5
+/** Largeur du premier tome (et plafond de la largeur regagnée), hauteur d'une ligne, en largeurs de scène. */
+export const INITIAL_WIDTH = 0.4
 export const PAGE_HEIGHT = 0.085
 /** Une pose est « parfaite » si le décalage est au plus de ça (largeurs de scène). */
 export const PERFECT_TOLERANCE = 0.014

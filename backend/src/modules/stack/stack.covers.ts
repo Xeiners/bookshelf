@@ -1,128 +1,50 @@
-import { TtlCache } from '../../lib/cache.js'
-import { notFound } from '../../lib/errors.js'
-import type { CachedImage } from '../manga/manga.routes.js'
+import { dleWorks } from '../dle/dle.works.js'
 
 /*
- * Affiches d'anime de Page Stack : les œuvres les plus suivies de MyAnimeList (API publique
- * Jikan, sans contenu pour adultes), relayées par `/api/stack/covers/:id` — redimensionnées et
- * gardées en cache, l'adresse d'origine ne sort jamais du serveur. La liste est lue une fois,
- * puis toutes les 6 h (15 min si Jikan est en panne). Sans liste, le jeu garde ses pages dessinées.
+ * Couvertures de tomes de Page Stack : celles des mangas du set de cartes (les plus connus,
+ * cf. `dle.works.ts`), déjà relayées par `/api/covers/` — des couvertures de volumes, pas des
+ * affiches. Les cartes de personnages (série 3) n'en sont pas : on ne garde que les œuvres.
+ * Sans collection prête, la liste est vide et le jeu dessine des tomes à la place.
  */
 
-const JIKAN_TOP = 'https://api.jikan.moe/v4/top/anime'
-const MAL_HOST = 'cdn.myanimelist.net'
-const FULL_TTL_MS = 6 * 60 * 60 * 1000
-const RETRY_MS = 15 * 60 * 1000
-/** Affiches gardées au plus (deux pages de 25 sur Jikan). */
-const MAX_COVERS = 48
-/** Largeur servie : une page du jeu fait au plus ~260 px, ×2 pour les écrans Retina. */
-const COVER_WIDTH = 440
+/** Tomes proposés au plus ; un salon en tire une douzaine. */
+const MAX_COVERS = 60
 
 export interface StackCover {
-  id: number
+  id: string
   title: string
+  /** Couverture relayée, relative à l'API (`/api/covers/…`). */
+  url: string
 }
 
-interface JikanTop {
-  data?: {
-    mal_id?: number
-    title?: string
-    type?: string | null
-    rating?: string | null
-    images?: { jpg?: { large_image_url?: string | null; image_url?: string | null } }
-  }[]
+interface Candidate {
+  id: string
+  name: string
+  imageUrl: string
+  series: number
+  popularity: number
 }
 
-const urls = new Map<number, string>()
-let covers: StackCover[] = []
-let loadedAt = 0
-let ok = false
-let loading: Promise<void> | null = null
-
-const images = new TtlCache<CachedImage>({ maxEntries: 120, ttlMs: 24 * 60 * 60 * 1000 })
-
-/** Affiches retenues d'une page Jikan : séries et films, tout public, avec une image de MyAnimeList. */
-export function pickCovers(page: JikanTop): { cover: StackCover; url: string }[] {
-  const picked: { cover: StackCover; url: string }[] = []
-  for (const item of page.data ?? []) {
-    const id = item.mal_id
-    const url = item.images?.jpg?.large_image_url ?? item.images?.jpg?.image_url
-    if (typeof id !== 'number' || !Number.isInteger(id) || id <= 0 || !item.title || !url) continue
-    if (item.type !== 'TV' && item.type !== 'Movie') continue
-    if (item.rating?.startsWith('Rx')) continue
-    try {
-      if (new URL(url).hostname !== MAL_HOST) continue
-    } catch {
-      continue
-    }
-    picked.push({ cover: { id, title: item.title }, url })
-  }
-  return picked
-}
-
-async function fetchPage(page: number): Promise<JikanTop | null> {
-  const response = await fetch(`${JIKAN_TOP}?filter=bypopularity&sfw=true&limit=25&page=${page}`, { signal: AbortSignal.timeout(10_000) }).catch(() => null)
-  if (!response?.ok) return null
-  return (await response.json().catch(() => null)) as JikanTop | null
-}
-
-async function load(): Promise<void> {
-  const found: { cover: StackCover; url: string }[] = []
-  for (const page of [1, 2]) {
-    const data = await fetchPage(page)
-    // Le classement bouge entre deux pages : une œuvre peut revenir.
-    if (data) for (const entry of pickCovers(data)) if (!found.some((other) => other.cover.id === entry.cover.id)) found.push(entry)
-    // Jikan limite le débit : un court répit entre deux pages.
-    if (page === 1) await new Promise((resolve) => setTimeout(resolve, 400))
-  }
-  loadedAt = Date.now()
-  ok = found.length > 0
-  if (!ok) return
-  covers = found.slice(0, MAX_COVERS).map((entry) => entry.cover)
-  urls.clear()
-  for (const entry of found.slice(0, MAX_COVERS)) urls.set(entry.cover.id, entry.url)
-}
-
-/** Liste des affiches ; chargée au premier besoin, rafraîchie en tâche de fond. */
-export async function stackCovers(): Promise<StackCover[]> {
-  const stale = Date.now() - loadedAt > (ok ? FULL_TTL_MS : RETRY_MS)
-  if (stale) {
-    loading ??= load().finally(() => (loading = null))
-    // Premier chargement : on l'attend ; ensuite la liste du moment sert pendant qu'on la rafraîchit.
-    if (covers.length === 0) await loading
+/** Les mangas les plus suivis, une couverture par œuvre. */
+export function pickCovers(works: readonly Candidate[]): StackCover[] {
+  const seen = new Set<string>()
+  const covers: StackCover[] = []
+  for (const work of [...works].sort((a, b) => b.popularity - a.popularity)) {
+    if (work.series === 3 || !work.imageUrl) continue
+    const key = work.name.trim().toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    covers.push({ id: work.id, title: work.name, url: work.imageUrl })
+    if (covers.length >= MAX_COVERS) break
   }
   return covers
 }
 
-type Sharp = typeof import('sharp')['default']
-let sharpModule: Promise<Sharp | null> | null = null
-const loadSharp = () => (sharpModule ??= import('sharp').then((module) => module.default, () => null))
-
-/** Une affiche, réduite et réencodée en WebP (l'original tel quel si sharp manque). */
-export async function stackCoverImage(id: number): Promise<CachedImage> {
-  await stackCovers()
-  const url = urls.get(id)
-  if (!url) throw notFound('Affiche indisponible.')
-  return images.getOrLoad(String(id), async () => {
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) }).catch(() => null)
-    if (!response?.ok) throw notFound('Affiche indisponible.')
-    const original: CachedImage = { body: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get('content-type') ?? 'image/jpeg' }
-    const sharp = await loadSharp()
-    if (!sharp) return original
-    try {
-      const body = await sharp(original.body, { failOn: 'error' }).resize({ width: COVER_WIDTH, withoutEnlargement: true }).webp({ quality: 82, effort: 4 }).toBuffer()
-      return { body, contentType: 'image/webp' }
-    } catch {
-      return original
-    }
-  })
-}
-
-/** Pour les tests : repart de zéro. */
-export function resetStackCovers(): void {
-  urls.clear()
-  covers = []
-  loadedAt = 0
-  ok = false
-  loading = null
+export async function stackCovers(): Promise<StackCover[]> {
+  try {
+    return pickCovers((await dleWorks()).list)
+  } catch {
+    // Collection pas encore prête : le jeu dessine ses propres tomes.
+    return []
+  }
 }
