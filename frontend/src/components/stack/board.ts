@@ -1,9 +1,9 @@
 import { gsap } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playStackCut, playStackMilestone, playStackOver, playStackPerfect, playStackPlace } from '../../lib/sfx'
-import { INITIAL_WIDTH } from '../../lib/stack/constants'
+import { INITIAL_WIDTH, PAGE_HEIGHT } from '../../lib/stack/constants'
 import { createStack, drain, pageCount, step, tap, type StackEvent, type StackState } from '../../lib/stack/engine'
-import { TOME_RATIO, camTarget, drawDesk, drawGuides, drawTome, levelY, makeView, type View } from './scene'
+import { camTarget, drawDesk, drawGuides, drawTome, levelY, makeView, type View } from './scene'
 import { PAGES_PER_WORLD, drawWorlds, worldIndexOf, worldNumber } from './worlds'
 
 /*
@@ -29,6 +29,7 @@ interface Piece {
   /** Abscisse de départ de la pièce : la couverture la suit pendant la chute. */
   originX: number
   image: HTMLImageElement | null
+  title: string
 }
 
 interface Spark {
@@ -79,6 +80,7 @@ export class Board {
   state: StackState = createStack()
   /** Affiches chargées, et décalage de la première : toutes les piles d'une partie partagent la même suite. */
   images: (HTMLImageElement | undefined)[] = []
+  titles: (string | undefined)[] = []
   coverOffset = 0
   cam = 0
   time = 0
@@ -93,8 +95,8 @@ export class Board {
   private floats: Float[] = []
   private shake = 0
   /** Hauteur de chaque tome posé, et hauteur cumulée jusqu'à son sommet (largeurs de scène). */
-  private heights: number[] = [TOME_RATIO * INITIAL_WIDTH]
-  private levels: number[] = [TOME_RATIO * INITIAL_WIDTH]
+  private heights: number[] = [PAGE_HEIGHT]
+  private levels: number[] = [PAGE_HEIGHT]
   /** Nombre de tomes, lissé : le monde change en douceur. */
   private skyPages = 0
   private banner: { text: string; sub: string; life: number } | null = null
@@ -107,20 +109,29 @@ export class Board {
   }
 
   /** Solo : une affiche de plus (l'ordre n'a pas d'importance). */
-  addImage(image: HTMLImageElement): void {
-    if (!this.images.includes(image)) this.images.push(image)
+  addImage(image: HTMLImageElement, title: string): void {
+    if (this.images.includes(image)) return
+    this.images.push(image)
+    this.titles.push(title)
   }
 
   /** Multijoueur : l'affiche de la case `slot` de la suite du salon (les autres cases restent vides jusqu'à leur arrivée). */
-  setImage(slot: number, count: number, image: HTMLImageElement): void {
+  setImage(slot: number, count: number, image: HTMLImageElement, title: string): void {
     this.images.length = count
+    this.titles.length = count
     this.images[slot] = image
+    this.titles[slot] = title
   }
 
   /** Couverture du tome de rang `index` : la même suite pour tous les joueurs d'une partie. */
   private imageOf(index: number): HTMLImageElement | null {
     if (this.images.length === 0) return null
     return this.images[(index + this.coverOffset) % this.images.length] ?? null
+  }
+
+  private titleOf(index: number): string {
+    if (this.titles.length === 0) return ''
+    return this.titles[(index + this.coverOffset) % this.titles.length] ?? ''
   }
 
   /** Geste du joueur : la page se pose. `false` si la partie est déjà finie. */
@@ -174,7 +185,7 @@ export class Board {
   /** Le tome qui glisse : posé sur le sommet de la pile, il en prend la largeur du moment. */
   private movingBox(view: View): { top: number; height: number } {
     const count = pageCount(this.state)
-    const height = TOME_RATIO * (this.state.moving?.w ?? 0)
+    const height = PAGE_HEIGHT
     return { top: levelY(view, this.levels[count]! + height), height: height * view.stage }
   }
 
@@ -187,8 +198,7 @@ export class Board {
           ? { x: (Math.min(event.x - event.w / 2, event.cut.x - event.cut.w / 2) + Math.max(event.x + event.w / 2, event.cut.x + event.cut.w / 2)) / 2, w: Math.max(event.x + event.w / 2, event.cut.x + event.cut.w / 2) - Math.min(event.x - event.w / 2, event.cut.x - event.cut.w / 2) }
           : { x: event.x, w: event.w }
         this.spans[event.index] = span
-        // Le tome garde la hauteur qu'il avait en glissant : sa couverture ne change pas de taille en se posant.
-        this.heights[event.index] = TOME_RATIO * span.w
+        this.heights[event.index] = PAGE_HEIGHT
         this.levels[event.index] = this.levels[event.index - 1]! + this.heights[event.index]!
         this.placed = event.index
         const box = this.tomeBox(view, event.index)
@@ -223,6 +233,7 @@ export class Board {
             spanWidth: span.w * view.stage,
             originX: view.left + (event.cut.x - event.cut.w / 2) * view.stage,
             image: this.imageOf(event.index),
+            title: this.titleOf(event.index),
           })
         }
         // Nouveau monde : son nom s'affiche, une pluie de pétales l'accompagne.
@@ -257,6 +268,7 @@ export class Board {
           spanWidth: event.w * view.stage,
           originX: view.left + (event.x - event.w / 2) * view.stage,
           image: this.imageOf(index),
+          title: this.titleOf(index),
         })
       }
     }
@@ -271,7 +283,7 @@ export class Board {
     this.stage(makeView(width, height, this.cam), drain(this.state))
     const count = pageCount(this.state)
     this.skyPages += (count - this.skyPages) * (1 - Math.exp(-2.4 * dt))
-    const movingHeight = TOME_RATIO * (this.state.moving?.w ?? this.state.pages[count]!.w)
+    const movingHeight = PAGE_HEIGHT
     this.cam += (camTarget(makeView(width, height, this.cam), this.levels[count]!, movingHeight) - this.cam) * (1 - Math.exp(-5 * dt))
     const view = makeView(width, height, this.cam)
     if (this.overFor !== null) this.overFor += dt
@@ -327,6 +339,7 @@ export class Board {
         spanLeft: view.left + (span.x - span.w / 2) * view.stage,
         spanWidth: span.w * view.stage,
         image: this.imageOf(row),
+        title: this.titleOf(row),
         index: row,
       })
     }
@@ -343,6 +356,7 @@ export class Board {
         spanLeft: view.left + (state.moving.x - state.moving.w / 2) * view.stage,
         spanWidth: state.moving.w * view.stage,
         image: this.imageOf(count + 1),
+        title: this.titleOf(count + 1),
         index: count + 1,
       })
     }
@@ -364,6 +378,7 @@ export class Board {
         spanLeft: piece.spanLeft + (piece.x - piece.originX),
         spanWidth: piece.spanWidth,
         image: piece.image,
+        title: piece.title,
         index: piece.index,
         alpha: Math.max(0, 1 - Math.max(0, piece.y - view.height * 0.9) / 200),
         angle: piece.angle,

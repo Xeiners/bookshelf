@@ -92,7 +92,7 @@ en français ou en anglais. Tes romans se téléchargent aussi tout seuls en arr
 (réglage désactivable) : ils s'ouvrent sans connexion, même après des semaines.
 
 🥞 **Page Stack, l'arcade du moment**
-Empile des **tomes de manga** (de vraies couvertures) le plus haut possible : un toucher pour poser le
+Empile des **tomes de manga** (on voit leur dos, décoré de la vraie couverture, du titre et du numéro de volume) le plus haut possible : un toucher pour poser le
 tome qui glisse, ce qui dépasse tombe, une pose parfaite lance une série (et redonne de la largeur).
 Tous les 10 étages, on change d'**univers japonais** — village au crépuscule, Mont Fuji, temple dans les
 nuages, fête des lanternes, voie lactée de Tanabata, lune et cosmos. Score, record de tous les temps

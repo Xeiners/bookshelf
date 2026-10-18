@@ -54,7 +54,7 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
     const controller = new AbortController()
     void coverList(controller.signal).then((list) => {
       if (controller.signal.aborted) return
-      void loadCovers(chooseCovers(list), (image) => board.addImage(image))
+      void loadCovers(chooseCovers(list), (image, cover) => board.addImage(image, cover.title))
     })
 
     let width = 0

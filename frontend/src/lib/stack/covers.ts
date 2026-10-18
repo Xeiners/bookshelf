@@ -69,11 +69,11 @@ export function loadCover(url: string): Promise<HTMLImageElement | null> {
 }
 
 /** Charge ces couvertures ; `onImage` reçoit chacune dès qu'elle est prête (la partie n'attend personne). */
-export async function loadCovers(covers: readonly StackCover[], onImage: (image: HTMLImageElement) => void): Promise<void> {
+export async function loadCovers(covers: readonly StackCover[], onImage: (image: HTMLImageElement, cover: StackCover) => void): Promise<void> {
   await Promise.all(
     covers.map(async (cover) => {
       const image = await loadCover(cover.url)
-      if (image) onImage(image)
+      if (image) onImage(image, cover)
     }),
   )
 }

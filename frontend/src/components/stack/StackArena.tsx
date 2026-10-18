@@ -71,7 +71,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
     // Même suite d'affiches pour tout le monde, rangée comme le serveur l'a donnée.
     room.covers.forEach((cover, slot) => {
       void loadCover(cover.url).then((image) => {
-        if (image && !controller.signal.aborted) for (const panel of panels) panel.board.setImage(slot, room.covers.length, image)
+        if (image && !controller.signal.aborted) for (const panel of panels) panel.board.setImage(slot, room.covers.length, image, cover.title)
       })
     })
 
