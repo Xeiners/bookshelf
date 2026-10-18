@@ -186,8 +186,14 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
       const corner = rect.y < 1 && rect.x + rect.w >= width - 1 ? 44 : 0
       const name = nameOf(panel.id)
       const ellipsis = '…' // i18n-ignore : signe de ponctuation
-      text(name.length > 14 ? `${name.slice(0, 13)}${ellipsis}` : name, size * 1.7, size * 1.3, size, '#ffffff')
-      text(state.score.toLocaleString(), rect.w - size * 0.7 - corner, size * 1.3, size * 1.35, '#ffe8a0', 'right')
+      const scoreText = state.score.toLocaleString()
+      text(scoreText, rect.w - size * 0.7 - corner, size * 1.3, size * 1.35, '#ffe8a0', 'right')
+      // Le nom prend la place que le score laisse, et se raccourcit s'il le faut (petits panneaux).
+      const room = rect.w - size * 1.7 - ctx.measureText(scoreText).width - size * 0.7 - corner - size * 0.6
+      let shown = name.length > 14 ? `${name.slice(0, 13)}${ellipsis}` : name
+      ctx.font = `700 ${size}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
+      while (shown.length > 2 && ctx.measureText(shown).width > room) shown = `${shown.slice(0, -2)}${ellipsis}`
+      text(shown, size * 1.7, size * 1.3, size, '#ffffff')
       if (state.combo >= 2) text(`×${state.combo}`, rect.w - size * 0.7 - corner, size * 3.4, size * 1.1, '#ff9b3d', 'right')
       if (over) {
         ctx.fillStyle = 'rgba(10,4,28,0.45)'
@@ -226,7 +232,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
         lastCount = label
         setCount(started ? null : label)
       }
-      const rects = layoutPanels(panels.length, width, height, 4)
+      const rects = layoutPanels(panels.length, width, height, 4, Math.max(0, panels.findIndex((panel) => panel.id === meId || panel.id === TEAM)))
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = '#120a28'
       ctx.fillRect(0, 0, width, height)

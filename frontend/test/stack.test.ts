@@ -164,14 +164,32 @@ describe('page stack — écrans partagés', () => {
     }
   })
 
-  it('téléphone : deux piles l’une sur l’autre, quatre en 2 × 2 ; écran large : côte à côte', () => {
+  it('téléphone : le sien en haut et les autres en dessous ; écran large : côte à côte', () => {
     const two = layoutPanels(2, 390, 844)
     assert.ok(two[0]!.y < two[1]!.y && two[0]!.x === two[1]!.x)
     const four = layoutPanels(4, 390, 844)
-    assert.deepEqual(new Set(four.map((rect) => rect.x)).size, 2)
-    assert.deepEqual(new Set(four.map((rect) => rect.y)).size, 2)
+    assert.ok(four[0]!.w === 390 && four.slice(1).every((rect) => rect.y > four[0]!.y))
     const wide = layoutPanels(2, 1440, 700)
     assert.ok(wide[0]!.x < wide[1]!.x && wide[0]!.y === wide[1]!.y)
+  })
+
+  it('le panneau du joueur est toujours le plus grand ; à trois sur écran large, il est au milieu', () => {
+    const area = (rect: Rect): number => rect.w * rect.h
+    for (const [width, height] of [[390, 844], [1440, 900], [1000, 600], [1920, 950]] as const) {
+      for (const count of [2, 3, 4]) {
+        for (let own = 0; own < count; own += 1) {
+          const rects = layoutPanels(count, width, height, 4, own)
+          const biggest = Math.max(...rects.map(area))
+          assert.equal(area(rects[own]!), biggest, `${count} joueurs, le n°${own}, ${width}×${height}`)
+        }
+      }
+    }
+    const three = layoutPanels(3, 1920, 950, 4, 0)
+    assert.ok(three[1]!.x < three[0]!.x && three[0]!.x < three[2]!.x, 'les autres de part et d’autre (ordre conservé)')
+    const mid = layoutPanels(3, 1920, 950, 4, 1)
+    assert.ok(mid[0]!.x < mid[1]!.x && mid[1]!.x < mid[2]!.x)
+    const centre = three[0]!.x + three[0]!.w / 2
+    assert.ok(Math.abs(centre - 960) < 1, 'centré')
   })
 })
 
