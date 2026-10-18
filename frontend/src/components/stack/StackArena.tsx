@@ -5,6 +5,7 @@ import { gsap } from '../../lib/gsap'
 import { loadCover } from '../../lib/stack/covers'
 import { outcomeOf, pageCount } from '../../lib/stack/engine'
 import { layoutPanels, type Rect } from '../../lib/stack/layout'
+import { TOWER_SIZE, towerSource } from '../../lib/stack/tower'
 import { PLAYER_COLORS, type StackRelay, type StackRoom } from '../../lib/stack/net'
 import { useStackRoom } from '../../store/useStackRoom'
 import { Board } from './board'
@@ -83,6 +84,9 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
     let smooth = 16
     const mine = coop ? panels[0]! : panels.find((panel) => panel.id === meId)
     const controller = new AbortController()
+    // La tour du joueur (ou de l'équipe en coop) : l'écran des résultats peut l'enregistrer.
+    const ownBoard = mine?.board
+    towerSource.current = ownBoard ? (labels) => ownBoard.snapshot({ ...labels, width: TOWER_SIZE.width, height: TOWER_SIZE.height }) : null
     // Même suite d'affiches pour tout le monde, rangée comme le serveur l'a donnée.
     room.covers.forEach((cover, slot) => {
       void loadCover(cover.url).then((image) => {
@@ -285,6 +289,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
       observer.disconnect()
       store.onRelay(null)
       placeRef.current = null
+      towerSource.current = null
     }
   }, [roomCode, roomSeed, meId])
 

@@ -3,6 +3,7 @@ import { Flame, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { chooseCovers, coverList, loadCovers } from '../../lib/stack/covers'
 import { outcomeOf, pageCount, type StackOutcome } from '../../lib/stack/engine'
+import { TOWER_SIZE, towerSource } from '../../lib/stack/tower'
 import { Board, popScore } from './board'
 
 /** Après la chute de la dernière page, le temps de la voir tomber avant le bilan. */
@@ -43,6 +44,7 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
     const board = new Board({ sound: true, reduced, perfectLabel: labels.current.perfect, worldNames: labels.current.worlds, worldLabel: labels.current.world })
     board.coverOffset = Math.floor(Math.random() * 1000)
     boardRef.current = board
+    towerSource.current = (labels) => board.snapshot({ ...labels, width: TOWER_SIZE.width, height: TOWER_SIZE.height })
     board.onChange = (state) => {
       setHud({ score: state.score, pages: pageCount(state), combo: state.combo })
       popScore(scoreRef.current, state.combo > 0)
@@ -93,6 +95,7 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
       cancelAnimationFrame(frame)
       observer.disconnect()
       boardRef.current = null
+      towerSource.current = null
     }
   }, [])
 

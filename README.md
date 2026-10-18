@@ -99,6 +99,7 @@ nuages, fête des lanternes, voie lactée de Tanabata, lune et cosmos. Score, re
 (booster ou boîte mystère à la clé), classement et Poussières, en invité comme en compte. À plusieurs,
 de 2 à 4 : en **versus**, l'écran est partagé et chacun voit en direct la pile des autres (dans son propre
 univers) ; en **coop**, une seule pile pour tous, chacun pose un tome à son tour. Salon par code ou lien.
+À la fin d'une partie, **« Enregistrer ma tour »** sort l'image de la pile (téléchargement, ou partage sur téléphone).
 
 🎁 **Une récompense chaque jour**
 À ta première connexion du jour (de minuit à 23 h 59, heure de Paris), un calendrier de

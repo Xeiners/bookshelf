@@ -1321,7 +1321,7 @@ compte, ou un invité du BookshelfDLE (`requirePlayer`, reçus signés pour ses 
   +10 si la pose est parfaite, +5 par parfaite d'affilée (jusqu'à 10). Le serveur ne rejoue pas la
   partie : il borne les pages par le temps (≥ 0,3 s la page), les parfaites par les pages, le score par
   les deux (`plausible`).
-- **Poussières** : une pour 20 points, plafonnées à 400 par jour (heure de Paris).
+- **Poussières** : une pour 20 points, plafonnées à 1 000 par jour (heure de Paris).
 - **Records** : `StackStats` (meilleur score, meilleure pile, parties, parfaites, Poussières du jour) ;
   battre le record de tous les temps offre la récompense à choisir (`RecordGame` `stack`).
 

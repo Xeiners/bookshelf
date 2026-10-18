@@ -4,7 +4,7 @@ import { playStackCut, playStackMilestone, playStackOver, playStackPerfect, play
 import { INITIAL_WIDTH, PAGE_HEIGHT } from '../../lib/stack/constants'
 import { createStack, drain, pageCount, slide, step, tap, type StackEvent, type StackState } from '../../lib/stack/engine'
 import { camTarget, drawDesk, drawGuides, drawTome, levelY, makeView, type View } from './scene'
-import { PAGES_PER_WORLD, WorldBackdrop, worldIndexOf, worldNumber } from './worlds'
+import { PAGES_PER_WORLD, WorldBackdrop, drawWorlds, worldIndexOf, worldNumber } from './worlds'
 
 /*
  * Une pile : le moteur (`lib/stack/engine.ts`), sa caméra et tous les effets d'une partie (pages
@@ -327,17 +327,10 @@ export class Board {
     this.shake = Math.max(0, this.shake - dt * 1.6)
   }
 
-  /** Dessine la pile dans le coin haut-gauche d'un contexte déjà translaté et rogné sur le panneau. */
-  draw(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-    const view = makeView(width, height, this.cam)
+  /** Les tomes posés, du plus haut visible au plus bas : ils s'empilent sans se recouvrir. */
+  private paintStack(ctx: CanvasRenderingContext2D, view: View): void {
     const { state } = this
     const count = pageCount(state)
-    ctx.save()
-    if (this.shake > 0 && !this.options.reduced) ctx.translate((Math.random() - 0.5) * 16 * this.shake, (Math.random() - 0.5) * 16 * this.shake)
-    this.backdrop.draw(ctx, view, this.skyPages, this.time)
-    drawDesk(ctx, view)
-
-    // Du plus haut visible au plus bas : les tomes s'empilent sans se recouvrir.
     for (let row = count; row >= 0; row -= 1) {
       const box = this.tomeBox(view, row)
       if (box.top > view.height) break
@@ -356,6 +349,61 @@ export class Board {
         index: row,
       })
     }
+  }
+
+  /**
+   * Une image de la tour telle qu'elle est (ou finit) : le monde atteint, le bureau, tous les tomes à
+   * l'échelle pour tenir dans la hauteur, et un titre. À enregistrer ou partager à la fin d'une partie.
+   */
+  snapshot(options: { width: number; height: number; title: string; subtitle: (pages: number, score: number) => string; footer: string }): HTMLCanvasElement {
+    const { width, height } = options
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return canvas
+    const count = pageCount(this.state)
+    const top = this.levels[count] ?? PAGE_HEIGHT
+    // La pile tient entre le titre (en haut) et le bureau (en bas), si haute soit-elle.
+    const stage = Math.max(6, Math.min(width * 0.74, (height * 0.62) / Math.max(top, 0.25)))
+    const view: View = { width, height, stage, left: (width - stage) / 2, ground: height * 0.84, cam: 0 }
+    drawWorlds(ctx, view, count, 0)
+    drawDesk(ctx, view)
+    this.paintStack(ctx, view)
+    // Titre et bilan, sur un voile qui se fond dans le ciel.
+    const veil = ctx.createLinearGradient(0, 0, 0, height * 0.24)
+    veil.addColorStop(0, 'rgba(14,6,36,0.72)')
+    veil.addColorStop(1, 'rgba(14,6,36,0)')
+    ctx.fillStyle = veil
+    ctx.fillRect(0, 0, width, height * 0.24)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.lineJoin = 'round'
+    const write = (text: string, y: number, size: number, weight: number, color: string): void => {
+      ctx.font = `${weight} ${Math.round(size)}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
+      ctx.lineWidth = Math.max(3, size * 0.14)
+      ctx.strokeStyle = 'rgba(20,8,50,0.75)'
+      ctx.strokeText(text, width / 2, y)
+      ctx.fillStyle = color
+      ctx.fillText(text, width / 2, y)
+    }
+    write(options.title, height * 0.06, width * 0.075, 800, '#ffffff')
+    write(options.subtitle(count, this.state.score), height * 0.105, width * 0.045, 700, '#ffe8a0')
+    write(options.footer, height * 0.965, width * 0.032, 600, 'rgba(255,255,255,0.8)')
+    return canvas
+  }
+
+  /** Dessine la pile dans le coin haut-gauche d'un contexte déjà translaté et rogné sur le panneau. */
+  draw(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+    const view = makeView(width, height, this.cam)
+    const { state } = this
+    const count = pageCount(state)
+    ctx.save()
+    if (this.shake > 0 && !this.options.reduced) ctx.translate((Math.random() - 0.5) * 16 * this.shake, (Math.random() - 0.5) * 16 * this.shake)
+    this.backdrop.draw(ctx, view, this.skyPages, this.time)
+    drawDesk(ctx, view)
+
+    this.paintStack(ctx, view)
     if (state.moving) {
       const box = this.movingBox(view)
       const topBox = this.tomeBox(view, count)
@@ -431,13 +479,13 @@ export class Board {
     if (this.banner) {
       const t = this.banner.life / 2.8
       const alpha = t < 0.15 ? t / 0.15 : t > 0.75 ? (1 - t) / 0.25 : 1
-      const unit = view.stage * 0.07
+      const unit = view.stage * 0.043
       ctx.globalAlpha = Math.max(0, alpha)
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.lineJoin = 'round'
       ctx.fillStyle = 'rgba(14,6,36,0.45)'
-      ctx.fillRect(0, height * 0.36 - unit * 1.9, width, unit * 3.8)
+      ctx.fillRect(0, height * 0.36 - unit * 1.75, width, unit * 3.5)
       ctx.font = `600 ${Math.round(unit * 0.62)}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
       ctx.fillStyle = 'rgba(255,225,170,0.95)'
       ctx.fillText(this.banner.sub, width / 2, height * 0.36 - unit * 0.8)
@@ -449,7 +497,7 @@ export class Board {
         size = Math.floor(size * fit)
         ctx.font = `800 ${size}px Inter, system-ui, sans-serif` // i18n-ignore : police Canvas
       }
-      ctx.lineWidth = 5
+      ctx.lineWidth = 3
       ctx.strokeStyle = 'rgba(30,10,50,0.7)'
       ctx.strokeText(this.banner.text, width / 2, height * 0.36 + unit * 0.45)
       ctx.fillStyle = '#ffffff'

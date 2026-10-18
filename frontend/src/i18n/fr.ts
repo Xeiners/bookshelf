@@ -717,6 +717,13 @@ export const fr = {
       home: 'Retour',
       offline: 'Hors ligne : cette partie n’est pas enregistrée.',
     },
+    tower: {
+      save: 'Enregistrer ma tour',
+      saved: 'Tour enregistrée !',
+      failed: 'Échec de l’enregistrement',
+      file: 'ma-tour-page-stack.png',
+      subtitle: (pages: number, score: number) => `${pages} tome${plural(pages, '', 's')} · ${score.toLocaleString()} pts`,
+    },
   },
 
   daily: {

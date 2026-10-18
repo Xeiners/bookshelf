@@ -707,6 +707,13 @@ export const en: Dictionary = {
       home: 'Back',
       offline: 'Offline: this game isn’t saved.',
     },
+    tower: {
+      save: 'Save my tower',
+      saved: 'Tower saved!',
+      failed: 'Couldn’t save',
+      file: 'my-page-stack-tower.png',
+      subtitle: (pages: number, score: number) => `${pages} volume${plural(pages, '', 's')} · ${score.toLocaleString()} pts`,
+    },
   },
 
   daily: {

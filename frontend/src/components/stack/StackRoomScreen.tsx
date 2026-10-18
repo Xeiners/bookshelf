@@ -7,6 +7,7 @@ import { playChime } from '../../lib/sfx'
 import { PLAYER_COLORS, stackLink, type StackMode, type StackRoom } from '../../lib/stack/net'
 import { useStackRoom } from '../../store/useStackRoom'
 import { useUiStore } from '../../store/useUiStore'
+import { SaveTower } from './SaveTower'
 import { StackArena } from './StackArena'
 
 /**
@@ -276,6 +277,7 @@ function Results({ room, meId }: { room: StackRoom; meId: string }) {
           ) : (
             <p className="rounded-full bg-white/[0.06] py-3 text-center text-xs text-cream/60">{t.stack.room.waitRematch}</p>
           )}
+          <SaveTower />
           <button type="button" onClick={() => useStackRoom.getState().leave()} className="h-12 rounded-full border border-white/15 bg-white/[0.06] text-sm font-semibold text-cream">
             {t.stack.room.leave}
           </button>

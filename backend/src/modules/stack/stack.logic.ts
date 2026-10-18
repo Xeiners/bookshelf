@@ -14,7 +14,7 @@ export const COMBO_CAP = 10
 /** Temps minimal entre deux pages (s) : une page met au moins ce temps à traverser l'écran. */
 export const MIN_DROP_SECONDS = 0.3
 /** Poussières créditées par jour au plus (parties cumulées), et une Poussière tous les `POINTS_PER_STARDUST` points. */
-export const STACK_DAILY_CAP = 400
+export const STACK_DAILY_CAP = 1000
 export const POINTS_PER_STARDUST = 20
 
 /** Points d'une page posée ; `combo` : parfaites d'affilée, cette page comprise (0 si elle n'est pas parfaite). */

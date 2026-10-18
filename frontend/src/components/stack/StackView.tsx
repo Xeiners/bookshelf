@@ -21,6 +21,7 @@ import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { StackEmblem } from './StackEmblem'
 import { StackGame } from './StackGame'
+import { SaveTower } from './SaveTower'
 import { StackRoomScreen } from './StackRoomScreen'
 import type { StackMode } from '../../lib/stack/net'
 
@@ -374,6 +375,7 @@ function GameOver({ settled, replaying, onReplay, onHome }: { settled: Settled; 
             {replaying ? <Loader2 size={17} className="animate-spin" aria-hidden /> : <RotateCcw size={17} aria-hidden />}
             {t.stack.over.replay}
           </button>
+          {outcome.pages > 0 && <SaveTower />}
           <button type="button" onClick={onHome} className="h-12 rounded-full border border-white/15 bg-white/[0.06] text-sm font-semibold text-cream">
             {t.stack.over.home}
           </button>
