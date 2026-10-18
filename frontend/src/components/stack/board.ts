@@ -4,7 +4,7 @@ import { playStackCut, playStackMilestone, playStackOver, playStackPerfect, play
 import { INITIAL_WIDTH, PAGE_HEIGHT } from '../../lib/stack/constants'
 import { createStack, drain, pageCount, slide, step, tap, type StackEvent, type StackState } from '../../lib/stack/engine'
 import { camTarget, drawDesk, drawGuides, drawTome, levelY, makeView, type View } from './scene'
-import { PAGES_PER_WORLD, drawWorlds, worldIndexOf, worldNumber } from './worlds'
+import { PAGES_PER_WORLD, WorldBackdrop, worldIndexOf, worldNumber } from './worlds'
 
 /*
  * Une pile : le moteur (`lib/stack/engine.ts`), sa caméra et tous les effets d'une partie (pages
@@ -99,6 +99,7 @@ export class Board {
   private levels: number[] = [PAGE_HEIGHT]
   /** Nombre de tomes, lissé : le monde change en douceur. */
   private skyPages = 0
+  private readonly backdrop = new WorldBackdrop()
   private banner: { text: string; sub: string; life: number } | null = null
   private readonly options: BoardOptions
   /** Appelé à chaque pose et à la chute finale (mise à jour du tableau de bord). */
@@ -328,7 +329,7 @@ export class Board {
     const count = pageCount(state)
     ctx.save()
     if (this.shake > 0 && !this.options.reduced) ctx.translate((Math.random() - 0.5) * 16 * this.shake, (Math.random() - 0.5) * 16 * this.shake)
-    drawWorlds(ctx, view, this.skyPages, this.time)
+    this.backdrop.draw(ctx, view, this.skyPages, this.time)
     drawDesk(ctx, view)
 
     // Du plus haut visible au plus bas : les tomes s'empilent sans se recouvrir.

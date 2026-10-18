@@ -712,7 +712,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, view: WorldView, index: number
 
 /**
  * Le décor complet pour `pages` tomes posés (valeur lissée) : le monde courant, fondu vers le
- * suivant sur la fin du palier.
+ * suivant sur la fin du palier. Dessin direct, sans cache (les aperçus et les tests).
  */
 export function drawWorlds(ctx: CanvasRenderingContext2D, view: WorldView, pages: number, time: number): void {
   const { index, local, next, blend } = worldAt(pages)
@@ -723,4 +723,123 @@ export function drawWorlds(ctx: CanvasRenderingContext2D, view: WorldView, pages
     drawWorld(ctx, view, next, 0, time)
     ctx.restore()
   }
+}
+
+/* ---- Décor en calques ------------------------------------------------------------------- */
+
+/** Le décor bouge lentement et reste flou : il est redessiné 30 fois par seconde, sur un calque réduit. */
+const BACKDROP_STEP = 1 / 30
+/** Côté le plus long du calque (pixels) : au-delà, le décor est dessiné plus petit puis agrandi. */
+const BACKDROP_MAX_SIDE = 640
+
+interface Layer {
+  canvas: HTMLCanvasElement
+  world: number
+  local: number
+  width: number
+  height: number
+  /** Temps (du jeu) du dernier dessin ; `-Infinity` : à refaire. */
+  painted: number
+}
+
+const newLayer = (): Layer => ({ canvas: document.createElement('canvas'), world: -1, local: 0, width: 0, height: 0, painted: -Infinity })
+
+/**
+ * Le décor d'un panneau. Chaque monde est dessiné dans un calque à part, à taille réduite et à
+ * cadence réduite ; à l'écran, on ne fait que le recopier. Pendant le fondu entre deux mondes, le
+ * calque du suivant se dessine une image sur deux (jamais les deux le même instant) : le coût ne
+ * double plus, et la bascule ne fait plus ralentir le jeu.
+ */
+export class WorldBackdrop {
+  private readonly layers: [Layer, Layer] = [newLayer(), newLayer()]
+  /** Pendant le fondu : les deux mondes mêlés à taille réduite, pour ne recopier à l'écran (grand) qu'une seule image. */
+  private readonly mixed = document.createElement('canvas')
+
+  constructor() {
+    warmWorlds()
+  }
+
+  draw(ctx: CanvasRenderingContext2D, view: WorldView, pages: number, time: number): void {
+    const { index, local, next, blend } = worldAt(pages)
+    const scale = Math.min(1, BACKDROP_MAX_SIDE / Math.max(view.width, view.height, 1))
+    const [current, upcoming] = this.layers
+    const painted = this.paint(current, view, scale, index, local, time, false)
+    if (blend <= 0.001) {
+      ctx.drawImage(current.canvas, 0, 0, current.width, current.height, 0, 0, view.width, view.height)
+      return
+    }
+    this.paint(upcoming, view, scale, next, 0, time, painted)
+    const mix = this.mixed
+    if (mix.width !== current.width || mix.height !== current.height) {
+      mix.width = current.width
+      mix.height = current.height
+    }
+    const mctx = mix.getContext('2d')
+    if (!mctx) return
+    mctx.globalAlpha = 1
+    mctx.drawImage(current.canvas, 0, 0)
+    mctx.globalAlpha = blend
+    mctx.drawImage(upcoming.canvas, 0, 0)
+    ctx.drawImage(mix, 0, 0, mix.width, mix.height, 0, 0, view.width, view.height)
+  }
+
+  /** Redessine le calque si besoin ; `true` si c'est fait. Si l'autre calque vient d'être dessiné, celui-ci attend l'image suivante. */
+  private paint(layer: Layer, view: WorldView, scale: number, world: number, local: number, time: number, busy: boolean): boolean {
+    const width = Math.max(1, Math.round(view.width * scale))
+    const height = Math.max(1, Math.round(view.height * scale))
+    const resized = layer.width !== width || layer.height !== height
+    const changed = layer.world !== world
+    const stale = resized || changed || time - layer.painted >= BACKDROP_STEP || time < layer.painted || Math.abs(local - layer.local) > 0.02
+    // Le premier dessin d'un calque (monde ou taille neufs) ne peut pas attendre : il serait vide.
+    // Un calque en retard de plus de deux pas passe quand même (écrans à 30 images/s : l'autre calque se dessinerait toujours).
+    if (!stale || (busy && !resized && !changed && time - layer.painted < BACKDROP_STEP * 2.5)) return false
+    if (resized) {
+      layer.canvas.width = width
+      layer.canvas.height = height
+      layer.width = width
+      layer.height = height
+    }
+    const lctx = layer.canvas.getContext('2d')
+    if (!lctx) return false
+    lctx.setTransform(scale, 0, 0, scale, 0, 0)
+    lctx.globalAlpha = 1
+    drawWorld(lctx, view, world, local, time)
+    layer.world = world
+    layer.local = local
+    layer.painted = time
+    return true
+  }
+}
+
+/* ---- Préparation à l'avance ------------------------------------------------------------- */
+
+let warmed = false
+
+/**
+ * Les nuages de chaque monde sont des sprites préparés au premier usage (des dizaines de dégradés) :
+ * le faire au moment de la bascule fait saccader. On les prépare une fois, monde après monde, dans
+ * les temps morts qui suivent l'ouverture du jeu.
+ */
+function warmWorlds(): void {
+  if (warmed || typeof document === 'undefined') return
+  warmed = true
+  const canvas = document.createElement('canvas')
+  canvas.width = 90
+  canvas.height = 160
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const view: WorldView = { width: 90, height: 160, stage: 72 }
+  const later = (task: () => void): void => {
+    const idle = (window as { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number }).requestIdleCallback
+    if (idle) idle.call(window, task, { timeout: 1500 })
+    else setTimeout(task, 120)
+  }
+  let index = 0
+  const step = (): void => {
+    if (index >= WORLD_COUNT) return
+    drawWorld(ctx, view, index, 0, 0)
+    index += 1
+    later(step)
+  }
+  later(step)
 }
