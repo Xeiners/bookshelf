@@ -25,7 +25,7 @@ const apiProxy = {
   '/api': {
     target: env.API_PROXY_TARGET ?? 'http://localhost:5000',
     changeOrigin: false,
-    // La toile partagée parle en WebSocket (`/api/canvas/ws`).
+    // La toile partagée (`/api/canvas/ws`) et les salles Page Stack (`/api/stack/ws`) parlent en WebSocket.
     ws: true,
   },
 }
