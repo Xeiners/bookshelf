@@ -66,6 +66,21 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
       return { id, board, color: colorOf(id) }
     }
     const panels: Panel[] = coop ? [make(TEAM, true)] : players.map((player) => make(player.id, player.id === meId))
+    // Un décor par panneau : plus on est nombreux, plus chacun est dessiné petit et rarement (l'adversaire plus que soi),
+    // et si la machine peine, ça baisse encore (`level`).
+    let level = 0
+    const tuneBackdrops = (): void => {
+      const crowd = panels.length
+      for (const panel of panels) {
+        const own = panel.id === meId || panel.id === TEAM
+        const side = crowd <= 1 ? 640 : crowd === 2 ? (own ? 560 : 460) : own ? 480 : 360
+        const fps = crowd <= 1 ? 30 : crowd === 2 ? (own ? 30 : 24) : own ? 30 : 18
+        panel.board.setBackdropQuality(side * 0.8 ** level, fps * 0.75 ** level)
+      }
+    }
+    tuneBackdrops()
+    let slow = 0
+    let smooth = 16
     const mine = coop ? panels[0]! : panels.find((panel) => panel.id === meId)
     const controller = new AbortController()
     // Même suite d'affiches pour tout le monde, rangée comme le serveur l'a donnée.
@@ -192,6 +207,15 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
       frame = requestAnimationFrame(tick)
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
+      // Image trop longue pendant près de deux secondes : le décor passe au palier moins cher.
+      smooth += (dt * 1000 - smooth) * 0.05
+      slow = smooth > 24 ? slow + dt : 0
+      if (slow > 1.8 && level < 3) {
+        level += 1
+        slow = 0
+        smooth = 16
+        tuneBackdrops()
+      }
       const live = roomRef.current
       const serverNow = Date.now() + useStackRoom.getState().clockOffset
       const startsAt = live.startsAt ?? serverNow

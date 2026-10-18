@@ -109,6 +109,11 @@ export class Board {
     this.options = options
   }
 
+  /** Qualité du décor (voir `WorldBackdrop.setQuality`). */
+  setBackdropQuality(maxSide: number, fps: number): void {
+    this.backdrop.setQuality(maxSide, fps)
+  }
+
   /** Solo : une affiche de plus (l'ordre n'a pas d'importance). */
   addImage(image: HTMLImageElement, title: string): void {
     if (this.images.includes(image)) return
