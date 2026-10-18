@@ -1339,7 +1339,12 @@ compte, ou un invité du BookshelfDLE (`requirePlayer`, reçus signés pour ses 
   tourner le même moteur ; le serveur **relaie** la position de la page (`tk`, ~10/s) et le geste
   (`tp`, avec la position au moment du toucher) que les autres rejouent. Il arbitre le salon,
   le départ (compte à rebours de 3,5 s), le tour (coop) et la fin. Pas de Poussières ni de records
-  en salon : les scores sont déclarés par les clients.
+  en salon : les scores sont déclarés par les clients. Chaque geste porte l'heure d'émission (`a`, horloge
+  du salon) : le récepteur compense le trajet ; `tk` part ~20/s.
+  **Coupure en salon d'attente** (appli en arrière-plan pour envoyer le lien) : la place est gardée
+  `LOBBY_GRACE_MS` (5 min), le joueur est affiché hors ligne, l'hôte le reste ; le client rejoint seul le salon
+  (reconnexion, retour sur la page, rechargement : le code est gardé dans l'onglet 10 min). Au lancement, les
+  joueurs restés hors ligne sont retirés. En partie, une coupure élimine toujours le joueur.
 
 ## 8. Limites connues et suites possibles
 

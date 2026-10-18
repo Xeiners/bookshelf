@@ -115,6 +115,53 @@ describe('Page Stack — salon d’attente', () => {
   })
 })
 
+describe('Page Stack — salon d’attente : coupure de connexion', () => {
+  it('l’hôte qui quitte l’appli (connexion coupée) retrouve son salon à son retour', async () => {
+    const a = seat(guest('Ana'))
+    const created = await rooms.createStackRoom(a.participant, 'versus', a.link)
+    rooms.disconnectStack(a.participant.id, a.link)
+    assert.ok(rooms.stackRoomView(created.code), 'le salon existe toujours')
+    assert.equal(rooms.stackRoomView(created.code)?.players[0]?.connected, false)
+    // Un ami qui arrive avec le lien trouve le salon, l’hôte reste hôte.
+    const b = seat(guest('Bob'))
+    await rooms.joinStackRoom(b.participant, created.code, b.link)
+    assert.equal(b.last().hostId, a.participant.id)
+    // L’hôte revient : même place, plus de départ différé.
+    const back = seat(a.participant)
+    await rooms.joinStackRoom(a.participant, created.code, back.link)
+    assert.equal(back.last().players.every((player) => player.connected), true)
+    await new Promise((resolve) => setTimeout(resolve, rooms.LOBBY_GRACE_MS + 80))
+    assert.equal(rooms.stackRoomView(created.code)?.players.length, 2)
+    rooms.leaveStackRoom(a.participant.id)
+    rooms.leaveStackRoom(b.participant.id)
+  })
+
+  it('sans retour passé le délai de grâce : la place est libérée, le salon vide disparaît', async () => {
+    const a = seat(guest('Ana'))
+    const b = seat(guest('Bob'))
+    const created = await rooms.createStackRoom(a.participant, 'coop', a.link)
+    await rooms.joinStackRoom(b.participant, created.code, b.link)
+    rooms.disconnectStack(a.participant.id, a.link)
+    await wait(() => b.last().players.length === 1)
+    assert.equal(b.last().hostId, b.participant.id, 'l’hôte absent passe la main')
+    rooms.disconnectStack(b.participant.id, b.link)
+    await wait(() => rooms.stackRoomView(created.code) === null)
+  })
+
+  it('au lancement, un joueur resté hors ligne n’est pas de la partie', async () => {
+    const [a, b, c] = ['Ana', 'Bob', 'Cleo'].map((name) => seat(guest(name))) as [ReturnType<typeof seat>, ReturnType<typeof seat>, ReturnType<typeof seat>]
+    const created = await rooms.createStackRoom(a.participant, 'versus', a.link)
+    await rooms.joinStackRoom(b.participant, created.code, b.link)
+    await rooms.joinStackRoom(c.participant, created.code, c.link)
+    rooms.disconnectStack(c.participant.id, c.link)
+    await rooms.startStackRoom(a.participant.id)
+    assert.deepEqual(a.last().players.map((player) => player.id).sort(), [a.participant.id, b.participant.id].sort())
+    assert.equal(rooms.currentStackRoom(c.participant.id), null)
+    rooms.leaveStackRoom(a.participant.id)
+    rooms.leaveStackRoom(b.participant.id)
+  })
+})
+
 describe('Page Stack — versus', () => {
   it('chacun sa pile : les gestes sont relayés aux autres (pas à soi), mêmes affiches pour tous', async () => {
     const { seats } = await started('versus', ['Ana', 'Bob', 'Cleo'])

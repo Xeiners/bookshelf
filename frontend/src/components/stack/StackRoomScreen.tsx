@@ -48,14 +48,23 @@ export function StackRoomScreen({ meId }: { meId: string }) {
       </Shell>
     )
   }
-  if (room.phase === 'lobby') return <Lobby room={room} meId={meId} />
+  const banner =
+    status === 'connecting' || status === 'closed' ? (
+      <div className="fixed inset-x-0 top-0 z-[95] bg-nope/90 px-4 py-2 text-center text-xs font-semibold text-white">{status === 'connecting' ? t.stack.room.reconnecting : t.stack.room.lost}</div>
+    ) : null
+  if (room.phase === 'lobby') {
+    return (
+      <>
+        <Lobby room={room} meId={meId} />
+        {banner}
+      </>
+    )
+  }
   return (
     <>
       <StackArena key={room.seed} room={room} meId={meId} onLeave={leave} />
       {room.phase === 'over' && room.results && <Results room={room} meId={meId} />}
-      {status === 'closed' && (
-        <div className="fixed inset-x-0 top-0 z-[95] bg-nope/90 px-4 py-2 text-center text-xs font-semibold text-white">{t.stack.room.lost}</div>
-      )}
+      {banner}
     </>
   )
 }

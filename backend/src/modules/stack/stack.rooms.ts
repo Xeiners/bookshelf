@@ -33,6 +33,8 @@ export const COOP_LIMIT_MS = 20 * 60 * 1000
 /** Tomes communs à tous les joueurs d'une partie. */
 const COVERS_PER_GAME = 12
 const IDLE_MS = 60 * 60 * 1000
+/** Salon d'attente : un joueur dont la connexion tombe (appli en arrière-plan pour envoyer le lien…) garde sa place ce temps-là. */
+export const LOBBY_GRACE_MS = config.env === 'test' ? 120 : 5 * 60 * 1000
 
 /** Ce que le serveur sait d'un joueur : le dernier état annoncé ou le bilan final. */
 interface RoomPlayer {
@@ -71,6 +73,8 @@ interface Room {
   results: StackResults | null
   timer: ReturnType<typeof setTimeout> | null
   limit: ReturnType<typeof setTimeout> | null
+  /** Salon d'attente : départs différés des joueurs hors ligne. */
+  grace: Map<string, ReturnType<typeof setTimeout>>
   touchedAt: number
 }
 
@@ -220,6 +224,7 @@ export async function createStackRoom(participant: Participant, mode: StackMode,
     results: null,
     timer: null,
     limit: null,
+    grace: new Map(),
     touchedAt: Date.now(),
   }
   rooms.set(code, room)
@@ -237,6 +242,7 @@ export async function joinStackRoom(participant: Participant, code: string, link
     room.links.get(participant.id)?.close()
     room.links.set(participant.id, link)
     existing.connected = true
+    clearGrace(room, participant.id)
     memberships.set(participant.id, room.code)
     broadcast(room)
     return viewOf(room)
@@ -251,7 +257,15 @@ export async function joinStackRoom(participant: Participant, code: string, link
   return viewOf(room)
 }
 
+function clearGrace(room: Room, playerId: string): void {
+  const timer = room.grace.get(playerId)
+  if (timer) clearTimeout(timer)
+  room.grace.delete(playerId)
+}
+
 function clearTimers(room: Room): void {
+  for (const timer of room.grace.values()) clearTimeout(timer)
+  room.grace.clear()
   if (room.timer) clearTimeout(room.timer)
   if (room.limit) clearTimeout(room.limit)
   room.timer = null
@@ -271,11 +285,12 @@ export function leaveStackRoom(playerId: string): void {
   memberships.delete(playerId)
   const player = room?.players.get(playerId)
   if (!room || !player) return
+  clearGrace(room, playerId)
   room.links.delete(playerId)
   player.connected = false
   if (room.phase === 'lobby' || room.phase === 'over') {
     room.players.delete(playerId)
-    if (room.players.size === 0 || [...room.players.values()].every((other) => !other.connected)) return destroy(room)
+    if (room.players.size === 0 || (room.phase !== 'lobby' && [...room.players.values()].every((other) => !other.connected))) return destroy(room)
     if (room.hostId === playerId) room.hostId = [...room.players.values()].find((other) => other.connected)?.id ?? room.hostId
     broadcast(room)
   } else {
@@ -283,14 +298,28 @@ export function leaveStackRoom(playerId: string): void {
   }
 }
 
-/** Coupure de connexion : en salon d'attente c'est un départ ; en partie, le joueur est éliminé (il peut revenir regarder). */
+/** Coupure de connexion : en salon d'attente la place est gardée un moment ; en partie, le joueur est éliminé (il peut revenir regarder). */
 export function disconnectStack(playerId: string, link: Link): void {
   const code = memberships.get(playerId)
   const room = code ? rooms.get(code) : undefined
   if (!room || room.links.get(playerId) !== link) return
   const player = room.players.get(playerId)
   if (!player) return
-  if (room.phase === 'lobby') return leaveStackRoom(playerId)
+  if (room.phase === 'lobby') {
+    // Attente : la place est gardée un moment (le joueur est affiché hors ligne) ; passé ce délai, c'est un départ.
+    room.links.delete(playerId)
+    player.connected = false
+    clearGrace(room, playerId)
+    room.grace.set(
+      playerId,
+      setTimeout(() => {
+        room.grace.delete(playerId)
+        if (!player.connected && rooms.get(room.code) === room) leaveStackRoom(playerId)
+      }, LOBBY_GRACE_MS),
+    )
+    broadcast(room)
+    return
+  }
   room.links.delete(playerId)
   player.connected = false
   // L'hôte parti passe la main : c'est lui qui lance la revanche.
@@ -366,6 +395,13 @@ export async function startStackRoom(playerId: string): Promise<StackRoomView> {
   if (room.hostId !== playerId) throw new HttpError(403, 'not_host', 'Seul l’hôte lance la partie.')
   if (room.phase !== 'lobby') throw conflict('La partie a déjà commencé.', 'room_started')
   if ([...room.players.values()].filter((player) => player.connected).length < MIN_PLAYERS) throw conflict('Il faut au moins deux joueurs.', 'not_enough_players')
+  // Les joueurs encore hors ligne ne sont pas de la partie : leur place est libérée.
+  for (const player of [...room.players.values()]) {
+    if (player.connected) continue
+    clearGrace(room, player.id)
+    room.players.delete(player.id)
+    if (memberships.get(player.id) === room.code) memberships.delete(player.id)
+  }
   room.phase = 'countdown'
   room.seed = Math.floor(Math.random() * 2 ** 31)
   // Les mêmes tomes, dans le même ordre, pour tout le monde.

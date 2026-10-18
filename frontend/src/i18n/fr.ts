@@ -683,6 +683,7 @@ export const fr = {
       leave: 'Quitter',
       connecting: 'Connexion au salon…',
       lost: 'Connexion perdue.',
+      reconnecting: 'Reconnexion au salon…',
       results: 'Résultats',
       victory: 'Victoire !',
       winner: (name: string) => `${name} gagne !`,

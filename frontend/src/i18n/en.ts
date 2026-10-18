@@ -673,6 +673,7 @@ export const en: Dictionary = {
       leave: 'Leave',
       connecting: 'Connecting to the room…',
       lost: 'Connection lost.',
+      reconnecting: 'Reconnecting to the room…',
       results: 'Results',
       victory: 'Victory!',
       winner: (name: string) => `${name} wins!`,
