@@ -58,19 +58,27 @@ export function createStack(): StackState {
   return state
 }
 
-/** Fait glisser la page ; elle rebondit sur les bornes. */
+/** Fait glisser une page ; elle rebondit sur les bornes (aussi utilisé pour rattraper le retard réseau). */
+export function slide(page: MovingPage, dt: number): void {
+  const [low, high] = limits(page.w)
+  page.x += page.dir * page.speed * dt
+  // Un long rattrapage peut enchaîner plusieurs rebonds.
+  for (let guard = 0; guard < 4 && (page.x > high || page.x < low); guard += 1) {
+    if (page.x > high) {
+      page.x = high - (page.x - high)
+      page.dir = -1
+    } else {
+      page.x = low + (low - page.x)
+      page.dir = 1
+    }
+  }
+}
+
+/** Fait glisser la page courante. */
 export function step(state: StackState, dt: number): void {
   const page = state.moving
   if (state.over || !page) return
-  const [low, high] = limits(page.w)
-  page.x += page.dir * page.speed * dt
-  if (page.x > high) {
-    page.x = high - (page.x - high)
-    page.dir = -1
-  } else if (page.x < low) {
-    page.x = low + (low - page.x)
-    page.dir = 1
-  }
+  slide(page, dt)
 }
 
 /** Pose la page. Sans effet une fois la partie finie. */

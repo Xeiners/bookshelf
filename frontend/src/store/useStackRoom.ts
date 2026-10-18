@@ -37,10 +37,21 @@ interface StackRoomState {
 let socket: WebSocket | null = null
 let relayHandler: ((event: StackRelay) => void) | null = null
 
+/** Écart entre l'horloge du serveur et la mienne : le meilleur échantillon (le plus grand) est celui du trajet le plus court. */
+let offset: number | null = null
+function bestOffset(serverNow: number): number {
+  const sample = serverNow - Date.now()
+  offset = offset === null ? sample : Math.max(offset, sample)
+  return offset
+}
+/** Heure du serveur à l'instant présent, jointe à chaque geste pour que les autres compensent le trajet. */
+const sentAt = (): number => Math.round(Date.now() + (offset ?? 0))
+
 function open(set: (partial: Partial<StackRoomState>) => void): Promise<WebSocket> {
   if (socket && socket.readyState === WebSocket.OPEN) return Promise.resolve(socket)
   socket?.close()
   set({ status: 'connecting', error: null })
+  offset = null
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(socketUrl())
     socket = ws
@@ -55,7 +66,7 @@ function open(set: (partial: Partial<StackRoomState>) => void): Promise<WebSocke
       } catch {
         return
       }
-      if (message.t === 'room') set({ room: message.room, clockOffset: message.room.now - Date.now() })
+      if (message.t === 'room') set({ room: message.room, clockOffset: bestOffset(message.room.now) })
       else if (message.t === 'ev') relayHandler?.(message.e)
       else set({ error: message.code })
     }
@@ -106,8 +117,8 @@ export const useStackRoom = create<StackRoomState>((set) => {
     setMode: (mode) => void send({ t: 'mode', mode }),
     start: () => void send({ t: 'start' }),
     rematch: () => void send({ t: 'rematch' }),
-    tick: (x, d, s) => void send({ t: 'tk', x: Math.round(x * 10_000) / 10_000, d, s }),
-    tap: (x) => void send({ t: 'tp', x: Math.round(x * 10_000) / 10_000 }),
+    tick: (x, d, s) => void send({ t: 'tk', x: Math.round(x * 10_000) / 10_000, d, s, a: sentAt() }),
+    tap: (x) => void send({ t: 'tp', x: Math.round(x * 10_000) / 10_000, a: sentAt() }),
     over: ({ score, pages, perfects, combo }) => void send({ t: 'over', score, pages, perfects, combo }),
     onRelay: (handler) => {
       relayHandler = handler

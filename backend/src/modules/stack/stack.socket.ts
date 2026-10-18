@@ -25,14 +25,14 @@ import {
 
 /*
  * WebSocket des salons de Page Stack (`/api/stack/ws`). Un compte (cookie de session) ou un
- * invité (cookie signé du BookshelfDLE). Messages JSON ; les gestes (`tk` toutes les ~100 ms,
+ * invité (cookie signé du BookshelfDLE). Messages JSON ; les gestes (`tk` toutes les ~50 ms,
  * `tp` à chaque page posée) sont relayés aux autres joueurs du salon par `stack.rooms.ts`.
  */
 
 export const STACK_SOCKET_PATH = '/api/stack/ws'
 const MAX_MESSAGE_BYTES = 1024
 const MAX_CONNECTIONS = 400
-/** Messages par seconde au plus (les `tk` à ~10/s laissent de la marge) ; au-delà, ils sont ignorés. */
+/** Messages par seconde au plus (les `tk` à ~20/s laissent de la marge) ; au-delà, ils sont ignorés. */
 const RATE_PER_SECOND = 40
 
 const Message = z.discriminatedUnion('t', [
@@ -42,8 +42,8 @@ const Message = z.discriminatedUnion('t', [
   z.object({ t: z.literal('mode'), mode: z.enum(STACK_MODES) }),
   z.object({ t: z.literal('start') }),
   z.object({ t: z.literal('rematch') }),
-  z.object({ t: z.literal('tk'), x: z.number().finite(), d: z.union([z.literal(1), z.literal(-1)]), s: z.number().finite() }),
-  z.object({ t: z.literal('tp'), x: z.number().finite() }),
+  z.object({ t: z.literal('tk'), x: z.number().finite(), d: z.union([z.literal(1), z.literal(-1)]), s: z.number().finite(), a: z.number().finite().optional() }),
+  z.object({ t: z.literal('tp'), x: z.number().finite(), a: z.number().finite().optional() }),
   z.object({ t: z.literal('over'), score: z.number().finite(), pages: z.number().finite(), perfects: z.number().finite(), combo: z.number().finite() }),
 ])
 
@@ -106,9 +106,9 @@ function connect(ws: WebSocket, player: Participant): void {
         case 'rematch':
           return void rematchStackRoom(player.id)
         case 'tk':
-          return stackTick(player.id, message.x, message.d, message.s)
+          return stackTick(player.id, message.x, message.d, message.s, message.a)
         case 'tp':
-          return stackTap(player.id, message.x)
+          return stackTap(player.id, message.x, message.a)
         case 'over':
           return stackOver(player.id, message)
       }

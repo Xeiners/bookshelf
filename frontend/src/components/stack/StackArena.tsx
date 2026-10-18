@@ -9,8 +9,8 @@ import { PLAYER_COLORS, type StackRelay, type StackRoom } from '../../lib/stack/
 import { useStackRoom } from '../../store/useStackRoom'
 import { Board } from './board'
 
-/** Position envoyée aux autres joueurs toutes les 100 ms (versus : sa pile ; coop : quand c'est son tour). */
-const TICK_EVERY = 0.1
+/** Position envoyée aux autres joueurs toutes les 50 ms (versus : sa pile ; coop : quand c'est son tour). */
+const TICK_EVERY = 0.05
 const TEAM = 'team'
 
 interface StackArenaProps {
@@ -75,6 +75,11 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
       })
     })
 
+    /** Temps de trajet d'un geste (s) : l'heure d'émission annoncée contre l'heure du salon ici, bornée. */
+    const lagOf = (sentAt: number | undefined): number => {
+      if (sentAt === undefined) return 0
+      return Math.min(0.35, Math.max(0, (Date.now() + useStackRoom.getState().clockOffset - sentAt) / 1000))
+    }
     store.onRelay((event: StackRelay) => {
       if (event.k === 'turn') {
         turn.current = event.p
@@ -82,9 +87,9 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
       }
       const panel = coop ? panels[0] : panels.find((candidate) => candidate.id === event.p)
       if (!panel) return
-      if (event.k === 'tk') panel.board.sync(event.x, event.d)
+      if (event.k === 'tk') panel.board.sync(event.x, event.d, lagOf(event.a))
       else if (event.k === 'tp') {
-        panel.board.remoteTap(event.x)
+        panel.board.remoteTap(event.x, lagOf(event.a))
         if (coop) turn.current = event.next
       } else panel.board.forceOver()
     })

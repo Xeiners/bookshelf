@@ -54,8 +54,8 @@ export interface StackRoom {
 
 /** Gestes des autres joueurs, relayés par le serveur. */
 export type StackRelay =
-  | { k: 'tk'; p: string; x: number; d: 1 | -1; s: number }
-  | { k: 'tp'; p: string; x: number; next: string | null }
+  | { k: 'tk'; p: string; x: number; d: 1 | -1; s: number; a?: number }
+  | { k: 'tp'; p: string; x: number; next: string | null; a?: number }
   | { k: 'over'; p: string; score: number; pages: number; perfects: number; combo: number }
   | { k: 'turn'; p: string | null }
 
@@ -68,8 +68,8 @@ export type ClientMessage =
   | { t: 'mode'; mode: StackMode }
   | { t: 'start' }
   | { t: 'rematch' }
-  | { t: 'tk'; x: number; d: 1 | -1; s: number }
-  | { t: 'tp'; x: number }
+  | { t: 'tk'; x: number; d: 1 | -1; s: number; a?: number }
+  | { t: 'tp'; x: number; a?: number }
   | { t: 'over'; score: number; pages: number; perfects: number; combo: number }
 
 /** Couleur de chaque joueur d'un salon (pastille du nom, cadre du tour), dans l'ordre d'arrivée. */

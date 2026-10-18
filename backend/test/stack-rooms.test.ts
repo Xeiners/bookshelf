@@ -128,6 +128,13 @@ describe('Page Stack — versus', () => {
       assert.deepEqual(other.events('tk')[0], { k: 'tk', p: a.participant.id, x: 0.42, d: 1, s: 30 })
     }
     assert.equal(a.events().length, 0, 'jamais son propre geste')
+    // L'heure d'émission est relayée (bornée à l'heure du serveur) pour que les autres compensent le trajet.
+    const sent = Date.now() - 80
+    rooms.stackTick(a.participant.id, 0.44, 1, 30, sent)
+    rooms.stackTick(a.participant.id, 0.45, 1, 30, Date.now() + 60_000)
+    const stamped = b.events('tk').slice(-2)
+    assert.equal(stamped[0]!.a, sent)
+    assert.ok(stamped[1]!.a! <= Date.now())
     // Un autre joueur peut jouer en même temps (pas de tour).
     rooms.stackTap(b.participant.id, 0.61)
     assert.equal(a.events('tp').length, 1)

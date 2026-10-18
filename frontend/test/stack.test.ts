@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { BASE_SPEED, COMBO_CAP, COMBO_STEP, GROW_AFTER, INITIAL_WIDTH, MAX_SPEED, PAGE_POINTS, PERFECT_BONUS, PERFECT_TOLERANCE, placePoints, speedFor } from '../src/lib/stack/constants'
 import { layoutPanels, type Rect } from '../src/lib/stack/layout'
-import { createStack, drain, limits, outcomeOf, pageCount, step, tap, type StackState } from '../src/lib/stack/engine'
+import { createStack, drain, limits, outcomeOf, pageCount, slide, step, tap, type StackState } from '../src/lib/stack/engine'
 
 /** Pose la page mouvante à `offset` du haut de la pile, puis tape. */
 function dropAt(state: StackState, offset: number): void {
@@ -172,5 +172,22 @@ describe('page stack — écrans partagés', () => {
     assert.deepEqual(new Set(four.map((rect) => rect.y)).size, 2)
     const wide = layoutPanels(2, 1440, 700)
     assert.ok(wide[0]!.x < wide[1]!.x && wide[0]!.y === wide[1]!.y)
+  })
+})
+
+describe('page stack — rattrapage du retard réseau', () => {
+  it('slide d’un seul coup = la même glissade que pas à pas, rebonds compris', () => {
+    const whole = createStack().moving!
+    const stepped = createStack().moving!
+    const state = createStack()
+    slide(whole, 2.3)
+    for (let index = 0; index < 230; index += 1) {
+      state.moving = stepped
+      step(state, 0.01)
+    }
+    assert.ok(Math.abs(whole.x - stepped.x) < 1e-6)
+    assert.equal(whole.dir, stepped.dir)
+    const [low, high] = limits(whole.w)
+    assert.ok(whole.x >= low && whole.x <= high)
   })
 })

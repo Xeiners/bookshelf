@@ -2,7 +2,7 @@ import { gsap } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playStackCut, playStackMilestone, playStackOver, playStackPerfect, playStackPlace } from '../../lib/sfx'
 import { INITIAL_WIDTH, PAGE_HEIGHT } from '../../lib/stack/constants'
-import { createStack, drain, pageCount, step, tap, type StackEvent, type StackState } from '../../lib/stack/engine'
+import { createStack, drain, pageCount, slide, step, tap, type StackEvent, type StackState } from '../../lib/stack/engine'
 import { camTarget, drawDesk, drawGuides, drawTome, levelY, makeView, type View } from './scene'
 import { PAGES_PER_WORLD, drawWorlds, worldIndexOf, worldNumber } from './worlds'
 
@@ -142,22 +142,29 @@ export class Board {
   }
 
   /** Geste d'un autre joueur, rejoué ici : la page est posée là où elle se trouvait chez lui. */
-  remoteTap(x: number): void {
+  remoteTap(x: number, lag = 0): void {
     const moving = this.state.moving
     if (this.state.over || !moving) return
     moving.x = x
     tap(this.state)
+    // La page suivante est déjà partie chez lui : on la rattrape du temps de trajet.
+    if (this.state.moving && lag > 0) slide(this.state.moving, lag)
   }
 
   /** Position annoncée par l'autre joueur : on se recale sans à-coup (ou d'un coup si l'écart est grand). */
-  sync(x: number, dir: 1 | -1): void {
+  sync(x: number, dir: 1 | -1, lag = 0): void {
     const moving = this.state.moving
     if (!moving) return
-    if (Math.abs(x - moving.x) > 0.12 || dir !== moving.dir) {
-      moving.x = x
-      moving.dir = dir
+    // La position date d'il y a `lag` s : on la fait avancer d'autant pour viser où la page est vraiment.
+    const target = { x, dir, w: moving.w, speed: moving.speed }
+    if (lag > 0) slide(target, lag)
+    const gap = Math.abs(target.x - moving.x)
+    if (gap > 0.2 || (dir !== moving.dir && gap > 0.04)) {
+      moving.x = target.x
+      moving.dir = target.dir
     } else {
-      moving.x += (x - moving.x) * 0.6
+      moving.dir = target.dir
+      moving.x += (target.x - moving.x) * 0.5
     }
   }
 

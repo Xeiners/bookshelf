@@ -122,8 +122,8 @@ export interface StackRoomView {
 
 /** Gestes relayés aux autres joueurs. */
 export type StackRelay =
-  | { k: 'tk'; p: string; x: number; d: 1 | -1; s: number }
-  | { k: 'tp'; p: string; x: number; next: string | null }
+  | { k: 'tk'; p: string; x: number; d: 1 | -1; s: number; a?: number }
+  | { k: 'tp'; p: string; x: number; next: string | null; a?: number }
   | { k: 'over'; p: string; score: number; pages: number; perfects: number; combo: number }
   /** Coop : à qui le tour, annoncé à celui qui vient de poser (les autres le lisent dans `tp`). */
   | { k: 'turn'; p: string | null }
@@ -136,8 +136,8 @@ export type ClientMessage =
   | { t: 'leave' }
   | { t: 'mode'; mode: StackMode }
   | { t: 'start' }
-  | { t: 'tk'; x: number; d: 1 | -1; s: number }
-  | { t: 'tp'; x: number }
+  | { t: 'tk'; x: number; d: 1 | -1; s: number; a?: number }
+  | { t: 'tp'; x: number; a?: number }
   | { t: 'over'; score: number; pages: number; perfects: number; combo: number }
   | { t: 'rematch' }
 
@@ -427,18 +427,24 @@ function playing(playerId: string): { room: Room; player: RoomPlayer } | null {
   return { room, player }
 }
 
+/** Heure d'émission (horloge du salon, ms) renvoyée telle quelle : le récepteur en déduit le retard du trajet. Bornée à l'heure du serveur. */
+function stamp(at: number | undefined): { a?: number } {
+  if (at === undefined || !Number.isFinite(at)) return {}
+  return { a: Math.min(Date.now(), Math.round(at)) }
+}
+
 /** Position de la page qui glisse (versus : la sienne ; coop : seulement celui dont c'est le tour). */
-export function stackTick(playerId: string, x: number, d: 1 | -1, score: number): void {
+export function stackTick(playerId: string, x: number, d: 1 | -1, score: number, at?: number): void {
   const found = playing(playerId)
   if (!found || found.player.over) return
   const { room, player } = found
   if (room.mode === 'coop' && room.turn !== playerId) return
   if (room.mode === 'versus') player.score = clampCount(score)
-  relay(room, playerId, { k: 'tk', p: playerId, x: clampX(x), d: d === -1 ? -1 : 1, s: clampCount(score) })
+  relay(room, playerId, { k: 'tk', p: playerId, x: clampX(x), d: d === -1 ? -1 : 1, s: clampCount(score), ...stamp(at) })
 }
 
 /** La page est posée là où elle se trouvait : relayé tel quel, les autres rejouent le geste. */
-export function stackTap(playerId: string, x: number): void {
+export function stackTap(playerId: string, x: number, at?: number): void {
   const found = playing(playerId)
   if (!found || found.player.over) return
   const { room, player } = found
@@ -447,11 +453,11 @@ export function stackTap(playerId: string, x: number): void {
     player.placed += 1
     const next = nextTurn(room, playerId)
     room.turn = next
-    relay(room, playerId, { k: 'tp', p: playerId, x: clampX(x), next })
+    relay(room, playerId, { k: 'tp', p: playerId, x: clampX(x), next, ...stamp(at) })
     room.links.get(playerId)?.send({ t: 'ev', e: { k: 'turn', p: next } })
     return
   }
-  relay(room, playerId, { k: 'tp', p: playerId, x: clampX(x), next: null })
+  relay(room, playerId, { k: 'tp', p: playerId, x: clampX(x), next: null, ...stamp(at) })
 }
 
 /** Bilan d'une pile qui s'écroule : versus, c'est celle du joueur ; coop, celle de tous (la partie est finie). */
