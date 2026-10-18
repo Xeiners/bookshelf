@@ -10,8 +10,10 @@ export function StackEmblem({ className = 'block size-full', wide = false }: { c
     { x: 20, y: 27, w: 34, hue: 150 },
     { x: 17, y: 18, w: 36, hue: 275 },
   ]
+  // Attributs SVG, pas du texte d'interface.
+  const fit = wide ? 'xMidYMax slice' : 'xMidYMid meet' // i18n-ignore
   return (
-    <svg viewBox={wide ? '-10 -16 92 88' : '0 0 72 72'} preserveAspectRatio={wide ? 'xMidYMax slice' : 'xMidYMid meet'} className={className} aria-hidden>
+    <svg viewBox={wide ? '-10 -16 92 88' : '0 0 72 72'} preserveAspectRatio={fit} className={className} aria-hidden>
       <defs>
         <linearGradient id="stack-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#3b2a8e" />
