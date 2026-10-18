@@ -1325,6 +1325,22 @@ compte, ou un invité du BookshelfDLE (`requirePlayer`, reçus signés pour ses 
 - **Records** : `StackStats` (meilleur score, meilleure pile, parties, parfaites, Poussières du jour) ;
   battre le record de tous les temps offre la récompense à choisir (`RecordGame` `stack`).
 
+### Affiches d'anime et salons multijoueur (Page Stack)
+
+- **Affiches** (`stack.covers.ts`) : les anime les plus suivis de MyAnimeList (API Jikan, séries et
+  films tout public), relayés par `GET /api/stack/covers` (liste) et `/api/stack/covers/:id` (image
+  réduite à 440 px en WebP, cache 24 h, `immutable`). Liste rechargée toutes les 6 h (15 min si
+  Jikan est en panne) ; sans liste, le jeu garde ses pages dessinées.
+- **Salons** (`stack.rooms.ts`, `stack.socket.ts`) : WebSocket `/api/stack/ws` (compte ou invité),
+  2 à 4 joueurs, code à 6 caractères (`?stack=CODE`). **Versus** : chacun sa pile, mêmes affiches
+  (tirées par le serveur, dans le même ordre), écrans partagés ; fin quand tout le monde est tombé
+  (ou après 4 min), meilleur score gagnant. **Coop** : une pile commune, une page chacun à son tour
+  (ordre d'arrivée, les déconnectés sont sautés). Le serveur ne simule rien : chaque client fait
+  tourner le même moteur ; le serveur **relaie** la position de la page (`tk`, ~10/s) et le geste
+  (`tp`, avec la position au moment du toucher) que les autres rejouent. Il arbitre le salon,
+  le départ (compte à rebours de 3,5 s), le tour (coop) et la fin. Pas de Poussières ni de records
+  en salon : les scores sont déclarés par les clients.
+
 ## 8. Limites connues et suites possibles
 
 - Les entrées de bibliothèque créées du temps d'AniList depuis une carte

@@ -6,6 +6,7 @@ import { refreshWorkCovers } from './modules/higherlower/hl.covers.js'
 import { ensureSeries3 } from './modules/cards/series3.seed.js'
 import { startCatalogSync } from './services/catalog.service.js'
 import { attachCanvas, ensureCanvas, shutdownCanvas } from './modules/canvas/canvas.boot.js'
+import { attachStackSocket } from './modules/stack/stack.socket.js'
 
 const app = createApp()
 
@@ -30,11 +31,14 @@ const server = app.listen(config.port, () => {
 
 // Toile partagée : WebSocket sur le même serveur, saison du mois prête avant la première connexion.
 const detachCanvas = attachCanvas(server)
+// Page Stack : les salons multijoueur (versus, coop) parlent aussi en WebSocket.
+const detachStack = attachStackSocket(server)
 if (config.env !== 'test') void ensureCanvas().catch((error) => console.error('[canvas] démarrage', error))
 
 async function shutdown(signal: string) {
   console.log(`[api] ${signal} reçu, arrêt en cours…`)
   detachCanvas()
+  detachStack()
   server.close()
   await shutdownCanvas().catch((error) => console.error('[canvas] arrêt', error))
   await prisma.$disconnect()

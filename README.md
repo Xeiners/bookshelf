@@ -96,6 +96,9 @@ Empile des pages de manga le plus haut possible : un toucher pour poser la page 
 ce qui dépasse tombe, une pose parfaite lance une série (et redonne de la largeur). Le ciel
 change tous les 10 étages — aube, jour, crépuscule, nuit, aurore. Score, record de tous les
 temps (booster ou boîte mystère à la clé), classement et Poussières, en invité comme en compte.
+Les pages portent des **affiches d'anime** (celles des séries les plus suivies de MyAnimeList). À
+plusieurs, de 2 à 4 : en **versus**, l'écran est partagé et chacun voit en direct la pile des autres ;
+en **coop**, une seule pile pour tous, chacun pose une page à son tour. Salon par code ou lien d'invitation.
 
 🎁 **Une récompense chaque jour**
 À ta première connexion du jour (de minuit à 23 h 59, heure de Paris), un calendrier de

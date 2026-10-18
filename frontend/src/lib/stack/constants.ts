@@ -12,7 +12,7 @@ export const COMBO_CAP = 10
 
 /** Largeur de la première page (et plafond de la largeur regagnée), hauteur d'une page, en largeurs de scène. */
 export const INITIAL_WIDTH = 0.5
-export const PAGE_HEIGHT = 0.07
+export const PAGE_HEIGHT = 0.085
 /** Une pose est « parfaite » si le décalage est au plus de ça (largeurs de scène). */
 export const PERFECT_TOLERANCE = 0.014
 /** Chevauchement sous lequel la page est ratée. */

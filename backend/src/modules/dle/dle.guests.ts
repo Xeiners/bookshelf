@@ -84,7 +84,12 @@ export function issueGuest(req: Request, res: Response, name: string | undefined
 }
 
 export function readGuest(req: Request): { id: string; name: string } | null {
-  const value = verify('dle-guest', (req.cookies as Record<string, string | undefined>)[GUEST_COOKIE])
+  return readGuestCookie((req.cookies as Record<string, string | undefined>)[GUEST_COOKIE])
+}
+
+/** Identité d'invité d'après la valeur brute du cookie (WebSocket : pas d'analyseur de cookies). */
+export function readGuestCookie(cookie: string | undefined): { id: string; name: string } | null {
+  const value = verify('dle-guest', cookie)
   if (typeof value !== 'object' || value === null) return null
   const { id, name } = value as { id?: unknown; name?: unknown }
   return typeof id === 'string' && isGuestId(id) && typeof name === 'string' ? { id, name } : null

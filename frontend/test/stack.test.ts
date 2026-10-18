@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { BASE_SPEED, COMBO_CAP, COMBO_STEP, GROW_AFTER, INITIAL_WIDTH, MAX_SPEED, PAGE_POINTS, PERFECT_BONUS, PERFECT_TOLERANCE, placePoints, speedFor } from '../src/lib/stack/constants'
+import { layoutPanels, type Rect } from '../src/lib/stack/layout'
 import { createStack, drain, limits, outcomeOf, pageCount, step, tap, type StackState } from '../src/lib/stack/engine'
 
 /** Pose la page mouvante à `offset` du haut de la pile, puis tape. */
@@ -141,5 +142,35 @@ describe('page stack — simulation', () => {
     const { score, pages, perfects } = outcomeOf(state)
     assert.equal(pages, 80)
     assert.ok(score <= pages * PAGE_POINTS + perfects * (PERFECT_BONUS + COMBO_STEP * (COMBO_CAP - 1)))
+  })
+})
+
+describe('page stack — écrans partagés', () => {
+  const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.h - 0.01 && b.y < a.y + a.h - 0.01
+
+  it('un à quatre panneaux, dans l’écran, sans se chevaucher, en couvrant tout', () => {
+    for (const [width, height] of [[390, 844], [844, 390], [1440, 900], [1920, 600]] as const) {
+      for (const count of [1, 2, 3, 4]) {
+        const rects = layoutPanels(count, width, height, 4)
+        assert.equal(rects.length, count, `${count} panneaux sur ${width}×${height}`)
+        for (const rect of rects) {
+          assert.ok(rect.x >= -0.01 && rect.y >= -0.01 && rect.x + rect.w <= width + 0.01 && rect.y + rect.h <= height + 0.01, 'dans l’écran')
+          assert.ok(rect.w > 50 && rect.h > 50)
+        }
+        for (let i = 0; i < rects.length; i += 1) for (let j = i + 1; j < rects.length; j += 1) assert.equal(overlaps(rects[i]!, rects[j]!), false, 'sans chevauchement')
+        const area = rects.reduce((sum, rect) => sum + rect.w * rect.h, 0)
+        assert.ok(area > width * height * 0.9, `${count} panneaux couvrent l’écran`)
+      }
+    }
+  })
+
+  it('téléphone : deux piles l’une sur l’autre, quatre en 2 × 2 ; écran large : côte à côte', () => {
+    const two = layoutPanels(2, 390, 844)
+    assert.ok(two[0]!.y < two[1]!.y && two[0]!.x === two[1]!.x)
+    const four = layoutPanels(4, 390, 844)
+    assert.deepEqual(new Set(four.map((rect) => rect.x)).size, 2)
+    assert.deepEqual(new Set(four.map((rect) => rect.y)).size, 2)
+    const wide = layoutPanels(2, 1440, 700)
+    assert.ok(wide[0]!.x < wide[1]!.x && wide[0]!.y === wide[1]!.y)
   })
 })

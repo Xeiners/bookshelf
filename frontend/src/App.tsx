@@ -34,6 +34,9 @@ import { profileIdFromSearch, withoutProfileParam } from './lib/profileLink'
 import { roomCodeFromSearch, withoutRoomParam } from './lib/dle'
 import { coopCodeFromSearch, withoutCoopParam } from './lib/higherLower'
 import { bombCodeFromSearch, withoutBombParam } from './lib/bomb'
+import { parseRoomCode } from './lib/dle'
+import { stackCodeFromSearch, withoutStackParam } from './lib/stack/net'
+import { useStackRoom } from './store/useStackRoom'
 import { useBombStore } from './store/useBombStore'
 import { useHlCoopStore } from './store/useHlCoopStore'
 import { useDleStore } from './store/useDleStore'
@@ -147,6 +150,15 @@ export default function App() {
     useBombStore.getState().setPendingCode(code)
     useUiStore.getState().openActivity('bomb')
     window.history.replaceState(window.history.state, '', withoutBombParam(window.location.href))
+  }, [])
+
+  // Invitation à un salon de Page Stack (`?stack=<code>`).
+  useEffect(() => {
+    const code = stackCodeFromSearch(window.location.search, parseRoomCode)
+    if (!code) return
+    useStackRoom.getState().setPendingCode(code)
+    useUiStore.getState().openActivity('stack')
+    window.history.replaceState(window.history.state, '', withoutStackParam(window.location.href))
   }, [])
 
   // Bibliothèque enregistrée retraduite dans la langue choisie.

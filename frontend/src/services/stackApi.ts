@@ -35,7 +35,14 @@ export interface StackResult {
   recordReward?: RecordReward | null
 }
 
+export interface StackCover {
+  id: number
+  title: string
+}
+
 export const stackApi = {
+  /** Affiches d'anime des pages (liste vide si le serveur n'en a pas : le jeu garde ses pages dessinées). */
+  covers: (signal?: AbortSignal) => api<{ covers: StackCover[] }>('/stack/covers', { signal }).then((response) => response.covers),
   overview: (signal?: AbortSignal) => api<StackOverview>('/stack', { signal }),
   start: () => api<{ id: string }>('/stack/runs', { method: 'POST' }),
   end: (id: string, run: { score: number; pages: number; perfects: number }) =>

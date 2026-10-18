@@ -1,7 +1,7 @@
 import type { IncomingMessage, Server } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
-import { config } from '../../config.js'
+import { cookieOf, originAllowed, refuse } from '../../lib/socketAuth.js'
 import { authenticate } from '../../lib/sessionGuard.js'
 import { SESSION_COOKIE } from '../../lib/session.js'
 import { accessOf, type CanvasAccess } from './canvas.access.js'
@@ -610,41 +610,6 @@ function connect(ws: WebSocket, access: CanvasAccess): void {
     broadcast({ t: 'peer', d: peer.conn })
     if (peers.size === 0) stopTimers()
   })
-}
-
-function cookieOf(header: string | undefined, name: string): string | undefined {
-  if (!header) return undefined
-  for (const part of header.split(';')) {
-    const at = part.indexOf('=')
-    if (at > 0 && part.slice(0, at).trim() === name) {
-      try {
-        return decodeURIComponent(part.slice(at + 1).trim())
-      } catch {
-        return undefined
-      }
-    }
-  }
-  return undefined
-}
-
-/** Un navigateur envoie toujours `Origin` : il doit être celui du site (ou d'une origine autorisée). */
-function originAllowed(request: IncomingMessage): boolean {
-  const origin = request.headers.origin
-  if (!origin) return true
-  try {
-    const url = new URL(origin)
-    // Derrière Caddy puis Nginx, `Host` peut avoir perdu son port : on accepte aussi l'hôte annoncé par le proxy.
-    const forwarded = String(request.headers['x-forwarded-host'] ?? '').split(',')[0]?.trim()
-    if (url.host === request.headers.host || (forwarded && url.host === forwarded)) return true
-  } catch {
-    return false
-  }
-  return config.corsOrigins.includes(origin)
-}
-
-function refuse(socket: Duplex, status: number, text: string): void {
-  socket.write(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
-  socket.destroy()
 }
 
 export const CANVAS_SOCKET_PATH = '/api/canvas/ws'

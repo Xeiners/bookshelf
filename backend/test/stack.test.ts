@@ -62,6 +62,72 @@ describe('Page Stack — règles', () => {
   })
 })
 
+describe('Page Stack — affiches d’anime', () => {
+  it('ne garde que les séries et films tout public, avec une image de MyAnimeList', async () => {
+    const { pickCovers } = await import('../src/modules/stack/stack.covers.js')
+    const image = (url: string) => ({ jpg: { large_image_url: url } })
+    const good = 'https://cdn.myanimelist.net/images/anime/1/1.jpg'
+    const picked = pickCovers({
+      data: [
+        { mal_id: 1, title: 'Série', type: 'TV', rating: 'PG-13', images: image(good) },
+        { mal_id: 2, title: 'Film', type: 'Movie', rating: null, images: image(good) },
+        { mal_id: 3, title: 'Adulte', type: 'TV', rating: 'Rx - Hentai', images: image(good) },
+        { mal_id: 4, title: 'Musique', type: 'Music', rating: 'G', images: image(good) },
+        { mal_id: 5, title: 'Ailleurs', type: 'TV', rating: 'G', images: image('https://evil.example/x.jpg') },
+        { mal_id: 6, title: 'Sans image', type: 'TV', rating: 'G', images: {} },
+        { title: 'Sans id', type: 'TV', images: image(good) },
+      ],
+    })
+    assert.deepEqual(picked.map((entry) => entry.cover.id), [1, 2])
+    assert.deepEqual(pickCovers({}), [])
+  })
+
+  it('relais : liste publique, affiche redimensionnée et mise en cache ; Jikan en panne : liste vide', async () => {
+    const { resetStackCovers } = await import('../src/modules/stack/stack.covers.js')
+    const sharp = (await import('sharp')).default
+    const png = await sharp({ create: { width: 600, height: 900, channels: 3, background: '#d33' } }).png().toBuffer()
+    const realFetch = globalThis.fetch
+    let jikanDown = true
+    let imageCalls = 0
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = String(input instanceof Request ? input.url : input)
+      if (url.startsWith('https://api.jikan.moe/v4/top/anime')) {
+        if (jikanDown) return new Response('down', { status: 503 })
+        return new Response(JSON.stringify({ data: [{ mal_id: 16498, title: 'Shingeki no Kyojin', type: 'TV', rating: 'R - 17+', images: { jpg: { large_image_url: 'https://cdn.myanimelist.net/images/anime/10/47347l.jpg' } } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.startsWith('https://cdn.myanimelist.net/')) {
+        imageCalls += 1
+        return new Response(new Uint8Array(png), { status: 200, headers: { 'Content-Type': 'image/png' } })
+      }
+      return realFetch(input, init)
+    }) as typeof fetch
+    try {
+      resetStackCovers()
+      const down = await client().request('GET', '/stack/covers')
+      assert.equal(down.status, 200)
+      assert.deepEqual(down.body.covers, [])
+      assert.equal((await client().request('GET', '/stack/covers/16498')).status, 404)
+
+      jikanDown = false
+      resetStackCovers()
+      const list = await client().request('GET', '/stack/covers')
+      assert.deepEqual(list.body.covers, [{ id: 16498, title: 'Shingeki no Kyojin' }])
+      const raw = await client().send('GET', '/stack/covers/16498')
+      assert.equal(raw.status, 200)
+      assert.equal(raw.headers.get('content-type'), 'image/webp')
+      const resized = await sharp(Buffer.from(await raw.arrayBuffer())).metadata()
+      assert.ok((resized.width ?? 9999) <= 440, 'affiche réduite')
+      await client().send('GET', '/stack/covers/16498')
+      assert.equal(imageCalls, 1, 'l’affiche est téléchargée une seule fois')
+      assert.equal((await client().send('GET', '/stack/covers/999')).status, 404, 'id inconnu')
+      assert.equal((await client().send('GET', '/stack/covers/abc')).status, 400)
+    } finally {
+      globalThis.fetch = realFetch
+      resetStackCovers()
+    }
+  })
+})
+
 describe('Page Stack — API', () => {
   it('une partie : bilan borné, record, Poussières créditées, classement', async () => {
     const ana = await account('Ana', 'ana-stack@example.com')

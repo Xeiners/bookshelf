@@ -135,6 +135,8 @@ export async function startServer() {
   // La toile partagée (WebSocket) sur le même serveur, comme en production.
   const { attachCanvas, shutdownCanvas } = await import('../src/modules/canvas/canvas.boot.js')
   const detachCanvas = attachCanvas(server)
+  const { attachStackSocket } = await import('../src/modules/stack/stack.socket.js')
+  const detachStack = attachStackSocket(server)
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`
 
   /** Chaque client a son propre cookie : un « appareil ». */
@@ -175,6 +177,7 @@ export async function startServer() {
 
   const close = async () => {
     detachCanvas()
+    detachStack()
     await shutdownCanvas()
     server.closeAllConnections?.()
     await new Promise<void>((resolve) => server.close(() => resolve()))

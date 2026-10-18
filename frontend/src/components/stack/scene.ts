@@ -225,9 +225,19 @@ export function drawDesk(ctx: CanvasRenderingContext2D, view: View): void {
 
 const INK = 'rgba(24,18,44,0.82)'
 
+/** Affiche d'anime d'une page : l'image, la portion de scène qu'elle couvre (centre et largeur d'origine) et le point de la hauteur montré. */
+export interface PageArt {
+  image: HTMLImageElement
+  x: number
+  w: number
+  /** 0 → 1 : la partie de la hauteur de l'affiche qui se trouve dans la page. */
+  v: number
+}
+
 /**
- * Une page de manga : papier, bandeau coloré (la teinte change à chaque page), cases encrées.
- * `row` : rang dans la pile ; `index` fixe le motif des cases.
+ * Une page : l'affiche d'anime (une tranche, qui se prolonge sur le morceau coupé), ou, sans
+ * affiche, une page de manga — papier, bandeau coloré (la teinte change à chaque page), cases
+ * encrées. `index` fixe le motif des cases.
  */
 export function drawPage(
   ctx: CanvasRenderingContext2D,
@@ -236,7 +246,7 @@ export function drawPage(
   width: number,
   top: number,
   index: number,
-  options: { alpha?: number; angle?: number; pivot?: { x: number; y: number } } = {},
+  options: { alpha?: number; angle?: number; pivot?: { x: number; y: number }; art?: PageArt | null } = {},
 ): void {
   const x = view.left + (centre - width / 2) * view.stage
   const w = width * view.stage
@@ -260,6 +270,32 @@ export function drawPage(
   ctx.fill()
   ctx.save()
   ctx.clip()
+
+  const art = options.art
+  if (art && art.image.naturalWidth > 0) {
+    // L'affiche couvre la page d'origine ; la page coupée n'en montre que sa part.
+    const artWidth = art.w * view.stage
+    const artLeft = view.left + (art.x - art.w / 2) * view.stage
+    const artHeight = (art.image.naturalHeight / art.image.naturalWidth) * artWidth
+    const artTop = Math.min(top, Math.max(top + h - artHeight, top + h / 2 - art.v * artHeight))
+    ctx.drawImage(art.image, artLeft, artTop, artWidth, artHeight)
+    // Un peu d'épaisseur : reflet en haut, ombre en bas.
+    const shade = ctx.createLinearGradient(0, top, 0, top + h)
+    shade.addColorStop(0, 'rgba(255,255,255,0.28)')
+    shade.addColorStop(0.18, 'rgba(255,255,255,0)')
+    shade.addColorStop(0.75, 'rgba(0,0,0,0)')
+    shade.addColorStop(1, 'rgba(0,0,0,0.38)')
+    ctx.fillStyle = shade
+    ctx.fillRect(x, top, w, h)
+    ctx.restore()
+    ctx.beginPath()
+    ctx.roundRect(x, top, w, h, radius)
+    ctx.strokeStyle = 'rgba(16,10,34,0.8)'
+    ctx.lineWidth = Math.max(1.2, h * 0.05)
+    ctx.stroke()
+    ctx.restore()
+    return
+  }
 
   // Bandeau coloré, façon ruban adhésif.
   const hue = (index * 37 + 12) % 360

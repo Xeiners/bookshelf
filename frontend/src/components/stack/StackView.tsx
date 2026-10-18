@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Gamepad2, Loader2, Play, RotateCcw, Trophy } from 'lucide-react'
+import { ChevronDown, Gamepad2, Loader2, Play, RotateCcw, Swords, Trophy, Users } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
@@ -13,12 +13,16 @@ import { useDleStore } from '../../store/useDleStore'
 import { useGuestStardustStore } from '../../store/useGuestStardustStore'
 import { useStardustBalance } from '../../store/useHigherLowerStore'
 import { useRecordRewards } from '../../store/useRecordRewards'
+import { useStackRoom } from '../../store/useStackRoom'
+import { parseRoomCode } from '../../lib/dle'
 import { useUiStore } from '../../store/useUiStore'
 import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { StackEmblem } from './StackEmblem'
 import { StackGame } from './StackGame'
+import { StackRoomScreen } from './StackRoomScreen'
+import type { StackMode } from '../../lib/stack/net'
 
 interface Session {
   key: number
@@ -43,7 +47,10 @@ export function StackView() {
   const ensureGuest = useDleStore((state) => state.ensureGuest)
   const guest = dleOverview?.guest ?? null
   const ready = signedIn || guest !== null
+  const meId = useAuthStore((state) => state.user?.id) ?? guest?.id ?? null
   const stardust = useStardustBalance()
+  const roomStatus = useStackRoom((state) => state.status)
+  const pendingCode = useStackRoom((state) => state.pendingCode)
   const [overview, setOverview] = useState<StackOverview | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [starting, setStarting] = useState(false)
@@ -62,6 +69,16 @@ export function StackView() {
       .catch((error: unknown) => notify(apiErrorMessage(error, t), 'nope'))
       .finally(() => (asking.current = false))
   }, [signedIn, guest, dleOverview, ensureGuest, notify, t])
+
+  // Invitation par lien (`?stack=CODE`) : on entre dans le salon dès qu'on a une identité.
+  useEffect(() => {
+    if (!ready || !pendingCode) return
+    useStackRoom.getState().setPendingCode(null)
+    void useStackRoom.getState().join(pendingCode).catch(() => undefined)
+  }, [ready, pendingCode])
+
+  // Quitter Page Stack ferme aussi le salon.
+  useEffect(() => () => useStackRoom.getState().leave(), [])
 
   const refresh = useCallback(() => {
     stackApi
@@ -123,12 +140,14 @@ export function StackView() {
         <StardustBadge balance={stardust} />
       </DleBar>
       {ready ? (
-        <StackHome overview={overview} starting={starting} onStart={() => void start()} />
+        <StackHome overview={overview} starting={starting} onStart={() => void start()} onCreate={(mode) => void useStackRoom.getState().create(mode).catch(() => undefined)} onJoin={(code) => void useStackRoom.getState().join(code).catch(() => undefined)} />
       ) : (
         <div className="grid flex-1 place-items-center pb-16">
           <Loader2 size={26} className="animate-spin text-glow" aria-hidden />
         </div>
       )}
+
+      {meId && roomStatus !== 'idle' && createPortal(<StackRoomScreen meId={meId} />, document.body)}
 
       {session &&
         createPortal(
@@ -142,7 +161,7 @@ export function StackView() {
   )
 }
 
-function StackHome({ overview, starting, onStart }: { overview: StackOverview | null; starting: boolean; onStart: () => void }) {
+function StackHome({ overview, starting, onStart, onCreate, onJoin }: { overview: StackOverview | null; starting: boolean; onStart: () => void; onCreate: (mode: StackMode) => void; onJoin: (code: string) => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   const signedIn = useAuthStore((state) => state.user !== null)
@@ -192,6 +211,8 @@ function StackHome({ overview, starting, onStart }: { overview: StackOverview | 
         </div>
       </section>
 
+      <Multiplayer onCreate={onCreate} onJoin={onJoin} />
+
       <details data-stack-in className="group shrink-0 rounded-[1.5rem] border border-white/8 bg-white/[0.03]">
         <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-[11px] font-semibold tracking-[0.2em] text-mist uppercase">
           <Gamepad2 size={14} aria-hidden />
@@ -231,6 +252,52 @@ function StackHome({ overview, starting, onStart }: { overview: StackOverview | 
         </ol>
       </section>
     </div>
+  )
+}
+
+/** Jouer à plusieurs : créer un salon (versus ou coop) ou en rejoindre un avec son code. */
+function Multiplayer({ onCreate, onJoin }: { onCreate: (mode: StackMode) => void; onJoin: (code: string) => void }) {
+  const t = useT()
+  const [code, setCode] = useState('')
+  const parsed = parseRoomCode(code)
+  return (
+    <section data-stack-in className="flex shrink-0 flex-col gap-3 rounded-[1.5rem] border border-[#ff9a5c]/25 bg-white/[0.03] p-4">
+      <p className="text-[11px] font-semibold tracking-[0.2em] text-[#ffb98a] uppercase">{t.stack.room.title}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => onCreate('versus')} className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3 text-center active:scale-[0.98]">
+          <Swords size={20} className="text-[#ffb98a]" aria-hidden />
+          <span className="text-sm font-bold text-cream">{t.stack.room.versus}</span>
+          <span className="text-[11px] leading-snug text-cream/55">{t.stack.room.versusHint}</span>
+        </button>
+        <button type="button" onClick={() => onCreate('coop')} className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3 text-center active:scale-[0.98]">
+          <Users size={20} className="text-[#ffb98a]" aria-hidden />
+          <span className="text-sm font-bold text-cream">{t.stack.room.coop}</span>
+          <span className="text-[11px] leading-snug text-cream/55">{t.stack.room.coopHint}</span>
+        </button>
+      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (parsed) onJoin(parsed)
+        }}
+      >
+        <input
+          value={code}
+          onChange={(event) => setCode(event.target.value.toUpperCase())}
+          placeholder={t.stack.room.joinPlaceholder}
+          aria-label={t.stack.room.joinPlaceholder}
+          maxLength={12}
+          autoCapitalize="characters"
+          autoComplete="off"
+          className="glass min-w-0 flex-1 rounded-full px-4 py-3 text-sm tracking-[0.15em] text-cream uppercase placeholder:tracking-normal placeholder:text-mist/60 placeholder:normal-case focus:ring-2 focus:ring-[#ff9a5c]/60 focus:outline-none"
+        />
+        <button type="submit" disabled={!parsed} className="rounded-full bg-white/10 px-5 text-sm font-semibold text-cream disabled:opacity-40">
+          {t.stack.room.joinGo}
+        </button>
+      </form>
+      <p className="text-center text-[11px] text-cream/45">{t.stack.room.noRewards}</p>
+    </section>
   )
 }
 
