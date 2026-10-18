@@ -15,6 +15,7 @@ import { useDleStore } from '../../store/useDleStore'
 import { useHigherLowerStore } from '../../store/useHigherLowerStore'
 import { useTradeStore } from '../../store/useTradeStore'
 import { useUiStore } from '../../store/useUiStore'
+import { DailyBanner } from '../daily/DailyBanner'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
 import { CARD_FRAMES } from '../cards/cardFrames'
@@ -102,6 +103,7 @@ export function ActivitiesHub() {
         )}
       </div>
 
+      <DailyBanner />
       <BoosterAltar />
       {/* La boutique : un booster ou une boîte mystère, achetés d'ici. */}
       <ShopBanners />

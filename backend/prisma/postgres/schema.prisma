@@ -91,6 +91,7 @@ model User {
   runnerStats      RunnerStats?
   runnerItems      RunnerItem[]
   recordRewards    RecordReward[]
+  dailyReward      DailyReward?
 }
 
 /// Une œuvre dans la bibliothèque d'un utilisateur.
@@ -726,6 +727,24 @@ model CanvasProfile {
   rewardedToday    Int       @default(0)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Récompense quotidienne : un calendrier de 30 jours, à réclamer chaque jour (heure de Paris), d'affilée.
+/// Le contenu de chaque jour se déduit de (userId, cycle) : rien d'autre à stocker.
+model DailyReward {
+  userId      String   @id
+  /// Jours consécutifs réclamés dans le cycle en cours (0 → 30). Un jour manqué le remet à zéro.
+  streak      Int      @default(0)
+  /// Cycle de 30 jours en cours : change à chaque calendrier terminé (et donne un autre calendrier).
+  cycle       Int      @default(0)
+  /// Dernier jour réclamé, `YYYY-MM-DD` à l'heure de Paris.
+  lastDay     String?
+  /// Jours réclamés depuis le début, et meilleure série.
+  totalClaims Int      @default(0)
+  bestStreak  Int      @default(0)
+  updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

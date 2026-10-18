@@ -40,6 +40,7 @@ import { useDleStore } from './store/useDleStore'
 import { useNotificationPolling } from './hooks/useNotifications'
 import { NotificationBanner } from './components/notifications/NotificationBanner'
 import { NotificationCenter } from './components/notifications/NotificationCenter'
+import { DailyRewardModal } from './components/daily/DailyRewardModal'
 import { RecordRewardModal } from './components/rewards/RecordRewardModal'
 import { GiftReveal } from './components/cards/GiftReveal'
 
@@ -291,6 +292,7 @@ export default function App() {
       {boosterOpen && <BoosterPackModal />}
       {musicOpen && <MusicSheet />}
       {notificationsOpen && <NotificationCenter />}
+      <DailyRewardModal />
       <RecordRewardModal />
       <NotificationBanner />
       {/* Carte offerte : la surprise, face cachée, à la visite suivante. */}

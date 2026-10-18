@@ -31,6 +31,8 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.alreadySuspended
     case 'not_suspended':
       return t.errors.notSuspended
+    case 'daily_claimed':
+      return t.daily.alreadyClaimed
     case 'email_taken':
       return t.errors.emailTaken
     case 'rate_limited':

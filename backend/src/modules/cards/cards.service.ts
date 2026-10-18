@@ -377,6 +377,56 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
   throw conflict('Ouverture déjà en cours, réessaie.', 'booster_busy')
 }
 
+/** Ajoute les cartes tirées à la collection du compte (un exemplaire de plus si elle y est déjà). */
+async function grantCards(tx: Prisma.TransactionClient, userId: string, drawn: readonly { id: string }[], now: Date): Promise<PulledCard[]> {
+  const cards: PulledCard[] = []
+  for (const { id } of drawn) {
+    const key = { userId_cardId: { userId, cardId: id } }
+    const existing = await tx.userCard.findUnique({ where: key, select: { count: true } })
+    const owned = await tx.userCard.upsert({
+      where: key,
+      create: { userId, cardId: id, obtainedAt: now },
+      update: { count: { increment: 1 } },
+      include: { card: true },
+    })
+    cards.push({ card: toCardDto(owned.card), isNew: existing === null, count: owned.count })
+  }
+  return cards
+}
+
+/** Cartes d'où tirer un pack offert (série au hasard) ; à lire AVANT la transaction qui l'attribue. */
+export async function rewardPackPool(random: () => number = Math.random) {
+  const set = await ensureCardSet()
+  if (set.length === 0) throw notReady()
+  return seriesCards(set, 'random', random)
+}
+
+/**
+ * Pack offert (récompense du 30e jour) : un booster de quatre cartes dont la dernière est
+ * obligatoirement Légendaire ou Mythique. Il ne coûte aucun booster, et remet à zéro les
+ * compteurs de garantie de ce que le joueur obtient (une Légendaire déjà tirée ne lui sera
+ * pas redonnée « de force » par la garantie du 120e booster).
+ */
+export async function grantLegendaryPack(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  pool: { id: string; rarity: string }[],
+  options: { now?: Date; random?: () => number } = {},
+): Promise<PulledCard[]> {
+  const now = options.now ?? new Date()
+  const drawn = drawPack(pool, options.random ?? Math.random, { forceLegendary: true })
+  const cards = await grantCards(tx, userId, drawn, now)
+  await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })
+  const rarities = drawn.map((card) => card.rarity)
+  if (rarities.includes('LEGENDARY') || rarities.includes('MYTHIC')) {
+    await tx.userBooster.updateMany({
+      where: { userId },
+      data: { boostersSinceLastLegendary: 0, ...(rarities.includes('MYTHIC') && { boostersSinceLastMythic: 0 }) },
+    })
+  }
+  return cards
+}
+
 export async function openBooster(
   userId: string,
   options: { now?: Date; random?: () => number; unlimited?: boolean; series?: SeriesChoice } = {},
@@ -400,18 +450,7 @@ export async function openBooster(
       forceLegendary: !unlimited && hasReachedLegendaryPity(spent.boostersSinceLastLegendary),
     })
     const legendarySince = unlimited ? 0 : nextLegendaryPityCount(spent.boostersSinceLastLegendary, drawn.map((card) => card.rarity))
-    const cards: PulledCard[] = []
-    for (const { id } of drawn) {
-      const key = { userId_cardId: { userId, cardId: id } }
-      const existing = await tx.userCard.findUnique({ where: key, select: { count: true } })
-      const owned = await tx.userCard.upsert({
-        where: key,
-        create: { userId, cardId: id, obtainedAt: now },
-        update: { count: { increment: 1 } },
-        include: { card: true },
-      })
-      cards.push({ card: toCardDto(owned.card), isNew: existing === null, count: owned.count })
-    }
+    const cards = await grantCards(tx, userId, drawn, now)
     // Statistique du profil : compte aussi les ouvertures de recette.
     await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })
     if (!unlimited) {

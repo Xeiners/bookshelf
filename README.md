@@ -91,6 +91,12 @@ sommaire et barre de progression. La recherche trouve aussi n'importe quel roman
 en français ou en anglais. Tes romans se téléchargent aussi tout seuls en arrière-plan
 (réglage désactivable) : ils s'ouvrent sans connexion, même après des semaines.
 
+🎁 **Une récompense chaque jour**
+À ta première connexion du jour (de minuit à 23 h 59, heure de Paris), un calendrier de
+30 cases s'ouvre : Poussières d'Étoile, boosters, boîtes mystère de la garde-robe… tout le
+mois est visible d'avance. Enchaîne les jours sans en manquer un : le 30ᵉ offre un pack avec
+une Légendaire garantie.
+
 🃏 **Tes cartes dans la bibliothèque**
 Onglet « Cartes » de la bibliothèque : cartes possédées et favoris d'un coup d'œil,
 avec filtres et zoom. Depuis le Profil, « Exposer une carte » ajoute une carte à ta

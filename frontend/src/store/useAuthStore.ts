@@ -16,6 +16,7 @@ import {
 import { useAmbientStore } from './useAmbientStore'
 import { useBoosterStore } from './useBoosterStore'
 import { useCollectionStore } from './useCollectionStore'
+import { useDailyStore } from './useDailyStore'
 import { useTradeStore } from './useTradeStore'
 import { useNotificationStore } from './useNotificationStore'
 import { useGuestCardsStore } from './useGuestCardsStore'
@@ -93,6 +94,7 @@ function endSession(reason: 'expired' | 'logout') {
     useAmbientStore.getState().clearPlaylists()
   }
   useBoosterStore.getState().reset()
+  useDailyStore.getState().reset()
   useCollectionStore.getState().reset()
   useTradeStore.getState().reset()
   useNotificationStore.getState().reset()
@@ -202,6 +204,7 @@ export const useAuthStore = create<AuthState>()(
         useTradeStore.getState().reset()
         useNotificationStore.getState().reset()
         useBoosterStore.getState().reset()
+        useDailyStore.getState().reset()
         useProfileStore.getState().reset()
         useDleStore.getState().reset()
         useHigherLowerStore.getState().reset()
@@ -238,6 +241,7 @@ export const useAuthStore = create<AuthState>()(
         // L'album affiché était celui de l'invité. Ses cartes d'essai restent sur
         // l'appareil : seule une INSCRIPTION les fait entrer dans un compte.
         useCollectionStore.getState().reset()
+        useDailyStore.getState().reset()
         useTradeStore.getState().reset()
         useNotificationStore.getState().reset()
         useProfileStore.getState().reset()

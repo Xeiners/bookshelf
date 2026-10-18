@@ -1283,6 +1283,28 @@ l'ancienne toile reste consultable (galerie, time-lapse).
 
 Tests : `test/canvas.test.ts` (19 : WebSocket, règles, cadres, débits, pinceaux, « j'aime », signalements, administration, persistance, tuiles, saisons).
 
+## 7 quaterdecies. Récompense quotidienne (`src/modules/daily/`)
+
+Un calendrier de 30 cases, une par jour **de Paris** (minuit → 23 h 59, même convention que le
+BookshelfDLE). Compte connecté seulement.
+
+| Route | Rôle |
+|---|---|
+| `GET /api/daily` | calendrier du cycle (30 cases + état `claimed`/`today`/`upcoming`), série, secondes avant minuit |
+| `POST /api/daily/claim` | prend la case du jour ; 409 `daily_claimed` si déjà prise |
+
+- **Séries.** `DailyReward` (`streak`, `cycle`, `lastDay`, `totalClaims`, `bestStreak`). Les jours
+  doivent s'enchaîner : un jour manqué repart du jour 1 avec un autre calendrier (`cycle + 1`,
+  `broken: true`) ; 30 jours pris, le lendemain ouvre un nouveau cycle (`planDaily`).
+- **Contenu.** Déduit de `(userId, cycle)` par `seededRandom` (`calendarFor`) : le calendrier entier
+  est visible d'avance, identique d'un appareil à l'autre, rien à stocker. Jour ordinaire : Poussières
+  (50 %), booster (30 %) ou boîte mystère (20 %) ; jours 7, 14, 21 : récompense riche (≥ 400 en valeur) ;
+  jour 30 : **pack légendaire** (4 cartes, dernière Légendaire ou Mythique garantie, `grantLegendaryPack`
+  dans `cards.service.ts`) + une boîte + 250 Poussières. Le pack remet à zéro les compteurs de garantie.
+- **Crédit.** Une transaction : verrou optimiste sur la ligne (`lastDay`, `streak`, `cycle`) — deux prises
+  simultanées ne créditent qu'une fois —, Poussières (`daily_reward` dans `StardustEntry`), boosters
+  offerts (`giftedBoosters`, hors plafond), boîtes (`RunnerStats.giftBoxes`), cartes du pack.
+
 ## 8. Limites connues et suites possibles
 
 - Les entrées de bibliothèque créées du temps d'AniList depuis une carte
