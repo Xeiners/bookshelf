@@ -15,7 +15,7 @@ import { isAdminEmail } from './admin.access.js'
  * au journal (`AdminAction`) et chaque cadeau prévient le compte (notification).
  */
 
-export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end', 'canvas_remove', 'canvas_restore', 'canvas_purge', 'canvas_ban', 'canvas_unban', 'dle_image_ban', 'dle_image_restore'] as const
+export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end', 'canvas_remove', 'canvas_restore', 'canvas_purge', 'canvas_ban', 'canvas_unban', 'dle_image_ban', 'dle_image_restore', 'reviewer_grant', 'reviewer_revoke'] as const
 export type AdminActionType = (typeof ADMIN_ACTIONS)[number]
 
 export interface Admin {
@@ -81,6 +81,8 @@ export interface AdminUserRow {
   lastSeenAt: string | null
   suspended: boolean
   isAdmin: boolean
+  /** Contrôleur d'images : accès à la seule revue des images d'énigme. */
+  imageReviewer: boolean
   /** Cartes différentes possédées. */
   cards: number
   /** Titres en bibliothèque. */
@@ -95,6 +97,7 @@ const ROW_SELECT = {
   createdAt: true,
   lastSeenAt: true,
   suspendedAt: true,
+  imageReviewer: true,
   boostersOpened: true,
   _count: { select: { cards: true, entries: true } },
 } satisfies Prisma.UserSelect
@@ -109,6 +112,7 @@ const toRow = (user: Row): AdminUserRow => ({
   lastSeenAt: user.lastSeenAt?.toISOString() ?? null,
   suspended: user.suspendedAt !== null,
   isAdmin: isAdminEmail(user.email),
+  imageReviewer: user.imageReviewer,
   cards: user._count.cards,
   library: user._count.entries,
   boostersOpened: user.boostersOpened,
@@ -205,7 +209,7 @@ export async function userDetail(userId: string): Promise<AdminUserDetail> {
 }
 
 async function requireUser(userId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, suspendedAt: true } })
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, suspendedAt: true, imageReviewer: true } })
   if (!user) throw userNotFound()
   return user
 }
@@ -278,6 +282,22 @@ export async function unsuspendUser(admin: Admin, userId: string): Promise<void>
     await record(tx, admin, 'unsuspend', userId, {})
   })
   forgetStanding(userId)
+}
+
+/* ---- Contrôleur d'images ------------------------------------------------------------------ */
+
+/**
+ * Donne ou retire le rôle de contrôleur d'images : accès à la seule revue des images d'énigme
+ * (valider, bannir), sans le reste de l'administration. Inutile pour un administrateur (il a déjà la revue).
+ */
+export async function setImageReviewer(admin: Admin, userId: string, enabled: boolean): Promise<void> {
+  const user = await requireUser(userId)
+  if (isAdminEmail(user.email)) throw new HttpError(409, 'admin_protected', 'Un administrateur a déjà accès à la revue des images.')
+  if (user.imageReviewer === enabled) return
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { imageReviewer: enabled } })
+    await record(tx, admin, enabled ? 'reviewer_grant' : 'reviewer_revoke', userId, {})
+  })
 }
 
 /* ---- Modération -------------------------------------------------------------------------- */

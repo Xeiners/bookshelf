@@ -9,6 +9,8 @@ declare global {
     interface Request {
       /** Renseigné par `requireAdmin`. */
       admin?: { id: string; email: string }
+      /** Renseigné par `requireReviewer` (un administrateur ou un contrôleur d'images). */
+      reviewer?: { id: string; email: string }
     }
   }
 }
@@ -32,4 +34,22 @@ export async function requireAdmin(req: Request, _res: Response, next: NextFunct
 export function currentAdmin(req: Request): { id: string; email: string } {
   if (!req.admin) throw new HttpError(404, 'not_found', 'Route inconnue.')
   return req.admin
+}
+
+/**
+ * Derrière `requireAuth` : la revue des images d'énigme est ouverte aux administrateurs ET aux
+ * contrôleurs d'images (rôle donné par un administrateur, jamais à soi-même). Le rôle est relu en
+ * base à chaque requête : le retirer ferme l'accès aussitôt. 404 pour les autres (comme l'administration).
+ */
+export async function requireReviewer(req: Request, _res: Response, next: NextFunction) {
+  const id = currentUserId(req)
+  const user = await prisma.user.findUnique({ where: { id }, select: { email: true, imageReviewer: true, suspendedAt: true } })
+  if (!user || user.suspendedAt || !(user.imageReviewer || isAdminEmail(user.email))) throw new HttpError(404, 'not_found', 'Route inconnue.')
+  req.reviewer = { id, email: user.email }
+  next()
+}
+
+export function currentReviewer(req: Request): { id: string; email: string } {
+  if (!req.reviewer) throw new HttpError(404, 'not_found', 'Route inconnue.')
+  return req.reviewer
 }

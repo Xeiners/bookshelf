@@ -319,6 +319,7 @@ function UsersList({ version, selected, onSelect }: { version: number; selected:
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-semibold text-cream">{name}</span>
                       {user.isAdmin && <span className="shrink-0 rounded-full bg-gold/15 px-1.5 text-[9.5px] font-bold text-gold uppercase">{t.admin.badges.admin}</span>}
+                      {user.imageReviewer && <span className="shrink-0 rounded-full bg-glow/20 px-1.5 text-[9.5px] font-bold text-glow uppercase">{t.admin.badges.reviewer}</span>}
                       {user.suspended && <span className="shrink-0 rounded-full bg-nope/15 px-1.5 text-[9.5px] font-bold text-nope uppercase">{t.admin.badges.suspended}</span>}
                     </span>
                     <span className="block truncate text-[11px] text-mist">{user.email}</span>

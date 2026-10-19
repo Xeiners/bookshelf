@@ -227,6 +227,12 @@ export const fr = {
     },
   },
 
+  reviewer: {
+    title: 'Revue des images',
+    open: 'Ouvrir la revue des images',
+    hint: 'Valide ou bannis les images d’énigme du BookshelfDLE.',
+  },
+
   patchNotes: {
     title: 'Nouveautés',
     subtitle: 'Mise à jour du 19 octobre',
@@ -575,7 +581,7 @@ export const fr = {
     loadMore: 'Afficher plus',
     error: 'Impossible de charger l’administration.',
     retry: 'Réessayer',
-    badges: { admin: 'Admin', suspended: 'Suspendu', unverified: 'E-mail non vérifié' },
+    badges: { admin: 'Admin', reviewer: 'Contrôleur', suspended: 'Suspendu', unverified: 'E-mail non vérifié' },
     anonymous: 'Sans pseudo',
     seen: (when: string) => `Vu ${when}`,
     neverSeen: 'Jamais vu depuis la mise à jour',
@@ -634,6 +640,16 @@ export const fr = {
       confirm: 'Confirmer la modération',
       done: 'Profil modéré',
     },
+    reviewerRole: {
+      title: 'Contrôleur d’images',
+      hint: 'Peut valider et bannir les images d’énigme du BookshelfDLE (une entrée « Revue des images » dans ses paramètres), sans rien voir du reste de l’administration.',
+      on: 'Contrôleur d’images',
+      off: 'Pas de rôle particulier',
+      grant: 'Donner le rôle',
+      revoke: 'Retirer le rôle',
+      granted: 'Rôle donné : il peut réviser les images',
+      revoked: 'Rôle retiré',
+    },
     suspension: {
       title: 'Suspension',
       hint: 'Ses sessions sont coupées, la connexion est refusée et ses offres au Marché sont retirées.',
@@ -664,6 +680,8 @@ export const fr = {
       canvasRestore: 'a remis un dessin en ligne sur la toile',
       dleImageBan: (character: string, universe: string) => `a banni une image de ${character} (${universe})`,
       dleImageRestore: (character: string, universe: string) => `a rétabli une image de ${character} (${universe})`,
+      reviewerGrant: 'a donné le rôle de contrôleur d’images',
+      reviewerRevoke: 'a retiré le rôle de contrôleur d’images',
       canvasPurge: (count: number) => `a effacé ${count} dessin${plural(count, '', 's')} de la toile`,
       canvasBan: (reason: string | null) => (reason ? `a exclu le compte de la toile (${reason})` : 'a exclu le compte de la toile'),
       canvasUnban: 'a réintégré le compte sur la toile',

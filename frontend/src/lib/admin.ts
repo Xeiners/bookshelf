@@ -42,6 +42,10 @@ export function describeAction(entry: AdminAuditEntry, t: Dictionary): string {
       return copy.canvasUnban
     case 'dle_image_ban':
       return copy.dleImageBan(text(details.character) ?? '?', text(details.category) ?? '?')
+    case 'reviewer_grant':
+      return copy.reviewerGrant
+    case 'reviewer_revoke':
+      return copy.reviewerRevoke
     case 'dle_image_restore':
       return copy.dleImageRestore(text(details.character) ?? '?', text(details.category) ?? '?')
     case 'moderate': {

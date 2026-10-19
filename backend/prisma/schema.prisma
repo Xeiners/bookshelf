@@ -54,6 +54,8 @@ model User {
   /// créés avant la vérification par e-mail.
   emailVerifiedAt DateTime?
   /// Suspendu par un administrateur (cf. `src/modules/admin/`) : connexion refusée, sessions coupées.
+  /// Contrôleur d'images : accès à la seule revue des images d'énigme du BookshelfDLE (donné par un administrateur).
+  imageReviewer   Boolean   @default(false)
   suspendedAt     DateTime?
   /// Motif de la suspension, montré au titulaire à la connexion.
   suspendedReason String?

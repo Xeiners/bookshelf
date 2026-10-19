@@ -11,6 +11,7 @@ import {
   Globe,
   Link2,
   HardDrive,
+  ImageOff,
   KeyRound,
   LogOut,
   Minus,
@@ -708,6 +709,33 @@ function SessionSection({ onDone }: { onDone: () => void }) {
   )
 }
 
+/** Contrôleurs d'images (hors administrateurs, qui ont l'onglet) : l'entrée vers la revue des images d'énigme. */
+function ReviewSection() {
+  const t = useT()
+  const openReview = useUiStore((state) => state.openReview)
+  return (
+    <Section icon={ImageOff} title={t.reviewer.title}>
+      <button
+        type="button"
+        onClick={() => {
+          vibrate(6)
+          openReview()
+        }}
+        className="flex w-full items-center gap-3 rounded-2xl border border-gold/30 bg-gold/[0.07] p-3 text-left"
+      >
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-black/40 text-gold">
+          <ImageOff size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-cream">{t.reviewer.open}</span>
+          <span className="block text-xs text-mist">{t.reviewer.hint}</span>
+        </span>
+        <ChevronRight size={16} className="shrink-0 text-cream/40" aria-hidden />
+      </button>
+    </Section>
+  )
+}
+
 /** Rouvre la fenêtre des nouveautés (celle de l'ouverture du site). */
 function NewsSection() {
   const t = useT()
@@ -772,6 +800,7 @@ export function SettingsSheet() {
   const openAuth = useUiStore((state) => state.openAuth)
   const userId = useAuthStore((state) => state.user?.id ?? null)
   const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
+  const isReviewer = useAuthStore((state) => state.user?.isImageReviewer === true)
   const signedIn = userId !== null
 
   return (
@@ -790,6 +819,7 @@ export function SettingsSheet() {
           <StorageSection />
           <DownloadsSection />
           <NewsSection />
+          {isReviewer && !isAdmin && <ReviewSection />}
           {isAdmin && <AdminSection />}
           {signedIn && <SessionSection onDone={dismiss} />}
         </div>

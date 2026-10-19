@@ -218,6 +218,12 @@ export const en: Dictionary = {
     },
   },
 
+  reviewer: {
+    title: 'Image review',
+    open: 'Open the image review',
+    hint: 'Keep or ban the BookshelfDLE puzzle images.',
+  },
+
   patchNotes: {
     title: 'What’s new',
     subtitle: 'Update of October 19',
@@ -565,7 +571,7 @@ export const en: Dictionary = {
     loadMore: 'Show more',
     error: 'Couldn’t load administration.',
     retry: 'Try again',
-    badges: { admin: 'Admin', suspended: 'Suspended', unverified: 'Unverified email' },
+    badges: { admin: 'Admin', reviewer: 'Reviewer', suspended: 'Suspended', unverified: 'Unverified email' },
     anonymous: 'No username',
     seen: (when: string) => `Seen ${when}`,
     neverSeen: 'Not seen since the update',
@@ -623,6 +629,16 @@ export const en: Dictionary = {
       confirm: 'Confirm moderation',
       done: 'Profile moderated',
     },
+    reviewerRole: {
+      title: 'Image reviewer',
+      hint: 'Can keep and ban the BookshelfDLE puzzle images (an “Image review” entry in their settings), without seeing anything else of the administration.',
+      on: 'Image reviewer',
+      off: 'No special role',
+      grant: 'Give the role',
+      revoke: 'Remove the role',
+      granted: 'Role given: they can review images',
+      revoked: 'Role removed',
+    },
     suspension: {
       title: 'Suspension',
       hint: 'Their sessions end, sign-in is refused and their Market offers are withdrawn.',
@@ -653,6 +669,8 @@ export const en: Dictionary = {
       canvasRestore: 'put a canvas drawing back online',
       dleImageBan: (character: string, universe: string) => `banned an image of ${character} (${universe})`,
       dleImageRestore: (character: string, universe: string) => `restored an image of ${character} (${universe})`,
+      reviewerGrant: 'gave the image reviewer role',
+      reviewerRevoke: 'removed the image reviewer role',
       canvasPurge: (count: number) => `erased ${count} canvas drawing${plural(count, '', 's')}`,
       canvasBan: (reason: string | null) => (reason ? `banned the account from the canvas (${reason})` : 'banned the account from the canvas'),
       canvasUnban: 'reinstated the account on the canvas',

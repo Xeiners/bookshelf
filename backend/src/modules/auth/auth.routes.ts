@@ -92,6 +92,7 @@ interface UserRow {
   oracleStreak: number
   oracleBest: number
   createdAt: Date
+  imageReviewer: boolean
 }
 
 const publicUser = (user: UserRow) => ({
@@ -105,6 +106,8 @@ const publicUser = (user: UserRow) => ({
   createdAt: user.createdAt.getTime(),
   // Affiche l'entrée « Administration » ; l'API revérifie à chaque requête admin.
   isAdmin: isAdminEmail(user.email),
+  // Affiche l'entrée « Revue des images » ; l'API revérifie le rôle à chaque requête.
+  isImageReviewer: user.imageReviewer,
 })
 
 /**

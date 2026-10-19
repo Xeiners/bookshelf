@@ -1246,6 +1246,13 @@ Routes (`/api/admin/dle-images`) : `GET /` (univers et avancement, sans rien cha
 (prochaines images ; `ready: false` tant que les images se chargent en tâche de fond, quelques minutes après
 un démarrage), `GET /:category/image` et `/portrait` (relais), `POST /:category/review`
 (`approve` | `ban` | `clear`). Les bannissements et leurs annulations sont inscrits au journal.
+**Contrôleur d'images** : un administrateur donne ce rôle à un compte depuis sa fiche (`POST /admin/users/:id/reviewer`
+`{ enabled }`, colonne `User.imageReviewer`, journalisé `reviewer_grant` / `reviewer_revoke`). Il ouvre la seule revue
+des images (routes montées dans `dle.review.routes.ts` AVANT l'administration, derrière `requireReviewer` :
+administrateur ou contrôleur non suspendu, relu en base à chaque requête, 404 sinon) ; tout le reste de
+l'administration lui reste fermé (404), y compris l'attribution du rôle. Ses décisions sont signées à son nom
+(`reviewedBy`, journal). Côté front, `isImageReviewer` (dans `/auth/me`) affiche l'entrée « Revue des images » dans
+ses Paramètres ; les administrateurs ont l'onglet « Images ».
 Tests : `backend/test/dle-review.test.ts` et `dle.test.ts`.
 
 Les noms se comparent par `nameKey` (romanisations : Hyuuga = Hyuga, Kuujou = Kujo, ordre indifférent) ;

@@ -63,6 +63,7 @@ const PublicProfileView = lazy(() =>
 const PROFILE_PRELOAD_DELAY_MS = 1500
 
 // Administration (comptes de `ADMIN_EMAILS`) : jamais téléchargée par les autres.
+const ReviewerView = lazy(() => import('./components/admin/ReviewerView').then((module) => ({ default: module.ReviewerView })))
 const AdminView = lazy(() => import('./components/admin/AdminView').then((module) => ({ default: module.AdminView })))
 
 const NovelsSheet = lazy(() => import('./components/novels/NovelsSheet').then((module) => ({ default: module.NovelsSheet })))
@@ -95,6 +96,8 @@ export default function App() {
   const publicProfileId = useUiStore((state) => state.publicProfileId)
   const notificationsOpen = useUiStore((state) => state.notificationsOpen)
   const adminOpen = useUiStore((state) => state.adminOpen)
+  const reviewOpen = useUiStore((state) => state.reviewOpen)
+  const isReviewer = useAuthStore((state) => state.user?.isImageReviewer === true)
   const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
 
   // Session : validation, envoi des actions en attente, récupération du compte.
@@ -316,6 +319,11 @@ export default function App() {
       {adminOpen && isAdmin && (
         <Suspense fallback={<div className="fixed inset-0 z-[76] bg-void" />}>
           <AdminView />
+        </Suspense>
+      )}
+      {reviewOpen && (isReviewer || isAdmin) && (
+        <Suspense fallback={<div className="fixed inset-0 z-[76] bg-void" />}>
+          <ReviewerView />
         </Suspense>
       )}
       {publicProfileId && (

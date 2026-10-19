@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BadgePercent, Ban, Brush, Eraser, Gift, ImageOff, ImageUp, Loader2, PackageOpen, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react'
+import { BadgePercent, Ban, Brush, Eraser, Gift, ImageOff, ImageUp, Loader2, PackageOpen, RotateCcw, ShieldCheck, Sparkles, UserCheck, UserMinus } from 'lucide-react'
 import { useT } from '../../i18n'
 import { describeAction } from '../../lib/admin'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
@@ -21,6 +21,8 @@ const ICON: Record<AdminActionType, typeof Gift> = {
   canvas_unban: Brush,
   dle_image_ban: ImageOff,
   dle_image_restore: ImageUp,
+  reviewer_grant: UserCheck,
+  reviewer_revoke: UserMinus,
 }
 
 const TINT: Record<AdminActionType, string> = {
@@ -38,6 +40,8 @@ const TINT: Record<AdminActionType, string> = {
   canvas_unban: 'text-like bg-like/12', // i18n-ignore : classes CSS
   dle_image_ban: 'text-nope bg-nope/12', // i18n-ignore : classes CSS
   dle_image_restore: 'text-like bg-like/12', // i18n-ignore : classes CSS
+  reviewer_grant: 'text-like bg-like/12', // i18n-ignore : classes CSS
+  reviewer_revoke: 'text-cream/60 bg-white/10', // i18n-ignore : classes CSS
 }
 
 /** Une ligne du journal : qui, quoi, sur quel compte (cliquable), quand. */

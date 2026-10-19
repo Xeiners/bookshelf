@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Ban, BookOpen, Gift, Layers, Loader2, Minus, PackageOpen, Plus, RotateCcw, Search, ShieldAlert, ShieldCheck, Sparkles, Zap } from 'lucide-react'
+import { ArrowLeft, Ban, BookOpen, Gift, ImageOff, Layers, Loader2, Minus, PackageOpen, Plus, RotateCcw, Search, ShieldAlert, ShieldCheck, Sparkles, Zap } from 'lucide-react'
 import { useT } from '../../i18n'
 import { accountName } from '../../lib/admin'
 import { apiErrorMessage } from '../../lib/apiErrors'
@@ -109,6 +109,7 @@ export function AdminUserPanel({ userId, onBack, onChanged }: AdminUserPanelProp
           <p className="truncate text-xs text-mist">{user.email}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {user.isAdmin && <Badge tone="gold">{t.admin.badges.admin}</Badge>}
+            {user.imageReviewer && <Badge tone="glow">{t.admin.badges.reviewer}</Badge>}
             {user.suspended && <Badge tone="nope">{t.admin.badges.suspended}</Badge>}
             {!user.emailVerified && <Badge tone="mist">{t.admin.badges.unverified}</Badge>}
             <Badge tone="mist">{user.isProfilePublic ? t.admin.detail.visibility.public : t.admin.detail.visibility.private}</Badge>
@@ -134,6 +135,7 @@ export function AdminUserPanel({ userId, onBack, onChanged }: AdminUserPanelProp
 
       <GiftBoosters user={user} name={name} onChanged={refresh} />
       <GiftCard user={user} name={name} onChanged={refresh} />
+      <ReviewerCard user={user} onChanged={refresh} />
       <ModerationCard user={user} onChanged={refresh} />
       {!user.suspended && <SuspendCard user={user} onChanged={refresh} />}
 
@@ -153,8 +155,8 @@ export function AdminUserPanel({ userId, onBack, onChanged }: AdminUserPanelProp
 
 /* ---- Petits éléments ---------------------------------------------------------------------- */
 
-function Badge({ tone, children }: { tone: 'gold' | 'nope' | 'mist'; children: ReactNode }) {
-  const tones = { gold: 'bg-gold/15 text-gold', nope: 'bg-nope/15 text-nope', mist: 'bg-white/8 text-cream/70' }
+function Badge({ tone, children }: { tone: 'gold' | 'nope' | 'mist' | 'glow'; children: ReactNode }) {
+  const tones = { gold: 'bg-gold/15 text-gold', nope: 'bg-nope/15 text-nope', mist: 'bg-white/8 text-cream/70', glow: 'bg-glow/20 text-glow' }
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tones[tone]}`}>{children}</span>
 }
 
@@ -453,6 +455,46 @@ function ModerationCard({ user, onChanged }: { user: AdminUserDetail; onChanged:
       <ArmedButton armed={armed} busy={busy} disabled={chosen.length === 0} tone="glow" onClick={() => void submit()} icon={<ShieldCheck size={15} aria-hidden />}>
         {armed ? copy.confirm : copy.submit}
       </ArmedButton>
+    </Card>
+  )
+}
+
+/** Donne ou retire le rôle de contrôleur d'images : accès à la seule revue des images d'énigme. */
+function ReviewerCard({ user, onChanged }: { user: AdminUserDetail; onChanged: (detail?: AdminUserDetail) => Promise<void> }) {
+  const t = useT()
+  const copy = t.admin.reviewerRole
+  const notify = useUiStore((state) => state.notify)
+  const [busy, setBusy] = useState(false)
+  // Un administrateur a déjà la revue : rien à donner.
+  if (user.isAdmin) return null
+
+  const toggle = async () => {
+    setBusy(true)
+    try {
+      const { user: detail } = await adminApi.setReviewer(user.id, !user.imageReviewer)
+      vibrate(10)
+      notify(user.imageReviewer ? copy.revoked : copy.granted, 'like')
+      await onChanged(detail)
+    } catch (error) {
+      notify(apiErrorMessage(error, t), 'nope')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card icon={<ImageOff size={13} />} title={copy.title} hint={copy.hint}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={user.imageReviewer}
+        disabled={busy}
+        onClick={() => void toggle()}
+        className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors disabled:opacity-60 ${user.imageReviewer ? 'border-glow/50 bg-glow/10 text-cream' : 'border-white/10 bg-white/[0.04] text-cream/80'}`}
+      >
+        <span>{user.imageReviewer ? copy.on : copy.off}</span>
+        {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <span className="text-xs text-gold">{user.imageReviewer ? copy.revoke : copy.grant}</span>}
+      </button>
     </Card>
   )
 }

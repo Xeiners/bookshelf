@@ -34,6 +34,7 @@ before(async () => {
 })
 
 beforeEach(async () => {
+  await prisma.user.updateMany({ data: { imageReviewer: false } })
   await prisma.dleImageReview.deleteMany()
   await prisma.adminAction.deleteMany()
   forgetReviews()
@@ -134,7 +135,7 @@ describe('revue des images — la file et les décisions', () => {
 })
 
 describe('revue des images — routes', () => {
-  it('réservées aux administrateurs (404 pour les autres)', async () => {
+  it('réservées aux administrateurs et contrôleurs (404 pour les autres)', async () => {
     const guest = client()
     for (const route of ['/admin/dle-images', '/admin/dle-images/naruto/queue']) {
       assert.equal((await guest.request('GET', route)).status, 401, route)
@@ -151,5 +152,47 @@ describe('revue des images — routes', () => {
     assert.equal((await admin.request('POST', '/admin/dle-images/naruto/review', { characterId: 'x', key: 'y', decision: 'detruire' })).status, 400)
     assert.equal((await admin.request('POST', '/admin/dle-images/inconnu/review', { characterId: 'x', key: 'y', decision: 'clear' })).status, 404)
     assert.equal((await admin.request('GET', '/admin/dle-images/naruto/image?character=inconnu&key=k')).status, 404)
+  })
+})
+
+describe('contrôleur d’images', () => {
+  it('un administrateur donne le rôle : accès à la seule revue, jamais au reste de l’administration', async () => {
+    assert.equal((await visitor.request('GET', '/admin/dle-images')).status, 404, 'avant')
+    const granted = await admin.request('POST', `/admin/users/${visitor.userId}/reviewer`, { enabled: true })
+    assert.equal(granted.status, 200, JSON.stringify(granted.body))
+    assert.equal(granted.body.user.imageReviewer, true)
+    // La revue s'ouvre…
+    assert.equal((await visitor.request('GET', '/admin/dle-images')).status, 200)
+    assert.equal((await visitor.request('GET', '/admin/dle-images/naruto/queue')).status, 200)
+    // … sans toucher au reste de l'administration (ni à l'attribution du rôle).
+    for (const [method, route] of [['GET', '/admin/overview'], ['GET', '/admin/users'], ['GET', '/admin/audit'], ['POST', `/admin/users/${admin.userId}/reviewer`]] as const) {
+      assert.equal((await visitor.request(method, route, method === 'POST' ? { enabled: true } : undefined)).status, 404, route)
+    }
+    // Le front affiche l'entrée grâce à /auth/me.
+    assert.equal((await visitor.request('GET', '/auth/me')).body.user.isImageReviewer, true)
+    assert.equal(await prisma.adminAction.count({ where: { action: 'reviewer_grant', targetUserId: visitor.userId } }), 1)
+  })
+
+  it('retirer le rôle ferme l’accès aussitôt', async () => {
+    await admin.request('POST', `/admin/users/${visitor.userId}/reviewer`, { enabled: true })
+    assert.equal((await visitor.request('GET', '/admin/dle-images')).status, 200)
+    const revoked = await admin.request('POST', `/admin/users/${visitor.userId}/reviewer`, { enabled: false })
+    assert.equal(revoked.body.user.imageReviewer, false)
+    assert.equal((await visitor.request('GET', '/admin/dle-images')).status, 404)
+    assert.equal((await visitor.request('GET', '/auth/me')).body.user.isImageReviewer, false)
+    assert.equal(await prisma.adminAction.count({ where: { action: 'reviewer_revoke' } }), 1)
+  })
+
+  it('ses décisions sont signées à son nom au journal, et le rôle ne se donne qu’à un compte existant, non administrateur', async () => {
+    await admin.request('POST', `/admin/users/${visitor.userId}/reviewer`, { enabled: true })
+    const { universe, urls } = fakeUniverse()
+    const review = createDleReview({ naruto: universe })
+    await review.decide({ id: visitor.userId, email: visitor.email }, 'naruto', 'shika', reviewKey(urls.shika[0]!), 'ban')
+    const entry = await prisma.adminAction.findFirstOrThrow({ where: { action: 'dle_image_ban' } })
+    assert.equal(entry.adminEmail, 'simple@example.com')
+    assert.equal((await prisma.dleImageReview.findFirstOrThrow()).reviewedBy, visitor.userId)
+    assert.equal((await admin.request('POST', `/admin/users/${admin.userId}/reviewer`, { enabled: true })).status, 409)
+    assert.equal((await admin.request('POST', '/admin/users/inconnu/reviewer', { enabled: true })).status, 404)
+    assert.equal((await admin.request('POST', `/admin/users/${visitor.userId}/reviewer`, { enabled: 'oui' })).status, 400)
   })
 })

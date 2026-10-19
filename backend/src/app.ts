@@ -19,6 +19,7 @@ import { publicProfileRouter } from './modules/users/publicProfile.routes.js'
 import { tradesRouter } from './modules/trades/trades.routes.js'
 import { notificationsRouter } from './modules/notifications/notifications.routes.js'
 import { adminRouter } from './modules/admin/admin.routes.js'
+import { dleReviewRouter } from './modules/dle/dle.review.routes.js'
 import { dleRouter } from './modules/dle/dle.routes.js'
 import { stardustRouter } from './modules/stardust/stardust.routes.js'
 import { higherLowerRouter } from './modules/higherlower/hl.routes.js'
@@ -64,6 +65,8 @@ export function createApp() {
   app.use('/api/cards', cardsRouter)
   app.use('/api/trades', tradesRouter)
   app.use('/api/notifications', notificationsRouter)
+  // Avant l'administration : les contrôleurs d'images n'y entrent pas, mais ont la revue des images.
+  app.use('/api/admin/dle-images', dleReviewRouter)
   app.use('/api/admin', adminRouter)
   app.use('/api/dle', dleRouter)
   app.use('/api/stardust', stardustRouter)

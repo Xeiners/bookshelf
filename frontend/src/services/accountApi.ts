@@ -14,6 +14,8 @@ export interface AuthUser {
   createdAt: number
   /** Compte de `ADMIN_EMAILS` : l'entrée « Administration » s'affiche (l'API revérifie chaque requête). */
   isAdmin?: boolean
+  /** Contrôleur d'images : l'entrée « Revue des images » s'affiche (l'API revérifie chaque requête). */
+  isImageReviewer?: boolean
 }
 
 /** Bibliothèque telle que l'API l'échange (entrées en tableau). */

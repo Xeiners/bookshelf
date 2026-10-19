@@ -24,12 +24,14 @@ export interface AdminUserRow {
   lastSeenAt: string | null
   suspended: boolean
   isAdmin: boolean
+  /** Contrôleur d'images : accès à la seule revue des images d'énigme. */
+  imageReviewer: boolean
   cards: number
   library: number
   boostersOpened: number
 }
 
-export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end' | 'canvas_remove' | 'canvas_restore' | 'canvas_purge' | 'canvas_ban' | 'canvas_unban' | 'dle_image_ban' | 'dle_image_restore'
+export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end' | 'canvas_remove' | 'canvas_restore' | 'canvas_purge' | 'canvas_ban' | 'canvas_unban' | 'dle_image_ban' | 'dle_image_restore' | 'reviewer_grant' | 'reviewer_revoke'
 
 /** Revue des images d'énigme du BookshelfDLE. */
 export interface DleUniverse {
@@ -114,6 +116,7 @@ export const adminApi = {
     api<{ boosters: BoosterStatus }>(`${userPath(id)}/boosters`, { method: 'POST', body: { count, message } }),
   giftCard: (id: string, cardId: string, count: number, message: string) =>
     api<{ card: TradeCard; count: number }>(`${userPath(id)}/cards`, { method: 'POST', body: { cardId, count, message } }),
+  setReviewer: (id: string, enabled: boolean) => api<{ user: AdminUserDetail }>(`${userPath(id)}/reviewer`, { method: 'POST', body: { enabled } }),
   suspend: (id: string, reason: string) => api<{ user: AdminUserDetail }>(`${userPath(id)}/suspend`, { method: 'POST', body: { reason } }),
   unsuspend: (id: string) => api<{ user: AdminUserDetail }>(`${userPath(id)}/unsuspend`, { method: 'POST', body: {} }),
   moderate: (id: string, moderation: Moderation) => api<{ user: AdminUserDetail }>(`${userPath(id)}/moderate`, { method: 'POST', body: moderation }),

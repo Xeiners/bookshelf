@@ -49,6 +49,8 @@ interface UiState {
   chromeCollapsed: boolean
   /** Administration plein écran (comptes de `ADMIN_EMAILS`). */
   adminOpen: boolean
+  /** Revue des images d'énigme (contrôleurs d'images). */
+  reviewOpen: boolean
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -87,6 +89,8 @@ interface UiState {
   setChromeCollapsed: (collapsed: boolean) => void
   openAdmin: () => void
   closeAdmin: () => void
+  openReview: () => void
+  closeReview: () => void
   closeNotifications: () => void
   notify: (message: string, tone?: ToastTone) => void
   dismissToast: () => void
@@ -114,6 +118,7 @@ export const useUiStore = create<UiState>((set) => ({
   notificationsOpen: false,
   chromeCollapsed: false,
   adminOpen: false,
+  reviewOpen: false,
 
   // Changer de vue redéplie l'en-tête : il ne se replie que dans la Recherche, défilée.
   setView: (view) => set({ view, chromeCollapsed: false }),
@@ -147,6 +152,8 @@ export const useUiStore = create<UiState>((set) => ({
   // L'administration passe devant les feuilles (paramètres, musique, fiche).
   openAdmin: () => set({ adminOpen: true, settingsOpen: false, musicOpen: false, notificationsOpen: false, detail: null }),
   closeAdmin: () => set({ adminOpen: false }),
+  openReview: () => set({ reviewOpen: true, settingsOpen: false, musicOpen: false, notificationsOpen: false, detail: null }),
+  closeReview: () => set({ reviewOpen: false }),
   setChromeCollapsed: (chromeCollapsed) => set((state) => (state.chromeCollapsed === chromeCollapsed ? state : { chromeCollapsed })),
 
   notify: (message, tone = 'neutral') => {
