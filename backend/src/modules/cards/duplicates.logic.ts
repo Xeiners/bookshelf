@@ -8,13 +8,18 @@
  */
 import type { Rarity } from './boosters.logic.js'
 
-export const DUPLICATE_VALUE: Record<Rarity, number> = {
+/** Les Mythiques sont invendables : jamais converties, quel que soit le nombre d'exemplaires. */
+export const CONVERTIBLE_RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'] as const
+export type ConvertibleRarity = (typeof CONVERTIBLE_RARITIES)[number]
+
+export const DUPLICATE_VALUE: Record<ConvertibleRarity, number> = {
   COMMON: 5,
   RARE: 10,
   EPIC: 25,
   LEGENDARY: 250,
-  MYTHIC: 700,
 }
+
+export const isConvertible = (rarity: Rarity): rarity is ConvertibleRarity => (CONVERTIBLE_RARITIES as readonly string[]).includes(rarity)
 
 /** Cartes distinctes au plus par conversion groupée. */
 export const MAX_CONVERT_CARDS = 1000
@@ -25,4 +30,4 @@ export const MAX_CONVERT_CARDS = 1000
  */
 export const convertibleCopies = (count: number, reserved: number): number => Math.max(0, count - 1 - reserved)
 
-export const valueOf = (rarity: Rarity, copies: number): number => DUPLICATE_VALUE[rarity] * copies
+export const valueOf = (rarity: ConvertibleRarity, copies: number): number => DUPLICATE_VALUE[rarity] * copies

@@ -256,7 +256,7 @@ export const fr = {
       bannerNone: 'Aucun doublon à convertir',
       open: 'Convertir',
       title: 'Convertir mes doublons',
-      subtitle: 'Un exemplaire de chaque carte est toujours gardé, ainsi que ceux de tes offres au Marché. Les cartes favorites ne sont pas touchées.',
+      subtitle: 'Un exemplaire de chaque carte est toujours gardé, ainsi que ceux de tes offres au Marché. Les cartes favorites ne sont pas touchées, et les Mythiques sont invendables.',
       each: (value: number) => `${value} ✦ pièce`,
       copies: (count: number) => `${count} doublon${plural(count, '', 's')}`,
       total: (stardust: number) => `Convertir · +${stardust} ✦`,

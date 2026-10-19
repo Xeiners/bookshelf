@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { BASE_SLOT_RATES, HIGH_RARITY_SLOT_RATES, RARITIES, WILDCARD_SLOT_RATES } from '../src/modules/cards/boosters.logic.js'
-import { DUPLICATE_VALUE, convertibleCopies } from '../src/modules/cards/duplicates.logic.js'
+import { CONVERTIBLE_RARITIES, DUPLICATE_VALUE, convertibleCopies } from '../src/modules/cards/duplicates.logic.js'
 import { BOOSTER_PRICE } from '../src/modules/stardust/prices.js'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
@@ -66,8 +66,9 @@ const balance = async (account: Account) => (await prisma.user.findUniqueOrThrow
 
 describe('doublons — barème', () => {
   it('croît avec la rareté ; on en garde toujours un et les offres du Marché en réservent', () => {
-    const values = RARITIES.map((rarity) => DUPLICATE_VALUE[rarity])
-    assert.deepEqual(values, [5, 10, 25, 250, 700])
+    const values = CONVERTIBLE_RARITIES.map((rarity) => DUPLICATE_VALUE[rarity])
+    assert.deepEqual(values, [5, 10, 25, 250])
+    assert.equal(Object.keys(DUPLICATE_VALUE).includes('MYTHIC'), false, 'les Mythiques sont invendables')
     assert.deepEqual(values, [...values].sort((a, b) => a - b))
     assert.equal(convertibleCopies(1, 0), 0)
     assert.equal(convertibleCopies(3, 0), 2)
@@ -76,7 +77,7 @@ describe('doublons — barème', () => {
   })
 
   it('un booster fait uniquement de doublons rend bien moins que son prix (pas de boucle à Poussières)', () => {
-    const slot = (rates: Record<(typeof RARITIES)[number], number>) => RARITIES.reduce((sum, rarity) => sum + rates[rarity] * DUPLICATE_VALUE[rarity], 0)
+    const slot = (rates: Record<(typeof RARITIES)[number], number>) => CONVERTIBLE_RARITIES.reduce((sum, rarity) => sum + rates[rarity] * DUPLICATE_VALUE[rarity], 0)
     const worstCase = 2 * slot(BASE_SLOT_RATES) + slot(WILDCARD_SLOT_RATES) + slot(HIGH_RARITY_SLOT_RATES)
     assert.ok(worstCase < BOOSTER_PRICE * 0.3, `${worstCase.toFixed(1)} ✦ pour un booster à ${BOOSTER_PRICE} ✦`)
   })
@@ -94,6 +95,7 @@ describe('doublons — accès et lecture', () => {
     await give(account, 'c1', 3)
     await give(account, 'r1', 1)
     await give(account, 'l1', 2, true)
+    await give(account, 'm1', 6)
     const { status, body } = await account.request('GET', '/cards/duplicates')
     assert.equal(status, 200)
     assert.deepEqual(body.values, DUPLICATE_VALUE)
@@ -117,13 +119,24 @@ describe('doublons — conversion d’une carte', () => {
     assert.equal(entry.amount, 50)
   })
 
+  it('les Mythiques sont invendables : refusées, même en nombre', async () => {
+    const account = signedUp()
+    await give(account, 'm1', 5)
+    const refused = await account.request('POST', '/cards/convert', { cardId: 'm1', copies: 1 })
+    assert.equal(refused.status, 409)
+    assert.equal(refused.body.error.code, 'not_convertible')
+    assert.equal((await account.request('POST', '/cards/convert', { rarities: ['MYTHIC'] })).status, 400)
+    assert.equal(await copies(account, 'm1'), 5)
+    assert.equal(await balance(account), 0)
+  })
+
   it('jamais le dernier exemplaire, ni plus que le libre : 409 et rien ne bouge', async () => {
     const account = signedUp()
-    await give(account, 'm1', 2)
-    const tooMany = await account.request('POST', '/cards/convert', { cardId: 'm1', copies: 2 })
+    await give(account, 'l1', 2)
+    const tooMany = await account.request('POST', '/cards/convert', { cardId: 'l1', copies: 2 })
     assert.equal(tooMany.status, 409)
     assert.equal(tooMany.body.error.code, 'not_enough_duplicates')
-    assert.equal(await copies(account, 'm1'), 2)
+    assert.equal(await copies(account, 'l1'), 2)
     assert.equal(await balance(account), 0)
     await give(account, 'c1', 1)
     assert.equal((await account.request('POST', '/cards/convert', { cardId: 'c1', copies: 1 })).body.error.code, 'not_enough_duplicates')
@@ -154,11 +167,13 @@ describe('doublons — conversion par raretés', () => {
     await give(account, 'r1', 3)
     await give(account, 'e1', 2)
     await give(account, 'l1', 5)
+    await give(account, 'm1', 4)
     const done = await account.request('POST', '/cards/convert', { rarities: ['COMMON', 'RARE'] })
     assert.equal(done.status, 200, JSON.stringify(done.body))
     // c1 : 3 × 5 ; r1 : 2 × 10 ; le favori c2 reste.
     assert.deepEqual([done.body.gained, done.body.copies], [35, 5])
     assert.deepEqual([await copies(account, 'c1'), await copies(account, 'c2'), await copies(account, 'r1'), await copies(account, 'e1'), await copies(account, 'l1')], [1, 2, 1, 2, 5])
+    assert.equal(await copies(account, 'm1'), 4)
     assert.equal(await balance(account), 35)
   })
 

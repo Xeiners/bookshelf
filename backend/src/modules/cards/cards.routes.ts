@@ -6,9 +6,8 @@ import { rateLimit } from '../../middleware/rateLimit.js'
 import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
 import { characterArt } from './cards.art.js'
-import { MAX_CONVERT_CARDS } from './duplicates.logic.js'
+import { CONVERTIBLE_RARITIES, MAX_CONVERT_CARDS } from './duplicates.logic.js'
 import { convertDuplicates, duplicatesOf } from './duplicates.service.js'
-import { RARITIES } from './boosters.logic.js'
 import { GIFT_MESSAGE_MAX, SHARE_MAX_CARDS, SHARE_MAX_RECIPIENTS, shareCards } from '../trades/trades.service.js'
 
 /*
@@ -112,7 +111,7 @@ cardsRouter.post('/share', giftLimiter, async (req, res) => {
 
 const ConvertBody = z.union([
   z.object({ cardId: z.string().min(1).max(40), copies: z.number().int().min(1).max(MAX_CONVERT_CARDS) }),
-  z.object({ rarities: z.array(z.enum(RARITIES)).min(1).max(RARITIES.length) }),
+  z.object({ rarities: z.array(z.enum(CONVERTIBLE_RARITIES)).min(1).max(CONVERTIBLE_RARITIES.length) }),
 ])
 const convertLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 30 })
 

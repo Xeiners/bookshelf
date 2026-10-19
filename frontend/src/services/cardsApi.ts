@@ -18,7 +18,8 @@ export interface Collection {
 }
 
 export interface DuplicatesView {
-  values: Record<Rarity, number>
+  /** Valeur d'un doublon par rareté ; les Mythiques, invendables, n'y figurent pas. */
+  values: Partial<Record<Rarity, number>>
   items: { cardId: string; rarity: Rarity; extra: number; value: number; isFavorite: boolean }[]
 }
 
@@ -52,7 +53,7 @@ export const cardsApi = {
   /** Doublons convertibles en Poussières (un exemplaire gardé, ceux des offres du Marché réservés) et barème. */
   duplicates: (signal?: AbortSignal) => api<DuplicatesView>('/cards/duplicates', { signal }),
   /** Convertit des doublons : une carte, ou tous ceux des raretés choisies (favoris exceptés). */
-  convert: (request: { cardId: string; copies: number } | { rarities: Rarity[] }) => api<ConversionResult>('/cards/convert', { method: 'POST', body: request }),
+  convert: (request: { cardId: string; copies: number } | { rarities: Exclude<Rarity, 'MYTHIC'>[] }) => api<ConversionResult>('/cards/convert', { method: 'POST', body: request }),
   /** « Informer » : montre des cartes possédées à des membres, prévenus à leur prochaine visite. */
   share: (cardIds: string[], toUserIds: string[], message: string | null) =>
     api<{ notified: number }>('/cards/share', { method: 'POST', body: { cardIds, toUserIds, message } }),

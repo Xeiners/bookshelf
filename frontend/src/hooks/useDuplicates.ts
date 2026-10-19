@@ -11,7 +11,7 @@ export function useDuplicates(version = 0): [DuplicatesView | null, () => void] 
       .duplicates(controller.signal)
       .then(setView)
       .catch(() => {
-        if (!controller.signal.aborted) setView({ values: { COMMON: 0, RARE: 0, EPIC: 0, LEGENDARY: 0, MYTHIC: 0 }, items: [] })
+        if (!controller.signal.aborted) setView({ values: {}, items: [] })
       })
     return () => controller.abort()
   }, [version, reload])

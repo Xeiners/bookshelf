@@ -35,13 +35,13 @@ export function ConvertDuplicatesSheet({ onClose }: { onClose: () => void }) {
   const t = useT()
   const after = useAfterConversion()
   const [view] = useDuplicates()
-  const [picked, setPicked] = useState<ReadonlySet<Rarity>>(new Set<Rarity>(['COMMON', 'RARE', 'EPIC']))
+  const [picked, setPicked] = useState<ReadonlySet<Exclude<Rarity, 'MYTHIC'>>>(new Set<Exclude<Rarity, 'MYTHIC'>>(['COMMON', 'RARE', 'EPIC']))
   const [busy, setBusy] = useState(false)
 
   // Hors favoris : ce que « Convertir » touche vraiment.
   const rows = useMemo(
     () =>
-      RARITIES.map((rarity) => {
+      RARITIES.filter((rarity) => rarity !== 'MYTHIC').map((rarity) => {
         const items = (view?.items ?? []).filter((item) => item.rarity === rarity && !item.isFavorite)
         return { rarity, copies: items.reduce((sum, item) => sum + item.extra, 0), value: view?.values[rarity] ?? 0 }
       }),
@@ -50,7 +50,7 @@ export function ConvertDuplicatesSheet({ onClose }: { onClose: () => void }) {
   const total = rows.reduce((sum, row) => (picked.has(row.rarity) ? sum + row.copies * row.value : sum), 0)
   const copies = rows.reduce((sum, row) => (picked.has(row.rarity) ? sum + row.copies : sum), 0)
 
-  const toggle = (rarity: Rarity) =>
+  const toggle = (rarity: Exclude<Rarity, 'MYTHIC'>) =>
     setPicked((current) => {
       const next = new Set(current)
       if (next.has(rarity)) next.delete(rarity)

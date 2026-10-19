@@ -1082,8 +1082,8 @@ plus de route pour « offrir » une carte (seuls les cadeaux de l'administration
 notification `card_gift`).
 
 **Doublons → Poussières** (`src/modules/cards/duplicates.*.ts`, `GET /api/cards/duplicates`,
-`POST /api/cards/convert`). Un exemplaire en plus rend : Commune 5, Rare 10, Épique 25, Légendaire 250,
-Mythique 700 ✦, sans plafond. On garde toujours un exemplaire, et chaque offre ouverte au Marché en réserve
+`POST /api/cards/convert`). Un exemplaire en plus rend : Commune 5, Rare 10, Épique 25, Légendaire 250 ✦, sans plafond.
+**Les Mythiques sont invendables** : jamais converties (409 `not_convertible`, ou 400 si la rareté est demandée en groupe). On garde toujours un exemplaire, et chaque offre ouverte au Marché en réserve
 un (`convertibleCopies`). On convertit une carte (`{ cardId, copies }`) ou des raretés entières
 (`{ rarities }`, favoris exceptés). Tout est décidé et vérifié par le serveur dans une transaction :
 retraits conditionnels (deux conversions, ou une conversion et un échange, ne cèdent jamais le même

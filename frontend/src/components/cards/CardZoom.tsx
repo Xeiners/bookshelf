@@ -191,7 +191,7 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
               className="inline-flex h-11 items-center gap-2 rounded-full bg-gold/15 px-5 text-sm font-semibold text-gold transition-colors hover:bg-gold/25"
             >
               <Sparkles size={16} aria-hidden />
-              {t.cards.convert.oneOpen(duplicates!.values[spare.rarity])}
+              {t.cards.convert.oneOpen(duplicates!.values[spare.rarity] ?? 0)}
             </button>
           )}
         </div>
@@ -200,7 +200,7 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
         <ConvertCardSheet
           card={{ id: card.id, title: card.title }}
           free={spare.extra}
-          value={duplicates.values[spare.rarity]}
+          value={duplicates.values[spare.rarity] ?? 0}
           onClose={() => setConverting(false)}
           onDone={reloadDuplicates}
         />

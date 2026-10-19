@@ -247,7 +247,7 @@ export const en: Dictionary = {
       bannerNone: 'No duplicates to convert',
       open: 'Convert',
       title: 'Convert my duplicates',
-      subtitle: 'One copy of each card is always kept, along with those in your open Market offers. Favorite cards are left alone.',
+      subtitle: 'One copy of each card is always kept, along with those in your open Market offers. Favorite cards are left alone, and Mythic cards can’t be sold.',
       each: (value: number) => `${value} ✦ each`,
       copies: (count: number) => `${count} duplicate${plural(count, '', 's')}`,
       total: (stardust: number) => `Convert · +${stardust} ✦`,
