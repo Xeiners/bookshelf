@@ -249,12 +249,39 @@ const WIKI_JUNK = /icon|logo|symbol|flag|banner|button|badge|stub|infobox|map|ch
 /** Mots d'un nom (≥ 3 lettres) : un fichier de la fiche doit en porter au moins un pour être « à lui ». */
 const nameTokens = (character: PortraitCharacter) => new Set([character.wiki ?? character.name, character.name, ...(character.aliases ?? [])].flatMap((name) => nameKey(name).split(' ')).filter((token) => token.length >= 3))
 
+/** Mots de liaison d'un titre de fichier qui annoncent une scène à plusieurs (« A vs B », « A and B »…). */
+const GROUP_WORDS = /\b(vs|versus|and|with|fights?|fighting|battles?|team|duo|trio|squad|group|together|meets?|confronts?|defeats?|kills?)\b|&/i
+/** Mots trop courants pour désigner quelqu'un : ils ne font jamais d'un fichier celui d'un AUTRE personnage. */
+const COMMON_WORDS = new Set(['the', 'part', 'anime', 'manga', 'full', 'body', 'official', 'art', 'render', 'movie', 'arc', 'shippuden', 'young', 'adult', 'kid', 'child', 'teen', 'boy', 'girl', 'king', 'lord', 'captain', 'master', 'sage', 'mode', 'form', 'new', 'old', 'final', 'season', 'episode', 'cover', 'key', 'visual', 'profile', 'infobox', 'image', 'ver', 'version'])
+/** Au-delà, une image est une capture d'écran (16:9, plusieurs personnages) plutôt qu'un visuel du personnage. */
+export const MAX_PUZZLE_RATIO = 1.4
+
+/**
+ * Le fichier d'une fiche de wiki est-il vraiment « à lui » ? Son titre doit porter un mot qui ne
+ * désigne que lui (« Shikamaru », pas « Nara », que partagent son père et son fils), ne nommer aucun
+ * autre personnage de l'univers (« Shikamaru et Hidan » : la capture met Hidan en avant) et ne pas
+ * annoncer une scène à plusieurs (« vs », « and », « team »…).
+ */
+export function wikiFileFits(file: string, character: PortraitCharacter, roster: readonly PortraitCharacter[] = []): boolean {
+  const title = file.replace(/^File:/i, '').replace(/\.[a-z0-9]+$/i, '')
+  if (GROUP_WORDS.test(title)) return false
+  const words = nameTokens({ id: '', name: title })
+  const own = nameTokens(character)
+  const others = roster.filter((entry) => entry.id !== character.id).map(nameTokens)
+  // Un mot que lui seul porte : s'il y en a, le fichier doit en nommer un.
+  const unique = [...own].filter((token) => !others.some((tokens) => tokens.has(token)))
+  const wanted = unique.length > 0 ? unique : [...own]
+  if (!wanted.some((token) => words.has(token))) return false
+  // Un autre personnage nommé dans le titre : la capture le met en avant.
+  return !others.some((tokens) => [...tokens].some((token) => token.length >= 4 && words.has(token) && !own.has(token) && !COMMON_WORDS.has(token)))
+}
+
 /**
  * Les belles images de la fiche d'un personnage sur son wiki Fandom : celles de la page, assez
  * grandes, qui portent son nom (dessins officiels, visuels d'anime, couvertures…). `undefined` :
  * le wiki n'a pas répondu.
  */
-export async function wikiGallery(wikiHost: string, character: PortraitCharacter): Promise<string[] | undefined> {
+export async function wikiGallery(wikiHost: string, character: PortraitCharacter, roster: readonly PortraitCharacter[] = []): Promise<string[] | undefined> {
   const params = new URLSearchParams({
     action: 'query',
     generator: 'images',
@@ -269,7 +296,6 @@ export async function wikiGallery(wikiHost: string, character: PortraitCharacter
   try {
     const response = await fetch(`https://${wikiHost}/api.php?${params.toString()}`, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': BROWSER_AGENT } })
     if (!response.ok) return undefined
-    const tokens = nameTokens(character)
     const found: { url: string; area: number }[] = []
     for (const page of Object.values(((await response.json()) as WikiGallery).query?.pages ?? {})) {
       const info = page.imageinfo?.[0]
@@ -280,7 +306,9 @@ export async function wikiGallery(wikiHost: string, character: PortraitCharacter
       const width = info.width ?? 0
       const height = info.height ?? 0
       if (Math.min(width, height) < Math.max(300, MIN_PUZZLE_SIDE)) continue
-      if (![...nameTokens({ id: '', name: title.replace(/^File:/i, '').replace(/\.[a-z0-9]+$/i, '') })].some((token) => tokens.has(token))) continue
+      // Une capture d'écran (large) montre souvent un autre personnage au premier plan.
+      if (width / height > MAX_PUZZLE_RATIO) continue
+      if (!wikiFileFits(title, character, roster)) continue
       found.push({ url, area: width * height })
     }
     // Les plus grandes d'abord (les plus soignées), quelques-unes seulement.
@@ -477,7 +505,7 @@ export function portraitSource(
     for (const [id, url] of wiki ?? []) slot(id).wikiMain.push(url)
     for (const character of characters) {
       await pause(SEARCH_GAP_MS)
-      const gallery = await wikiGallery(wikiHost, character)
+      const gallery = await wikiGallery(wikiHost, character, characters)
       if (gallery === undefined) complete = false
       else slot(character.id).wikiGallery.push(...gallery)
       const malId = from.malIds.get(character.id)
@@ -568,8 +596,9 @@ export function portraitSource(
       try {
         const image = await fetchImage(candidate, index === candidates.length - 1 ? 2 : 1)
         const { width = 0, height = 0 } = await sharp(image.body).metadata().catch(() => ({ width: 0, height: 0 }))
-        // Octets illisibles : on ne juge pas, l'image est servie telle quelle.
-        if (width === 0 || Math.min(width, height) >= MIN_PUZZLE_SIDE) return image
+        // Octets illisibles : on ne juge pas, l'image est servie telle quelle. Trop petite, ou trop large
+        // (une capture d'écran) : refusée.
+        if (width === 0 || (Math.min(width, height) >= MIN_PUZZLE_SIDE && (MIN_PUZZLE_SIDE === 0 || width / height <= MAX_PUZZLE_RATIO))) return image
       } catch {
         // Grand format absent : l'original.
       }

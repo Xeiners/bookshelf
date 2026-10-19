@@ -1044,18 +1044,47 @@ describe('dle — images d’énigme belles et variées', () => {
     extraMocks.unshift((url) => {
       if (url.hostname !== 'gallery.fandom.com') return undefined
       const pages = {
-        1: image('Levi Ackerman Anime.png', 1920, 1080),
+        1: image('Levi Ackerman Anime.png', 1400, 1700),
         2: image('Levi Season 3 Key Visual.jpg', 1200, 1700, 'image/jpeg'),
         3: image('Levi Icon.png', 1920, 1080),
         4: image('Eren Yeager Anime.png', 1920, 1080),
         5: image('Levi Chibi.png', 120, 120),
         6: image('Levi Theme.ogg', 1920, 1080, 'audio/ogg'),
+        7: image('Levi Ackerman Screenshot.png', 1920, 1080),
+        8: image('Levi vs Kenny.png', 1300, 1700),
+        9: image('Levi and Eren Yeager.png', 1300, 1700),
+        10: image('Eren Yeager Levi Ackerman Training.png', 1300, 1700),
       }
       return new Response(JSON.stringify({ query: { pages } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
     })
-    const urls = await wikiGallery('gallery.fandom.com', { id: 'levi', name: 'Levi Ackerman', aliases: ['Levi'] })
+    const roster = [
+      { id: 'levi', name: 'Levi Ackerman', aliases: ['Levi'] },
+      { id: 'eren', name: 'Eren Yeager' },
+      { id: 'kenny', name: 'Kenny Ackerman' },
+    ]
+    const urls = await wikiGallery('gallery.fandom.com', roster[0]!, roster)
     assert.ok(urls)
-    assert.deepEqual(urls.map((url) => decodeURIComponent(url.split('/').pop()!)), ['Levi Ackerman Anime.png', 'Levi Season 3 Key Visual.jpg'], 'ni icône, ni autre personnage, ni miniature, ni son')
+    assert.deepEqual(urls.map((url) => decodeURIComponent(url.split('/').pop()!)), ['Levi Ackerman Anime.png', 'Levi Season 3 Key Visual.jpg'], 'ni icône, ni capture large, ni scène à plusieurs, ni autre personnage, ni miniature, ni son')
+  })
+
+  it('un fichier de wiki doit être « à lui » : son nom propre, aucun autre personnage, pas de scène à plusieurs', async () => {
+    const { wikiFileFits } = await import('../src/modules/dle/dle.jikan.js')
+    const roster = [
+      { id: 'shikamaru', name: 'Shikamaru Nara' },
+      { id: 'shikaku', name: 'Shikaku Nara' },
+      { id: 'hidan', name: 'Hidan' },
+      { id: 'naruto', name: 'Naruto Uzumaki', aliases: ['Naruto'] },
+    ]
+    const shikamaru = roster[0]!
+    // Les bons fichiers.
+    for (const file of ['File:Shikamaru Nara Part II.png', 'File:Shikamaru Anime.jpg', 'File:Shikamaru Nara.png']) assert.equal(wikiFileFits(file, shikamaru, roster), true, file)
+    // Hidan au premier plan, scène à plusieurs, ou son père (même nom de famille, autre personne).
+    for (const file of ['File:Shikamaru and Hidan.png', 'File:Shikamaru vs Hidan.png', 'File:Hidan Shikamaru Fight.png', 'File:Shikamaru Team 10.png', 'File:Shikaku Nara.png', 'File:Nara Clan.png', 'File:Naruto Shikamaru.png']) {
+      assert.equal(wikiFileFits(file, shikamaru, roster), false, file)
+    }
+    // Sans univers connu, seul le nom compte (comportement d'avant).
+    assert.equal(wikiFileFits('File:Shikamaru Nara Part II.png', shikamaru), true)
+    assert.equal(wikiFileFits('File:Hidan.png', shikamaru), false)
   })
 
   it('les images d’énigme alternent les sources et ne reprennent jamais la vignette', async () => {
@@ -1064,7 +1093,7 @@ describe('dle — images d’énigme belles et variées', () => {
     extraMocks.unshift((url) => {
       if (url.hostname !== 'mix.fandom.com') return undefined
       if (url.searchParams.get('generator') === 'images') {
-        const pages = Object.fromEntries(['Gogeta Art One.png', 'Gogeta Art Two.png'].map((title, index) => [index, { title: `File:${title}`, imageinfo: [{ thumburl: `https://static.wikia.nocookie.net/mix/${index}.png`, thumbwidth: 900, thumbheight: 600, width: 1600 - index * 100, height: 900, mime: 'image/png' }] }]))
+        const pages = Object.fromEntries(['Gogeta Art One.png', 'Gogeta Art Two.png'].map((title, index) => [index, { title: `File:${title}`, imageinfo: [{ thumburl: `https://static.wikia.nocookie.net/mix/${index}.png`, thumbwidth: 900, thumbheight: 600, width: 900, height: 1600 - index * 100, mime: 'image/png' }] }]))
         return new Response(JSON.stringify({ query: { pages } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
       }
       return new Response(JSON.stringify({ query: { pages: {} } }), { status: 200, headers: { 'Content-Type': 'application/json' } })

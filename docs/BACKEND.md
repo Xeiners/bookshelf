@@ -1228,7 +1228,10 @@ parcours, pour attendre des amis).
 mélangées une à une (galerie du wiki, galerie MyAnimeList, image de la fiche, AniList) : la graine du jour
 choisit l'image de départ, donc une énigme varie d'un jour à l'autre. Galerie du wiki
 (`wikiGallery`, `generator=images`) : seuls les fichiers de la fiche, d'au moins 300 px de côté, au format
-image, dont le nom porte celui du personnage (ni icône, ni logo, ni bannière), les plus grandes d'abord.
+image, dont le nom est « à lui » (`wikiFileFits`) : un mot que lui seul porte (« Shikamaru », pas « Nara »),
+aucun autre personnage de l'univers nommé (« Shikamaru et Hidan » met Hidan en avant), pas de scène à plusieurs
+(`vs`, `and`, `team`…), ni icône, ni logo, ni bannière ; et **jamais une capture d'écran** : une image plus
+large que `MAX_PUZZLE_RATIO` (1,4) est écartée, au listage comme au téléchargement. Les plus grandes d'abord.
 Chez MyAnimeList, le grand format (`…/12l.jpg`) est tenté avant l'original ; une image dont le petit côté
 fait moins de 220 px est écartée (la suivante sert), le portrait en dernier recours.
 
