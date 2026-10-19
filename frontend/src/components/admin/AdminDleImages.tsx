@@ -49,7 +49,8 @@ export function AdminDleImages() {
     )
   }
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-3">
+    // La liste défile (le paquet de cartes, lui, tient dans l'écran).
+    <div className="no-scrollbar mx-auto flex h-full max-w-2xl flex-col gap-3 overflow-y-auto overscroll-contain pb-[max(2rem,env(safe-area-inset-bottom))]">
       <p className="text-sm text-mist">{t.admin.images.subtitle}</p>
       {universes === null ? (
         <div className="grid place-items-center py-10 text-mist">
