@@ -262,7 +262,7 @@ export interface RoomView {
   results: { standings: Standing[]; answer: WorkSummary; receipt: string | null; overall: OverallStanding[] | null } | null
 }
 
-export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'runner_revive' | 'runner_box' | 'runner_gift' | 'runner_refund' | 'canvas_like' | 'canvas_season' | 'canvas_brush' | 'booster_purchase' | 'guest_claim' | 'daily_reward' | 'page_stack'
+export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'runner_revive' | 'runner_box' | 'runner_gift' | 'runner_refund' | 'canvas_like' | 'canvas_season' | 'canvas_brush' | 'booster_purchase' | 'guest_claim' | 'daily_reward' | 'page_stack' | 'card_convert'
 
 export interface StardustWallet {
   balance: number

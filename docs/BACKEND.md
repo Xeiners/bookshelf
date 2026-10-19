@@ -1077,7 +1077,21 @@ l'autre, et la seconde voit la réservation de la première.
 **Profil.** Une carte cédée jusqu'au dernier exemplaire quitte l'album (ligne supprimée), et avec lui
 l'avatar et la vitrine du profil, qui ne montrent jamais une carte non possédée.
 
-Tests : `backend/test/trades.test.ts` — doublon exigé, réservation, rareté, filtres du marché, échange
+**Pas de cadeau entre membres.** Une carte ne change de main que par un échange du Marché : il n'existe
+plus de route pour « offrir » une carte (seuls les cadeaux de l'administration subsistent, avec leur
+notification `card_gift`).
+
+**Doublons → Poussières** (`src/modules/cards/duplicates.*.ts`, `GET /api/cards/duplicates`,
+`POST /api/cards/convert`). Un exemplaire en plus rend : Commune 5, Rare 10, Épique 25, Légendaire 250,
+Mythique 700 ✦, sans plafond. On garde toujours un exemplaire, et chaque offre ouverte au Marché en réserve
+un (`convertibleCopies`). On convertit une carte (`{ cardId, copies }`) ou des raretés entières
+(`{ rarities }`, favoris exceptés). Tout est décidé et vérifié par le serveur dans une transaction :
+retraits conditionnels (deux conversions, ou une conversion et un échange, ne cèdent jamais le même
+exemplaire), crédit `card_convert` inscrit au registre des Poussières. Le barème reste sous le quart du
+prix d'un booster même pour un booster de quatre doublons (test).
+
+Tests : `backend/test/duplicates.test.ts` (barème, garde-fous, réservations, simultanéité) ;
+`backend/test/trades.test.ts` — doublon exigé, réservation, rareté, filtres du marché, échange
 et conservation des cartes, refus sans effet, acceptations et créations **simultanées**, deux offres du
 même doublon acceptées en même temps, avatar nettoyé, annulation, historique.
 

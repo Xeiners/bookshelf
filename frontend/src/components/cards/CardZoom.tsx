@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Gift, Heart, X } from 'lucide-react'
+import { BookOpen, Heart, Sparkles, X } from 'lucide-react'
 import { useCollection } from '../../hooks/useCollection'
+import { useDuplicates } from '../../hooks/useDuplicates'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useLanguage, useT } from '../../i18n'
 import { RARITY_STYLE, SERIES_3_FIRST_NUMBER } from '../../lib/boosters'
@@ -9,8 +10,9 @@ import { vibrate } from '../../lib/haptics'
 import { fetchBooks, fetchSynopsis } from '../../services/catalog'
 import { useCollectionStore } from '../../store/useCollectionStore'
 import { useUiStore } from '../../store/useUiStore'
+import { useBoosterStore } from '../../store/useBoosterStore'
 import { CollectibleCard, type CardFace } from './CollectibleCard'
-import { GiftCardSheet } from './GiftCardSheet'
+import { ConvertCardSheet } from './ConvertSheet'
 
 /** Carte à afficher : sa face, et ce que l'on sait déjà de l'exemplaire (album ou booster). */
 export interface ZoomCard extends CardFace {
@@ -40,10 +42,13 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
   // Album à jour (un booster vient peut-être d'y ajouter la carte) : favori, exemplaires, date.
   const { data, signedIn } = useCollection()
   const owned = data?.cards.find((entry) => entry.id === card.id && entry.owned)
+  // Doublons libres de cette carte (un gardé, ceux des offres du Marché réservés) et ce qu'ils rendent.
+  const [duplicates, reloadDuplicates] = useDuplicates(useBoosterStore((state) => state.collectionVersion))
+  const spare = signedIn && owned ? duplicates?.items.find((item) => item.cardId === card.id) : undefined
+  const [converting, setConverting] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const [opening, setOpening] = useState(false)
-  const [gifting, setGifting] = useState(false)
   const [synopsis, setSynopsis] = useState<Synopsis>({ status: 'loading' })
   const width = Math.min(260, Math.round(window.innerWidth * 0.5))
 
@@ -178,26 +183,26 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
                 {t.cards.viewWork}
               </button>
             )}
-            {owned && signedIn && (
-              <button
-                type="button"
-                onClick={() => setGifting(true)}
-                className="inline-flex h-11 items-center gap-2 rounded-full bg-gold/15 px-5 text-sm font-semibold text-gold transition-colors hover:bg-gold/25"
-              >
-                <Gift size={16} aria-hidden />
-                {t.cards.gift.open}
-              </button>
-            )}
           </div>
+          {spare && (
+            <button
+              type="button"
+              onClick={() => setConverting(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-gold/15 px-5 text-sm font-semibold text-gold transition-colors hover:bg-gold/25"
+            >
+              <Sparkles size={16} aria-hidden />
+              {t.cards.convert.oneOpen(duplicates!.values[spare.rarity])}
+            </button>
+          )}
         </div>
       </div>
-      {gifting && owned && (
-        <GiftCardSheet
+      {converting && spare && duplicates && (
+        <ConvertCardSheet
           card={{ id: card.id, title: card.title }}
-          copies={owned.count}
-          onClose={() => setGifting(false)}
-          // Dernier exemplaire offert : la carte n'est plus à moi, la vue agrandie se ferme.
-          onSent={(remaining) => remaining === 0 && onClose()}
+          free={spare.extra}
+          value={duplicates.values[spare.rarity]}
+          onClose={() => setConverting(false)}
+          onDone={reloadDuplicates}
         />
       )}
     </div>

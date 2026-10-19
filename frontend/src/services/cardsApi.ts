@@ -17,6 +17,18 @@ export interface Collection {
   cards: CollectionCard[]
 }
 
+export interface DuplicatesView {
+  values: Record<Rarity, number>
+  items: { cardId: string; rarity: Rarity; extra: number; value: number; isFavorite: boolean }[]
+}
+
+export interface ConversionResult {
+  gained: number
+  copies: number
+  balance: number
+  converted: { cardId: string; copies: number; value: number }[]
+}
+
 /** Les séries du set : chaque booster appartient à l'une d'elles. */
 export const CARD_SERIES = [1, 2, 3] as const
 export type CardSeries = (typeof CARD_SERIES)[number]
@@ -37,12 +49,10 @@ export const cardsApi = {
   /** Les séries et leurs couvertures (illustration des boosters). */
   series: () => api<{ series: SeriesShowcase[] }>('/boosters/series'),
   collection: (signal?: AbortSignal) => api<Collection>('/cards/collection', { signal }),
-  /** Offre un exemplaire à un membre ; 409 `gift_unavailable` si réservé au Marché ou plus possédé. */
-  gift: (cardId: string, toUserId: string, message: string | null) =>
-    api<{ card: PulledCard['card']; remaining: number; to: { id: string; displayName: string | null } }>(`/cards/${encodeURIComponent(cardId)}/gift`, {
-      method: 'POST',
-      body: { toUserId, message },
-    }),
+  /** Doublons convertibles en Poussières (un exemplaire gardé, ceux des offres du Marché réservés) et barème. */
+  duplicates: (signal?: AbortSignal) => api<DuplicatesView>('/cards/duplicates', { signal }),
+  /** Convertit des doublons : une carte, ou tous ceux des raretés choisies (favoris exceptés). */
+  convert: (request: { cardId: string; copies: number } | { rarities: Rarity[] }) => api<ConversionResult>('/cards/convert', { method: 'POST', body: request }),
   /** « Informer » : montre des cartes possédées à des membres, prévenus à leur prochaine visite. */
   share: (cardIds: string[], toUserIds: string[], message: string | null) =>
     api<{ notified: number }>('/cards/share', { method: 'POST', body: { cardIds, toUserIds, message } }),

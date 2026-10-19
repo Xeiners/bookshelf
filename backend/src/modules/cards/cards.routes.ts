@@ -6,7 +6,10 @@ import { rateLimit } from '../../middleware/rateLimit.js'
 import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
 import { characterArt } from './cards.art.js'
-import { GIFT_MESSAGE_MAX, SHARE_MAX_CARDS, SHARE_MAX_RECIPIENTS, giftCardToMember, shareCards } from '../trades/trades.service.js'
+import { MAX_CONVERT_CARDS } from './duplicates.logic.js'
+import { convertDuplicates, duplicatesOf } from './duplicates.service.js'
+import { RARITIES } from './boosters.logic.js'
+import { GIFT_MESSAGE_MAX, SHARE_MAX_CARDS, SHARE_MAX_RECIPIENTS, shareCards } from '../trades/trades.service.js'
 
 /*
  * Boosters et collection de cartes. Le stock d'un compte vit côté serveur
@@ -93,7 +96,6 @@ cardsRouter.get('/collection', async (req, res) => {
 })
 
 const FavoriteBody = z.object({ isFavorite: z.boolean() })
-const GiftBody = z.object({ toUserId: z.string().min(1).max(40), message: z.string().max(GIFT_MESSAGE_MAX * 2).nullish() })
 const giftLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 20 })
 
 const ShareBody = z.object({
@@ -108,11 +110,20 @@ cardsRouter.post('/share', giftLimiter, async (req, res) => {
   res.json({ notified: await shareCards(currentUserId(req), cardIds, toUserIds, message ?? null) })
 })
 
-/** Offre un exemplaire à un autre membre : il le reçoit, avec une notification surprise. */
-cardsRouter.post('/:cardId/gift', giftLimiter, async (req, res) => {
-  const { toUserId, message } = GiftBody.parse(req.body)
-  const cardId = z.string().min(1).max(40).parse(req.params.cardId)
-  res.json(await giftCardToMember(currentUserId(req), cardId, toUserId, message ?? null))
+const ConvertBody = z.union([
+  z.object({ cardId: z.string().min(1).max(40), copies: z.number().int().min(1).max(MAX_CONVERT_CARDS) }),
+  z.object({ rarities: z.array(z.enum(RARITIES)).min(1).max(RARITIES.length) }),
+])
+const convertLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 30 })
+
+/** Doublons convertibles en Poussières, et le barème par rareté. */
+cardsRouter.get('/duplicates', async (req, res) => {
+  res.json(await duplicatesOf(currentUserId(req)))
+})
+
+/** Convertit des doublons en Poussières : une carte (`cardId`, `copies`) ou toutes les raretés choisies. */
+cardsRouter.post('/convert', convertLimiter, async (req, res) => {
+  res.json(await convertDuplicates(currentUserId(req), ConvertBody.parse(req.body)))
 })
 
 cardsRouter.patch('/:cardId/favorite', async (req, res) => {
