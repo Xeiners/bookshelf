@@ -159,6 +159,40 @@ describe('doublons — conversion d’une carte', () => {
   })
 })
 
+describe('doublons — conversion d’une sélection', () => {
+  it('seules les cartes choisies sont converties, avec leurs quantités', async () => {
+    const account = signedUp()
+    await give(account, 'c1', 4)
+    await give(account, 'r1', 3)
+    await give(account, 'l1', 2)
+    const done = await account.request('POST', '/cards/convert', { items: [{ cardId: 'c1', copies: 3 }, { cardId: 'l1', copies: 1 }] })
+    assert.equal(done.status, 200, JSON.stringify(done.body))
+    assert.deepEqual([done.body.gained, done.body.copies], [15 + 250, 4])
+    assert.deepEqual([await copies(account, 'c1'), await copies(account, 'r1'), await copies(account, 'l1')], [1, 3, 1])
+    assert.equal(await balance(account), 265)
+  })
+
+  it('une seule ligne refusée annule tout : rien n’est converti ni crédité', async () => {
+    const account = signedUp()
+    await give(account, 'c1', 4)
+    await give(account, 'm1', 3)
+    for (const bad of [{ cardId: 'm1', copies: 1 }, { cardId: 'c1', copies: 4 }, { cardId: 'c2', copies: 1 }]) {
+      const refused = await account.request('POST', '/cards/convert', { items: [{ cardId: 'c1', copies: 1 }, bad] })
+      assert.ok([400, 409].includes(refused.status), `${bad.cardId} : ${refused.status}`)
+    }
+    assert.deepEqual([await copies(account, 'c1'), await copies(account, 'm1'), await balance(account)], [4, 3, 0])
+    assert.equal((await account.request('POST', '/cards/convert', { items: [] })).status, 400)
+  })
+
+  it('la même carte listée deux fois est comptée une fois, sur le libre', async () => {
+    const account = signedUp()
+    await give(account, 'r1', 3)
+    assert.equal((await account.request('POST', '/cards/convert', { items: [{ cardId: 'r1', copies: 2 }, { cardId: 'r1', copies: 1 }] })).status, 409)
+    assert.equal((await account.request('POST', '/cards/convert', { items: [{ cardId: 'r1', copies: 1 }, { cardId: 'r1', copies: 1 }] })).status, 200)
+    assert.equal(await copies(account, 'r1'), 1)
+  })
+})
+
 describe('doublons — conversion par raretés', () => {
   it('toutes les raretés choisies d’un coup, favoris et autres raretés intouchés', async () => {
     const account = signedUp()

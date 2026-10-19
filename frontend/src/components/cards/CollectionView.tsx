@@ -18,8 +18,8 @@ export function CollectionView() {
   const openAuth = useUiStore((state) => state.openAuth)
   const [duplicates] = useDuplicates(useBoosterStore((state) => state.collectionVersion))
   const [converting, setConverting] = useState(false)
-  // Hors favoris : ce que la conversion groupée touche.
-  const spare = (duplicates?.items ?? []).filter((item) => !item.isFavorite)
+  // Tous les doublons convertibles : cartes et exemplaires (les favoris sont décochés d'office dans la feuille).
+  const spare = duplicates?.items ?? []
   const worth = spare.reduce((sum, item) => sum + item.value, 0)
   const copies = spare.reduce((sum, item) => sum + item.extra, 0)
   return (
@@ -39,7 +39,7 @@ export function CollectionView() {
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gold/20 text-gold">
                   <Sparkles size={17} aria-hidden />
                 </span>
-                <span className="min-w-0 flex-1 text-sm text-cream/90">{t.cards.convert.banner(copies, worth)}</span>
+                <span className="min-w-0 flex-1 text-sm text-cream/90">{t.cards.convert.banner(copies, spare.length, worth)}</span>
                 <span className="shrink-0 rounded-full bg-gold px-3.5 py-1.5 text-xs font-semibold text-void">{t.cards.convert.open}</span>
               </button>
             )}

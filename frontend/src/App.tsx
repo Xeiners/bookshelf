@@ -46,6 +46,7 @@ import { NotificationCenter } from './components/notifications/NotificationCente
 import { DailyRewardModal } from './components/daily/DailyRewardModal'
 import { RecordRewardModal } from './components/rewards/RecordRewardModal'
 import { GiftReveal } from './components/cards/GiftReveal'
+import { PatchNotesModal } from './components/layout/PatchNotesModal'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
 const UniversalReader = lazy(() =>
@@ -305,6 +306,7 @@ export default function App() {
       {musicOpen && <MusicSheet />}
       {notificationsOpen && <NotificationCenter />}
       <DailyRewardModal />
+      <PatchNotesModal />
       <RecordRewardModal />
       <NotificationBanner />
       {/* Carte offerte : la surprise, face cachée, à la visite suivante. */}

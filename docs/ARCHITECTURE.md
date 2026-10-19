@@ -490,6 +490,15 @@ au rendu sont désormais créés à l'événement (`() => contextSafe(…)()`), 
 `useDiscoveryQueue` dérive « chargement » et « renfort » au lieu de les poser
 dans un effet.
 
+## 4 quinquies quater. Nouveautés (patch notes)
+
+À l'ouverture du site, `PatchNotesModal` (monté dans `App`) présente les nouveautés **une seule fois par
+appareil et par version** : la version vue est gardée dans `localStorage` (`bookshelf:patchnotes:seen`). La fenêtre
+attend ~2,6 s, ne se pose jamais par-dessus le calendrier du jour ni la connexion (elle revient une fois
+ceux-ci refermés), et se rouvre depuis Paramètres → « Voir les nouveautés ». **Publier une nouvelle version** :
+changer `PATCH_NOTES_ID` dans `src/lib/patchNotes.ts` (la date) et réécrire `patchNotes.items` dans
+`src/i18n/fr.ts` et `en.ts` (icône à choisir parmi `PatchIcon`).
+
 ## 4 quinquies ter. Activités : boosters et collection de cartes
 
 L'onglet « Oracle » est devenu **Activités** (`Gamepad2`, vue `activities`) :

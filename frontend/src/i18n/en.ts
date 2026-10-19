@@ -1,3 +1,4 @@
+import type { PatchIcon } from '../lib/patchNotes'
 import type { Dictionary } from './fr'
 
 const plural = (count: number, one: string, many: string) => (count === 1 ? one : many)
@@ -217,6 +218,22 @@ export const en: Dictionary = {
     },
   },
 
+  patchNotes: {
+    title: 'What’s new',
+    subtitle: 'Update of October 19',
+    close: 'Let’s go!',
+    open: 'See what’s new',
+    hint: 'What changed in the latest update.',
+    items: [
+      { icon: 'stack', title: 'Page Stack, the new arcade game', text: 'Stack manga volumes as high as you can across six Japanese worlds. Records, a leaderboard, and multiplayer: versus on 2-4 shared screens or turn-by-turn co-op. When it’s over, save your tower as an image.' },
+      { icon: 'gift', title: 'Daily reward', text: 'A 30-day calendar: Stardust, boosters, mystery boxes. Keep your streak going to win the day-30 pack, with a guaranteed Legendary.' },
+      { icon: 'dust', title: 'Duplicates → Stardust', text: 'Convert your duplicates, one card at a time or in bulk (untick what you keep): Common 5 ✦, Rare 10, Epic 25, Legendary 250. You always keep one copy, and Mythics can’t be sold.' },
+      { icon: 'market', title: 'Trades go through the Market', text: 'Members can no longer gift cards to each other: to part with a card, list it on the Market for another of the same rarity.' },
+      { icon: 'library', title: 'Library and reading', text: 'A Cards tab (owned, favorites), adding cards straight to your profile showcase, and a more reliable offline novel reader.' },
+      { icon: 'canvas', title: 'The Canvas on phones', text: 'Finger drawing fixed, a mobile-first interface, and reference images with adjustable opacity.' },
+    ] as { icon: PatchIcon; title: string; text: string }[],
+  },
+
   cards: {
     missingForYou: 'You lack it',
     rarity: { COMMON: 'Common', RARE: 'Rare', EPIC: 'Epic', LEGENDARY: 'Legendary', MYTHIC: 'Mythic' },
@@ -243,15 +260,22 @@ export const en: Dictionary = {
     viewWork: 'View the title',
     synopsis: 'Synopsis',
     convert: {
-      banner: (copies: number, stardust: number) => `${copies} duplicate${plural(copies, '', 's')} to convert · up to ${stardust} ✦`,
+      banner: (copies: number, cards: number, stardust: number) => `${copies} duplicate${plural(copies, '', 's')} across ${cards} card${plural(cards, '', 's')} · up to ${stardust} ✦`,
       bannerNone: 'No duplicates to convert',
       open: 'Convert',
       title: 'Convert my duplicates',
-      subtitle: 'One copy of each card is always kept, along with those in your open Market offers. Favorite cards are left alone, and Mythic cards can’t be sold.',
+      subtitle: 'Untick the cards you want to keep. One copy of each card is always kept, along with those in your open Market offers. Favorites start unticked, and Mythic cards can’t be sold.',
       each: (value: number) => `${value} ✦ each`,
       copies: (count: number) => `${count} duplicate${plural(count, '', 's')}`,
-      total: (stardust: number) => `Convert · +${stardust} ✦`,
-      nothing: 'Pick at least one rarity',
+      total: (cards: number, stardust: number) => `Convert ${cards} card${plural(cards, '', 's')} · +${stardust} ✦`,
+      selected: (picked: number, all: number, copies: number) => `${picked}/${all} cards ticked · ${copies} duplicate${plural(copies, '', 's')}`,
+      selectAll: 'Tick all',
+      selectNone: 'Untick all',
+      allOf: 'Tick all',
+      noneOf: 'Untick all',
+      favorite: 'Favorite',
+      unsellable: 'Mythic cards can’t be sold: this one can’t be converted.',
+      nothing: 'Tick at least one card',
       empty: 'You have no duplicates to convert right now.',
       warning: 'Irreversible: a converted card only comes back from a booster.',
       done: (stardust: number, copies: number) => `+${stardust} ✦ for ${copies} duplicate${plural(copies, '', 's')}!`,

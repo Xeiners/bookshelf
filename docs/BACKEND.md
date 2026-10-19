@@ -1084,8 +1084,8 @@ notification `card_gift`).
 **Doublons → Poussières** (`src/modules/cards/duplicates.*.ts`, `GET /api/cards/duplicates`,
 `POST /api/cards/convert`). Un exemplaire en plus rend : Commune 5, Rare 10, Épique 25, Légendaire 250 ✦, sans plafond.
 **Les Mythiques sont invendables** : jamais converties (409 `not_convertible`, ou 400 si la rareté est demandée en groupe). On garde toujours un exemplaire, et chaque offre ouverte au Marché en réserve
-un (`convertibleCopies`). On convertit une carte (`{ cardId, copies }`) ou des raretés entières
-(`{ rarities }`, favoris exceptés). Tout est décidé et vérifié par le serveur dans une transaction :
+un (`convertibleCopies`). On convertit une carte (`{ cardId, copies }`), une **sélection** de cartes (`{ items: [{ cardId, copies }] }`,
+tout ou rien : une ligne refusée annule le lot) ou des raretés entières (`{ rarities }`, favoris exceptés). Tout est décidé et vérifié par le serveur dans une transaction :
 retraits conditionnels (deux conversions, ou une conversion et un échange, ne cèdent jamais le même
 exemplaire), crédit `card_convert` inscrit au registre des Poussières. Le barème reste sous le quart du
 prix d'un booster même pour un booster de quatre doublons (test).

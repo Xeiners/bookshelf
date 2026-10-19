@@ -53,20 +53,27 @@ async function reservedBy(userId: string): Promise<Map<string, number>> {
   return new Map(offers.map((offer) => [offer.offeredCardId, offer._count._all]))
 }
 
-/** Ce qu'on convertit : `copies` exemplaires d'une carte, ou tous les doublons des raretés choisies (favoris exceptés). */
-export type ConversionRequest = { cardId: string; copies: number } | { rarities: readonly ConvertibleRarity[] }
+/** Ce qu'on convertit : `copies` exemplaires d'une carte, une sélection de cartes, ou tous les doublons des raretés choisies (favoris exceptés). */
+export type ConversionRequest = { cardId: string; copies: number } | { items: readonly { cardId: string; copies: number }[] } | { rarities: readonly ConvertibleRarity[] }
 
 export async function convertDuplicates(userId: string, request: ConversionRequest): Promise<ConversionResult> {
   return prisma.$transaction(async (tx) => {
     const reserved = new Map((await tx.tradeOffer.groupBy({ by: ['offeredCardId'], where: { userId, status: 'OPEN' }, _count: { _all: true } })).map((offer) => [offer.offeredCardId, offer._count._all]))
     const plan: { cardId: string; rarity: ConvertibleRarity; copies: number }[] = []
-    if ('cardId' in request) {
-      const row = await tx.userCard.findUnique({ where: { userId_cardId: { userId, cardId: request.cardId } }, include: { card: { select: { rarity: true } } } })
-      if (!row || !isRarity(row.card.rarity)) throw badRequest('Tu ne possèdes pas cette carte.', 'card_not_owned')
-      if (!isConvertible(row.card.rarity)) throw conflict('Les cartes Mythiques sont invendables.', 'not_convertible')
-      const free = convertibleCopies(row.count, reserved.get(request.cardId) ?? 0)
-      if (request.copies > free) throw conflict(free === 0 ? 'Aucun doublon libre pour cette carte (tu en gardes toujours un, et ceux de tes offres au Marché sont réservés).' : `Tu ne peux convertir que ${free} exemplaire${free > 1 ? 's' : ''} de cette carte.`, 'not_enough_duplicates')
-      plan.push({ cardId: request.cardId, rarity: row.card.rarity, copies: request.copies })
+    if ('cardId' in request || 'items' in request) {
+      // Une carte ou une sélection : chaque ligne est vérifiée, et la moindre refusée annule tout.
+      const wanted = new Map<string, number>()
+      for (const item of 'cardId' in request ? [request] : request.items) wanted.set(item.cardId, (wanted.get(item.cardId) ?? 0) + item.copies)
+      const rows = await tx.userCard.findMany({ where: { userId, cardId: { in: [...wanted.keys()] } }, include: { card: { select: { rarity: true } } } })
+      const byId = new Map(rows.map((row) => [row.cardId, row]))
+      for (const [cardId, copies] of wanted) {
+        const row = byId.get(cardId)
+        if (!row || !isRarity(row.card.rarity)) throw badRequest('Tu ne possèdes pas cette carte.', 'card_not_owned')
+        if (!isConvertible(row.card.rarity)) throw conflict('Les cartes Mythiques sont invendables.', 'not_convertible')
+        const free = convertibleCopies(row.count, reserved.get(cardId) ?? 0)
+        if (copies > free) throw conflict(free === 0 ? 'Aucun doublon libre pour cette carte (tu en gardes toujours un, et ceux de tes offres au Marché sont réservés).' : `Tu ne peux convertir que ${free} exemplaire${free > 1 ? 's' : ''} de cette carte.`, 'not_enough_duplicates')
+        plan.push({ cardId, rarity: row.card.rarity, copies })
+      }
     } else {
       const wanted = new Set(request.rarities)
       const rows = await tx.userCard.findMany({ where: { userId, count: { gt: 1 }, isFavorite: false, card: { rarity: { in: [...wanted] } } }, include: { card: { select: { rarity: true } } }, take: MAX_CONVERT_CARDS })

@@ -111,6 +111,7 @@ cardsRouter.post('/share', giftLimiter, async (req, res) => {
 
 const ConvertBody = z.union([
   z.object({ cardId: z.string().min(1).max(40), copies: z.number().int().min(1).max(MAX_CONVERT_CARDS) }),
+  z.object({ items: z.array(z.object({ cardId: z.string().min(1).max(40), copies: z.number().int().min(1).max(MAX_CONVERT_CARDS) })).min(1).max(MAX_CONVERT_CARDS) }),
   z.object({ rarities: z.array(z.enum(CONVERTIBLE_RARITIES)).min(1).max(CONVERTIBLE_RARITIES.length) }),
 ])
 const convertLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 30 })

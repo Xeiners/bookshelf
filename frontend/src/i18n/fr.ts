@@ -6,6 +6,8 @@
  * Les textes variables sont des fonctions : interpolation et pluriels restent
  * typés, sans moteur de gabarits.
  */
+import type { PatchIcon } from '../lib/patchNotes'
+
 const plural = (count: number, one: string, many: string) => (count > 1 ? many : one)
 
 export const fr = {
@@ -225,6 +227,22 @@ export const fr = {
     },
   },
 
+  patchNotes: {
+    title: 'Nouveautés',
+    subtitle: 'Mise à jour du 19 octobre',
+    close: 'C’est parti !',
+    open: 'Voir les nouveautés',
+    hint: 'Ce qui a changé dans la dernière mise à jour.',
+    items: [
+      { icon: 'stack', title: 'Page Stack, le nouveau jeu d’arcade', text: 'Empile des tomes de manga le plus haut possible, à travers six univers japonais. Record, classement, et du multijoueur : versus à 2-4 écrans partagés ou coop tour par tour. À la fin, enregistre ta tour en image.' },
+      { icon: 'gift', title: 'Récompense du jour', text: 'Un calendrier de 30 jours : Poussières, boosters, boîtes mystère. Enchaîne les jours pour décrocher le pack du 30ᵉ, avec une Légendaire garantie.' },
+      { icon: 'dust', title: 'Doublons → Poussières', text: 'Convertis tes doublons, carte par carte ou en lot (tu décoches ce que tu gardes) : Commune 5 ✦, Rare 10, Épique 25, Légendaire 250. Tu gardes toujours un exemplaire, et les Mythiques sont invendables.' },
+      { icon: 'market', title: 'Les échanges passent par le Marché', text: 'On ne s’offre plus de cartes entre membres : pour céder une carte, propose-la sur le Marché contre une autre de même rareté.' },
+      { icon: 'library', title: 'Bibliothèque et lecture', text: 'Un onglet Cartes (possédées, favoris), l’ajout direct de cartes à la vitrine de ton profil, et un lecteur de romans hors ligne plus fiable.' },
+      { icon: 'canvas', title: 'La Toile sur téléphone', text: 'Dessin au doigt corrigé, interface repensée pour le mobile, et images de référence à opacité réglable.' },
+    ] as { icon: PatchIcon; title: string; text: string }[],
+  },
+
   cards: {
     missingForYou: 'Te manque',
     rarity: { COMMON: 'Commune', RARE: 'Rare', EPIC: 'Épique', LEGENDARY: 'Légendaire', MYTHIC: 'Mythique' },
@@ -252,15 +270,22 @@ export const fr = {
     synopsis: 'Résumé',
     noSynopsis: 'Pas de résumé disponible pour cette œuvre.',
     convert: {
-      banner: (copies: number, stardust: number) => `${copies} doublon${plural(copies, '', 's')} à convertir · jusqu’à ${stardust} ✦`,
+      banner: (copies: number, cards: number, stardust: number) => `${copies} doublon${plural(copies, '', 's')} sur ${cards} carte${plural(cards, '', 's')} · jusqu’à ${stardust} ✦`,
       bannerNone: 'Aucun doublon à convertir',
       open: 'Convertir',
       title: 'Convertir mes doublons',
-      subtitle: 'Un exemplaire de chaque carte est toujours gardé, ainsi que ceux de tes offres au Marché. Les cartes favorites ne sont pas touchées, et les Mythiques sont invendables.',
+      subtitle: 'Décoche les cartes à garder. Un exemplaire de chaque carte est toujours conservé, ainsi que ceux de tes offres au Marché. Les favorites sont décochées d’office, et les Mythiques sont invendables.',
       each: (value: number) => `${value} ✦ pièce`,
       copies: (count: number) => `${count} doublon${plural(count, '', 's')}`,
-      total: (stardust: number) => `Convertir · +${stardust} ✦`,
-      nothing: 'Choisis au moins une rareté',
+      total: (cards: number, stardust: number) => `Convertir ${cards} carte${plural(cards, '', 's')} · +${stardust} ✦`,
+      selected: (picked: number, all: number, copies: number) => `${picked}/${all} cartes cochées · ${copies} doublon${plural(copies, '', 's')}`,
+      selectAll: 'Tout cocher',
+      selectNone: 'Tout décocher',
+      allOf: 'Tout cocher',
+      noneOf: 'Tout décocher',
+      favorite: 'Favorite',
+      unsellable: 'Les Mythiques sont invendables : cette carte ne se convertit pas.',
+      nothing: 'Coche au moins une carte',
       empty: 'Tu n’as aucun doublon à convertir pour l’instant.',
       warning: 'Irréversible : une carte convertie ne revient pas, sauf à la retrouver dans un booster.',
       done: (stardust: number, copies: number) => `+${stardust} ✦ pour ${copies} doublon${plural(copies, '', 's')} !`,

@@ -17,6 +17,7 @@ import {
   Plus,
   Power,
   ShieldCheck,
+  Sparkles,
   Trash2,
   UserRound,
 } from 'lucide-react'
@@ -36,6 +37,7 @@ import { useSettingsStore } from '../../store/useSettingsStore'
 import { useDownloadStore, type DownloadedChapter } from '../../store/useDownloadStore'
 import { useProfileStore } from '../../store/useProfileStore'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
+import { usePatchNotes } from '../../store/usePatchNotes'
 import { useUiStore } from '../../store/useUiStore'
 import type { ReaderLayout, TextTheme } from '../../types/reader'
 import { Pressable } from '../ui/Pressable'
@@ -706,6 +708,32 @@ function SessionSection({ onDone }: { onDone: () => void }) {
   )
 }
 
+/** Rouvre la fenêtre des nouveautés (celle de l'ouverture du site). */
+function NewsSection() {
+  const t = useT()
+  return (
+    <Section icon={Sparkles} title={t.patchNotes.title}>
+      <button
+        type="button"
+        onClick={() => {
+          vibrate(6)
+          usePatchNotes.getState().show()
+        }}
+        className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left"
+      >
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-black/40 text-gold">
+          <Sparkles size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-cream">{t.patchNotes.open}</span>
+          <span className="block text-xs text-mist">{t.patchNotes.hint}</span>
+        </span>
+        <ChevronRight size={16} className="shrink-0 text-cream/40" aria-hidden />
+      </button>
+    </Section>
+  )
+}
+
 /**
  * Paramètres, ouverts depuis le bouton en haut à droite du Profil : compte
  * (e-mail, mot de passe, passage invité → compte), préférences de lecture,
@@ -761,6 +789,7 @@ export function SettingsSheet() {
           {userId && <PublicProfileSection userId={userId} />}
           <StorageSection />
           <DownloadsSection />
+          <NewsSection />
           {isAdmin && <AdminSection />}
           {signedIn && <SessionSection onDone={dismiss} />}
         </div>

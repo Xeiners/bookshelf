@@ -132,6 +132,18 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
           </p>
           <h2 className="font-display text-3xl leading-tight text-cream">{card.title}</h2>
           {date && <p className="text-xs text-mist">{t.cards.obtained(date)}</p>}
+          {/* Doublons : convertir cette carte, tout de suite sous son titre. */}
+          {spare && (
+            <button
+              type="button"
+              onClick={() => setConverting(true)}
+              className="mt-1 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-gold/40 bg-gold/15 px-5 text-sm font-semibold text-gold transition-colors hover:bg-gold/25"
+            >
+              <Sparkles size={16} aria-hidden />
+              {t.cards.convert.oneOpen(duplicates!.values[spare.rarity] ?? 0)}
+            </button>
+          )}
+          {signedIn && owned && owned.count > 1 && card.rarity === 'MYTHIC' && <p className="mt-1 text-xs text-mist">{t.cards.convert.unsellable}</p>}
 
           {/* Personnage : son œuvre et son rang au classement des plus aimés. */}
           {character ? (
@@ -184,16 +196,6 @@ export function CardZoom({ card, onClose }: CardZoomProps) {
               </button>
             )}
           </div>
-          {spare && (
-            <button
-              type="button"
-              onClick={() => setConverting(true)}
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-gold/15 px-5 text-sm font-semibold text-gold transition-colors hover:bg-gold/25"
-            >
-              <Sparkles size={16} aria-hidden />
-              {t.cards.convert.oneOpen(duplicates!.values[spare.rarity] ?? 0)}
-            </button>
-          )}
         </div>
       </div>
       {converting && spare && duplicates && (
