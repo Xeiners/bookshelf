@@ -29,7 +29,28 @@ export interface AdminUserRow {
   boostersOpened: number
 }
 
-export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end' | 'canvas_remove' | 'canvas_restore' | 'canvas_purge' | 'canvas_ban' | 'canvas_unban'
+export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end' | 'canvas_remove' | 'canvas_restore' | 'canvas_purge' | 'canvas_ban' | 'canvas_unban' | 'dle_image_ban' | 'dle_image_restore'
+
+/** Revue des images d'énigme du BookshelfDLE. */
+export interface DleUniverse {
+  category: string
+  label: string
+  characters: number
+  /** Les images candidates sont chargées côté serveur. */
+  ready: boolean
+  images: number
+  remaining: number
+  approved: number
+  banned: number
+}
+
+export interface DleReviewItem {
+  characterId: string
+  name: string
+  key: string
+}
+
+export type DleDecision = 'approve' | 'ban' | 'clear'
 
 export interface AdminAuditEntry {
   id: string
@@ -97,6 +118,12 @@ export const adminApi = {
   unsuspend: (id: string) => api<{ user: AdminUserDetail }>(`${userPath(id)}/unsuspend`, { method: 'POST', body: {} }),
   moderate: (id: string, moderation: Moderation) => api<{ user: AdminUserDetail }>(`${userPath(id)}/moderate`, { method: 'POST', body: moderation }),
   cards: (q: string, signal?: AbortSignal) => api<{ cards: TradeCard[] }>(`/admin/cards?q=${encodeURIComponent(q)}`, { signal }),
+  dleUniverses: () => api<{ universes: DleUniverse[] }>('/admin/dle-images'),
+  dleQueue: (category: string, limit = 10, signal?: AbortSignal) => api<{ ready: boolean; remaining: number; items: DleReviewItem[] }>(`/admin/dle-images/${category}/queue?limit=${limit}`, { signal }),
+  dleDecide: (category: string, item: DleReviewItem, decision: DleDecision) => api<{ remaining: number }>(`/admin/dle-images/${category}/review`, { method: 'POST', body: { characterId: item.characterId, key: item.key, decision } }),
+  /** L'image candidate et le portrait du personnage (routes réservées à l'administration, relayées par le serveur). */
+  dleImageUrl: (category: string, item: DleReviewItem) => `${API_BASE}/admin/dle-images/${category}/image?character=${encodeURIComponent(item.characterId)}&key=${encodeURIComponent(item.key)}`,
+  dlePortraitUrl: (category: string, characterId: string) => `${API_BASE}/admin/dle-images/${category}/portrait?character=${encodeURIComponent(characterId)}`,
   audit: (query: { userId?: string; cursor?: string } = {}) => {
     const params = new URLSearchParams()
     if (query.userId) params.set('userId', query.userId)

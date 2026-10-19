@@ -40,6 +40,10 @@ export function describeAction(entry: AdminAuditEntry, t: Dictionary): string {
       return copy.canvasBan(text(details.reason))
     case 'canvas_unban':
       return copy.canvasUnban
+    case 'dle_image_ban':
+      return copy.dleImageBan(text(details.character) ?? '?', text(details.category) ?? '?')
+    case 'dle_image_restore':
+      return copy.dleImageRestore(text(details.character) ?? '?', text(details.category) ?? '?')
     case 'moderate': {
       const fields = Array.isArray(details.fields) ? details.fields : []
       const labels = MODERATED_FIELDS.filter((field) => fields.includes(field)).map((field) => copy.fields[field])

@@ -1114,9 +1114,36 @@ describe('dle — images d’énigme belles et variées', () => {
     assert.ok([...seen].some((body) => /mix\/\d\.png$/.test(body)), 'une image du wiki parmi les énigmes')
     assert.ok([...seen].some((body) => /characters\/2\/3242[ab]l?\.jpg$/.test(body)), 'et une de la galerie MyAnimeList')
   })
-})
 
-describe('dle — Chiffon (nettoyeur d’écran)', () => {
+  it('une image bannie à la revue n’est plus jamais tirée comme énigme', async () => {
+    const { portraitSource, reviewKey } = await import('../src/modules/dle/dle.jikan.js')
+    mockedHosts.add('ban.fandom.com')
+    extraMocks.unshift((url) => {
+      if (url.hostname !== 'ban.fandom.com') return undefined
+      if (url.searchParams.get('generator') === 'images') {
+        const pages = Object.fromEntries(['Gogeta Art One.png', 'Gogeta Art Two.png'].map((title, index) => [index, { title: `File:${title}`, imageinfo: [{ thumburl: `https://static.wikia.nocookie.net/ban/${index}.png`, thumbwidth: 900, thumbheight: 600, width: 900, height: 1500 - index * 100, mime: 'image/png' }] }]))
+        return new Response(JSON.stringify({ query: { pages } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ query: { pages: {} } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    mockedHosts.add('static.wikia.nocookie.net')
+    extraMocks.unshift((url) => (url.hostname === 'static.wikia.nocookie.net' ? new Response(new Uint8Array(Buffer.concat([PORTRAIT_PNG, Buffer.from(url.pathname)])), { status: 200, headers: { 'Content-Type': 'image/png' } }) : undefined))
+    const banned = new Set([reviewKey('https://static.wikia.nocookie.net/ban/0.png')])
+    const source = portraitSource('Ban', [1], [], 'ban.fandom.com', [{ id: 'gogeta', name: 'Gogeta' }], { ready: async () => undefined, banned: (id, key) => id === 'gogeta' && banned.has(key) })
+    const character = { id: 'gogeta', name: 'Gogeta' }
+    assert.ok((await source.charactersWithPortrait()).has('gogeta'))
+    // Les images d'énigme se chargent en tâche de fond : on attend qu'elles soient là.
+    for (let tries = 0; tries < 60 && !source.peekCandidates(); tries += 1) await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.ok(source.peekCandidates()?.get('gogeta')?.length, 'images candidates chargées')
+    const seen = new Set<string>()
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']) seen.add((await source.puzzleImage(character, seed)).body.toString('latin1'))
+    assert.ok([...seen].every((body) => !/ban\/0\.png$/.test(body)), 'jamais l’image bannie')
+    assert.ok([...seen].some((body) => /ban\/1\.png$/.test(body)), 'l’autre image sert toujours')
+    // Les deux du wiki bannies : seules les autres sources (galerie MyAnimeList, portrait) servent encore.
+    banned.add(reviewKey('https://static.wikia.nocookie.net/ban/1.png'))
+    for (const seed of ['m', 'n', 'o', 'p']) assert.ok(!/ban\/[01]\.png$/.test((await source.puzzleImage(character, seed)).body.toString('latin1')), 'aucune image bannie')
+  })
+
   it('logique : part nettoyée, pénalité des erreurs, prime, classement', () => {
     assert.equal(logic.SWEEP_TILES, 768)
     assert.equal(logic.sweepDirt(0, 0), 0)
@@ -1132,7 +1159,9 @@ describe('dle — Chiffon (nettoyeur d’écran)', () => {
     ])
     assert.deepEqual(ranked.map((entry) => entry.id), ['lent-mais-propre', 'vite-mais-sale'])
   })
+})
 
+describe('dle — Chiffon (nettoyeur d’écran)', () => {
   it('énigme du jour : tuile par tuile, chaque tuile compte une fois, l’image entière seulement une fois trouvée', async () => {
     const dora = await account('dora-dle@example.com', 'Dora')
     const view = await dora.request('GET', '/dle/daily/naruto/sweep')

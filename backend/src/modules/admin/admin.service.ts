@@ -15,7 +15,7 @@ import { isAdminEmail } from './admin.access.js'
  * au journal (`AdminAction`) et chaque cadeau prévient le compte (notification).
  */
 
-export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end', 'canvas_remove', 'canvas_restore', 'canvas_purge', 'canvas_ban', 'canvas_unban'] as const
+export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end', 'canvas_remove', 'canvas_restore', 'canvas_purge', 'canvas_ban', 'canvas_unban', 'dle_image_ban', 'dle_image_restore'] as const
 export type AdminActionType = (typeof ADMIN_ACTIONS)[number]
 
 export interface Admin {

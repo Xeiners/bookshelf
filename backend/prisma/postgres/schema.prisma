@@ -768,3 +768,21 @@ model StackStats {
 
   @@index([best])
 }
+
+/// Revue admin des images d'énigme du BookshelfDLE : une image validée ou bannie, par univers et personnage.
+/// Une image bannie n'est plus jamais tirée comme énigme.
+model DleImageReview {
+  id          String   @id @default(cuid())
+  /// Univers (`naruto`, `onepiece`, `jojo`…).
+  category    String
+  characterId String
+  /// Clé stable de l'image : son chemin d'origine, sans taille ni paramètre.
+  imageKey    String
+  /// 'APPROVED' | 'BANNED'
+  status      String
+  reviewedBy  String
+  reviewedAt  DateTime @default(now())
+
+  @@unique([category, characterId, imageKey])
+  @@index([category, status])
+}

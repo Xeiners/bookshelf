@@ -343,6 +343,26 @@ export function largeOf(url: string): string {
   return url.replace(/(\/\d+)\.(jpe?g|webp|png)(\?.*)?$/i, '$1l.$2$3')
 }
 
+/**
+ * Clé stable d'une image d'énigme (celle de la revue admin) : son chemin d'origine, sans la taille
+ * demandée (MyAnimeList), ni la révision et les paramètres (Fandom), ni l'hôte de relais.
+ */
+export function reviewKey(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const path = parsed.pathname.split('/revision/')[0] ?? parsed.pathname
+    return `${parsed.hostname === MAL_HOST ? 'mal' : parsed.hostname === FANDOM_HOST ? 'fd' : parsed.hostname === ANILIST_HOST ? 'al' : parsed.hostname === KITSU_HOST ? 'ki' : parsed.hostname}:${path.replace(/[lt]?\.(jpe?g|webp|png)$/i, '')}`
+  } catch {
+    return url
+  }
+}
+
+/** Ce que la revue admin retire du tirage : les images bannies (prêtes une fois `ready()` résolu). */
+export interface Moderation {
+  ready: () => Promise<void>
+  banned: (characterId: string, key: string) => boolean
+}
+
 interface PortraitList {
   /** Id du personnage → adresse du portrait. */
   portraits: Map<string, string>
@@ -366,6 +386,15 @@ export interface PortraitSource {
    * Tant que ces images ne sont pas chargées, ou s'il y en a trop peu : ceux qui ont un portrait.
    */
   charactersWithPuzzleImage: () => Promise<Set<string>>
+  /**
+   * Toutes les images d'énigme candidates, par personnage (revue admin) ; `ready: false` tant
+   * qu'elles se chargent en tâche de fond (quelques minutes après un démarrage).
+   */
+  candidates: () => Promise<{ ready: boolean; images: ReadonlyMap<string, readonly string[]> }>
+  /** Les candidates déjà chargées, sans rien déclencher (`null` : pas encore chargées). */
+  peekCandidates: () => ReadonlyMap<string, readonly string[]> | null
+  /** Octets d'une image candidate, par sa clé ; 404 si elle n'est plus candidate ou refusée. */
+  candidateImage: (characterId: string, key: string) => Promise<CachedImage>
   /** Octets du portrait (relayés et en cache). 404 si le personnage n'en a pas. */
   portraitImage: (character: PortraitCharacter) => Promise<CachedImage>
   /**
@@ -399,6 +428,7 @@ export function portraitSource(
   kitsuIds: readonly number[],
   wikiHost: string,
   characters: readonly PortraitCharacter[],
+  moderation?: Moderation,
 ): PortraitSource {
   let list: PortraitList | null = null
   let expires = 0
@@ -617,13 +647,30 @@ export function portraitSource(
     charactersWithPortrait: async () => new Set((await portraits()).keys()),
     charactersWithPuzzleImage: async () => {
       const withPortrait = new Set((await portraits()).keys())
-      const ready = [...(alternates?.keys() ?? [])].filter((id) => withPortrait.has(id))
+      await moderation?.ready()
+      // Un personnage dont toutes les images sont bannies n'a plus d'image d'énigme.
+      const ready = [...(alternates?.entries() ?? [])]
+        .filter(([id, urls]) => withPortrait.has(id) && urls.some((url) => !moderation?.banned(id, reviewKey(url))))
+        .map(([id]) => id)
       return ready.length >= MIN_PUZZLE_CHARACTERS ? new Set(ready) : withPortrait
+    },
+    candidates: async () => {
+      // Le premier chargement dure (une requête Jikan par personnage, espacées) : on le lance en tâche de
+      // fond et on répond tout de suite, l'administration réessaie.
+      void portraits().catch(() => undefined)
+      return { ready: alternates !== null, images: new Map(alternates ?? []) }
+    },
+    peekCandidates: () => alternates,
+    candidateImage: async (characterId, key) => {
+      const url = (alternates?.get(characterId) ?? []).find((candidate) => reviewKey(candidate) === key)
+      if (!url) throw notFound('Image introuvable.')
+      return puzzleBytes.getOrLoad(url, () => fetchBeautiful(url))
     },
     portraitImage,
     puzzleImage: async (character, seed) => {
       await portraits()
-      const choices = (alternates?.get(character.id) ?? []).filter((url) => !rejected.has(url))
+      await moderation?.ready()
+      const choices = (alternates?.get(character.id) ?? []).filter((url) => !rejected.has(url) && !moderation?.banned(character.id, reviewKey(url)))
       // La graine fixe l'image de départ ; si elle est refusée, la suivante.
       const start = seedIndex(seed, choices.length)
       for (let step = 0; step < Math.min(choices.length, 4); step += 1) {

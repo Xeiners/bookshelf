@@ -4,7 +4,8 @@ import type { Rarity } from '../cards/boosters.logic.js'
 import { TtlCache } from '../../lib/cache.js'
 import { mangadexGet, type MdCollection } from '../manga/mangadex.client.js'
 import { loadCover, type CachedImage } from '../manga/manga.routes.js'
-import { portraitSource, seedIndex, type PortraitCharacter, type PortraitSource } from './dle.jikan.js'
+import { portraitSource, seedIndex, type Moderation, type PortraitCharacter, type PortraitSource } from './dle.jikan.js'
+import { isBanned, reviewsReady } from './dle.review.store.js'
 import { ATTRIBUTES, compareWorks, isImageMode, valuesOf, type AttributeFeedback, type DleCategory, type DleMode, type DleWork } from './dle.logic.js'
 import { dleWorks } from './dle.works.js'
 import { NARUTO_ATTRIBUTES, NARUTO_CHARACTERS, characterValues, compareCharacters } from './naruto.characters.js'
@@ -159,23 +160,26 @@ function characterGame<C extends PortraitCharacter>(
   }
 }
 
+/** Ce que la revue admin retire du tirage d'un univers : ses images bannies. */
+const moderationOf = (category: string): Moderation => ({ ready: reviewsReady, banned: (characterId, key) => isBanned(category, characterId, key) })
+
 /** Les séries de chaque univers sur MyAnimeList (Jikan) et Kitsu, et son wiki Fandom. */
-export const narutoPortraits = portraitSource('Naruto', [20, 1735], [11, 1555], 'naruto.fandom.com', NARUTO_CHARACTERS)
-export const onePiecePortraits = portraitSource('One Piece', [21], [12], 'onepiece.fandom.com', ONEPIECE_CHARACTERS)
+export const narutoPortraits = portraitSource('Naruto', [20, 1735], [11, 1555], 'naruto.fandom.com', NARUTO_CHARACTERS, moderationOf('naruto'))
+export const onePiecePortraits = portraitSource('One Piece', [21], [12], 'onepiece.fandom.com', ONEPIECE_CHARACTERS, moderationOf('onepiece'))
 /** JoJo : les six saisons de l'anime (parties 1 à 6) ; au-delà, la recherche par nom. */
-export const jojoPortraits = portraitSource('JoJo', [14719, 20899, 26055, 31933, 37991, 48661], [7158, 8063, 8739, 11459, 41410, 44294], 'jojo.fandom.com', JOJO_CHARACTERS)
+export const jojoPortraits = portraitSource('JoJo', [14719, 20899, 26055, 31933, 37991, 48661], [7158, 8063, 8739, 11459, 41410, 44294], 'jojo.fandom.com', JOJO_CHARACTERS, moderationOf('jojo'))
 /** Jujutsu Kaisen : les deux saisons de l'anime et le film Jujutsu Kaisen 0. */
-export const jjkPortraits = portraitSource('Jujutsu Kaisen', [40748, 51009, 48561], [42765, 45857, 44212], 'jujutsu-kaisen.fandom.com', JJK_CHARACTERS)
+export const jjkPortraits = portraitSource('Jujutsu Kaisen', [40748, 51009, 48561], [42765, 45857, 44212], 'jujutsu-kaisen.fandom.com', JJK_CHARACTERS, moderationOf('jjk'))
 /** Dragon Ball : Dragon Ball, Z et Super (le film Broly) ; Kitsu à part, le wiki et la recherche par nom en secours. */
-export const dragonBallPortraits = portraitSource('Dragon Ball', [813, 223, 30694, 36946], [], 'dragonball.fandom.com', DRAGONBALL_CHARACTERS)
+export const dragonBallPortraits = portraitSource('Dragon Ball', [813, 223, 30694, 36946], [], 'dragonball.fandom.com', DRAGONBALL_CHARACTERS, moderationOf('dragonball'))
 /** My Hero Academia : les saisons de l'anime, de la première à la septième. */
-export const mhaPortraits = portraitSource('My Hero Academia', [31964, 33486, 36456, 38408, 41587, 49918, 54789], [], 'myheroacademia.fandom.com', MHA_CHARACTERS)
+export const mhaPortraits = portraitSource('My Hero Academia', [31964, 33486, 36456, 38408, 41587, 49918, 54789], [], 'myheroacademia.fandom.com', MHA_CHARACTERS, moderationOf('mha'))
 /** L'Attaque des Titans : les quatre saisons de l'anime (la saison finale en deux parties et ses chapitres finaux). */
-export const aotPortraits = portraitSource('L’Attaque des Titans', [16498, 25777, 35760, 38524, 40028, 48583, 51535], [7442], 'attackontitan.fandom.com', AOT_CHARACTERS)
+export const aotPortraits = portraitSource('L’Attaque des Titans', [16498, 25777, 35760, 38524, 40028, 48583, 51535], [7442], 'attackontitan.fandom.com', AOT_CHARACTERS, moderationOf('aot'))
 /** Hunter × Hunter : l'anime de 2011 (l'élection et le Continent Noir viennent du manga). */
-export const hxhPortraits = portraitSource('Hunter × Hunter', [11061], [6642], 'hunterxhunter.fandom.com', HXH_CHARACTERS)
+export const hxhPortraits = portraitSource('Hunter × Hunter', [11061], [6642], 'hunterxhunter.fandom.com', HXH_CHARACTERS, moderationOf('hxh'))
 /** Fire Force : les saisons 1 à 3 de l'anime ; le wiki et la recherche par nom en secours. */
-export const fireForcePortraits = portraitSource('Fire Force', [38671, 40956, 51818], [], 'fire-force.fandom.com', FIREFORCE_CHARACTERS)
+export const fireForcePortraits = portraitSource('Fire Force', [38671, 40956, 51818], [], 'fire-force.fandom.com', FIREFORCE_CHARACTERS, moderationOf('fireforce'))
 
 const narutoGame = characterGame({
   category: 'naruto',
@@ -299,3 +303,16 @@ export function guessResult(game: DleGame, mode: DleMode, guess: DleEntity, answ
     values: mode === 'classic' ? game.values(guess) : null,
   }
 }
+
+/** Les univers de personnages (revue des images d'énigme) : leur nom, leurs personnages et leurs images. */
+export const REVIEW_UNIVERSES = {
+  naruto: { label: 'Naruto', portraits: narutoPortraits, characters: NARUTO_CHARACTERS },
+  onepiece: { label: 'One Piece', portraits: onePiecePortraits, characters: ONEPIECE_CHARACTERS },
+  jojo: { label: 'JoJo', portraits: jojoPortraits, characters: JOJO_CHARACTERS },
+  jjk: { label: 'Jujutsu Kaisen', portraits: jjkPortraits, characters: JJK_CHARACTERS },
+  dragonball: { label: 'Dragon Ball', portraits: dragonBallPortraits, characters: DRAGONBALL_CHARACTERS },
+  mha: { label: 'My Hero Academia', portraits: mhaPortraits, characters: MHA_CHARACTERS },
+  aot: { label: 'L’Attaque des Titans', portraits: aotPortraits, characters: AOT_CHARACTERS },
+  hxh: { label: 'Hunter × Hunter', portraits: hxhPortraits, characters: HXH_CHARACTERS },
+  fireforce: { label: 'Fire Force', portraits: fireForcePortraits, characters: FIREFORCE_CHARACTERS },
+} as const satisfies Record<Exclude<DleCategory, 'manga'>, { label: string; portraits: PortraitSource; characters: readonly PortraitCharacter[] }>

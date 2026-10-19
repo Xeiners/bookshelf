@@ -11,13 +11,14 @@ import { Pressable } from '../ui/Pressable'
 import { AccountAvatar } from './AccountAvatar'
 import { AdminAudit } from './AdminAudit'
 import { AdminCanvas } from './AdminCanvas'
+import { AdminDleImages } from './AdminDleImages'
 import { AdminPromotions } from './AdminPromotions'
 import { AdminUserPanel } from './AdminUserPanel'
 
 /** Au-delà de cette largeur : la liste à gauche, la fiche à droite. En dessous, la fiche passe par-dessus. */
 const WIDE = 900
 
-type Tab = 'users' | 'audit' | 'promos' | 'canvas'
+type Tab = 'users' | 'audit' | 'promos' | 'canvas' | 'images'
 
 /**
  * Administration, en plein écran (comptes de `ADMIN_EMAILS`) : chiffres clés,
@@ -71,7 +72,7 @@ export function AdminView() {
 
   return (
     <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.admin.title} className="fixed inset-0 z-[76] flex flex-col bg-void text-cream">
-      <header className="flex shrink-0 items-center gap-2 border-b border-white/5 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 border-b border-white/5 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5">
         <Pressable onClick={close} aria-label={t.admin.close} className="grid size-10 shrink-0 place-items-center rounded-full text-cream/85 hover:bg-white/10">
           <ArrowLeft size={20} />
         </Pressable>
@@ -90,6 +91,10 @@ export function AdminView() {
         ) : tab === 'canvas' ? (
           <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <AdminCanvas />
+          </div>
+        ) : tab === 'images' ? (
+          <div className="h-full overflow-hidden px-4 pt-4">
+            <AdminDleImages />
           </div>
         ) : tab === 'audit' ? (
           <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
@@ -134,7 +139,7 @@ export function AdminView() {
 function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
-  const tabs: Tab[] = ['users', 'promos', 'canvas', 'audit']
+  const tabs: Tab[] = ['users', 'promos', 'canvas', 'images', 'audit']
   useGSAP(
     () => {
       gsap.to('[data-tab-thumb]', { xPercent: tabs.indexOf(tab) * 100, duration: 0.35, ease: 'power3.out' })
@@ -142,8 +147,8 @@ function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }
     { scope: ref, dependencies: [tab] },
   )
   return (
-    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative grid shrink-0 grid-cols-4 rounded-full p-1">
-      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/4)] rounded-full bg-cream will-change-transform" />
+    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative order-last grid w-full shrink-0 grid-cols-5 rounded-full p-1 md:order-none md:w-auto">
+      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/5)] rounded-full bg-cream will-change-transform" />
       {tabs.map((value) => (
         <button
           key={value}
@@ -155,7 +160,7 @@ function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }
             vibrate(5)
             onChange(value)
           }}
-          className={`relative z-10 px-3.5 py-1.5 text-xs font-semibold transition-colors duration-300 ${tab === value ? 'text-void' : 'text-cream/70'}`}
+          className={`relative z-10 px-2.5 py-1.5 text-xs font-semibold transition-colors duration-300 md:px-3.5 ${tab === value ? 'text-void' : 'text-cream/70'}`}
         >
           {t.admin.tabs[value]}
         </button>

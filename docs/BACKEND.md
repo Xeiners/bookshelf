@@ -1235,6 +1235,19 @@ large que `MAX_PUZZLE_RATIO` (1,4) est écartée, au listage comme au téléchar
 Chez MyAnimeList, le grand format (`…/12l.jpg`) est tenté avant l'original ; une image dont le petit côté
 fait moins de 220 px est écartée (la suivante sert), le portrait en dernier recours.
 
+**Revue des images d'énigme** (administration, onglet « Images », `dle.review*.ts`, `DleImageReview`). Pour
+chaque univers de personnages, l'administrateur passe en revue les images candidates comme dans le mode
+Découverte : l'image en grand, le personnage en dessous ; **à droite on garde, à gauche on bannit**, avec
+annulation. Une image bannie n'est plus jamais tirée (`Moderation` passée à `portraitSource` : exclue du
+tirage, et un personnage dont toutes les images sont bannies n'a plus d'image d'énigme propre) ; une image
+validée n'est plus proposée à la revue. Une image se désigne par `reviewKey` (son chemin d'origine, sans taille
+ni révision), stable d'un rechargement à l'autre. Les verdicts sont lus une fois en mémoire puis tenus à jour.
+Routes (`/api/admin/dle-images`) : `GET /` (univers et avancement, sans rien charger), `GET /:category/queue`
+(prochaines images ; `ready: false` tant que les images se chargent en tâche de fond, quelques minutes après
+un démarrage), `GET /:category/image` et `/portrait` (relais), `POST /:category/review`
+(`approve` | `ban` | `clear`). Les bannissements et leurs annulations sont inscrits au journal.
+Tests : `backend/test/dle-review.test.ts` et `dle.test.ts`.
+
 Les noms se comparent par `nameKey` (romanisations : Hyuuga = Hyuga, Kuujou = Kujo, ordre indifférent) ;
 `mal` et `wiki` corrigent les cas particuliers. La liste est servie même périmée pendant qu'une
 nouvelle se charge en arrière-plan (24 h, ou 10 min si incomplète), les requêtes Jikan de tous les
