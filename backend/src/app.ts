@@ -4,6 +4,7 @@ import express, { type ErrorRequestHandler } from 'express'
 import { ZodError, z } from 'zod'
 import { config } from './core/config.js'
 import { HttpError } from './core/http/errors.js'
+import { securityHeaders } from './core/http/securityHeaders.js'
 import { authRouter } from './modules/auth/auth.routes.js'
 import { booksRouter } from './modules/books/books.routes.js'
 import { boostersRouter, cardsRouter } from './modules/cards/cards.routes.js'
@@ -40,6 +41,8 @@ export function createApp() {
   app.disable('x-powered-by')
   // Derrière un reverse proxy, `req.ip` doit refléter le client (limiteur de débit).
   app.set('trust proxy', config.trustProxy)
+
+  app.use(securityHeaders)
 
   // En dev le front passe par le proxy Vite (même origine) : CORS ne sert
   // qu'aux déploiements où le front est servi depuis une autre origine.
