@@ -1,9 +1,9 @@
-import { TtlCache } from '../../lib/cache.js'
-import type { Language } from '../../lib/language.js'
+import { TtlCache } from '../../core/infra/cache.js'
+import type { Language } from '../../core/util/language.js'
 import { sourceAggregator } from '../../extensions/index.js'
 import type { AggregatedList, AggregatedPages, SourceStatus } from '../../extensions/aggregator.js'
 import type { MergedChapter, Quality } from '../../extensions/types.js'
-import { officialPlatformsSoft, type OfficialPlatform } from './official.service.js'
+import { officialPlatformsSoft, type OfficialPlatform } from './official/official.service.js'
 
 export type { Quality }
 

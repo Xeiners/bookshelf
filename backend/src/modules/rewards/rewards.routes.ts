@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { REWARD_CHOICES, claimReward, pendingRewards } from './rewards.service.js'
 
 /** Monté sous `/api/rewards` : les récompenses de record à choisir (un compte). */

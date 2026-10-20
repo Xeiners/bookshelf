@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { prisma } from '../../db.js'
-import { HttpError, notFound } from '../../lib/errors.js'
+import { prisma } from '../../core/db.js'
+import { HttpError, notFound } from '../../core/http/errors.js'
 import { characterImageUrl } from '../dle/dle.games.js'
 import { isGuestId, signReceipt } from '../dle/dle.guests.js'
 import { parisDay } from '../dle/dle.logic.js'

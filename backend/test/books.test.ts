@@ -12,8 +12,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { strToU8, zipSync, type Zippable, type ZippableFile } from 'fflate'
-import { decideMatch } from '../src/modules/books/epub.match.js'
-import { InvalidEpubError, isbnOf, languageCode, parseEpub, plainText, sniffImage } from '../src/modules/books/epub.parser.js'
+import { decideMatch } from '../src/modules/books/epub/epub.match.js'
+import { InvalidEpubError, isbnOf, languageCode, parseEpub, plainText, sniffImage } from '../src/modules/books/epub/epub.parser.js'
 import {
   fromGoogle,
   fromOpenLibrary,
@@ -24,7 +24,7 @@ import {
   toBook,
   type GoogleVolume,
   type OpenLibraryDoc,
-} from '../src/modules/books/metadata.normalize.js'
+} from '../src/modules/books/metadata/metadata.normalize.js'
 import { favoriteGenres, isNovelId, novelShelfQuery, recentClause } from '../src/modules/books/novels.discover.js'
 import { extraMocks, mockedHosts, installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
@@ -419,7 +419,7 @@ extraMocks.push((url) => {
 })
 
 const { client, close } = await startServer()
-const { resetMetadataState } = await import('../src/modules/books/metadata.service.js')
+const { resetMetadataState } = await import('../src/modules/books/metadata/metadata.service.js')
 after(async () => {
   await close()
   rmSync(BOOKS_DIR, { recursive: true, force: true })
@@ -502,7 +502,7 @@ describe('POST /api/books/discover — deck « Romans »', () => {
   })
 
   it('genres du deck manga : les étagères de genre seulement, sans doublon', async () => {
-    const { deckGenres } = await import('../src/services/catalog.service.js')
+    const { deckGenres } = await import('../src/modules/catalog/catalog.service.js')
     assert.deepEqual(deckGenres(['romance', 'arts-martiaux', 'romance', 'pour-toi', 'tendances', 'inconnue']), [{ genre: 'Romance' }, { tag: 'Martial Arts' }])
     assert.deepEqual(deckGenres([]), [])
   })
@@ -681,7 +681,7 @@ describe('bibliothèque de romans (compte)', () => {
   })
 
   it('suppression : 204, fichiers effacés du disque, livre introuvable ensuite', async () => {
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     const row = await prisma.userBook.findUniqueOrThrow({ where: { id: bookId } })
     const stored = [row.filePath, row.coverPath!].map((file) => path.join(BOOKS_DIR, file))
     assert.ok(stored.every((file) => existsSync(file)))
@@ -800,7 +800,7 @@ describe('rattachement EPUB ↔ fiche de roman', () => {
   })
 
   it('import d’avant le rattachement : rapproché sans question (`auto`)', async () => {
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     const response = await uploadTo(null, novelEpub('Un hiver pour te r&#233;sister', 'Dernière Autrice', null))
     const { book } = await jsonOf(response)
     await prisma.userBook.update({ where: { id: book.id }, data: { workId: null } })

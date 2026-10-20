@@ -31,7 +31,7 @@ extraMocks.push((url) => {
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 
 const PASSWORD = 'motdepasse-test'
 const RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] as const

@@ -16,10 +16,10 @@ installMangadexMock()
 const { client, close, port } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
-const { world } = await import('../src/modules/canvas/canvas.world.js')
+const { prisma } = await import('../src/core/db.js')
+const { world } = await import('../src/modules/canvas/realtime/canvas.world.js')
 const { rolloverIfNeeded } = await import('../src/modules/canvas/canvas.seasons.js')
-const { config } = await import('../src/config.js')
+const { config } = await import('../src/core/config.js')
 
 type Account = TestClient & { userId: string }
 let counter = 0

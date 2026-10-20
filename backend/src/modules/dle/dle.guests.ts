@@ -1,9 +1,9 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import type { CookieOptions, NextFunction, Request, Response } from 'express'
-import { config } from '../../config.js'
-import { HttpError } from '../../lib/errors.js'
-import { SESSION_COOKIE } from '../../lib/session.js'
-import { authenticate } from '../../lib/sessionGuard.js'
+import { config } from '../../core/config.js'
+import { HttpError } from '../../core/http/errors.js'
+import { SESSION_COOKIE } from '../../core/security/session.js'
+import { authenticate } from '../../core/security/sessionGuard.js'
 
 /*
  * Invités du BookshelfDLE : sans compte, on peut jouer à plusieurs avec un simple

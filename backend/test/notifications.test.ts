@@ -13,7 +13,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const { MATCH_BURST } = await import('../src/modules/notifications/notifications.service.js')
 
 const CARDS = ['common-a', 'common-b', 'common-c', 'common-d', 'common-e', 'common-f', 'common-g', 'common-h'] as const

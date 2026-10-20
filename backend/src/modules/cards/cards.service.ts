@@ -1,8 +1,8 @@
-import { config } from '../../config.js'
-import { prisma } from '../../db.js'
+import { config } from '../../core/config.js'
+import { prisma } from '../../core/db.js'
 import type { Prisma } from '../../generated/prisma/client.js'
-import { HttpError, conflict, notFound } from '../../lib/errors.js'
-import { getPool, loadDocuments, type CatalogItem } from '../../services/catalog.service.js'
+import { HttpError, conflict, notFound } from '../../core/http/errors.js'
+import { getPool, loadDocuments, type CatalogItem } from '../catalog/catalog.service.js'
 import { normalizeManga } from '../manga/normalize.js'
 import {
   BOOSTER_INTERVAL_MS,
@@ -32,8 +32,8 @@ import {
   type SeriesChoice,
 } from './boosters.logic.js'
 import { GUEST_BOOSTERS, readGuestPacks, signGuestPack, type GuestPack } from './guestPacks.js'
-import { SERIES_2, seedSeries2 } from './series2.seed.js'
-import { SERIES_3_SIZE, ensureSeries3 } from './series3.seed.js'
+import { SERIES_2, seedSeries2 } from './seeds/series2.seed.js'
+import { SERIES_3_SIZE, ensureSeries3 } from './seeds/series3.seed.js'
 
 /*
  * Collection de cartes et boosters. Le serveur est l'unique horloge : le

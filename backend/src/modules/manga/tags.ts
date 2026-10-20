@@ -1,5 +1,5 @@
-import { TtlCache } from '../../lib/cache.js'
-import type { Language } from '../../lib/language.js'
+import { TtlCache } from '../../core/infra/cache.js'
+import type { Language } from '../../core/util/language.js'
 import { mangadexGet, type MdCollection, type MdTag } from './mangadex.client.js'
 
 /**

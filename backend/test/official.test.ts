@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { after, describe, it } from 'node:test'
-import { buildOfficialPlatforms, platformName, safeUrl } from '../src/modules/chapters/official.normalize.js'
+import { buildOfficialPlatforms, platformName, safeUrl } from '../src/modules/chapters/official/official.normalize.js'
 import { BILINGUAL } from './fixtures.js'
 import { extraMocks, installMangadexMock, prepareEnvironment, startServer, upstreamCalls } from './harness.js'
 

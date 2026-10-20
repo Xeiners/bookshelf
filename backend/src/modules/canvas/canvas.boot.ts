@@ -1,9 +1,9 @@
 import type { Server } from 'node:http'
-import { attachCanvasSocket } from './canvas.hub.js'
+import { attachCanvasSocket } from './realtime/canvas.hub.js'
 import { finalizeStaleSeasons, rolloverIfNeeded } from './canvas.seasons.js'
 import { watchInvitations } from './canvas.social.js'
-import { loadOccupancy, watchWorld } from './canvas.tiles.js'
-import { world } from './canvas.world.js'
+import { loadOccupancy, watchWorld } from './realtime/canvas.tiles.js'
+import { world } from './realtime/canvas.world.js'
 
 /*
  * Démarrage de la toile : la saison du mois, la table d'occupation des tuiles, les abonnements

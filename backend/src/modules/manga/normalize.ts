@@ -1,6 +1,6 @@
-import { config } from '../../config.js'
+import { config } from '../../core/config.js'
 import type { Book, BookKind } from '../books/book.schema.js'
-import { preferenceOrder, type Language } from '../../lib/language.js'
+import { preferenceOrder, type Language } from '../../core/util/language.js'
 import type { LocalizedString, MdManga } from './mangadex.client.js'
 import { tagLabel } from './tags.js'
 

@@ -1,5 +1,5 @@
 import type { Response } from 'express'
-import { HttpError, conflict, notFound } from '../../lib/errors.js'
+import { HttpError, conflict, notFound } from '../../core/http/errors.js'
 import type { Participant } from '../dle/dle.guests.js'
 import { roomCode } from '../dle/dle.logic.js'
 import { profileOf, type PlayerProfile } from '../dle/dle.rooms.js'

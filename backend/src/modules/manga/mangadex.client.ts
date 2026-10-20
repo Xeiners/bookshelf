@@ -1,5 +1,5 @@
-import { config } from '../../config.js'
-import { notFound, upstreamError } from '../../lib/errors.js'
+import { config } from '../../core/config.js'
+import { notFound, upstreamError } from '../../core/http/errors.js'
 
 export const MANGADEX_API = 'https://api.mangadex.org'
 export const MANGADEX_UPLOADS = 'https://uploads.mangadex.org'

@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { config } from '../../config.js'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
-import { rateLimit } from '../../middleware/rateLimit.js'
+import { config } from '../../core/config.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
+import { rateLimit } from '../../core/http/rateLimit.js'
 import { listNotifications, markRead, removeNotification } from './notifications.service.js'
 
 /** Monté sous `/api/notifications`. Réservé aux comptes : un invité n'a rien à recevoir. */

@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto'
-import { prisma } from '../../db.js'
-import { HttpError, badRequest, conflict, notFound } from '../../lib/errors.js'
+import { prisma } from '../../core/db.js'
+import { HttpError, badRequest, conflict, notFound } from '../../core/http/errors.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { publicAvatarUrl } from '../users/publicProfile.service.js'
 import { TITLE_IDS, type TitleId } from '../users/titles.js'

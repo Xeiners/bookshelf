@@ -1,6 +1,6 @@
-import { prisma } from '../../db.js'
+import { prisma } from '../../core/db.js'
 import type { Prisma } from '../../generated/prisma/client.js'
-import { HttpError, notFound } from '../../lib/errors.js'
+import { HttpError, notFound } from '../../core/http/errors.js'
 import { createNotification, type RecordRewardData } from '../notifications/notifications.service.js'
 import { WELCOME_GIFT_BOXES } from '../runner/runner.wardrobe.js'
 

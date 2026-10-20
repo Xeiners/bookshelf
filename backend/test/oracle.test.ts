@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { after, describe, it } from 'node:test'
 import { applyDraw, previousDay } from '../src/modules/oracle/streak.js'
 import { matchesPace, PACES } from '../src/modules/oracle/decks.js'
-import { hashString, seededRandom, shuffle } from '../src/lib/seeded.js'
+import { hashString, seededRandom, shuffle } from '../src/core/util/seeded.js'
 import { installMangadexMock, prepareEnvironment, startServer } from './harness.js'
 
 prepareEnvironment('oracle')

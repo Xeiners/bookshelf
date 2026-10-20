@@ -13,7 +13,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const { BOOSTER_PRICE } = await import('../src/modules/stardust/prices.js')
 const { BOX_PRICE, WELCOME_GIFT_BOXES } = await import('../src/modules/runner/runner.wardrobe.js')
 
@@ -114,7 +114,7 @@ describe('Récompenses de record', () => {
 
   it('le booster choisi rejoint la réserve', async () => {
     const tom = await account('Tom')
-    const { prisma: db } = await import('../src/db.js')
+    const { prisma: db } = await import('../src/core/db.js')
     const reward = await db.recordReward.create({ data: { userId: tom.userId, game: 'higher_lower', score: 12, previous: 9 } })
     const before = (await tom.request('GET', '/boosters/status')).body.available
     const claimed = await tom.request('POST', `/rewards/${reward.id}/claim`, { choice: 'booster' })

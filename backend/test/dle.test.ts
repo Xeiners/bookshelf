@@ -50,7 +50,7 @@ extraMocks.push((url) => {
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const logic = await import('../src/modules/dle/dle.logic.js')
 const rooms = await import('../src/modules/dle/dle.rooms.js')
 const { BOOSTER_PRICE } = await import('../src/modules/stardust/stardust.service.js')
@@ -441,8 +441,8 @@ describe('dle — salons', () => {
 
 describe('dle — Naruto', () => {
   it('logique : ensembles (affiliation, nature, rôle), arc de première apparition avec sens', async () => {
-    const { NARUTO_CHARACTERS, ARCS, compareCharacters } = await import('../src/modules/dle/naruto.characters.js')
-    const { nameKey } = await import('../src/modules/dle/dle.jikan.js')
+    const { NARUTO_CHARACTERS, ARCS, compareCharacters } = await import('../src/modules/dle/characters/naruto.characters.js')
+    const { nameKey } = await import('../src/modules/dle/portraits/portraits.source.js')
     const find = (id: string) => NARUTO_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareCharacters(find('sasuke'), find('naruto'))
     assert.equal(feedback.affiliation.verdict, 'partial')
@@ -542,7 +542,7 @@ describe('dle — Naruto', () => {
 
 describe('dle — One Piece', () => {
   it('logique : primes par paliers avec sens, fruits et haki par ensembles', async () => {
-    const { ONEPIECE_CHARACTERS, ONEPIECE_ARCS, bountyTier, compareOnePiece } = await import('../src/modules/dle/onepiece.characters.js')
+    const { ONEPIECE_CHARACTERS, ONEPIECE_ARCS, bountyTier, compareOnePiece } = await import('../src/modules/dle/characters/onepiece.characters.js')
     const find = (id: string) => ONEPIECE_CHARACTERS.find((character) => character.id === id)!
     assert.deepEqual([null, 1000, 100_000_000, 999_000_000, 1_000_000_000, 5_000_000_000].map(bountyTier), [0, 1, 2, 3, 4, 5])
     const feedback = compareOnePiece(find('zoro'), find('luffy'))
@@ -579,8 +579,8 @@ describe('dle — One Piece', () => {
 
 describe('dle — JoJo', () => {
   it('logique : pouvoirs par ensembles, partie avec sens ; romanisations de MyAnimeList', async () => {
-    const { JOJO_CHARACTERS, compareJojo } = await import('../src/modules/dle/jojo.characters.js')
-    const { nameKey } = await import('../src/modules/dle/dle.jikan.js')
+    const { JOJO_CHARACTERS, compareJojo } = await import('../src/modules/dle/characters/jojo.characters.js')
+    const { nameKey } = await import('../src/modules/dle/portraits/portraits.source.js')
     const find = (id: string) => JOJO_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareJojo(find('jotaro'), find('dio'))
     assert.equal(feedback.power.verdict, 'partial')
@@ -708,8 +708,8 @@ describe('dle — réglages de l’hôte', () => {
     assert.equal(onePiece.body.category, 'onepiece')
     assert.equal((await bastien.request('GET', `/dle/rooms/${code}`)).body.category, 'onepiece', 'les autres joueurs suivent')
 
-    const { ONEPIECE_CHARACTERS } = await import('../src/modules/dle/onepiece.characters.js')
-    const { JJK_CHARACTERS } = await import('../src/modules/dle/jjk.characters.js')
+    const { ONEPIECE_CHARACTERS } = await import('../src/modules/dle/characters/onepiece.characters.js')
+    const { JJK_CHARACTERS } = await import('../src/modules/dle/characters/jjk.characters.js')
     await alice.request('POST', `/dle/rooms/${code}/start`)
     assert.ok(ONEPIECE_CHARACTERS.some((character) => character.id === rooms.roomAnswerForTests(code)), 'la réponse vient de One Piece')
     assert.equal((await alice.request('POST', `/dle/rooms/${code}/settings`, { category: 'jjk' })).body.error.code, 'room_started', 'pas en pleine manche')
@@ -819,8 +819,8 @@ describe('dle — Pixels', () => {
 
 describe('dle — Jujutsu Kaisen', () => {
   it('logique : grades et arcs ordonnés avec sens, affiliations par ensembles ; romanisations', async () => {
-    const { JJK_CHARACTERS, JJK_ARCS, compareJjk } = await import('../src/modules/dle/jjk.characters.js')
-    const { nameKey } = await import('../src/modules/dle/dle.jikan.js')
+    const { JJK_CHARACTERS, JJK_ARCS, compareJjk } = await import('../src/modules/dle/characters/jjk.characters.js')
+    const { nameKey } = await import('../src/modules/dle/portraits/portraits.source.js')
     const find = (id: string) => JJK_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareJjk(find('megumi'), find('maki'))
     assert.equal(feedback.affiliation.verdict, 'exact', 'Tokyo et le clan Zen’in, tous les deux')
@@ -849,8 +849,8 @@ describe('dle — Jujutsu Kaisen', () => {
 
 describe('dle — Dragon Ball et My Hero Academia', () => {
   it('logique Dragon Ball : transformations et affiliations par ensembles, sagas ordonnées avec sens', async () => {
-    const { DRAGONBALL_CHARACTERS, DRAGONBALL_SAGAS, compareDragonBall } = await import('../src/modules/dle/dragonball.characters.js')
-    const { nameKey } = await import('../src/modules/dle/dle.jikan.js')
+    const { DRAGONBALL_CHARACTERS, DRAGONBALL_SAGAS, compareDragonBall } = await import('../src/modules/dle/characters/dragonball.characters.js')
+    const { nameKey } = await import('../src/modules/dle/portraits/portraits.source.js')
     const find = (id: string) => DRAGONBALL_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareDragonBall(find('vegeta'), find('goku'))
     assert.equal(feedback.race.verdict, 'exact')
@@ -867,8 +867,8 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
   })
 
   it('logique My Hero Academia : type d’Alter, statut, arcs ordonnés avec sens', async () => {
-    const { MHA_CHARACTERS, MHA_ARCS, compareMha } = await import('../src/modules/dle/mha.characters.js')
-    const { nameKey } = await import('../src/modules/dle/dle.jikan.js')
+    const { MHA_CHARACTERS, MHA_ARCS, compareMha } = await import('../src/modules/dle/characters/mha.characters.js')
+    const { nameKey } = await import('../src/modules/dle/portraits/portraits.source.js')
     const find = (id: string) => MHA_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareMha(find('bakugo'), find('deku'))
     assert.equal(feedback.affiliation.verdict, 'exact')
@@ -886,7 +886,7 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
   })
 
   it('My Hero Academia : cheveux et taille départagent ; aucun personnage n’a le même profil qu’un autre', async () => {
-    const { MHA_CHARACTERS, MHA_ATTRIBUTES, compareMha } = await import('../src/modules/dle/mha.characters.js')
+    const { MHA_CHARACTERS, MHA_ATTRIBUTES, compareMha } = await import('../src/modules/dle/characters/mha.characters.js')
     const find = (id: string) => MHA_CHARACTERS.find((character) => character.id === id)!
     // Tous deux blonds, en Seconde A, émetteurs : la taille les sépare (172 cm contre 168 cm).
     const feedback = compareMha(find('aoyama'), find('bakugo'))
@@ -942,7 +942,7 @@ describe('dle — Dragon Ball et My Hero Academia', () => {
 
 describe('dle — L’Attaque des Titans et Hunter × Hunter', () => {
   it('Attaque des Titans : colonnes, Titans comparés comme des ensembles, arcs ordonnés', async () => {
-    const { AOT_CHARACTERS, AOT_ARCS, AOT_ATTRIBUTES, compareAot } = await import('../src/modules/dle/aot.characters.js')
+    const { AOT_CHARACTERS, AOT_ARCS, AOT_ATTRIBUTES, compareAot } = await import('../src/modules/dle/characters/aot.characters.js')
     const find = (id: string) => AOT_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareAot(find('reiner'), find('bertholdt'))
     assert.equal(feedback.affiliation.verdict, 'exact', 'même cellule de guerriers infiltrés')
@@ -961,7 +961,7 @@ describe('dle — L’Attaque des Titans et Hunter × Hunter', () => {
   })
 
   it('Hunter × Hunter : types de Nen, Brigade fantôme et arcs ordonnés', async () => {
-    const { HXH_CHARACTERS, HXH_ARCS, HXH_ATTRIBUTES, compareHxh } = await import('../src/modules/dle/hxh.characters.js')
+    const { HXH_CHARACTERS, HXH_ARCS, HXH_ATTRIBUTES, compareHxh } = await import('../src/modules/dle/characters/hxh.characters.js')
     const find = (id: string) => HXH_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareHxh(find('gon'), find('killua'))
     assert.equal(feedback.nen.verdict, 'wrong', 'renforcement ≠ transformation')
@@ -978,7 +978,7 @@ describe('dle — L’Attaque des Titans et Hunter × Hunter', () => {
   })
 
   it('Fire Force : générations de pyrokinésistes, Vêtus de Blanc et saisons ordonnées', async () => {
-    const { FIREFORCE_CHARACTERS, FIREFORCE_ARCS, FIREFORCE_ATTRIBUTES, compareFireForce } = await import('../src/modules/dle/fireforce.characters.js')
+    const { FIREFORCE_CHARACTERS, FIREFORCE_ARCS, FIREFORCE_ATTRIBUTES, compareFireForce } = await import('../src/modules/dle/characters/fireforce.characters.js')
     const find = (id: string) => FIREFORCE_CHARACTERS.find((character) => character.id === id)!
     const feedback = compareFireForce(find('shinra'), find('arthur'))
     assert.equal(feedback.affiliation.verdict, 'exact', 'Compagnie 8 et Académie')
@@ -1008,7 +1008,7 @@ describe('dle — L’Attaque des Titans et Hunter × Hunter', () => {
 
 describe('dle — images d’énigme', () => {
   it('un personnage absent de la liste de l’anime : fiche MyAnimeList retrouvée par recherche, énigme ≠ vignette', async () => {
-    const { portraitSource } = await import('../src/modules/dle/dle.jikan.js')
+    const { portraitSource } = await import('../src/modules/dle/portraits/portraits.source.js')
     const source = portraitSource('Test', [1], [], 'dragonball.fandom.com', [{ id: 'gogeta', name: 'Gogeta' }])
     const character = { id: 'gogeta', name: 'Gogeta' }
     assert.ok((await source.charactersWithPortrait()).has('gogeta'))
@@ -1027,7 +1027,7 @@ describe('dle — images d’énigme', () => {
 
 describe('dle — images d’énigme belles et variées', () => {
   it('grand format MyAnimeList : « …/12.jpg » devient « …/12l.jpg », les autres hôtes ne bougent pas', async () => {
-    const { largeOf } = await import('../src/modules/dle/dle.jikan.js')
+    const { largeOf } = await import('../src/modules/dle/portraits/portraits.source.js')
     assert.equal(largeOf('https://cdn.myanimelist.net/images/characters/3/12345.jpg'), 'https://cdn.myanimelist.net/images/characters/3/12345l.jpg')
     assert.equal(largeOf('https://cdn.myanimelist.net/images/characters/3/12345.webp?s=abc'), 'https://cdn.myanimelist.net/images/characters/3/12345l.webp?s=abc')
     assert.equal(largeOf('https://cdn.myanimelist.net/images/characters/3/12345l.jpg'), 'https://cdn.myanimelist.net/images/characters/3/12345l.jpg')
@@ -1035,7 +1035,7 @@ describe('dle — images d’énigme belles et variées', () => {
   })
 
   it('galerie du wiki : seules les grandes images qui portent le nom du personnage, les plus grandes d’abord', async () => {
-    const { wikiGallery } = await import('../src/modules/dle/dle.jikan.js')
+    const { wikiGallery } = await import('../src/modules/dle/portraits/portraits.source.js')
     mockedHosts.add('gallery.fandom.com')
     const image = (title: string, width: number, height: number, mime = 'image/png') => ({
       title: `File:${title}`,
@@ -1068,7 +1068,7 @@ describe('dle — images d’énigme belles et variées', () => {
   })
 
   it('un fichier de wiki doit être « à lui » : son nom propre, aucun autre personnage, pas de scène à plusieurs', async () => {
-    const { wikiFileFits } = await import('../src/modules/dle/dle.jikan.js')
+    const { wikiFileFits } = await import('../src/modules/dle/portraits/portraits.source.js')
     const roster = [
       { id: 'shikamaru', name: 'Shikamaru Nara' },
       { id: 'shikaku', name: 'Shikaku Nara' },
@@ -1088,7 +1088,7 @@ describe('dle — images d’énigme belles et variées', () => {
   })
 
   it('les images d’énigme alternent les sources et ne reprennent jamais la vignette', async () => {
-    const { portraitSource } = await import('../src/modules/dle/dle.jikan.js')
+    const { portraitSource } = await import('../src/modules/dle/portraits/portraits.source.js')
     mockedHosts.add('mix.fandom.com')
     extraMocks.unshift((url) => {
       if (url.hostname !== 'mix.fandom.com') return undefined
@@ -1116,7 +1116,7 @@ describe('dle — images d’énigme belles et variées', () => {
   })
 
   it('une image bannie à la revue n’est plus jamais tirée comme énigme', async () => {
-    const { portraitSource, reviewKey } = await import('../src/modules/dle/dle.jikan.js')
+    const { portraitSource, reviewKey } = await import('../src/modules/dle/portraits/portraits.source.js')
     mockedHosts.add('ban.fandom.com')
     extraMocks.unshift((url) => {
       if (url.hostname !== 'ban.fandom.com') return undefined

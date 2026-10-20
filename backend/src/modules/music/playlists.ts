@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { prisma } from '../../db.js'
+import { prisma } from '../../core/db.js'
 
 /*
  * Playlists de musique d'ambiance d'un compte, synchronisées entre ses

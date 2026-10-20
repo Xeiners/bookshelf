@@ -1,8 +1,8 @@
-import { prisma } from '../../db.js'
-import { TtlCache } from '../../lib/cache.js'
-import { notFound } from '../../lib/errors.js'
+import { prisma } from '../../core/db.js'
+import { TtlCache } from '../../core/infra/cache.js'
+import { notFound } from '../../core/http/errors.js'
 import type { CachedImage } from '../manga/manga.routes.js'
-import { ART_HOSTS } from './series3.seed.js'
+import { ART_HOSTS } from './seeds/series3.seed.js'
 
 /*
  * Portraits des cartes de la Série 3, relayés depuis MyAnimeList (ou AniList) : agrandis (×2, Lanczos,

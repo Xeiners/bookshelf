@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { BASE_SLOT_RATES, HIGH_RARITY_SLOT_RATES, RARITIES, WILDCARD_SLOT_RATES } from '../src/modules/cards/boosters.logic.js'
-import { CONVERTIBLE_RARITIES, DUPLICATE_VALUE, convertibleCopies } from '../src/modules/cards/duplicates.logic.js'
+import { CONVERTIBLE_RARITIES, DUPLICATE_VALUE, convertibleCopies } from '../src/modules/cards/duplicates/duplicates.logic.js'
 import { BOOSTER_PRICE } from '../src/modules/stardust/prices.js'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
@@ -15,7 +15,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 
 const CARDS = [
   { id: 'c1', rarity: 'COMMON' },

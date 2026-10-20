@@ -1,7 +1,7 @@
-import { config } from '../../config.js'
-import { TtlCache } from '../../lib/cache.js'
-import { HttpError, notFound, upstreamError } from '../../lib/errors.js'
-import type { Language } from '../../lib/language.js'
+import { config } from '../../core/config.js'
+import { TtlCache } from '../../core/infra/cache.js'
+import { HttpError, notFound, upstreamError } from '../../core/http/errors.js'
+import type { Language } from '../../core/util/language.js'
 import {
   BROWSER_UA,
   REGION,

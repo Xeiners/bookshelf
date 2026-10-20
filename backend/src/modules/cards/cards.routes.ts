@@ -1,13 +1,13 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { config } from '../../config.js'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
-import { rateLimit } from '../../middleware/rateLimit.js'
+import { config } from '../../core/config.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
+import { rateLimit } from '../../core/http/rateLimit.js'
 import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
 import { characterArt } from './cards.art.js'
-import { CONVERTIBLE_RARITIES, MAX_CONVERT_CARDS } from './duplicates.logic.js'
-import { convertDuplicates, duplicatesOf } from './duplicates.service.js'
+import { CONVERTIBLE_RARITIES, MAX_CONVERT_CARDS } from './duplicates/duplicates.logic.js'
+import { convertDuplicates, duplicatesOf } from './duplicates/duplicates.service.js'
 import { GIFT_MESSAGE_MAX, SHARE_MAX_CARDS, SHARE_MAX_RECIPIENTS, shareCards } from '../trades/trades.service.js'
 
 /*

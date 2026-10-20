@@ -75,7 +75,7 @@ Sans Docker, `npm run dev` fonctionne toujours tel quel, sur **SQLite** : rien �
 | Client généré | `src/generated/prisma` | `src/generated/prisma-pg` |
 
 `DATABASE_URL` choisit tout : `file:…` → SQLite, `postgres(ql)://…` →
-PostgreSQL (`prisma.config.ts` pour la CLI, `src/db.ts` pour l'API, qui charge
+PostgreSQL (`prisma.config.ts` pour la CLI, `src/core/db.ts` pour l'API, qui charge
 client et adaptateur à la demande : l'image n'embarque pas le pilote SQLite natif).
 
 **Faire évoluer le schéma** :

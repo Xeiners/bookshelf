@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { config } from '../../config.js'
+import { config } from '../../core/config.js'
 import { MAX_ALTERNATES } from '../../extensions/aggregator.js'
 import { decodeChapterKey, MANGADEX_SOURCE_ID } from '../../extensions/chapterKey.js'
 import { sourceAggregator } from '../../extensions/index.js'
-import { badRequest, upstreamError } from '../../lib/errors.js'
-import { toWebp, wantsWebp } from '../../lib/webp.js'
+import { badRequest, upstreamError } from '../../core/http/errors.js'
+import { toWebp, wantsWebp } from '../../core/infra/webp.js'
 import { relayImage } from './proxy.fetch.js'
 
 /**

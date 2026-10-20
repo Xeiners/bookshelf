@@ -1,6 +1,6 @@
-import { prisma } from '../src/db.js'
+import { prisma } from '../src/core/db.js'
 import { SET_LAYOUT } from '../src/modules/cards/boosters.logic.js'
-import { seedSeries2 } from '../src/modules/cards/series2.seed.js'
+import { seedSeries2 } from '../src/modules/cards/seeds/series2.seed.js'
 
 try {
   const result = await seedSeries2()

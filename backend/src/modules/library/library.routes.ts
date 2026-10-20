@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { LibrarySnapshotSchema, PatchEntrySchema, ProgressSchema, SwipeSchema } from './library.schemas.js'
 import {
   applySwipe,

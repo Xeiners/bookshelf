@@ -1,5 +1,5 @@
-import { prisma } from '../src/db.js'
-import { SERIES_3_SIZE, enrichSeries3, seedSeries3 } from '../src/modules/cards/series3.seed.js'
+import { prisma } from '../src/core/db.js'
+import { SERIES_3_SIZE, enrichSeries3, seedSeries3 } from '../src/modules/cards/seeds/series3.seed.js'
 
 /* Série 3 à la main : le classement des 1 200 personnages, puis leurs œuvres (≈ 20 min). */
 try {

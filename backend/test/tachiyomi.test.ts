@@ -544,7 +544,7 @@ const T = (raw: string) => encodeChapterKey('tachiyomi', raw)
 
 describe('GET /api/manga/:id/chapters — extensions Tachiyomi', () => {
   it('délai d’un appel au pont : 3 s par défaut', async () => {
-    const { config } = await import('../src/config.js')
+    const { config } = await import('../src/core/config.js')
     assert.equal(config.sources.tachiyomi.timeoutMs, 3_000)
     assert.equal(config.sources.tachiyomi.baseUrl, 'http://suwayomi:4567')
   })

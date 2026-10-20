@@ -6,7 +6,7 @@
  * extensions voulues dans `TACHIYOMI_EXTENSIONS` (installées au démarrage,
  * en tâche de fond), ou on les gère à la main avec la CLI (`tachiyomi.cli.ts`).
  */
-import type { Language } from '../../lib/language.js'
+import type { Language } from '../../core/util/language.js'
 import type { ProviderLog } from './http.js'
 import type { BridgeExtension, SuwayomiClient } from './suwayomi.client.js'
 

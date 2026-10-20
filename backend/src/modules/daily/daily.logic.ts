@@ -1,4 +1,4 @@
-import { pick, seededRandom } from '../../lib/seeded.js'
+import { pick, seededRandom } from '../../core/util/seeded.js'
 
 /*
  * Récompense quotidienne : un calendrier de 30 jours. Chaque jour (de minuit à 23 h 59, heure

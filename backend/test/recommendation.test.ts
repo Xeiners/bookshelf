@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { MdManga } from '../src/modules/manga/mangadex.client.js'
-import type { WorkStatistics } from '../src/services/catalog.service.js'
+import type { WorkStatistics } from '../src/modules/catalog/catalog.service.js'
 import {
   DISCOVERY_EVERY,
   LIKE_DELTA,
@@ -16,7 +16,7 @@ import {
   type Candidate,
   type TasteProfile,
   type WorkFeatures,
-} from '../src/services/recommendation/scoring.js'
+} from '../src/modules/catalog/recommendation/scoring.js'
 import { BILINGUAL, catalogManga } from './fixtures.js'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
@@ -253,7 +253,7 @@ describe('deck — catalogue MangaDex (intégration)', () => {
   let guest: TestClient
 
   before(async () => {
-    const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
+    const { upsertWorks, reloadPool } = await import('../src/modules/catalog/catalog.service.js')
     await upsertWorks([work(BILINGUAL), ...ACTION_WORKS, ...ROMANCE_WORKS, ...MANHWA_WORKS, ...HIDDEN], statistics)
     await reloadPool()
     guest = client()
@@ -331,7 +331,7 @@ describe('deck — catalogue MangaDex (intégration)', () => {
   it('compte : chaque swipe met à jour le profil (+3 / -2) et « Retour » l’annule', async () => {
     const account = client()
     await account.signUp({ email: `reco-${Date.now()}@example.com`, password: 'motdepasse-test' })
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     const me = (await account.request('GET', '/auth/me')).body.user
     const scores = async () =>
       JSON.parse((await prisma.userPreference.findUnique({ where: { userId: me.id } }))?.scores ?? '{"genres":{},"tags":{}}')

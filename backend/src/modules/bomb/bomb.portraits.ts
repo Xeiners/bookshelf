@@ -1,7 +1,7 @@
-import { TtlCache } from '../../lib/cache.js'
-import { notFound } from '../../lib/errors.js'
+import { TtlCache } from '../../core/infra/cache.js'
+import { notFound } from '../../core/http/errors.js'
 import { characterOf } from '../dle/dle.games.js'
-import { searchPortrait, serial, type PortraitCharacter } from '../dle/dle.jikan.js'
+import { searchPortrait, serial, type PortraitCharacter } from '../dle/portraits/portraits.source.js'
 import type { CachedImage } from '../manga/manga.routes.js'
 
 /*

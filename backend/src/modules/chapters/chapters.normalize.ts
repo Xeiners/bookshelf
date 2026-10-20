@@ -1,4 +1,4 @@
-import type { Language } from '../../lib/language.js'
+import type { Language } from '../../core/util/language.js'
 import type { MdChapter } from './chapters.client.js'
 
 /** Chapitre tel que le lecteur du front le consomme. */

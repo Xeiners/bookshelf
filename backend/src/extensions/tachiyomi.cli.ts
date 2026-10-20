@@ -8,8 +8,8 @@
  * En production (image Docker) :
  *   docker compose exec backend node dist/extensions/tachiyomi.cli.js extensions fr
  */
-import { config } from '../config.js'
-import { LANGUAGES, type Language } from '../lib/language.js'
+import { config } from '../core/config.js'
+import { LANGUAGES, type Language } from '../core/util/language.js'
 import { createSuwayomiClient } from './providers/suwayomi.client.js'
 import { createTachiyomiBridgeProvider } from './providers/tachiyomiBridge.provider.js'
 import { ensureExtensions, extensionsForLanguages } from './providers/tachiyomiExtensions.js'

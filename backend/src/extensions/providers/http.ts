@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { HttpError, upstreamError } from '../../lib/errors.js'
+import { HttpError, upstreamError } from '../../core/http/errors.js'
 
 const TIMEOUT_MS = 10_000
 

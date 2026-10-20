@@ -1,4 +1,4 @@
-import { config } from '../../config.js'
+import { config } from '../../core/config.js'
 import { mangadexGet, type MdCollection, type MdRelationship } from '../manga/mangadex.client.js'
 
 /* ---- Types de réponse (sous-ensemble utilisé) --------------------------- */

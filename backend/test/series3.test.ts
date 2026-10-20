@@ -48,8 +48,8 @@ extraMocks.push((url, init) => {
 
 const { close, base } = await startServer()
 after(close)
-const { prisma } = await import('../src/db.js')
-const series3 = await import('../src/modules/cards/series3.seed.js')
+const { prisma } = await import('../src/core/db.js')
+const series3 = await import('../src/modules/cards/seeds/series3.seed.js')
 const logic = await import('../src/modules/cards/boosters.logic.js')
 
 describe('série 3 — personnages', () => {

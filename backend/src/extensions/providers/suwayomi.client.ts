@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { upstreamError } from '../../lib/errors.js'
+import { upstreamError } from '../../core/http/errors.js'
 import { getJson, type ProviderLog } from './http.js'
 
 /**

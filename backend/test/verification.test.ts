@@ -7,8 +7,8 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
-const { outbox } = await import('../src/lib/mailer.js')
+const { prisma } = await import('../src/core/db.js')
+const { outbox } = await import('../src/core/infra/mailer.js')
 
 let counter = 0
 const newEmail = () => `verif-${Date.now()}-${(counter += 1)}@example.com`

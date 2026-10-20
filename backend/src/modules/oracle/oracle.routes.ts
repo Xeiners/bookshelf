@@ -1,9 +1,9 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { prisma } from '../../db.js'
-import { badRequest, unauthorized } from '../../lib/errors.js'
-import { LangQuerySchema } from '../../lib/language.js'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
+import { prisma } from '../../core/db.js'
+import { badRequest, unauthorized } from '../../core/http/errors.js'
+import { LangQuerySchema } from '../../core/util/language.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { drawForSeed } from './oracle.service.js'
 import { DAY_PATTERN, applyDraw } from './streak.js'
 

@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto'
-import { HttpError, conflict } from '../../lib/errors.js'
+import { HttpError, conflict } from '../../core/http/errors.js'
 import { roomCode } from '../dle/dle.logic.js'
 import { profileOf, type PlayerProfile } from '../dle/dle.rooms.js'
 import { isGuestId, type Participant } from '../dle/dle.guests.js'

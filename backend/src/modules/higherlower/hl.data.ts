@@ -1,4 +1,4 @@
-import { ONEPIECE_CHARACTERS } from '../dle/onepiece.characters.js'
+import { ONEPIECE_CHARACTERS } from '../dle/characters/onepiece.characters.js'
 
 /*
  * Cartes du Higher or Lower, par métrique. Valeurs rédigées à la main :

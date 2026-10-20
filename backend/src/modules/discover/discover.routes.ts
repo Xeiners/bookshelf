@@ -1,11 +1,11 @@
 import { Router, type Request } from 'express'
 import { z } from 'zod'
-import { LangQuerySchema } from '../../lib/language.js'
-import { optionalAuth } from '../../middleware/auth.js'
-import { browseCatalog, browseMangadex, genreFacets } from '../../services/browse.service.js'
-import { composeDeck } from '../../services/catalog.service.js'
-import { getProfile, profileFromHistory, seenIds } from '../../services/recommendation/preference.service.js'
-import type { TasteProfile } from '../../services/recommendation/scoring.js'
+import { LangQuerySchema } from '../../core/util/language.js'
+import { optionalAuth } from '../../core/http/auth.js'
+import { browseCatalog, browseMangadex, genreFacets } from '../catalog/browse.service.js'
+import { composeDeck } from '../catalog/catalog.service.js'
+import { getProfile, profileFromHistory, seenIds } from '../catalog/recommendation/preference.service.js'
+import type { TasteProfile } from '../catalog/recommendation/scoring.js'
 
 const WorkId = z.string().min(1).max(128)
 

@@ -1,6 +1,6 @@
-import { config } from '../../config.js'
-import { TtlCache } from '../../lib/cache.js'
-import { notFound, upstreamError } from '../../lib/errors.js'
+import { config } from '../../core/config.js'
+import { TtlCache } from '../../core/infra/cache.js'
+import { notFound, upstreamError } from '../../core/http/errors.js'
 import type { NormalizedPage, Quality } from '../../extensions/types.js'
 import { fetchAtHome, fetchPageImage, type FetchedImage, type MdAtHome } from './chapters.client.js'
 

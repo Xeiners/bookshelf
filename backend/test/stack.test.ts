@@ -12,7 +12,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const logic = await import('../src/modules/stack/stack.logic.js')
 
 type Account = TestClient & { userId: string }

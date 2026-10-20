@@ -1,4 +1,4 @@
-import type { Language } from '../../lib/language.js'
+import type { Language } from '../../core/util/language.js'
 
 /**
  * Origine éditoriale, déduite de la langue originale sur MangaDex :

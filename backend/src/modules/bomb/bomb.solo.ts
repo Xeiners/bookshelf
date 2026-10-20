@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { notFound } from '../../lib/errors.js'
+import { notFound } from '../../core/http/errors.js'
 import { checkWord, lexiconOf, type BombMode, type Lexicon, type WordVerdict } from './bomb.dictionary.js'
 import { LIVES, fuseMs, pickSyllable, rememberSyllable, soloReward, timing } from './bomb.logic.js'
 import { settleGame, type BombReward } from './bomb.stats.js'

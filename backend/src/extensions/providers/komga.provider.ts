@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { LANGUAGES, type Language } from '../../lib/language.js'
+import { LANGUAGES, type Language } from '../../core/util/language.js'
 import type { NormalizedChapter, SourceProvider } from '../types.js'
 import { getJson, providerLogger, type ProviderLog } from './http.js'
 import { createSeriesResolver, isNumberingOnly, libraryDate, originImageFetcher } from './library.js'

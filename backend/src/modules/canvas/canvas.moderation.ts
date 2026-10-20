@@ -1,9 +1,9 @@
-import { prisma } from '../../db.js'
-import { conflict, notFound } from '../../lib/errors.js'
+import { prisma } from '../../core/db.js'
+import { conflict, notFound } from '../../core/http/errors.js'
 import { record, type Admin } from '../admin/admin.service.js'
 import { createNotification } from '../notifications/notifications.service.js'
-import { onlineCount, refreshAccess, silence } from './canvas.hub.js'
-import { world } from './canvas.world.js'
+import { onlineCount, refreshAccess, silence } from './realtime/canvas.hub.js'
+import { world } from './realtime/canvas.world.js'
 
 /*
  * Modération de la toile par l'administration : la file des signalements, effacer ou rendre

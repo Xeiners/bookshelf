@@ -30,8 +30,8 @@ import {
   slotRates,
   type Rarity,
 } from '../src/modules/cards/boosters.logic.js'
-import { seededRandom } from '../src/lib/seeded.js'
-import type { WorkStatistics } from '../src/services/catalog.service.js'
+import { seededRandom } from '../src/core/util/seeded.js'
+import type { WorkStatistics } from '../src/modules/catalog/catalog.service.js'
 import { catalogManga } from './fixtures.js'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
@@ -41,7 +41,7 @@ const { client, close } = await startServer()
 after(close)
 // Import dynamique : un import statique chargerait `db.js` (donc la config) AVANT
 // `prepareEnvironment`, et le test tournerait sur la base de développement.
-const { TOTAL_CARD_COUNT } = await import('../src/modules/cards/series2.seed.js')
+const { TOTAL_CARD_COUNT } = await import('../src/modules/cards/seeds/series2.seed.js')
 
 const HOUR = 60 * 60 * 1000
 const T0 = new Date('2026-09-28T12:00:00Z')
@@ -291,14 +291,14 @@ describe('API — collection pas encore prête', () => {
 
 describe('API — boosters et collection', () => {
   before(async () => {
-    const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
+    const { upsertWorks, reloadPool } = await import('../src/modules/catalog/catalog.service.js')
     await upsertWorks(WORKS, statistics)
     await reloadPool()
   })
 
   it('agrandir le set : les cartes existantes gardent leur identité et leur rareté, l’album est renuméroté', async () => {
     const { growCardSet } = await import('../src/modules/cards/cards.service.js')
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     const half = Object.fromEntries(RARITIES.map((rarity) => [rarity, SET_LAYOUT[rarity] / 2])) as Record<Rarity, number>
     await growCardSet(half)
     const before = await prisma.card.findMany({ select: { id: true, rarity: true, mangaId: true } })
@@ -325,8 +325,8 @@ describe('API — boosters et collection', () => {
   })
 
   it('seed Série 2 : 300 nouvelles cartes, quotas exacts, IDs Série 1 intacts et relance idempotente', async () => {
-    const { seedSeries2 } = await import('../src/modules/cards/series2.seed.js')
-    const { prisma } = await import('../src/db.js')
+    const { seedSeries2 } = await import('../src/modules/cards/seeds/series2.seed.js')
+    const { prisma } = await import('../src/core/db.js')
     const series1Before = await prisma.card.findMany({ where: { series: 1 }, orderBy: { number: 'asc' }, select: { id: true } })
 
     const first = await seedSeries2()
@@ -443,7 +443,7 @@ describe('API — boosters et collection', () => {
   it('hard pity serveur : le 400e booster sec force le dernier slot et remet le compteur persistant à zéro', async () => {
     const account = await signedUp()
     const { openBooster } = await import('../src/modules/cards/cards.service.js')
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     await prisma.userBooster.create({
       data: { userId: account.userId, boostersSinceLastMythic: HARD_PITY_PACKS - 1 },
     })
@@ -464,7 +464,7 @@ describe('API — boosters et collection', () => {
     assert.equal(later.available, 1)
     assert.equal(later.secondsUntilNext, 3 * 3600)
     // Doublon : même tirage (graine fixe) → la carte déjà possédée voit son compteur augmenter.
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     const before = await prisma.userCard.count({ where: { userId: account.userId } })
     const again = await openBooster(account.userId, { now: at(3 * HOUR), random: seededRandom('same') })
     const after = await prisma.userCard.count({ where: { userId: account.userId } })
@@ -486,7 +486,7 @@ describe('API — boosters et collection', () => {
   it('mode recette (BOOSTER_UNLIMITED_MODE) : ouvertures illimitées, stock intact, cartes enregistrées', async () => {
     const account = await signedUp()
     const { openBooster, boosterStatus } = await import('../src/modules/cards/cards.service.js')
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     for (let pack = 0; pack < 6; pack += 1) {
       const { cards, status } = await openBooster(account.userId, { unlimited: true })
       assert.equal(cards.length, CARDS_PER_PACK)
@@ -507,7 +507,7 @@ describe('API — boosters et collection', () => {
   })
 
   it('le set est généré une seule fois, figé', async () => {
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     const { ensureCardSet } = await import('../src/modules/cards/cards.service.js')
     const before = await prisma.card.findMany({ orderBy: { number: 'asc' }, select: { id: true } })
     await Promise.all([ensureCardSet(), ensureCardSet()])

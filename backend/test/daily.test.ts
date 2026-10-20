@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { WorkStatistics } from '../src/services/catalog.service.js'
+import type { WorkStatistics } from '../src/modules/catalog/catalog.service.js'
 import { catalogManga } from './fixtures.js'
 import { installMangadexMock, prepareEnvironment, startServer } from './harness.js'
 
@@ -13,7 +13,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const { CYCLE_DAYS, MILESTONE_DAYS, calendarFor, planDaily, shiftDay, stateOf, tierOf } = await import('../src/modules/daily/daily.logic.js')
 const { claimDaily, dailyStatus } = await import('../src/modules/daily/daily.service.js')
 const { WELCOME_GIFT_BOXES } = await import('../src/modules/runner/runner.wardrobe.js')
@@ -105,7 +105,7 @@ describe('calendrier (logique pure)', () => {
 
 describe('récompense quotidienne — API', () => {
   before(async () => {
-    const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
+    const { upsertWorks, reloadPool } = await import('../src/modules/catalog/catalog.service.js')
     await upsertWorks(WORKS, statistics)
     await reloadPool()
   })

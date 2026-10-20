@@ -1,4 +1,4 @@
-import { TtlCache } from '../../lib/cache.js'
+import { TtlCache } from '../../core/infra/cache.js'
 import type { CachedImage } from '../manga/manga.routes.js'
 import { SWEEP_COLS, SWEEP_ROWS, SWEEP_TILE_PX, isSweepTile } from './dle.logic.js'
 

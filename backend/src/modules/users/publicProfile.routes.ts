@@ -1,9 +1,9 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { LangQuerySchema } from '../../lib/language.js'
-import { optionalAuth } from '../../middleware/auth.js'
+import { LangQuerySchema } from '../../core/util/language.js'
+import { optionalAuth } from '../../core/http/auth.js'
 import { storedAvatar } from './avatarUpload.js'
-import { rateLimit } from '../../middleware/rateLimit.js'
+import { rateLimit } from '../../core/http/rateLimit.js'
 import { getMemberCollection, getPublicProfile, searchMembers, userNotFound } from './publicProfile.service.js'
 
 /** Identifiant de compte (cuid) : tout autre format est un profil introuvable, sans requête en base. */

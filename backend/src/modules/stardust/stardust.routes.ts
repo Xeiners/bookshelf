@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { config } from '../../config.js'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
-import { rateLimit } from '../../middleware/rateLimit.js'
+import { config } from '../../core/config.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
+import { rateLimit } from '../../core/http/rateLimit.js'
 import { z } from 'zod'
 import { buyBooster, claimGuestStardust, walletOf } from './stardust.service.js'
 

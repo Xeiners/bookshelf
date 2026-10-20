@@ -6,9 +6,9 @@
  * Aucun import de `config` : testable avec de fausses sources
  * (`backend/test/extensions.test.ts`). Le câblage réel est dans `index.ts`.
  */
-import { TtlCache } from '../lib/cache.js'
-import { HttpError, notFound, upstreamError } from '../lib/errors.js'
-import { LANGUAGES } from '../lib/language.js'
+import { TtlCache } from '../core/infra/cache.js'
+import { HttpError, notFound, upstreamError } from '../core/http/errors.js'
+import { LANGUAGES } from '../core/util/language.js'
 import { CircuitBreaker, type BreakerOptions } from './circuitBreaker.js'
 import { decodeChapterKey, encodeChapterKey } from './chapterKey.js'
 import { mergeChapters } from './merge.js'

@@ -12,7 +12,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const logic = await import('../src/modules/runner/runner.logic.js')
 const wardrobe = await import('../src/modules/runner/runner.wardrobe.js')
 

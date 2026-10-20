@@ -1,11 +1,11 @@
-import { prisma } from '../../db.js'
-import { HttpError, conflict, notFound } from '../../lib/errors.js'
+import { prisma } from '../../core/db.js'
+import { HttpError, conflict, notFound } from '../../core/http/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { accessOf, parseBrushes, unlockedBrushes } from './canvas.access.js'
 import { BRUSHES, LIKES_PER_DAY, LIKE_REWARD, REPORTS_PER_HOUR, REPORTS_TO_HIDE, REWARD_PER_DAY, brushOf, type ReportReason } from './canvas.constants.js'
-import { refreshAccess } from './canvas.hub.js'
-import { world, type WObject, type WorldEvent } from './canvas.world.js'
+import { refreshAccess } from './realtime/canvas.hub.js'
+import { world, type WObject, type WorldEvent } from './realtime/canvas.world.js'
 
 /*
  * Le côté social de la toile : « j'aime » (et les Poussières qu'ils rapportent), signalements

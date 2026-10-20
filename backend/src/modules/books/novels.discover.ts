@@ -2,7 +2,7 @@
  * Deck « Romans » : étagères thématiques en sujets Open Library, et « Pour
  * toi » bâti sur les romans déjà gardés — pur, testé (`backend/test/books.test.ts`).
  */
-import type { Language } from '../../lib/language.js'
+import type { Language } from '../../core/util/language.js'
 
 /** Étagères du deck en mode romans ; ids partagés avec le front (`NOVEL_SHELVES`). */
 export const NOVEL_SHELF_IDS = [

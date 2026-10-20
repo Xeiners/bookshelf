@@ -13,7 +13,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const logic = await import('../src/modules/higherlower/hl.logic.js')
 const { HL_ENTRIES, HL_METRICS, HL_WORKS } = await import('../src/modules/higherlower/hl.data.js')
 const { forgetRuns } = await import('../src/modules/higherlower/hl.service.js')

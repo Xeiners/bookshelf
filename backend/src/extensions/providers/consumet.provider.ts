@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Language } from '../../lib/language.js'
+import type { Language } from '../../core/util/language.js'
 import type { NormalizedChapter, SourceProvider } from '../types.js'
 import { getJson, numberFromTitle, provenanceHeaders, providerLogger, type ProviderLog } from './http.js'
 import { createSeriesResolver } from './library.js'

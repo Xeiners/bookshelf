@@ -1,11 +1,11 @@
 import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
-import { config } from '../../config.js'
-import { prisma } from '../../db.js'
-import { HttpError, notFound } from '../../lib/errors.js'
-import { LangQuerySchema } from '../../lib/language.js'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
-import { rateLimit } from '../../middleware/rateLimit.js'
+import { config } from '../../core/config.js'
+import { prisma } from '../../core/db.js'
+import { HttpError, notFound } from '../../core/http/errors.js'
+import { LangQuerySchema } from '../../core/util/language.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
+import { rateLimit } from '../../core/http/rateLimit.js'
 import { BookSchema } from './book.schema.js'
 import {
   ONLINE_NOVEL_ID,
@@ -25,8 +25,8 @@ import {
   updateMetadata,
   workAlreadyLinked,
 } from './books.service.js'
-import { toBook } from './metadata.normalize.js'
-import { discoverNovels, novelSummary, searchNovels } from './metadata.service.js'
+import { toBook } from './metadata/metadata.normalize.js'
+import { discoverNovels, novelSummary, searchNovels } from './metadata/metadata.service.js'
 import { NOVEL_SHELF_IDS, novelShelfQuery } from './novels.discover.js'
 
 /*

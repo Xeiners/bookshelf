@@ -1,4 +1,4 @@
-import { prisma } from '../../db.js'
+import { prisma } from '../../core/db.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 import type { CardDto } from '../cards/cards.service.js'
 

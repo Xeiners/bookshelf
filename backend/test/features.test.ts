@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { MdManga } from '../src/modules/manga/mangadex.client.js'
 import { matchesCatalogPace, matchesMood, MOODS, PACES } from '../src/modules/oracle/decks.js'
-import type { WorkStatistics } from '../src/services/catalog.service.js'
-import { likeWeight } from '../src/services/recommendation/scoring.js'
+import type { WorkStatistics } from '../src/modules/catalog/catalog.service.js'
+import { likeWeight } from '../src/modules/catalog/recommendation/scoring.js'
 import { CATALOG_ID_PREFIX, catalogManga } from './fixtures.js'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
 
@@ -54,14 +54,14 @@ const ACTION = Array.from({ length: 30 }, (_, index) =>
 )
 
 before(async () => {
-  const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
+  const { upsertWorks, reloadPool } = await import('../src/modules/catalog/catalog.service.js')
   await upsertWorks([HUNTER, ...ROMANCE_KR, ...HORROR, ...ACTION], statistics)
   await reloadPool()
 })
 
 describe('catalogue — caractéristiques MangaDex', () => {
   it('genres et thèmes séparés, tags de format ignorés, note bayésienne ramenée sur 100', async () => {
-    const { featuresOfManga } = await import('../src/services/catalog.service.js')
+    const { featuresOfManga } = await import('../src/modules/catalog/catalog.service.js')
     const { BILINGUAL } = await import('./fixtures.js')
     // BILINGUAL : Action (genre), Martial Arts (thème), Long Strip (format).
     assert.deepEqual(featuresOfManga(BILINGUAL, 8.43), {
@@ -73,7 +73,7 @@ describe('catalogue — caractéristiques MangaDex', () => {
   })
 
   it('pays d’origine d’après la langue originale ; les autres origines sont écartées', async () => {
-    const { countryOf } = await import('../src/services/catalog.service.js')
+    const { countryOf } = await import('../src/modules/catalog/catalog.service.js')
     assert.deepEqual(['ja', 'ko', 'zh', 'zh-hk', 'en'].map(countryOf), ['JP', 'KR', 'CN', 'CN', null])
   })
 })
@@ -94,7 +94,7 @@ describe('favoris et notes personnelles', () => {
   let account: TestClient
   let userId: string
   const scores = async () => {
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     const row = await prisma.userPreference.findUnique({ where: { userId } })
     return JSON.parse(row?.scores ?? '{"genres":{},"tags":{}}') as { genres: Record<string, number> }
   }
@@ -222,7 +222,7 @@ describe('recherche dans le catalogue', () => {
   })
 
   it('complément MangaDex : une œuvre déjà au catalogue n’est pas doublée', async () => {
-    const { upsertWorks, reloadPool } = await import('../src/services/catalog.service.js')
+    const { upsertWorks, reloadPool } = await import('../src/modules/catalog/catalog.service.js')
     const { BILINGUAL } = await import('./fixtures.js')
     await upsertWorks([BILINGUAL], new Map([[BILINGUAL.id, { follows: 10, rating: 8 }]]))
     await reloadPool()

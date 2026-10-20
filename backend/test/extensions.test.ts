@@ -24,7 +24,7 @@ import {
   titleSimilarity,
 } from '../src/extensions/titleMatch.js'
 import type { NormalizedChapter, NormalizedPage, SourcedChapter, SourceProvider } from '../src/extensions/types.js'
-import { notFound, upstreamError } from '../src/lib/errors.js'
+import { notFound, upstreamError } from '../src/core/http/errors.js'
 import { assertPublicUrl, isPrivateAddress, network, upstreamHeaders } from '../src/modules/proxy/proxy.fetch.js'
 
 /* ---- Fabriques ------------------------------------------------------------------ */

@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { Request } from 'express'
-import { config } from '../../config.js'
-import { HttpError, notFound } from '../../lib/errors.js'
+import { config } from '../../core/config.js'
+import { HttpError, notFound } from '../../core/http/errors.js'
 
 export const AVATAR_MAX_BYTES = 8 * 1024 * 1024
 

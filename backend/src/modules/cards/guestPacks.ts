@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { config } from '../../config.js'
+import { config } from '../../core/config.js'
 
 /*
  * Boosters d'essai, sans compte. Un invité n'a pas de stock côté serveur :

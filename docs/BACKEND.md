@@ -6,23 +6,34 @@ compte (mode invité).
 
 ```
 backend/
-├── prisma/
-│   ├── schema.prisma          User · LibraryEntry · SkippedWork
-│   └── migrations/            SQL versionné, appliqué au démarrage
+├── prisma/                    schema.prisma (SQLite, source de vérité) · postgres/ (généré) · migrations/
 ├── prisma.config.ts           Prisma 7 : chemin du schéma et URL de la base
+├── scripts/                   outils en ligne de commande (génération du schéma PostgreSQL, séries de cartes)
+├── test/                      un fichier par domaine (node:test) ; harness.ts démarre l'API sur une base jetable
 └── src/
-    ├── index.ts               démarrage HTTP, arrêt propre
-    ├── app.ts                 middlewares, routes, gestionnaire d'erreurs
-    ├── config.ts              variables d'environnement validées (Zod)
-    ├── db.ts                  client Prisma + adaptateur better-sqlite3
-    ├── lib/                   cache TTL, erreurs HTTP, hachage, session JWT
-    ├── middleware/            requireAuth, limiteur de débit
-    └── modules/
-        ├── books/             contrat `Book` partagé avec le front ; romans EPUB du compte (§7 sexies)
-        ├── manga/             proxy MangaDex : client, normalisation, étagères, tags
-        ├── auth/              register · login · me · logout
-        └── library/           swipe, patch, suppression, fusion invité → compte
+    ├── index.ts               démarrage HTTP et WebSocket, arrêt propre
+    ├── app.ts                 middlewares de sécurité, montage des routes, gestionnaire d'erreurs
+    ├── core/                  ce que tous les modules partagent — aucun import vers `modules/`
+    │   ├── config.ts          variables d'environnement validées (Zod)
+    │   ├── db.ts              client Prisma (SQLite ou PostgreSQL) + adaptateur
+    │   ├── http/              erreurs HTTP, `requireAuth`, limiteur de débit
+    │   ├── security/          hachage des mots de passe, sessions JWT révocables, authentification des WebSocket
+    │   ├── infra/             cache TTL, e-mails (SMTP), images WebP
+    │   └── util/              langues, hasard déterministe
+    ├── extensions/            sources de chapitres multiples : fournisseurs, agrégateur, disjoncteur (§3 ter)
+    └── modules/               un dossier par domaine : `*.routes.ts` (HTTP) → `*.service.ts` (métier, base) → `*.logic.ts` (pur, testé)
+        ├── auth/ · users/ · admin/ · notifications/
+        ├── manga/ · chapters/ (+ official/) · catalog/ (+ recommendation/) · discover/ · library/ · books/ (+ epub/, metadata/)
+        ├── cards/ (+ seeds/, duplicates/) · trades/ · stardust/ · promotions/ · rewards/ · daily/
+        ├── dle/ (+ characters/, portraits/, review/) · higherlower/ · bomb/ · runner/ · stack/ · oracle/
+        ├── canvas/ (+ realtime/) · music/ · proxy/
 ```
+
+**Règles de dépendance.** `core/` ne dépend d'aucun module ; un module ne lit jamais les routes d'un autre
+(il appelle son service ou sa logique pure) ; la logique pure (`*.logic.ts`, `*.normalize.ts`, `*.parser.ts`)
+n'importe ni la base, ni le réseau, ni l'horloge : elle est injectée et se teste sans serveur. Les gestes
+temps réel (`canvas/realtime/`, `stack/`, `dle/…rooms`, `bomb/…rooms`) gardent leur état en mémoire, transport
+à part (la salle ne connaît que `Link { send, close }`).
 
 ---
 
@@ -499,7 +510,7 @@ continuent de fonctionner. Voir §7.
   temps constant. 15 min de validité, 5 essais par code (`code_invalid` renvoie
   `remainingAttempts`, puis `code_locked`), 60 s entre deux envois (`resend_too_soon` +
   `retryAfter`), 5 envois / heure / adresse. E-mail HTML + texte, FR/EN, code en cases 3 + 3.
-- **Transport des e-mails** (`lib/mailer.ts`) : SMTP dès que `SMTP_HOST` est défini ;
+- **Transport des e-mails** (`core/infra/mailer.ts`) : SMTP dès que `SMTP_HOST` est défini ;
   sinon la console en développement (le code s'affiche dans le terminal de l'API), une
   boîte en mémoire en test, et rien en production : `register` répond 503
   `email_unavailable` plutôt que de créer des comptes invérifiables.
@@ -773,7 +784,7 @@ statut), **Pépite** (titre très bien noté répondant aux deux).
   « épique » = ≥ 150 ch. connus OU en cours depuis au moins 6 ans. Les ids sont
   le contrat avec le front, qui porte libellés, icônes et couleurs.
 - **Déterministe** : la graine `<id>:<jour>` fixe ambiance, rythme et ordre des
-  titres (FNV-1a + Mulberry32, `lib/seeded.ts`). Connecté, la graine est l'id du
+  titres (FNV-1a + Mulberry32, `core/util/seeded.ts`). Connecté, la graine est l'id du
   compte : même tirage sur tous les appareils ; on ne « relance » pas en
   rechargeant. Le client applique le même algorithme pour son tirage hors-ligne.
 - **Sélection** (catalogue MangaDex, §7 ter) : œuvres de l'ambiance notées ≥ 72,
@@ -806,7 +817,7 @@ seule source de métadonnées (AniList a été retiré).
 | --- | --- | --- | --- |
 | POST | `/api/discover/deck` (session facultative) | `{ shelf, origin, lang, limit, seen[], liked[{ id, categories, rating, favorite, userRating }], skipped[] }` | `{ books: (Book & { matchPercentage, discovery })[], hasMore, source, personalized }` |
 
-**Catalogue** (`src/services/catalog.service.ts`)
+**Catalogue** (`src/modules/catalog/catalog.service.ts`)
 
 - Une ligne `CatalogWork` par œuvre MangaDex (clé : son UUID). Caractéristiques
   tirées de la fiche : tags du groupe `genre` → genres, du groupe `theme` →
@@ -829,7 +840,7 @@ seule source de métadonnées (AniList a été retiré).
   Composer un deck = filtrer + noter + trier en mémoire, puis lire en base les
   fiches des ~20 cartes servies. Mesuré : 7-10 ms (en-tête `Server-Timing`).
 
-**Algorithme** (`services/recommendation/scoring.ts`, logique pure, testée)
+**Algorithme** (`modules/catalog/recommendation/scoring.ts`, logique pure, testée)
 
 - **Profil** `UserPreference.scores` = `{ genres: { Action: 12 }, tags: { Revenge: 8 } }`.
   Wishlist / lu / en cours → +3 par genre, +3 × pertinence par tag ; passer → -2.
@@ -967,9 +978,9 @@ sur l'ordinateur **à la même phrase** (CFI EPUB).
 
 ```
 books/
-  epub.parser.ts        métadonnées embarquées (fflate + lecture tolérante de l'OPF) — pur, testé
-  metadata.normalize.ts fiches Open Library / Google Books → forme commune, fusion, rapprochement — pur, testé
-  metadata.service.ts   appels sortants : cache, disjoncteur par source, délais
+  epub/epub.parser.ts   métadonnées embarquées (fflate + lecture tolérante de l'OPF) — pur, testé
+  metadata/metadata.normalize.ts fiches Open Library / Google Books → forme commune, fusion, rapprochement — pur, testé
+  metadata/metadata.service.ts appels sortants : cache, disjoncteur par source, délais
   books.service.ts      réception en flux, import, quota, position, fiche, suppression
   books.routes.ts       /api/books/*
 ```
@@ -1081,7 +1092,7 @@ l'avatar et la vitrine du profil, qui ne montrent jamais une carte non possédé
 plus de route pour « offrir » une carte (seuls les cadeaux de l'administration subsistent, avec leur
 notification `card_gift`).
 
-**Doublons → Poussières** (`src/modules/cards/duplicates.*.ts`, `GET /api/cards/duplicates`,
+**Doublons → Poussières** (`src/modules/cards/duplicates/`, `GET /api/cards/duplicates`,
 `POST /api/cards/convert`). Un exemplaire en plus rend : Commune 5, Rare 10, Épique 25, Légendaire 250 ✦, sans plafond.
 **Les Mythiques sont invendables** : jamais converties (409 `not_convertible`, ou 400 si la rareté est demandée en groupe). On garde toujours un exemplaire, et chaque offre ouverte au Marché en réserve
 un (`convertibleCopies`). On convertit une carte (`{ cardId, copies }`), une **sélection** de cartes (`{ items: [{ cardId, copies }] }`,
@@ -1118,7 +1129,7 @@ Tests : `backend/test/notifications.test.ts`.
 sur `/api/admin/*` (la route n'existe pas pour eux) ; `publicUser.isAdmin` dit au front d'afficher l'entrée.
 
 - **Suspension** : `suspendedAt` + motif, `sessionVersion` incrémentée — tous les jetons déjà émis
-  (claim `sv`) deviennent invalides. `lib/sessionGuard.ts` vérifie compte et version à chaque requête
+  (claim `sv`) deviennent invalides. `core/security/sessionGuard.ts` vérifie compte et version à chaque requête
   (cache 20 s), répond 401 `account_suspended` ; la connexion répond 403 avec le motif, **seulement
   après un mot de passe juste**. Les offres du compte sont retirées. Un administrateur ne peut pas être
   suspendu. Réactiver laisse le compte se reconnecter.
@@ -1153,8 +1164,8 @@ Mini-jeu façon Loldle : deviner une œuvre ou un personnage.
 | `dle.logic.ts` | logique pure (testée) : comparaisons, paliers, zoom, gains, classement, jour de Paris, codes de salon |
 | `dle.games.ts` | une catégorie = un `DleGame` : propositions, colonnes, comparaison, résumé, image |
 | `dle.works.ts` + `dle.famous.ts` | catégorie `manga` : les cartes du set **célèbres** (110 titres choisis à la main) |
-| `naruto.characters.ts`, `onepiece.characters.ts`, `jojo.characters.ts`, `jjk.characters.ts`, `dragonball.characters.ts`, `mha.characters.ts`, `aot.characters.ts`, `hxh.characters.ts`, `fireforce.characters.ts` | fiches de personnages rédigées à la main |
-| `dle.jikan.ts` | portraits : Jikan → Kitsu → wiki Fandom → recherche Jikan |
+| `characters/naruto.characters.ts`, `onepiece.characters.ts`, `jojo.characters.ts`, `jjk.characters.ts`, `dragonball.characters.ts`, `mha.characters.ts`, `aot.characters.ts`, `hxh.characters.ts`, `fireforce.characters.ts` | fiches de personnages rédigées à la main |
+| `portraits/portraits.source.ts` | portraits : Jikan → Kitsu → wiki Fandom → recherche Jikan |
 | `dle.daily.ts` | énigmes du jour, gains, série |
 | `dle.rooms.ts` | salons multijoueurs en mémoire, attente longue |
 | `dle.guests.ts` | invités : cookie signé, reçus de Poussières |
@@ -1215,7 +1226,7 @@ de réglages (`RoomSettingsPanel` : type, univers, formats, essais, durée) sert
 l'écran des résultats, où « Rejouer » enchaîne `rematch` puis `start` d'un geste (« Retour au salon » : l'ancien
 parcours, pour attendre des amis).
 
-**Portraits** (`dle.jikan.ts`, une `portraitSource` par univers).
+**Portraits** (`portraits/portraits.source.ts`, une `portraitSource` par univers).
 
 1. Listes de personnages des séries sur Jikan (MyAnimeList).
 2. Listes Kitsu des mêmes séries (mêmes portraits, sur fond).
@@ -1235,7 +1246,7 @@ large que `MAX_PUZZLE_RATIO` (1,4) est écartée, au listage comme au téléchar
 Chez MyAnimeList, le grand format (`…/12l.jpg`) est tenté avant l'original ; une image dont le petit côté
 fait moins de 220 px est écartée (la suivante sert), le portrait en dernier recours.
 
-**Revue des images d'énigme** (administration, onglet « Images », `dle.review*.ts`, `DleImageReview`). Pour
+**Revue des images d'énigme** (administration, onglet « Images », `review/`, `DleImageReview`). Pour
 chaque univers de personnages, l'administrateur passe en revue les images candidates comme dans le mode
 Découverte : l'image en grand, le personnage en dessous ; **à droite on garde, à gauche on bannit**, avec
 annulation. Une image bannie n'est plus jamais tirée (`Moderation` passée à `portraitSource` : exclue du
@@ -1248,7 +1259,7 @@ un démarrage), `GET /:category/image` et `/portrait` (relais), `POST /:category
 (`approve` | `ban` | `clear`). Les bannissements et leurs annulations sont inscrits au journal.
 **Contrôleur d'images** : un administrateur donne ce rôle à un compte depuis sa fiche (`POST /admin/users/:id/reviewer`
 `{ enabled }`, colonne `User.imageReviewer`, journalisé `reviewer_grant` / `reviewer_revoke`). Il ouvre la seule revue
-des images (routes montées dans `dle.review.routes.ts` AVANT l'administration, derrière `requireReviewer` :
+des images (routes montées dans `review/review.routes.ts` AVANT l'administration, derrière `requireReviewer` :
 administrateur ou contrôleur non suspendu, relu en base à chaque requête, 404 sinon) ; tout le reste de
 l'administration lui reste fermé (404), y compris l'attribution du rôle. Ses décisions sont signées à son nom
 (`reviewedBy`, journal). Côté front, `isImageReviewer` (dans `/auth/me`) affiche l'entrée « Revue des images » dans
@@ -1277,11 +1288,11 @@ Un tableau presque infini (±2 000 000 unités) où tous les comptes dessinent e
 curseurs, traits et formes vus en direct. Une saison par mois (UTC).
 
 **Temps réel : WebSocket** (`/api/canvas/ws`, session par le cookie de connexion, origine vérifiée,
-3 onglets par compte). `canvas.hub.ts` : le client annonce la zone qu'il regarde (`view`) et reçoit
+3 onglets par compte). `realtime/canvas.hub.ts` : le client annonce la zone qu'il regarde (`view`) et reçoit
 les objets des *cases* (4 096 unités) qui la touchent ; les curseurs (30 Hz côté client) sont regroupés
 et renvoyés ~15 fois par seconde, seulement à ceux qui les voient ; traits et formes en cours
 (`lp`, `lo`, `le`) sont relayés par petits paquets aux voisins ; bulles et réactions aussi.
-Très dézoomé, le client passe aux **tuiles raster** (`canvas.tiles.ts`, pyramide rendue par `sharp` :
+Très dézoomé, le client passe aux **tuiles raster** (`realtime/canvas.tiles.ts`, pyramide rendue par `sharp` :
 512 px pour 1 024 unités au niveau 0, assemblée niveau par niveau, mémoire plafonnée, tables
 d'occupation pour ne jamais rendre le vide) ; les clients en mode tuiles sont prévenus (`tv`) des
 tuiles modifiées. Nginx a un `location = /api/canvas/ws` (en-têtes `Upgrade`), Caddy n'a rien à régler.
@@ -1290,7 +1301,7 @@ tuiles modifiées. Nginx a un `location = /api/canvas/ws` (en-têtes `Upgrade`),
 courbe de Bézier, texte, cadre. Le client propose, le serveur **normalise** (nombres arrondis,
 encombrement recalculé, limites de taille : 4 096 unités, 3 000 points…). Aucun CRDT : chacun ne
 modifie que ses propres objets ; le dernier écrit gagne, objet par objet (numéro de version).
-`canvas.world.ts` tient les cases en mémoire (chargées à la demande, évacuées si personne ne les regarde)
+`realtime/canvas.world.ts` tient les cases en mémoire (chargées à la demande, évacuées si personne ne les regarde)
 et **écrit en base par lots** (toutes les 1,5 s) : la base ne voit jamais la cadence des traits.
 Une seule instance de l'API tient la toile.
 

@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
-import { config } from '../../config.js'
-import { prisma } from '../../db.js'
-import { HttpError } from '../../lib/errors.js'
-import { currentUserId } from '../../middleware/auth.js'
+import { config } from '../../core/config.js'
+import { prisma } from '../../core/db.js'
+import { HttpError } from '../../core/http/errors.js'
+import { currentUserId } from '../../core/http/auth.js'
 
 declare global {
   namespace Express {

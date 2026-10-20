@@ -1,13 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { config } from '../../config.js'
-import { prisma } from '../../db.js'
-import { notFound } from '../../lib/errors.js'
+import { config } from '../../core/config.js'
+import { prisma } from '../../core/db.js'
+import { notFound } from '../../core/http/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { SEASON_PODIUM } from './canvas.constants.js'
-import { loadOccupancy, renderOverview, resetTiles } from './canvas.tiles.js'
-import { fromRow, monthKey, world } from './canvas.world.js'
+import { loadOccupancy, renderOverview, resetTiles } from './realtime/canvas.tiles.js'
+import { fromRow, monthKey, world } from './realtime/canvas.world.js'
 
 /*
  * Saisons de la toile : une par mois (UTC). Au changement de mois, la toile en cours est close

@@ -1,4 +1,4 @@
-import { config } from '../config.js'
+import { config } from '../core/config.js'
 import { titleAliases } from '../modules/manga/manga.service.js'
 import { SourceAggregatorService } from './aggregator.js'
 import { createConsumetProvider } from './providers/consumet.provider.js'

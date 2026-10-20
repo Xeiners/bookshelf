@@ -14,7 +14,7 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
+const { prisma } = await import('../src/core/db.js')
 const { MAX_BOOSTERS } = await import('../src/modules/cards/boosters.logic.js')
 
 const PASSWORD = 'motdepasse-test'

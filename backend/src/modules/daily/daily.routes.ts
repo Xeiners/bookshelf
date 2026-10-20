@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { currentUserId, requireAuth } from '../../middleware/auth.js'
+import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { claimDaily, dailyStatus } from './daily.service.js'
 
 /** Monté sous `/api/daily` : le calendrier de récompenses quotidiennes (un compte). */

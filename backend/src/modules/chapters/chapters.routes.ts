@@ -2,13 +2,13 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { MAX_ALTERNATES } from '../../extensions/aggregator.js'
 import { isChapterKey } from '../../extensions/chapterKey.js'
-import { badRequest } from '../../lib/errors.js'
-import { toWebp, wantsWebp, withWebp } from '../../lib/webp.js'
-import { LangQuerySchema } from '../../lib/language.js'
-import { rateLimit } from '../../middleware/rateLimit.js'
+import { badRequest } from '../../core/http/errors.js'
+import { toWebp, wantsWebp, withWebp } from '../../core/infra/webp.js'
+import { LangQuerySchema } from '../../core/util/language.js'
+import { rateLimit } from '../../core/http/rateLimit.js'
 import { listChapters, listPages } from './chapters.service.js'
 import { loadPageImage } from './mangadex.pages.js'
-import { OFFICIAL_WORK_ID, officialPlatforms } from './official.service.js'
+import { OFFICIAL_WORK_ID, officialPlatforms } from './official/official.service.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Nom de fichier MD@Home : `x1-<hash>.png`, `1-<hash>.jpg`… */

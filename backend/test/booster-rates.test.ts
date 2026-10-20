@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { seededRandom } from '../src/lib/seeded.js'
+import { seededRandom } from '../src/core/util/seeded.js'
 import {
   CARDS_PER_PACK,
   HARD_PITY_PACKS,

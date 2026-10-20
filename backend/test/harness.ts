@@ -121,7 +121,7 @@ export interface TestClient {
 
 /** Dernier code envoyé à une adresse (e-mails de la boîte en mémoire). */
 export async function lastCodeFor(email: string): Promise<string> {
-  const { outbox } = await import('../src/lib/mailer.js')
+  const { outbox } = await import('../src/core/infra/mailer.js')
   const mail = [...outbox].reverse().find((message) => message.to === email.trim().toLowerCase())
   const match = mail?.text.match(/\b(\d{6})\b/)
   if (!match) throw new Error(`Aucun code envoyé à ${email}`)
@@ -181,7 +181,7 @@ export async function startServer() {
     await shutdownCanvas()
     server.closeAllConnections?.()
     await new Promise<void>((resolve) => server.close(() => resolve()))
-    const { prisma } = await import('../src/db.js')
+    const { prisma } = await import('../src/core/db.js')
     await prisma.$disconnect()
   }
 

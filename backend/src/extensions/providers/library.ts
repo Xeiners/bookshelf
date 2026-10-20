@@ -3,7 +3,7 @@
  * Komga, Kavita) et aux bibliothèques personnelles qui servent leurs images
  * elles-mêmes.
  */
-import { TtlCache } from '../../lib/cache.js'
+import { TtlCache } from '../../core/infra/cache.js'
 import { MAX_IMAGE_BYTES } from '../../modules/proxy/proxy.fetch.js'
 import { bestTitleMatch, searchQueries } from '../titleMatch.js'
 import type { FetchedImage, NormalizedPage } from '../types.js'

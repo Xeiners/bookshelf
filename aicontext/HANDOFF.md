@@ -60,7 +60,7 @@ npm run preview -w frontend  # seul moyen de tester le service worker (inactif e
 | Zustand + `persist` | stores `bookshelf:{library,auth,oracle,settings}:v1` en localStorage |
 | Express 5 | les erreurs async remontent seules au `errorHandler` (pas de try/catch par route) |
 | Prisma 7 + driver adapters | `better-sqlite3` en local, `@prisma/adapter-pg` en Docker |
-| zod 4 | validation des entrées API **et** de l'environnement (`src/config.ts`) |
+| zod 4 | validation des entrées API **et** de l'environnement (`src/core/config.ts`) |
 | nodemailer | SMTP générique ; en prod : Gmail avec mot de passe d'application |
 
 ## 4. Carte du code
@@ -87,7 +87,7 @@ modules/notifications  notifications (échange conclu, offre qui intéresse, cad
 modules/admin      administration : ADMIN_EMAILS, suspension, cadeaux, modération, journal — §7 nonies
 modules/dle        BookshelfDLE : énigmes du jour, salons en mémoire (attente longue), invités, portraits — §7 undecies
 modules/stardust   Poussières d'Étoile : solde, historique, achat de booster, reçus d'invité — §7 duodecies
-lib/sessionGuard   sessions révocables (compte suspendu, sessionVersion), cache 20 s
+core/security/sessionGuard   sessions révocables (compte suspendu, sessionVersion), cache 20 s
 services/          catalogue MangaDex en cache, moteur de recommandation
 ```
 
@@ -260,7 +260,7 @@ flou ni `drop-shadow` (§5.5) ; les ombres extérieures débordent des grilles s
 ### 5.20 Images des wikis Fandom
 
 `static.wikia.nocookie.net` répond 403 sans `User-Agent` de navigateur ET `Referer` du wiki : le relais
-des portraits les envoie (`dle.jikan.ts`). Ces images sont souvent détourées (PNG transparent) :
+des portraits les envoie (`portraits/portraits.source.ts`). Ces images sont souvent détourées (PNG transparent) :
 toujours les poser sur un fond opaque (pixellisation, cadres).
 
 ## 6. Production

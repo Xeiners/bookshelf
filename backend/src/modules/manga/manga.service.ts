@@ -1,6 +1,6 @@
-import { TtlCache } from '../../lib/cache.js'
-import { notFound } from '../../lib/errors.js'
-import { preferenceOrder, type Language } from '../../lib/language.js'
+import { TtlCache } from '../../core/infra/cache.js'
+import { notFound } from '../../core/http/errors.js'
+import { preferenceOrder, type Language } from '../../core/util/language.js'
 import type { Book } from '../books/book.schema.js'
 import {
   mangadexGet,

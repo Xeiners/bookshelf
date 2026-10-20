@@ -1,5 +1,5 @@
-import { prisma } from '../../db.js'
-import { normalizeText } from '../../services/catalog.service.js'
+import { prisma } from '../../core/db.js'
+import { normalizeText } from '../catalog/catalog.service.js'
 import { mangadexGet, type MdCollection, type MdManga } from '../manga/mangadex.client.js'
 import { normalizeManga } from '../manga/normalize.js'
 import { HL_WORKS, type HlWork } from './hl.data.js'

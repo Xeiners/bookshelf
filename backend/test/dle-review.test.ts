@@ -13,10 +13,10 @@ installMangadexMock()
 const { client, close } = await startServer()
 after(close)
 
-const { prisma } = await import('../src/db.js')
-const { createDleReview } = await import('../src/modules/dle/dle.review.js')
-const { reviewKey } = await import('../src/modules/dle/dle.jikan.js')
-const { forgetReviews, isBanned } = await import('../src/modules/dle/dle.review.store.js')
+const { prisma } = await import('../src/core/db.js')
+const { createDleReview } = await import('../src/modules/dle/review/review.service.js')
+const { reviewKey } = await import('../src/modules/dle/portraits/portraits.source.js')
+const { forgetReviews, isBanned } = await import('../src/modules/dle/review/review.store.js')
 
 type Account = TestClient & { userId: string; email: string }
 let admin: Account

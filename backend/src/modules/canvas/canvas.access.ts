@@ -1,5 +1,5 @@
-import { config } from '../../config.js'
-import { prisma } from '../../db.js'
+import { config } from '../../core/config.js'
+import { prisma } from '../../core/db.js'
 import { BRUSHES } from './canvas.constants.js'
 import { isAdminEmail } from '../admin/admin.access.js'
 import { profileOf } from '../dle/dle.rooms.js'

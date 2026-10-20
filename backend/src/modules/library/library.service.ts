@@ -1,11 +1,11 @@
-import { prisma } from '../../db.js'
-import { notFound } from '../../lib/errors.js'
+import { prisma } from '../../core/db.js'
+import { notFound } from '../../core/http/errors.js'
 import {
   rebuildProfile,
   recordFeedback,
   recordReappraisal,
-} from '../../services/recommendation/preference.service.js'
-import { likeWeight } from '../../services/recommendation/scoring.js'
+} from '../catalog/recommendation/preference.service.js'
+import { likeWeight } from '../catalog/recommendation/scoring.js'
 import { BookSchema, type Book } from '../books/book.schema.js'
 import {
   ReadingPositionSchema,

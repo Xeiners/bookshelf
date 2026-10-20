@@ -1,5 +1,5 @@
-import type { Language } from '../../lib/language.js'
-import type { MailMessage } from '../../lib/mailer.js'
+import type { Language } from '../../core/util/language.js'
+import type { MailMessage } from '../../core/infra/mailer.js'
 
 /*
  * E-mail du code (inscription, ou mot de passe oublié). Mise en page en tableaux

@@ -1,4 +1,4 @@
-import type { Language } from '../lib/language.js'
+import type { Language } from '../core/util/language.js'
 
 /**
  * Contrat des sources de chapitres (patron Strategy). Chaque fournisseur

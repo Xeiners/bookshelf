@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { requireAuth } from '../../middleware/auth.js'
+import { requireAuth } from '../../core/http/auth.js'
 import { storedAvatar } from '../users/avatarUpload.js'
 import { currentAdmin, requireAdmin } from './admin.access.js'
 import { adminOverview as canvasOverview, banUser, purgeUser, removeObject, restoreObject, unbanUser } from '../canvas/canvas.moderation.js'
