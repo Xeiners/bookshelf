@@ -92,6 +92,8 @@ services:
         # Nom visé par le Nginx du front : unique, même si le front rejoint le
         # réseau d'un Caddy partagé (docker-compose.caddy.yml).
         aliases: [bookshelf-api]
+      # Réseau du pont Tachiyomi : le seul où l'API retrouve Suwayomi.
+      tachiyomi: {}
     # Pas de `ports` : l'API n'est joignable que par le front (réseau interne).
     # Pour la déboguer depuis l'hôte : `docker compose exec backend wget -qO- 127.0.0.1:5000/api/health`.
 
@@ -142,6 +144,9 @@ services:
       # Extensions installées, base H2, cookies des sites (Cloudflare).
       - suwayomi_data:/home/suwayomi/.local/share/Tachidesk
     mem_limit: ${SUWAYOMI_MEM_LIMIT:-1g}
+    # Exécute des extensions communautaires (code tiers) : isolé du réseau par défaut,
+    # donc sans accès à PostgreSQL ni au front, seulement à l'API.
+    networks: [tachiyomi]
     # Pas de `ports` : joignable par l'API seule, sur le réseau interne
     # (`http://suwayomi:4567`). Rien n'est publié, pas même sur 127.0.0.1.
     # Extensions (catalogue, installation) : `docker compose exec backend node dist/extensions/tachiyomi.cli.js`.
@@ -158,6 +163,10 @@ services:
       TZ: ${TZ:-Etc/UTC}
       LOG_LEVEL: info
     mem_limit: ${FLARESOLVERR_MEM_LIMIT:-1g}
+    networks: [tachiyomi]
+
+networks:
+  tachiyomi:
 
 volumes:
   postgres_data:

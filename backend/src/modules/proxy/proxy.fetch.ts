@@ -48,8 +48,25 @@ export function isPrivateAddress(address: string): boolean {
     const value = (Number.parseInt(high, 16) << 16) | Number.parseInt(low, 16)
     return isPrivateV4([value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join('.'))
   }
-  const first = Number.parseInt(ip.split(':')[0] || '0', 16)
+  const groups = expandV6(ip)
+  // IPv4 encapsulée autrement : `::a.b.c.d` (compatible) et `64:ff9b::a.b.c.d` (NAT64) → l'IPv4 visée décide.
+  const embedded = groups.slice(0, 6).every((group) => group === 0) || (groups[0] === 0x64 && groups[1] === 0xff9b && groups.slice(2, 6).every((group) => group === 0))
+  if (embedded) {
+    const high = groups[6] ?? 0
+    const low = groups[7] ?? 0
+    return isPrivateV4([high >>> 8, high & 255, low >>> 8, low & 255].join('.'))
+  }
+  const first = groups[0] ?? 0
   return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00
+}
+
+/** Les 8 groupes de 16 bits d'une IPv6 écrite sous forme normale ou abrégée (`::`). */
+function expandV6(ip: string): number[] {
+  const [head = '', tail = ''] = ip.split('::')
+  const front = head ? head.split(':') : []
+  const back = tail ? tail.split(':') : []
+  const fill = ip.includes('::') ? Array<string>(Math.max(0, 8 - front.length - back.length)).fill('0') : []
+  return [...front, ...fill, ...back].map((group) => Number.parseInt(group || '0', 16))
 }
 
 /** Refuse tout ce qui n'est pas une URL http(s) vers un hôte public. */

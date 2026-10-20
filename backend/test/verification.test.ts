@@ -84,6 +84,19 @@ describe('inscription — code de vérification par e-mail', () => {
     assert.equal((await client().request('POST', '/auth/login', { email, password })).status, 200)
   })
 
+  it('essais en rafale : au plus 5 codes sont comparés, le reste est bloqué', async () => {
+    const email = newEmail()
+    const device = client()
+    await device.request('POST', '/auth/register', { email, password })
+    const code = await lastCodeFor(email)
+    const answers = await Promise.all(Array.from({ length: 20 }, () => client().request('POST', '/auth/register/verify', { email, code: wrongCode(code) })))
+    const compared = answers.filter((answer) => answer.body.error.code === 'code_invalid').length
+    assert.ok(compared <= 4, `${compared} codes comparés`)
+    assert.ok(answers.some((answer) => answer.body.error.code === 'code_locked'))
+    const right = await device.request('POST', '/auth/register/verify', { email, code })
+    assert.equal(right.body.error.code, 'code_locked')
+  })
+
   it('code faux → essai consommé ; au 5ᵉ, code bloqué même s’il devient bon', async () => {
     const email = newEmail()
     const device = client()

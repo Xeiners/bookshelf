@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, describe, it } from 'node:test'
 import sharp from 'sharp'
+import { clientKey } from '../src/core/http/rateLimit.js'
 import { prepareEnvironment, startServer } from './harness.js'
 
 prepareEnvironment('security')
@@ -44,5 +45,32 @@ describe('photo de profil', () => {
 
     const broken = await device.send('POST', '/profile/avatar-upload', { body: new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]), headers: { 'Content-Type': 'image/jpeg' } })
     assert.equal(broken.status, 415)
+  })
+})
+
+describe('clé de limitation par adresse', () => {
+  it('IPv4 telle quelle ; IPv6 regroupée par bloc /64 (changer d’adresse dans son bloc ne remet pas le compteur à zéro)', () => {
+    assert.equal(clientKey('203.0.113.9'), '203.0.113.9')
+    assert.equal(clientKey('::ffff:203.0.113.9'), '::ffff:203.0.113.9')
+    assert.equal(clientKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd'), clientKey('2001:db8:1:2:1::9'))
+    assert.equal(clientKey('2001:db8:1:2::1'), '2001:0db8:0001:0002::/64')
+    assert.notEqual(clientKey('2001:db8:1:3::1'), clientKey('2001:db8:1:2::1'))
+    assert.equal(clientKey(undefined), 'unknown')
+  })
+})
+
+describe('changement de mot de passe', () => {
+  it('coupe les autres appareils (une session volée ne survit pas), garde celui-ci', async () => {
+    const owner = client()
+    const signed = await owner.signUp({ email: 'revoke@example.com', password: 'motdepasse-test', displayName: 'Revoke' })
+    assert.equal(signed.status, 201)
+    const thief = client()
+    assert.equal((await thief.request('POST', '/auth/login', { email: 'revoke@example.com', password: 'motdepasse-test' })).status, 200)
+    assert.equal((await thief.request('GET', '/auth/me')).status, 200)
+
+    const changed = await owner.request('POST', '/auth/password', { currentPassword: 'motdepasse-test', newPassword: 'nouveau-motdepasse-1' })
+    assert.equal(changed.status, 204)
+    assert.equal((await thief.request('GET', '/auth/me')).status, 401, 'l’autre appareil est déconnecté')
+    assert.equal((await owner.request('GET', '/auth/me')).status, 200, 'cet appareil reste connecté')
   })
 })

@@ -572,10 +572,10 @@ describe('normalisation Consumet / OpenComicStream', () => {
 
 describe('relais d’images — garde-fous', () => {
   it('reconnaît les adresses internes, IPv4 et IPv6', () => {
-    for (const address of ['127.0.0.1', '10.1.2.3', '172.20.0.5', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:7f00:1']) {
+    for (const address of ['127.0.0.1', '10.1.2.3', '172.20.0.5', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '::7f00:1', '64:ff9b::7f00:1', '64:ff9b::a9fe:a9fe']) {
       assert.equal(isPrivateAddress(address), true, address)
     }
-    for (const address of ['93.184.216.34', '8.8.8.8', '2606:4700::1111', '::ffff:5db8:d822']) {
+    for (const address of ['93.184.216.34', '8.8.8.8', '2606:4700::1111', '::ffff:5db8:d822', '64:ff9b::5db8:d822']) {
       assert.equal(isPrivateAddress(address), false, address)
     }
   })
