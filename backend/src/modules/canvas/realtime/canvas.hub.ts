@@ -298,7 +298,8 @@ function handleLivePoints(peer: Peer, message: Json): void {
   for (let index = 0; index < message.p.length; index += 3) {
     const x = message.p[index]
     const y = message.p[index + 1]
-    if (!isNumber(x) || !isNumber(y)) return strike(peer)
+    // Le 3ᵉ nombre (pression) est relayé tel quel aux voisins : il doit être un nombre, rien d'autre.
+    if (!isNumber(x) || !isNumber(y) || !isNumber(message.p[index + 2])) return strike(peer)
     grow(live.box, x, y, margin)
   }
   live.points += message.p.length / 3

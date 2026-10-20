@@ -11,7 +11,8 @@ import { HttpError, notFound } from '../../core/http/errors.js'
 import type { Language } from '../../core/util/language.js'
 import { BookSchema, type Book } from './book.schema.js'
 import type { MatchDecision } from './epub/epub.match.js'
-import { InvalidEpubError, parseEpub, type EpubMetadata } from './epub/epub.parser.js'
+import { InvalidEpubError, type EpubMetadata } from './epub/epub.parser.js'
+import { parseEpubSandboxed } from './epub/epub.sandbox.js'
 import { toBook } from './metadata/metadata.normalize.js'
 import { matchNovel } from './metadata/metadata.service.js'
 
@@ -242,7 +243,7 @@ export async function importBook(
 
     let metadata: EpubMetadata
     try {
-      metadata = parseEpub(await readFile(upload.tempPath))
+      metadata = await parseEpubSandboxed(await readFile(upload.tempPath))
     } catch (error) {
       if (error instanceof InvalidEpubError) throw new HttpError(422, 'invalid_epub', error.message)
       throw error

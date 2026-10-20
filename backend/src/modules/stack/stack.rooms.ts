@@ -1,4 +1,5 @@
 import { config } from '../../core/config.js'
+import { secureRandom } from '../../core/util/secureRandom.js'
 import { HttpError, conflict, notFound } from '../../core/http/errors.js'
 import { seededRandom, shuffle } from '../../core/util/seeded.js'
 import { normalizeRoomCode, roomCode, ROOM_CODE } from '../dle/dle.logic.js'
@@ -198,17 +199,27 @@ function roomOf(code: string): Room {
   return room
 }
 
+/** Salons ouverts (supervision et tests). */
+export const stackRoomCount = (): number => rooms.size
+
 /** Le salon d'un joueur, s'il est dans l'un. */
 export function currentStackRoom(playerId: string): string | null {
   const code = memberships.get(playerId)
   return code && rooms.has(code) ? code : null
 }
 
+/** Salons ouverts au plus en même temps (garde-fou mémoire). */
+const MAX_ROOMS = 2000
+
 export async function createStackRoom(participant: Participant, mode: StackMode, link: Link): Promise<StackRoomView> {
-  leaveStackRoom(participant.id)
+  // Profil lu AVANT de quitter l'ancien salon : tout ce qui suit est synchrone. Sinon des « create »
+  // en rafale passeraient tous l'étape « quitter » avant qu'un salon soit enregistré, et chacun
+  // en créerait un (salons orphelins).
   const profile = await profileOf(participant)
-  let code = roomCode(Math.random)
-  while (rooms.has(code)) code = roomCode(Math.random)
+  leaveStackRoom(participant.id)
+  if (rooms.size >= MAX_ROOMS) throw conflict('Trop de salons ouverts : réessaie dans un instant.', 'rooms_full')
+  let code = roomCode(secureRandom)
+  while (rooms.has(code)) code = roomCode(secureRandom)
   const room: Room = {
     code,
     mode,
@@ -235,6 +246,9 @@ export async function createStackRoom(participant: Participant, mode: StackMode,
 export async function joinStackRoom(participant: Participant, code: string, link: Link): Promise<StackRoomView> {
   const normalized = normalizeRoomCode(code)
   if (!ROOM_CODE.test(normalized)) throw notFound('Salon introuvable.')
+  // Profil lu d'abord : les vérifications de place et l'inscription restent ensuite synchrones
+  // (deux arrivées simultanées ne peuvent plus dépasser la capacité du salon).
+  const profile = await profileOf(participant)
   const room = roomOf(normalized)
   const existing = room.players.get(participant.id)
   if (existing) {
@@ -250,7 +264,7 @@ export async function joinStackRoom(participant: Participant, code: string, link
   if (room.phase !== 'lobby') throw conflict('La partie a déjà commencé.', 'room_started')
   if (room.players.size >= MAX_PLAYERS) throw conflict('Le salon est complet.', 'room_full')
   leaveStackRoom(participant.id)
-  room.players.set(participant.id, newPlayer(participant.id, await profileOf(participant)))
+  room.players.set(participant.id, newPlayer(participant.id, profile))
   room.links.set(participant.id, link)
   memberships.set(participant.id, room.code)
   broadcast(room)
@@ -403,7 +417,7 @@ export async function startStackRoom(playerId: string): Promise<StackRoomView> {
     if (memberships.get(player.id) === room.code) memberships.delete(player.id)
   }
   room.phase = 'countdown'
-  room.seed = Math.floor(Math.random() * 2 ** 31)
+  room.seed = Math.floor(secureRandom() * 2 ** 31)
   // Les mêmes tomes, dans le même ordre, pour tout le monde.
   const list = await stackCovers().catch(() => [])
   room.covers = shuffle(list, seededRandom(`stack:${room.seed}`)).slice(0, COVERS_PER_GAME)

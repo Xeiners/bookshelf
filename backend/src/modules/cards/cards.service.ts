@@ -1,3 +1,4 @@
+import { secureRandom } from '../../core/util/secureRandom.js'
 import { config } from '../../core/config.js'
 import { prisma } from '../../core/db.js'
 import type { Prisma } from '../../generated/prisma/client.js'
@@ -395,7 +396,7 @@ async function grantCards(tx: Prisma.TransactionClient, userId: string, drawn: r
 }
 
 /** Cartes d'où tirer un pack offert (série au hasard) ; à lire AVANT la transaction qui l'attribue. */
-export async function rewardPackPool(random: () => number = Math.random) {
+export async function rewardPackPool(random: () => number = secureRandom) {
   const set = await ensureCardSet()
   if (set.length === 0) throw notReady()
   return seriesCards(set, 'random', random)
@@ -414,7 +415,7 @@ export async function grantLegendaryPack(
   options: { now?: Date; random?: () => number } = {},
 ): Promise<PulledCard[]> {
   const now = options.now ?? new Date()
-  const drawn = drawPack(pool, options.random ?? Math.random, { forceLegendary: true })
+  const drawn = drawPack(pool, options.random ?? secureRandom, { forceLegendary: true })
   const cards = await grantCards(tx, userId, drawn, now)
   await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })
   const rarities = drawn.map((card) => card.rarity)
@@ -432,7 +433,7 @@ export async function openBooster(
   options: { now?: Date; random?: () => number; unlimited?: boolean; series?: SeriesChoice } = {},
 ): Promise<{ cards: PulledCard[]; status: BoosterStatus; series: number }> {
   const now = options.now ?? new Date()
-  const random = options.random ?? Math.random
+  const random = options.random ?? secureRandom
   // Recette : aucun booster n'est dépensé, le stock enregistré reste intact.
   const unlimited = options.unlimited ?? config.cards.unlimited
   // Le set d'abord : si la collection n'est pas prête, aucun booster n'est dépensé.
@@ -574,7 +575,7 @@ export async function openGuestBooster(
   const set = await ensureCardSet()
   if (set.length === 0) throw notReady()
   const now = options.now ?? new Date()
-  const random = options.random ?? Math.random
+  const random = options.random ?? secureRandom
   const { series, cards: pool } = seriesCards(set, options.series ?? 'random', random)
   const drawn = drawPack(pool, random).map((card) => card.id)
   const rows = new Map((await prisma.card.findMany({ where: { id: { in: drawn } } })).map((card) => [card.id, card]))
@@ -595,18 +596,29 @@ export async function guestCollection(receipts: readonly string[]): Promise<Coll
   return buildCollection(guestOwnership(readGuestPacks(receipts)))
 }
 
+/** Un reçu d'invité se périme : on ne ressort pas un vieux reçu des mois plus tard. */
+const GUEST_RECEIPT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000
+
 /**
  * Inscription : les cartes des boosters d'essai rejoignent le nouveau compte.
  * Renvoie le nombre de cartes ajoutées.
  */
 export async function claimGuestPacks(userId: string, receipts: readonly string[]): Promise<number> {
-  const packs = readGuestPacks(receipts)
+  const fresh = readGuestPacks(receipts).filter((pack) => Date.now() - pack.issuedAt.getTime() <= GUEST_RECEIPT_MAX_AGE_MS)
+  if (fresh.length === 0) return 0
+  // Un reçu déjà échangé (par n'importe quel compte) ne vaut plus rien.
+  const spent = await prisma.guestReceiptClaim.findMany({ where: { nonce: { in: fresh.map((pack) => pack.nonce) } }, select: { nonce: true } })
+  const spentNonces = new Set(spent.map((entry) => entry.nonce))
+  const packs = fresh.filter((pack) => !spentNonces.has(pack.nonce))
   const owned = guestOwnership(packs)
   if (owned.size === 0) return 0
   // Seules les cartes du set comptent (par prudence : le set ne perd jamais de carte).
   const known = await prisma.card.findMany({ where: { id: { in: [...owned.keys()] } }, select: { id: true } })
   let claimed = 0
-  await prisma.$transaction(async (tx) => {
+  await prisma
+    .$transaction(async (tx) => {
+    // Clé primaire = nonce : deux échanges simultanés du même reçu, un seul passe (l'autre échoue et annule tout).
+    for (const pack of packs) await tx.guestReceiptClaim.create({ data: { nonce: pack.nonce, userId } })
     for (const { id } of known) {
       const entry = owned.get(id)!
       await tx.userCard.upsert({
@@ -618,6 +630,11 @@ export async function claimGuestPacks(userId: string, receipts: readonly string[
     }
     // Les boosters d'essai comptent dans les statistiques du profil.
     await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: packs.length } } })
-  })
+    })
+    .catch((error: unknown) => {
+      // Même reçu présenté en même temps ailleurs : l'autre demande l'a emporté, rien n'est ajouté ici.
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') claimed = 0
+      else throw error
+    })
   return claimed
 }

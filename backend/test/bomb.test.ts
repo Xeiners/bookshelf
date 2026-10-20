@@ -69,6 +69,17 @@ describe('bomb party — dictionnaires et règles', () => {
 })
 
 describe('bomb party — solo', () => {
+  it('des abandons en rafale ne règlent la partie qu’une fois (pas de récompense multipliée)', async () => {
+    const eve = await account('eve-bomb@example.com', 'Eve')
+    const game = (await eve.request('POST', '/bomb/solo', { mode: 'classic' })).body
+    const word = await solution('classic', game.syllable)
+    await eve.request('POST', `/bomb/solo/${game.id}/word`, { word })
+    const quits = await Promise.all(Array.from({ length: 12 }, () => eve.request('POST', `/bomb/solo/${game.id}/quit`)))
+    assert.ok(quits.every((response) => response.status === 200))
+    const home = await eve.request('GET', '/bomb')
+    assert.equal(home.body.records.earnedToday, logic.soloReward(1))
+  })
+
   it('le serveur arbitre : mots refusés, mot juste, explosion à SON heure, fin avec Poussières', async () => {
     const ana = await account('ana-bomb@example.com', 'Ana')
     const started = await ana.request('POST', '/bomb/solo', { mode: 'classic' })

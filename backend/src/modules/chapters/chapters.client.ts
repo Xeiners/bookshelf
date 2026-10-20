@@ -1,4 +1,5 @@
 import { config } from '../../core/config.js'
+import { sniffImageType } from '../../core/infra/imageType.js'
 import { mangadexGet, type MdCollection, type MdRelationship } from '../manga/mangadex.client.js'
 
 /* ---- Types de réponse (sous-ensemble utilisé) --------------------------- */
@@ -87,6 +88,8 @@ export async function fetchPageImage(url: string): Promise<FetchedImage | null> 
   try {
     response = await fetch(url, {
       headers: { 'User-Agent': config.mangadexUserAgent },
+      // Un nœud de bénévole ne doit pas pouvoir nous envoyer ailleurs (réseau interne) par redirection.
+      redirect: 'manual',
       signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
     })
     if (response.ok) {
@@ -105,7 +108,9 @@ export async function fetchPageImage(url: string): Promise<FetchedImage | null> 
   })
 
   if (!body || !response) return null
-  return { body, contentType: response.headers.get('content-type') ?? 'image/jpeg' }
+  // Le serveur MD@Home est un tiers : le type vient des octets, pas de son en-tête.
+  const contentType = sniffImageType(body)
+  return contentType ? { body, contentType } : null
 }
 
 const REPORT_URL = 'https://api.mangadex.network/report'

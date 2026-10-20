@@ -33,6 +33,8 @@ interface SoloGame {
   /** Dernière explosion : la syllabe ratée et un mot qui aurait marché. */
   missed: { syllable: string; example: string | null; at: number } | null
   over: SoloResult | null
+  /** Règlement en cours ou fait : garantit un seul règlement par partie. */
+  finishing: Promise<void> | null
 }
 
 export interface SoloResult extends BombReward {
@@ -82,10 +84,17 @@ function gameOf(playerId: string, id: string): SoloGame {
   return game
 }
 
-async function finish(game: SoloGame): Promise<void> {
-  if (game.over) return
-  const reward = await settleGame(game.playerId, { mode: game.mode, amount: soloReward(game.words), solo: game.words })
-  game.over = { ...reward, words: game.words }
+/**
+ * Règle la partie UNE seule fois : la promesse est posée avant tout `await`, donc des appels
+ * parallèles (abandon / explosion en rafale) attendent le même règlement au lieu d'en lancer
+ * chacun un (récompenses et records multipliés).
+ */
+function finish(game: SoloGame): Promise<void> {
+  game.finishing ??= (async () => {
+    const reward = await settleGame(game.playerId, { mode: game.mode, amount: soloReward(game.words), solo: game.words })
+    game.over = { ...reward, words: game.words }
+  })()
+  return game.finishing
 }
 
 /** Les explosions survenues depuis (mèche au bout) : une vie chacune, puis une bombe neuve. */
@@ -120,6 +129,7 @@ export async function startSolo(playerId: string, mode: BombMode): Promise<SoloV
     touchedAt: Date.now(),
     missed: null,
     over: null,
+    finishing: null,
   }
   arm(game, Date.now())
   games.set(game.id, game)

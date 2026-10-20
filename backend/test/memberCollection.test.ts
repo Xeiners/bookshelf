@@ -3,6 +3,7 @@
  * réécrites, jamais la photo d'un autre) et album d'un autre membre (profil public
  * seulement, sauf le sien).
  */
+import sharp from 'sharp'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { installMangadexMock, prepareEnvironment, startServer, type TestClient } from './harness.js'
@@ -23,8 +24,8 @@ async function account(email: string, displayName: string): Promise<Account> {
   return Object.assign(device, { userId: signed.body.user.id as string })
 }
 
-/** Un PNG minimal : la signature suffit à l'API pour reconnaître le format. */
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...Array.from({ length: 64 }, (_, index) => index)])
+/** Un vrai PNG : l'API le ré-encode (métadonnées retirées), un octet de signature ne suffit plus. */
+const PNG = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#38f' } }).png().toBuffer()
 
 let alice: Account
 let bastien: Account
@@ -61,7 +62,7 @@ describe('photo de profil', () => {
     for (const viewer of [bastien, client()]) {
       const image = await viewer.send('GET', `/users/${alice.userId}/avatar`)
       assert.equal(image.status, 200)
-      assert.equal(image.headers.get('content-type'), 'image/png')
+      assert.equal(image.headers.get('content-type'), 'image/webp')
       assert.match(image.headers.get('cache-control') ?? '', /public/)
     }
     const found = await bastien.request('GET', '/users?q=Alice')

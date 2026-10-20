@@ -5,12 +5,14 @@ import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:c
  * Format stocké : `scrypt$N$r$p$sel$hash`, auto-descriptif pour faire évoluer
  * les paramètres sans invalider les comptes existants.
  */
-const PARAMS = { N: 16384, r: 8, p: 1 } as const
+const PARAMS = { N: 65536, r: 8, p: 1 } as const
+/** scrypt exige ~128·N·r octets (64 Mo ici) : la limite par défaut de Node (32 Mo) est relevée. */
+const MAX_MEMORY = 128 * 1024 * 1024
 const KEY_LENGTH = 64
 
 function derive(password: string, salt: Buffer, options: ScryptOptions): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    scrypt(password, salt, KEY_LENGTH, options, (error, key) => (error ? reject(error) : resolve(key)))
+    scrypt(password, salt, KEY_LENGTH, { maxmem: MAX_MEMORY, ...options }, (error, key) => (error ? reject(error) : resolve(key)))
   })
 }
 

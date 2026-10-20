@@ -11,6 +11,9 @@ import { WELCOME_GIFT_BOXES } from '../runner/runner.wardrobe.js'
  * ouvrir quand il veut). Le premier score d'un mode ne bat aucun record : il en faut un.
  */
 
+/** Une seule récompense de record par compte et par 24 h. */
+export const RECORD_REWARD_WINDOW_MS = 24 * 60 * 60 * 1000
+
 export type RecordGame = RecordRewardData['game']
 export const REWARD_CHOICES = ['booster', 'box'] as const
 export type RewardChoice = (typeof REWARD_CHOICES)[number]
@@ -38,6 +41,10 @@ const toDto = (row: { id: string; game: string; score: number; previous: number;
  */
 export async function awardRecord(tx: Prisma.TransactionClient, userId: string, game: RecordGame, score: number, previous: number): Promise<RecordRewardDto | null> {
   if (previous <= 0 || score <= previous) return null
+  // Un compte gagne au plus une récompense de record par fenêtre : les scores des jeux solo sont
+  // déclarés par le client, ce plafond borne ce qu'un score trafiqué peut rapporter.
+  const recent = await tx.recordReward.count({ where: { userId, createdAt: { gt: new Date(Date.now() - RECORD_REWARD_WINDOW_MS) } } })
+  if (recent > 0) return null
   const row = await tx.recordReward.create({ data: { userId, game, score, previous } })
   await createNotification(tx, userId, 'record_reward', { rewardId: row.id, game, score, previous })
   return toDto(row)

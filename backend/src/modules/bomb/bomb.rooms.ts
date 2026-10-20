@@ -1,4 +1,5 @@
 import type { Response } from 'express'
+import { secureRandom } from '../../core/util/secureRandom.js'
 import { HttpError, conflict, notFound } from '../../core/http/errors.js'
 import type { Participant } from '../dle/dle.guests.js'
 import { roomCode } from '../dle/dle.logic.js'
@@ -284,8 +285,8 @@ function begin(room: Room): void {
 export async function createBombRoom(participant: Participant, mode: BombMode, settings: Partial<RoomSettings> = {}): Promise<BombRoomView> {
   leaveAll(participant.id)
   const profile = await profileOf(participant)
-  let code = roomCode(Math.random)
-  while (rooms.has(code)) code = roomCode(Math.random)
+  let code = roomCode(secureRandom)
+  while (rooms.has(code)) code = roomCode(secureRandom)
   const room: Room = {
     code,
     mode,

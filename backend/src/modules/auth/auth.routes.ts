@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import { z } from 'zod'
 import { prisma } from '../../core/db.js'
 import { HttpError, conflict, unauthorized } from '../../core/http/errors.js'
@@ -127,6 +127,16 @@ const TEST = config.env === 'test'
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: TEST ? 2000 : 20 })
 /** Saisie du code : plus souple (fautes de frappe), toujours bornée par IP. */
 const verifyLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: TEST ? 2000 : 30 })
+/**
+ * Plafond par COMPTE visé, en plus de celui par IP : une armée d'adresses
+ * (IPv6, proxys) ne contourne plus la limite sur une même cible.
+ */
+const emailKey = (req: Request) => {
+  const email = (req.body as { email?: unknown } | undefined)?.email
+  return typeof email === 'string' ? `email:${email.trim().toLowerCase().slice(0, 254)}` : undefined
+}
+const loginAccountLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: TEST ? 2000 : 15, key: emailKey })
+const codeAccountLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: TEST ? 2000 : 12, key: emailKey })
 
 const emailTaken = () => conflict('Un compte existe déjà avec cet e-mail.', 'email_taken')
 const registrationNotFound = () =>
@@ -239,7 +249,7 @@ authRouter.post('/register/resend', authLimiter, async (req, res) => {
  * bibliothèque invitée et ouvre la session. Un code faux consomme un essai ;
  * au 5ᵉ, il faut en redemander un.
  */
-authRouter.post('/register/verify', verifyLimiter, async (req, res) => {
+authRouter.post('/register/verify', verifyLimiter, codeAccountLimiter, async (req, res) => {
   const { email, code, initialData, guestPacks } = VerifySchema.parse(req.body)
   const pending = await prisma.pendingRegistration.findUnique({ where: { email } })
   if (!pending) throw registrationNotFound()
@@ -247,14 +257,15 @@ authRouter.post('/register/verify', verifyLimiter, async (req, res) => {
   if (pending.expiresAt.getTime() <= Date.now()) {
     throw new HttpError(400, 'code_expired', 'Code expiré : demande-en un nouveau.')
   }
-  if (pending.attempts >= MAX_ATTEMPTS) throw codeLocked()
+  // L'essai est réservé AVANT la comparaison, de façon atomique : des requêtes
+  // parallèles ne peuvent pas lire toutes « 0 essai » et tenter chacune un code.
+  const claimed = await prisma.pendingRegistration.updateMany({
+    where: { email, attempts: { lt: MAX_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  })
+  if (claimed.count === 0) throw codeLocked()
   if (!codeMatches(email, code, pending.codeHash)) {
-    const { attempts } = await prisma.pendingRegistration.update({
-      where: { email },
-      data: { attempts: { increment: 1 } },
-      select: { attempts: true },
-    })
-    const remainingAttempts = Math.max(0, MAX_ATTEMPTS - attempts)
+    const remainingAttempts = Math.max(0, MAX_ATTEMPTS - pending.attempts - 1)
     if (remainingAttempts === 0) throw codeLocked()
     throw new HttpError(400, 'code_invalid', 'Code incorrect.', { remainingAttempts })
   }
@@ -291,7 +302,7 @@ authRouter.post('/register/verify', verifyLimiter, async (req, res) => {
   res.status(201).json({ user: publicUser(user), library, guestCards })
 })
 
-authRouter.post('/login', authLimiter, async (req, res) => {
+authRouter.post('/login', authLimiter, loginAccountLimiter, async (req, res) => {
   const { email, password, initialData } = LoginSchema.parse(req.body)
 
   const user = await prisma.user.findUnique({ where: { email } })
@@ -363,8 +374,14 @@ authRouter.post('/password', authLimiter, requireAuth, async (req, res) => {
   if (!(await verifyPassword(currentPassword, user.passwordHash))) {
     throw new HttpError(400, 'wrong_password', 'Mot de passe actuel incorrect.')
   }
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword) } })
-  await issueSession(res, userId, user.sessionVersion)
+  // Les autres appareils (une session volée, par exemple) sont déconnectés ; celui-ci est réémis.
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await hashPassword(newPassword), sessionVersion: { increment: 1 } },
+    select: { sessionVersion: true },
+  })
+  forgetStanding(userId)
+  await issueSession(res, userId, updated.sessionVersion)
   res.status(204).end()
 })
 
@@ -433,15 +450,19 @@ authRouter.post('/password/forgot', authLimiter, async (req, res) => {
  * compte (`sessionVersion`) et ouvre celle de cet appareil. Un code faux consomme un
  * essai ; au 5ᵉ, il faut en redemander un.
  */
-authRouter.post('/password/reset', verifyLimiter, async (req, res) => {
+authRouter.post('/password/reset', verifyLimiter, codeAccountLimiter, async (req, res) => {
   const { email, code, newPassword, initialData } = ResetSchema.parse(req.body)
   const pending = await prisma.passwordReset.findUnique({ where: { email } })
   if (!pending) throw resetNotFound()
   if (pending.expiresAt.getTime() <= Date.now()) throw new HttpError(400, 'code_expired', 'Code expiré : demande-en un nouveau.')
-  if (pending.attempts >= MAX_ATTEMPTS) throw codeLocked()
+  // Essai réservé de façon atomique avant la comparaison (voir `/register/verify`).
+  const claimed = await prisma.passwordReset.updateMany({
+    where: { email, attempts: { lt: MAX_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  })
+  if (claimed.count === 0) throw codeLocked()
   if (!codeMatches(email, code, pending.codeHash)) {
-    const { attempts } = await prisma.passwordReset.update({ where: { email }, data: { attempts: { increment: 1 } }, select: { attempts: true } })
-    const remainingAttempts = Math.max(0, MAX_ATTEMPTS - attempts)
+    const remainingAttempts = Math.max(0, MAX_ATTEMPTS - pending.attempts - 1)
     if (remainingAttempts === 0) throw codeLocked()
     throw new HttpError(400, 'code_invalid', 'Code incorrect.', { remainingAttempts })
   }

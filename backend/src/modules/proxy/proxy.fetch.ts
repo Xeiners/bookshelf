@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
+import { sniffImageType } from '../../core/infra/imageType.js'
 
 /**
  * Téléchargement d'une image amont pour le relais `/api/proxy`. Les URL
@@ -127,7 +128,9 @@ async function attempt(url: string, headers: Record<string, string>): Promise<At
       if (Number(response.headers.get('content-length') ?? 0) > MAX_IMAGE_BYTES) return { retry: false, reason: 'image trop lourde' }
       const body = Buffer.from(await response.arrayBuffer())
       if (body.byteLength === 0 || body.byteLength > MAX_IMAGE_BYTES) return { retry: false, reason: 'taille invalide' }
-      return { image: { body, contentType } }
+      const sniffed = sniffImageType(body)
+      if (!sniffed) return { retry: false, reason: 'format d’image non pris en charge' }
+      return { image: { body, contentType: sniffed } }
     }
     return { retry: false, reason: 'trop de redirections' }
   } catch (error) {

@@ -12,8 +12,15 @@ try {
   // Pas de `.env` : défauts de développement.
 }
 
+/**
+ * Sans `NODE_ENV`, le build compilé (`dist/*.js`) est considéré comme la
+ * production : un déploiement qui l'oublie ne doit jamais retomber sur le
+ * secret de développement public. Le code source (`tsx`) reste en développement.
+ */
+const defaultNodeEnv = import.meta.url.endsWith('.js') ? 'production' : 'development'
+
 const EnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default(defaultNodeEnv),
   PORT: z.coerce.number().int().positive().default(5000),
   DATABASE_URL: z.string().default('file:./prisma/dev.db'),
   JWT_SECRET: z.string().optional(),
@@ -183,6 +190,9 @@ function resolveMailTransport(): 'smtp' | 'console' | 'memory' | 'none' {
 }
 
 function resolveJwtSecret(): string {
+  if (isProduction && !(env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : true)) {
+    console.warn('[config] COOKIE_SECURE=false en production : le cookie de session circule en clair (HTTP). À réserver à un test hors TLS.')
+  }
   const secret = env.JWT_SECRET?.trim()
   if (secret && secret.length >= 32) return secret
   if (isProduction) {

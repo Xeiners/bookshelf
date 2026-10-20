@@ -69,10 +69,33 @@ export async function receiveAvatar(req: Request): Promise<Buffer> {
   return Buffer.concat(chunks, size)
 }
 
+/** Plus grand côté conservé : une photo de profil n'a pas besoin de plus. */
+const AVATAR_MAX_SIDE = 1024
+/** Pixels décodés au plus (une image « bombe » de 8 Mo peut en annoncer des milliards). */
+const AVATAR_MAX_PIXELS = 40_000_000
+
+/**
+ * Ré-encode la photo en WebP : les métadonnées (position GPS, appareil…) disparaissent, l'orientation
+ * est appliquée, la taille bornée, et ce qui est servi n'est plus jamais le fichier envoyé tel quel.
+ */
+async function normalizeAvatar(data: Buffer): Promise<Buffer> {
+  try {
+    const { default: sharp } = await import('sharp')
+    return await sharp(data, { limitInputPixels: AVATAR_MAX_PIXELS, failOn: 'error' })
+      .rotate()
+      .resize({ width: AVATAR_MAX_SIDE, height: AVATAR_MAX_SIDE, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 88 })
+      .toBuffer()
+  } catch {
+    throw new HttpError(415, 'unsupported_avatar', 'Image illisible ou trop grande.')
+  }
+}
+
 /** Écriture atomique et remplacement des anciennes variantes de la photo. */
-export async function storeAvatar(userId: string, data: Buffer): Promise<string> {
-  const extension = detectFormat(data)
-  if (!extension) throw new HttpError(415, 'unsupported_avatar', 'Utilise une image JPEG, PNG ou WebP.')
+export async function storeAvatar(userId: string, upload: Buffer): Promise<string> {
+  if (!detectFormat(upload)) throw new HttpError(415, 'unsupported_avatar', 'Utilise une image JPEG, PNG ou WebP.')
+  const data = await normalizeAvatar(upload)
+  const extension: AvatarExtension = 'webp'
 
   const directory = avatarDirectory()
   const stem = safeUserId(userId)

@@ -6,7 +6,9 @@ import { refreshWorkCovers } from './modules/higherlower/hl.covers.js'
 import { ensureSeries3 } from './modules/cards/seeds/series3.seed.js'
 import { startCatalogSync } from './modules/catalog/catalog.service.js'
 import { attachCanvas, ensureCanvas, shutdownCanvas } from './modules/canvas/canvas.boot.js'
-import { attachStackSocket } from './modules/stack/stack.socket.js'
+import { refuseUnknownUpgrades } from './core/security/socketAuth.js'
+import { CANVAS_SOCKET_PATH } from './modules/canvas/realtime/canvas.hub.js'
+import { STACK_SOCKET_PATH, attachStackSocket } from './modules/stack/stack.socket.js'
 
 const app = createApp()
 
@@ -22,7 +24,10 @@ if (config.env !== 'test') {
   ensureSeries3()
   setInterval(() => ensureSeries3(), 5 * 60 * 1000).unref()
 }
-// Mode recette oublié en production : il doit se voir dans les journaux.
+// Mode recette oublié en production : il donnerait des boosters à l'infini, le démarrage est refusé.
+if (config.cards.unlimited && config.env === 'production') {
+  throw new Error('BOOSTER_UNLIMITED_MODE est interdit en production : retire-le de l’environnement.')
+}
 if (config.cards.unlimited) console.warn('[cartes] BOOSTER_UNLIMITED_MODE actif : boosters illimités (recette). À couper en production.')
 
 const server = app.listen(config.port, () => {
@@ -33,12 +38,14 @@ const server = app.listen(config.port, () => {
 const detachCanvas = attachCanvas(server)
 // Page Stack : les salons multijoueur (versus, coop) parlent aussi en WebSocket.
 const detachStack = attachStackSocket(server)
+const detachUpgrades = refuseUnknownUpgrades(server, [CANVAS_SOCKET_PATH, STACK_SOCKET_PATH])
 if (config.env !== 'test') void ensureCanvas().catch((error) => console.error('[canvas] démarrage', error))
 
 async function shutdown(signal: string) {
   console.log(`[api] ${signal} reçu, arrêt en cours…`)
   detachCanvas()
   detachStack()
+  detachUpgrades()
   server.close()
   await shutdownCanvas().catch((error) => console.error('[canvas] arrêt', error))
   await prisma.$disconnect()

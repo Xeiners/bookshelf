@@ -81,7 +81,9 @@ extraMocks.push((url, init) => {
     // La première page est une vraie image (bruit : un PNG lourd), pour la conversion WebP.
     if (url.pathname.endsWith('/x1-aaa.png')) return new Response(new Uint8Array(REAL_PNG), { status: 200, headers: { 'Content-Type': 'image/png' } })
     const kind = url.pathname.endsWith('.png') ? 'image/png' : 'image/jpeg'
-    return new Response(new Uint8Array([1, 2, 3, url.pathname.length]), { status: 200, headers: { 'Content-Type': kind } })
+    // Signature valide (le relais reconnaît le format aux octets) ; le dernier octet varie avec le chemin.
+    const signature = kind === 'image/png' ? [0x89, 0x50, 0x4e, 0x47] : [0xff, 0xd8, 0xff]
+    return new Response(new Uint8Array([...signature, 1, 2, 3, url.pathname.length]), { status: 200, headers: { 'Content-Type': kind } })
   }
   return undefined
 })

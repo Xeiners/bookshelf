@@ -336,6 +336,15 @@ model PendingRegistration {
 
 /// Mot de passe oublié : un code à 6 chiffres par e-mail (cf. `src/modules/auth/`).
 /// Même garde-fous que l'inscription ; la ligne disparaît dès le mot de passe changé.
+/// Reçu d'invité (booster ou Poussières) déjà échangé : il ne vaut qu'une seule fois, tous comptes confondus.
+model GuestReceiptClaim {
+  nonce     String   @id
+  userId    String
+  claimedAt DateTime @default(now())
+
+  @@index([claimedAt])
+}
+
 model PasswordReset {
   /// Toujours en minuscules (normalisé par l'API).
   email      String   @id

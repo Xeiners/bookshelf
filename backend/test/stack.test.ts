@@ -146,6 +146,12 @@ describe('Page Stack — API', () => {
     const overview = (await dan.request('GET', '/stack')).body
     assert.deepEqual(overview.leaderboard[0], { ...overview.leaderboard[0], rank: 1, name: 'Dan', score: allTime + 40, me: true })
     assert.equal(overview.myRank, 1)
+
+    // Un nouveau record le même jour est enregistré, mais n'offre pas une 2ᵉ récompense.
+    const again = await play(dan.userId, { score: allTime + 90, pages: 200, perfects: 200 })
+    assert.equal(again.record, true)
+    assert.equal(again.recordReward ?? null, null)
+    assert.equal((await dan.request('GET', '/rewards')).body.rewards.length, 1)
   })
 
   it('le plafond du jour borne les Poussières, pas le score', async () => {

@@ -371,4 +371,26 @@ describe('Page Stack — WebSocket', () => {
   it('sans identité : refusé', async () => {
     await assert.rejects(Socket.open(''), /401/)
   })
+
+  it('un même joueur ne peut pas monopoliser les connexions (3 au plus)', async () => {
+    const visitor = client()
+    assert.equal((await visitor.request('POST', '/dle/guest', { name: 'Gourmand' })).status, 200)
+    const sockets = await Promise.all([1, 2, 3].map(() => Socket.open(visitor.cookie())))
+    await assert.rejects(Socket.open(visitor.cookie()), /429/)
+    for (const socket of sockets) socket.ws.close()
+  })
+
+  it('des « create » en rafale ne créent qu’un seul salon', async () => {
+    const visitor = client()
+    assert.equal((await visitor.request('POST', '/dle/guest', { name: 'Rafale' })).status, 200)
+    const { stackRoomCount } = await import('../src/modules/stack/stack.rooms.js')
+    const before = stackRoomCount()
+    const socket = await Socket.open(visitor.cookie())
+    for (let i = 0; i < 20; i += 1) socket.send({ t: 'create', mode: 'versus' })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const codes = new Set(socket.inbox.filter((message) => message.t === 'room').map((message) => (message.room as { code: string }).code))
+    assert.ok(codes.size >= 1)
+    assert.equal(stackRoomCount() - before, 1, 'un seul salon doit rester ouvert')
+    socket.ws.close()
+  })
 })

@@ -114,7 +114,8 @@ export async function claimGuestStardust(userId: string, tokens: readonly string
     const receipt = readReceipt(token, now)
     if (receipt) receipts.set(receipt.n, receipt.a)
   }
-  const credited = await prisma.$transaction(async (tx) => {
+  const credited = await prisma
+    .$transaction(async (tx) => {
     const claimed = await tx.stardustEntry.aggregate({ where: { userId, reason: 'guest_claim' }, _sum: { amount: true } })
     let room = Math.max(0, GUEST_CLAIM_CAP - (claimed._sum.amount ?? 0))
     let total = 0
@@ -122,13 +123,21 @@ export async function claimGuestStardust(userId: string, tokens: readonly string
       if (room <= 0) break
       const used = await tx.stardustEntry.findFirst({ where: { reason: 'guest_claim', data: { contains: nonce } }, select: { id: true } })
       if (used) continue
+      // Clé primaire = nonce : deux demandes simultanées du même reçu, une seule passe (l'autre annule tout).
+      if (await tx.guestReceiptClaim.findUnique({ where: { nonce }, select: { nonce: true } })) continue
+      await tx.guestReceiptClaim.create({ data: { nonce, userId } })
       const take = Math.min(amount, room)
       await creditStardust(tx, userId, take, 'guest_claim', { receipt: nonce })
       room -= take
       total += take
     }
     return total
-  })
+    })
+    // Même reçu présenté en même temps ailleurs : l'autre demande l'a emporté, rien n'est crédité ici.
+    .catch((error: unknown) => {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') return 0
+      throw error
+    })
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { stardust: true } })
   return { balance: user?.stardust ?? 0, credited }
 }

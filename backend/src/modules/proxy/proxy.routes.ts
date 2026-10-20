@@ -1,10 +1,11 @@
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import { config } from '../../core/config.js'
 import { MAX_ALTERNATES } from '../../extensions/aggregator.js'
 import { decodeChapterKey, MANGADEX_SOURCE_ID } from '../../extensions/chapterKey.js'
 import { sourceAggregator } from '../../extensions/index.js'
-import { badRequest, upstreamError } from '../../core/http/errors.js'
+import { HttpError, badRequest, upstreamError } from '../../core/http/errors.js'
+import { rateLimit } from '../../core/http/rateLimit.js'
 import { toWebp, wantsWebp } from '../../core/infra/webp.js'
 import { relayImage } from './proxy.fetch.js'
 
@@ -30,7 +31,27 @@ const PageQuery = z.object({
   alt: z.string().max(4_000).optional().catch(undefined),
 })
 
-proxyRouter.get('/page/:chapterKey/:index', async (req, res) => {
+/** Une page de lecture par requête, mais un lecteur en précharge des dizaines : large, pas illimité. */
+const pageLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 100_000 : 900 })
+/** Relais simultanés au plus (chacun garde jusqu'à 20 Mo en mémoire + un ré-encodage éventuel). */
+const MAX_CONCURRENT_RELAYS = 24
+let activeRelays = 0
+
+proxyRouter.use('/page', pageLimiter)
+proxyRouter.get('/page/:chapterKey/:index', async (req: Request<{ chapterKey: string; index: string }>, res) => {
+  if (activeRelays >= MAX_CONCURRENT_RELAYS) {
+    res.set('Retry-After', '2')
+    throw new HttpError(503, 'busy', 'Relais saturé, réessaie dans un instant.')
+  }
+  activeRelays += 1
+  try {
+    await relayPage(req, res)
+  } finally {
+    activeRelays -= 1
+  }
+})
+
+async function relayPage(req: Request<{ chapterKey: string; index: string }>, res: Response): Promise<void> {
   const { chapterKey, index: rawIndex } = req.params
   // MangaDex a son propre relais (`/api/chapters/:id/image/…`), avec ses règles.
   if (!isRelayedKey(chapterKey) || !/^\d{1,4}$/.test(rawIndex)) throw badRequest('Page invalide.')
@@ -85,4 +106,4 @@ proxyRouter.get('/page/:chapterKey/:index', async (req, res) => {
   }
 
   throw upstreamError('Page indisponible sur toutes les sources.')
-})
+}

@@ -329,8 +329,10 @@ export interface TileResult {
 /** Une tuile : l'image (ou `null` si vide), sa version. */
 export async function tile(level: number, x: number, y: number, now = Date.now()): Promise<TileResult> {
   const key = keyOf(level, x, y)
+  // Tuile vide : rien à fabriquer ni à mémoriser. Créer une entrée ici laisserait n'importe qui
+  // gonfler la table en demandant des tuiles au hasard.
+  if (!occupied[level]!.has(`${x}:${y}`)) return { png: null, version: entries.get(key)?.version ?? 0, stale: false }
   const entry = entryOf(key)
-  if (!occupied[level]!.has(`${x}:${y}`)) return { png: null, version: entry.version, stale: false }
   if (entry.png !== undefined && !entry.stale) {
     // Récemment servie : la garder en mémoire plus longtemps (ordre d'insertion = ordre d'usage).
     entries.delete(key)

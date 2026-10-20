@@ -48,6 +48,11 @@ const Message = z.discriminatedUnion('t', [
 ])
 
 let connections = 0
+/** Connexions ouvertes par joueur : un compte ou un invité ne monopolise pas les places. */
+const perPlayer = new Map<string, number>()
+const MAX_PER_PLAYER = 3
+/** Un pair muet (pas de « pong » en 2 battements) est coupé : sa place est rendue. */
+const HEARTBEAT_MS = 30_000
 
 /** Le joueur derrière une requête d'upgrade : un compte, sinon un invité ; `null` sans l'un ni l'autre. */
 async function playerOf(request: IncomingMessage): Promise<Participant | null> {
@@ -59,6 +64,17 @@ async function playerOf(request: IncomingMessage): Promise<Participant | null> {
 
 function connect(ws: WebSocket, player: Participant): void {
   connections += 1
+  perPlayer.set(player.id, (perPlayer.get(player.id) ?? 0) + 1)
+  let alive = true
+  ws.on('pong', () => {
+    alive = true
+  })
+  const heartbeat = setInterval(() => {
+    if (!alive) return ws.terminate()
+    alive = false
+    ws.ping()
+  }, HEARTBEAT_MS)
+  heartbeat.unref?.()
   const link: Link = {
     send: (message) => {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message))
@@ -116,7 +132,11 @@ function connect(ws: WebSocket, player: Participant): void {
   })
   ws.on('error', () => undefined)
   ws.on('close', () => {
+    clearInterval(heartbeat)
     connections -= 1
+    const left = (perPlayer.get(player.id) ?? 1) - 1
+    if (left > 0) perPlayer.set(player.id, left)
+    else perPlayer.delete(player.id)
     disconnectStack(player.id, link)
   })
 }
@@ -133,6 +153,7 @@ export function attachStackSocket(server: Server): () => void {
       if (connections >= MAX_CONNECTIONS) return refuse(socket, 503, 'Busy')
       const player = await playerOf(request)
       if (!player) return refuse(socket, 401, 'Unauthorized')
+      if ((perPlayer.get(player.id) ?? 0) >= MAX_PER_PLAYER) return refuse(socket, 429, 'Too Many')
       wss.handleUpgrade(request, socket, head, (ws) => connect(ws, player))
     })().catch((error) => {
       console.error('[stack] connexion', error)

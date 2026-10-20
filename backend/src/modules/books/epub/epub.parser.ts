@@ -102,7 +102,33 @@ export function decodeEntities(value: string): string {
   })
 }
 
-const stripCdata = (value: string) => value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+/** CDATA déballé en un seul passage (un `<![CDATA[` jamais fermé reste tel quel, sans rebalayage quadratique). */
+function stripCdata(value: string): string {
+  let out = ''
+  let from = 0
+  for (;;) {
+    const open = value.indexOf('<![CDATA[', from)
+    if (open === -1) return out + value.slice(from)
+    const close = value.indexOf(']]>', open + 9)
+    if (close === -1) return out + value.slice(from)
+    out += value.slice(from, open) + value.slice(open + 9, close)
+    from = close + 3
+  }
+}
+
+/** Retire les balises `<…>` en un passage : sans `>` après un `<`, plus aucune balise ne peut suivre. */
+function stripTags(value: string): string {
+  let out = ''
+  let from = 0
+  for (;;) {
+    const open = value.indexOf('<', from)
+    if (open === -1) return out + value.slice(from)
+    const close = value.indexOf('>', open + 1)
+    if (close === -1) return out + value.slice(from)
+    out += value.slice(from, open)
+    from = close + 1
+  }
+}
 
 /** Texte d'un élément : CDATA déballé, entités décodées, espaces resserrés. */
 const textOf = (raw: string) => decodeEntities(stripCdata(raw)).replace(/\s+/g, ' ').trim()
@@ -112,13 +138,34 @@ interface XmlElement {
   content: string
 }
 
-/** Éléments `<prefixe:nom …>` (ou sans préfixe), auto-fermants compris. */
+/**
+ * Éléments `<prefixe:nom …>` (ou sans préfixe), auto-fermants compris. Les balises
+ * ouvrantes et fermantes sont repérées chacune en un passage, puis appariées avec
+ * un curseur : coût linéaire même sur un fichier piégé (balises jamais fermées).
+ */
 function elements(xml: string, localName: string): XmlElement[] {
-  const pattern = new RegExp(
-    `<(?:[\\w.-]+:)?${localName}(?=[\\s/>])([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${localName}\\s*>)`,
-    'gi',
-  )
-  return [...xml.matchAll(pattern)].map((match) => ({ attributes: match[1] ?? '', content: match[2] ?? '' }))
+  const opening = new RegExp(`<(?:[\\w.-]+:)?${localName}(?=[\\s/>])([^>]*)>`, 'gi')
+  const closing = new RegExp(`<\\/(?:[\\w.-]+:)?${localName}\\s*>`, 'gi')
+  const closes = [...xml.matchAll(closing)].map((match) => ({ start: match.index, end: match.index + match[0].length }))
+  const found: XmlElement[] = []
+  let cursor = 0
+  let consumed = 0
+  for (const match of xml.matchAll(opening)) {
+    if (match.index < consumed) continue
+    const attributes = match[1] ?? ''
+    const contentStart = match.index + match[0].length
+    if (attributes.endsWith('/')) {
+      found.push({ attributes: attributes.slice(0, -1), content: '' })
+      consumed = contentStart
+      continue
+    }
+    while (cursor < closes.length && closes[cursor]!.start < contentStart) cursor += 1
+    const close = closes[cursor]
+    if (!close) continue
+    found.push({ attributes, content: xml.slice(contentStart, close.start) })
+    consumed = close.end
+  }
+  return found
 }
 
 /** Valeur d'un attribut (préfixe d'espace de noms accepté : `opf:role`). */
@@ -135,10 +182,9 @@ function attribute(attributes: string, name: string): string | null {
  */
 export function plainText(raw: string, maxLength = 10_000): string {
   const strip = (value: string) =>
-    value
-      .replace(/<\s*br\s*\/?>/gi, '\n')
-      .replace(/<\/\s*(p|div|li|h[1-6])\s*>/gi, '\n\n')
-      .replace(/<[^>]+>/g, '')
+    stripTags(
+      value.replace(/<\s*br\s*\/?>/gi, '\n').replace(/<\/\s*(p|div|li|h[1-6])\s*>/gi, '\n\n'),
+    )
   let text = decodeEntities(strip(stripCdata(raw)))
   if (/<\/?[a-z][^>]*>/i.test(text)) text = decodeEntities(strip(text))
   return text
@@ -262,7 +308,7 @@ function coverCandidates(zip: Uint8Array, entries: Map<string, EntryInfo>, opfPa
   if (guideHref) {
     const pagePath = resolveHref(opfPath, guideHref)
     const page = readText(zip, entries, pagePath)
-    const image = page ? /<(?:img|image)\b[^>]*?\s(?:src|xlink:href|href)\s*=\s*["']([^"']+)["']/i.exec(page)?.[1] : undefined
+    const image = page ? /<(?:img|image)\b[^>]{0,2000}?\s(?:src|xlink:href|href)\s*=\s*["']([^"']+)["']/i.exec(page)?.[1] : undefined
     if (image) candidates.push(resolveHref(pagePath, image))
   }
 
@@ -303,7 +349,7 @@ export function parseEpub(zip: Uint8Array): EpubMetadata {
   const opf = opfPath ? readText(zip, entries, opfPath) : null
   if (!opfPath || !opf) throw new InvalidEpubError('Paquet OPF introuvable : EPUB incomplet.')
 
-  const metadata = /<(?:[\w.-]+:)?metadata\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?metadata\s*>/i.exec(opf)?.[1] ?? opf
+  const metadata = elements(opf, 'metadata')[0]?.content ?? opf
   const first = (name: string) => elements(metadata, name).map((element) => textOf(element.content)).find(Boolean) ?? null
 
   const dates = elements(metadata, 'date')

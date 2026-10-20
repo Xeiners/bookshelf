@@ -393,6 +393,18 @@ describe('API — boosters et collection', () => {
     assert.deepEqual(counts(collection), counts(expected))
   })
 
+  it('un reçu d’essai déjà échangé ne vaut rien sur un second compte (pas de cartes à l’infini)', async () => {
+    const guest = client()
+    const opened = await guest.request('POST', '/boosters/guest/open', { receipts: [] })
+    const receipts = [opened.body.receipt]
+    const stamp = Date.now()
+    const first = await client().signUp({ email: `replay-a-${stamp}@example.com`, password: 'motdepasse-test', guestPacks: receipts })
+    assert.equal(first.body.guestCards, CARDS_PER_PACK)
+    const second = await client().signUp({ email: `replay-b-${stamp}@example.com`, password: 'motdepasse-test', guestPacks: receipts })
+    assert.equal(second.status, 201)
+    assert.equal(second.body.guestCards ?? 0, 0)
+  })
+
   it('stock initial : 3/3, pas de minuteur, horloge du serveur jointe', async () => {
     const { body } = await (await signedUp()).request('GET', '/boosters/status')
     assert.equal(MAX_BOOSTERS, 3)

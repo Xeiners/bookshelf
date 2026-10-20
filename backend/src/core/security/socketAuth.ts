@@ -1,4 +1,4 @@
-import type { IncomingMessage } from 'node:http'
+import type { IncomingMessage, Server } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { config } from '../config.js'
 
@@ -39,3 +39,24 @@ export function refuse(socket: Duplex, status: number, text: string): void {
   socket.destroy()
 }
 
+
+/**
+ * Une requête d'upgrade vers un chemin que personne ne traite resterait ouverte
+ * indéfiniment (aucun gestionnaire ne répond) : chaque connexion fantôme
+ * gaspillerait un descripteur. On la ferme.
+ */
+export function refuseUnknownUpgrades(server: Server, knownPaths: readonly string[]): () => void {
+  const handler = (request: IncomingMessage, socket: Duplex) => {
+    let pathname = ''
+    try {
+      pathname = new URL(request.url ?? '/', 'http://localhost').pathname
+    } catch {
+      // chemin illisible : refusé comme un chemin inconnu
+    }
+    if (knownPaths.includes(pathname)) return
+    socket.on('error', () => undefined)
+    refuse(socket, 404, 'Not Found')
+  }
+  server.on('upgrade', handler)
+  return () => void server.off('upgrade', handler)
+}

@@ -37,7 +37,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Renseigner POSTGRES_PASSWORD dans .env}
       POSTGRES_DB: ${POSTGRES_DB:-bookshelf}
     ports:
-      - "${DEV_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DEV_DB_PORT:-5432}:5432"
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
@@ -95,7 +95,7 @@ services:
       sh -c "npm run db:generate:all && npx prisma migrate deploy &&
              exec npx tsx watch --clear-screen=false src/index.ts"
     ports:
-      - "${DEV_API_PORT:-5000}:5000"
+      - "127.0.0.1:${DEV_API_PORT:-5000}:5000"
 
   frontend:
     image: node:22-alpine
@@ -112,7 +112,7 @@ services:
       VITE_USE_POLLING: "true"
     command: sh -c "exec npx vite --host 0.0.0.0 --port 5173"
     ports:
-      - "${DEV_WEB_PORT:-5173}:5173"
+      - "127.0.0.1:${DEV_WEB_PORT:-5173}:5173"
 
   # Pont des extensions Tachiyomi (Suwayomi-Server), facultatif :
   #   docker compose -f docker-compose.dev.yml --profile tachiyomi up

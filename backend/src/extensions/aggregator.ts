@@ -135,7 +135,7 @@ export class SourceAggregatorService {
    * Toute erreur (réseau, réponse au format inattendu, exception du code de la
    * source) est journalisée ici, puis remonte à l'appelant qui décide du repli.
    */
-  private async run<T>(provider: SourceProvider, operation: () => Promise<T>): Promise<T> {
+  private async run<T>(provider: SourceProvider, operation: () => Promise<T>, options: { perItem?: boolean } = {}): Promise<T> {
     const breaker = this.breakerFor(provider.id)
     if (!breaker.tryAcquire()) throw new SourceSkippedError(`${provider.id} : circuit ouvert`)
     try {
@@ -145,6 +145,9 @@ export class SourceAggregatorService {
     } catch (error) {
       // Un 404 n'est pas une panne : la source répond, elle n'a simplement pas ce titre.
       if (error instanceof HttpError && error.status === 404) breaker.recordSuccess()
+      // Appel visant UN identifiant que le client a pu inventer : l'erreur de la source dit « cet id est
+      // mauvais », pas « la source est en panne ». Sinon trois requêtes bidon coupent la source pour tous.
+      else if (options.perItem && error instanceof HttpError) breaker.recordSuccess()
       else breaker.recordFailure()
       this.options.log?.(`${provider.id} : ${describe(error)}`)
       throw error
@@ -265,7 +268,7 @@ export class SourceAggregatorService {
     // Les sources `selfRelayed` (MangaDex) ont leur propre relais, avec ses règles.
     if (!decoded || !provider || provider.selfRelayed) throw notFound('Source de chapitre inconnue.')
     const pages = await this.pageCache.getOrLoad(chapterKey, () =>
-      this.run(provider, () => provider.fetchPageUrls(decoded.rawId, { quality: 'data' })),
+      this.run(provider, () => provider.fetchPageUrls(decoded.rawId, { quality: 'data' }), { perItem: true }),
     )
     const page = pages[index]
     if (!page) throw notFound('Page introuvable dans ce chapitre.')

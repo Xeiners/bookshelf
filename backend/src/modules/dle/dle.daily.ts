@@ -1,7 +1,8 @@
+import { createHmac } from 'node:crypto'
 import { config } from '../../core/config.js'
 import { prisma } from '../../core/db.js'
 import { HttpError, badRequest, conflict } from '../../core/http/errors.js'
-import { hashString, seededRandom, shuffle } from '../../core/util/seeded.js'
+import { seededRandom } from '../../core/util/seeded.js'
 import { applyDraw } from '../oracle/streak.js'
 import { creditStardust } from '../stardust/stardust.service.js'
 import { gameOf, guessResult, poolFor, type DleEntity, type EntitySummary, type GuessResult } from './dle.games.js'
@@ -18,9 +19,13 @@ import { cleanTiles, pickTiles, sweepTiles } from './dle.sweep.js'
 /** Une proposition ne revient pas comme énigme du jour avant ce délai. */
 const NO_REPEAT_DAYS = 120
 
-/** Graine secrète : sans elle, qui lit le code pourrait calculer les énigmes à venir. */
-const seedOf = (day: string, category: DleCategory, mode: DleMode) =>
-  `dle:${day}:${category === 'manga' ? '' : `${category}:`}${mode}:${hashString(config.jwtSecret)}`
+/**
+ * Indice du tirage du jour, dérivé du secret par HMAC-SHA256 : aucune énigme à venir ne se calcule
+ * sans le secret (une graine de 32 bits se retrouverait par force brute à partir des réponses passées).
+ */
+const secretDigest = (day: string, category: DleCategory, mode: DleMode, purpose: string) =>
+  createHmac('sha256', config.jwtSecret).update(`dle:${day}:${category === 'manga' ? '' : `${category}:`}${mode}:${purpose}`).digest()
+const pickIndex = (day: string, category: DleCategory, mode: DleMode, size: number) => secretDigest(day, category, mode, 'pick').readUIntBE(0, 6) % size
 
 /** Format zoom sans image (portraits indisponibles) : rien à montrer pour l'instant. */
 const imagesUnavailable = () => new HttpError(503, 'dle_images_unavailable', 'Les images de cette énigme sont indisponibles, réessaie plus tard.')
@@ -44,7 +49,8 @@ export async function puzzleEntity(day: string, category: DleCategory, mode: Dle
   const recent = await prisma.dlePuzzle.findMany({ where: { category }, orderBy: { day: 'desc' }, take: NO_REPEAT_DAYS * 2, select: { cardId: true } })
   const used = new Set(recent.map((puzzle) => puzzle.cardId))
   const fresh = pool.filter((entity) => !used.has(entity.id))
-  const chosen = shuffle(fresh.length > 0 ? fresh : pool, seededRandom(seedOf(day, category, mode)))[0] as DleEntity
+  const candidates = fresh.length > 0 ? fresh : pool
+  const chosen = candidates[pickIndex(day, category, mode, candidates.length)] as DleEntity
   if (stored) {
     // Plus jouable (carte retirée, portrait disparu) : l'énigme est remplacée.
     await prisma.dlePuzzle.update({ where, data: { cardId: chosen.id } })
@@ -122,7 +128,7 @@ async function viewOf(day: string, category: DleCategory, mode: DleMode, row: Da
     guesses,
     solved,
     reward: row?.reward ?? 0,
-    focus: mode === 'zoom' ? zoomFocus(seededRandom(`${seedOf(day, category, mode)}:focus`)) : null,
+    focus: mode === 'zoom' ? zoomFocus(seededRandom(secretDigest(day, category, mode, 'focus').toString('hex'))) : null,
     sweep: mode === 'sweep' ? sweepStateOf(row, guesses.length, solved) : null,
     answer: solved ? game.summary(answer) : null,
   }

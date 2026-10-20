@@ -30,6 +30,8 @@ const PagesQuery = z.object({
  * quelques minutes, plus le préchargement du suivant).
  */
 const pagesLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 })
+/** Un lecteur précharge des dizaines d'images : large, mais pas illimité (mémoire + ré-encodage WebP). */
+const imageLimiter = rateLimit({ windowMs: 60 * 1000, max: process.env.NODE_ENV === 'test' ? 100_000 : 900 })
 
 /** Monté sous `/api/manga` : `GET /api/manga/:id/chapters?lang=fr|en`. */
 export const mangaChaptersRouter = Router()
@@ -84,6 +86,7 @@ chaptersRouter.get('/:chapterId/pages', pagesLimiter, async (req, res) => {
  * navigateur et celui du Service Worker suffisent, la RAM du VPS est partagée.
  * Les autres sources passent par le relais générique `/api/proxy`.
  */
+chaptersRouter.use('/:chapterId/image', imageLimiter)
 chaptersRouter.get('/:chapterId/image/:quality/:file', async (req, res) => {
   const { chapterId, file } = req.params
   if (!UUID.test(chapterId) || !PAGE_FILE.test(file)) throw badRequest('Page invalide.')

@@ -56,6 +56,9 @@ export function mergePlaylists(stored: readonly SyncPlaylist[], incoming: readon
     }
     const current = byId.get(next.id)
     if (current && next.updatedAt <= current.updatedAt) continue
+    // Une suppression d'une playlist inconnue n'a rien à effacer, et la table ne grossit pas de fantômes ;
+    // au-delà du plafond de lignes (playlists + tombstones), aucune nouvelle ligne n'est créée.
+    if (!current && (next.deleted || byId.size >= PLAYLIST_LIMITS.playlists * 4)) continue
     const revives = !next.deleted && (!current || current.deleted)
     if (revives && alive >= PLAYLIST_LIMITS.playlists) continue
     if (revives) alive += 1
