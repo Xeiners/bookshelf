@@ -1148,6 +1148,7 @@ export const fr = {
     play: 'Lecture',
     pause: 'Pause',
     youtube: 'Voir sur YouTube',
+    seek: 'Avancer dans la vidéo',
     unavailable: 'Vidéo indisponible, on passe à la suivante…',
     loading: 'Chargement des edits…',
     empty: 'Aucun edit trouvé pour l’instant.',

@@ -1,26 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ChevronUp, ExternalLink, Loader2, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react'
+import { ArrowLeft, ChevronUp, Loader2, RotateCcw, Volume2, VolumeX } from 'lucide-react'
 import { useT } from '../../i18n'
 import { ambientPlayer } from '../../lib/audio/youtubePlayer'
 import { vibrate } from '../../lib/haptics'
 import { EDIT_UNIVERSES, editsApi, type EditUniverse, type EditVideo } from '../../services/editsApi'
 import { useUiStore } from '../../store/useUiStore'
+import { EditSlide } from './EditSlide'
 
 /*
  * Fil « Edits » : des edits, AMV et MMV d'anime (YouTube Shorts), une vidéo par écran, qu'on
  * fait défiler du doigt (ou des flèches) comme sur TikTok. En essai, réservé aux administrateurs.
  *
- *  - Seule la vidéo à l'écran a un lecteur (le lecteur officiel YouTube, sans cookie) ; les
- *    autres ne sont qu'une affiche. Une pellicule de vingt lecteurs mettrait un téléphone à genoux.
- *  - Un voile transparent couvre le lecteur : le glissé fait défiler le fil (une iframe avalerait
- *    le geste) et un toucher met en pause ou relance.
+ *  - Quatre lecteurs au plus : la vidéo à l'écran, celle d'avant, et les deux suivantes déjà
+ *    chargées (pas d'écran noir en arrivant dessus). Les autres ne sont qu'une affiche.
+ *  - Notre propre lecteur par-dessus celui de YouTube (`EditSlide`) : pause au toucher, barre de
+ *    progression qu'on saisit pour avancer dans l'edit.
  *  - Le son démarre coupé (seule lecture automatique permise par les navigateurs) ; le réglage
  *    suit d'une vidéo à l'autre.
  *  - Le fil se charge par pages en approchant de la fin ; une vidéo qui refuse d'être intégrée
  *    est sautée toute seule.
  */
 
-const YT_ORIGIN = 'https://www.youtube-nocookie.com'
+/** Vidéos suivantes dont le lecteur est déjà prêt (préchargées, arrêtées sur leur première image). */
+const PRELOAD = 2
 /** Pages demandées quand il ne reste plus que ce nombre de vidéos devant soi. */
 const PREFETCH_AHEAD = 3
 
@@ -125,14 +127,14 @@ export function EditsFeed() {
     scroller.scrollTo({ top: index * scroller.clientHeight, behavior: 'smooth' })
   }, [])
 
-  // Vidéo refusée par YouTube (intégration interdite, supprimée) : signalée, puis sautée.
-  const onFailed = useCallback(
-    (id: string, index: number) => {
-      setFailed((current) => new Set(current).add(id))
-      window.setTimeout(() => goTo(index + 1), 1200)
-    },
-    [goTo],
-  )
+  // Vidéo refusée par YouTube (intégration interdite, supprimée) : notée ; à l'écran, on la saute.
+  const onFailed = useCallback((id: string) => setFailed((current) => (current.has(id) ? current : new Set(current).add(id))), [])
+  const activeFailed = items[active] !== undefined && failed.has(items[active].id)
+  useEffect(() => {
+    if (!activeFailed) return
+    const timer = window.setTimeout(() => goTo(active + 1), 1200)
+    return () => window.clearTimeout(timer)
+  }, [activeFailed, active, goTo])
 
   // Clavier (ordinateur) : flèches pour défiler, M pour le son, Échap pour sortir.
   useEffect(() => {
@@ -177,11 +179,12 @@ export function EditsFeed() {
               item={item}
               index={index}
               active={index === active}
+              mounted={index >= active - 1 && index <= active + PRELOAD}
               muted={muted}
               paused={paused && index === active}
               failed={failed.has(item.id)}
               onToggle={() => setPaused((value) => !value)}
-              onFailed={() => onFailed(item.id, index)}
+              onFailed={() => onFailed(item.id)}
             />
           ))}
           {status === 'ready' && next === null && (
@@ -291,143 +294,5 @@ function Chip({ selected, onClick, label }: { selected: boolean; onClick: () => 
     >
       {label}
     </button>
-  )
-}
-
-interface EditSlideProps {
-  item: EditVideo
-  index: number
-  active: boolean
-  muted: boolean
-  paused: boolean
-  failed: boolean
-  onToggle: () => void
-  onFailed: () => void
-}
-
-/** Une vidéo du fil : l'affiche, et — quand elle est à l'écran — le lecteur YouTube par-dessus. */
-function EditSlide({ item, index, active, muted, paused, failed, onToggle, onFailed }: EditSlideProps) {
-  const t = useT()
-  const frameRef = useRef<HTMLIFrameElement>(null)
-  const [playing, setPlaying] = useState(false)
-
-  const command = useCallback((func: string) => {
-    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args: [] }), YT_ORIGIN)
-  }, [])
-  // Réglages du moment, relus quand le lecteur est prêt (un message envoyé avant serait perdu).
-  const settingsRef = useRef({ muted, paused })
-  useEffect(() => {
-    settingsRef.current = { muted, paused }
-  }, [muted, paused])
-  const applySettings = useCallback(() => {
-    command(settingsRef.current.muted ? 'mute' : 'unMute')
-    command(settingsRef.current.paused ? 'pauseVideo' : 'playVideo')
-  }, [command])
-
-  // Le lecteur parle par messages : on s'abonne à ses événements (lecture, erreur).
-  useEffect(() => {
-    if (!active) return
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== YT_ORIGIN || event.source !== frameRef.current?.contentWindow || typeof event.data !== 'string') return
-      let data: { event?: string; info?: unknown }
-      try {
-        data = JSON.parse(event.data) as typeof data
-      } catch {
-        return
-      }
-      if (data.event === 'onError') onFailed()
-      if (data.event === 'onReady') applySettings()
-      if (data.event === 'onStateChange' || data.event === 'infoDelivery') {
-        const state = typeof data.info === 'number' ? data.info : (data.info as { playerState?: number } | null)?.playerState
-        if (state === 1) setPlaying(true)
-      }
-    }
-    window.addEventListener('message', onMessage)
-    return () => {
-      window.removeEventListener('message', onMessage)
-      // Hors de l'écran, le lecteur disparaît : au retour, l'affiche revient le temps qu'il recharge.
-      setPlaying(false)
-    }
-  }, [active, onFailed, applySettings])
-
-  // Son et pause suivent les réglages du fil.
-  useEffect(() => {
-    if (active) command(muted ? 'mute' : 'unMute')
-  }, [active, muted, command])
-  useEffect(() => {
-    if (active) command(paused ? 'pauseVideo' : 'playVideo')
-  }, [active, paused, command])
-
-  // Toujours lancée sans le son (seule lecture automatique sûre) ; le réglage du fil est appliqué
-  // dès que le lecteur est prêt. La source ne dépend donc pas du son : le changer ne recharge rien.
-  const src = `${YT_ORIGIN}/embed/${item.id}?autoplay=1&mute=1&playsinline=1&loop=1&playlist=${item.id}&controls=0&rel=0&modestbranding=1&iv_load_policy=3&fs=0&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`
-
-  return (
-    <section data-index={index} aria-label={item.title} className="relative h-full snap-start snap-always overflow-hidden bg-black">
-      {/* Affiche : visible tant que la vidéo ne joue pas encore (ou hors de l'écran). */}
-      <img
-        src={thumbnail(item.id)}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${active && playing ? 'opacity-0' : 'opacity-100'}`}
-      />
-      {active && !failed && (
-        <iframe
-          ref={frameRef}
-          title={item.title}
-          src={src}
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerPolicy="strict-origin-when-cross-origin"
-          onLoad={() => frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: index, channel: 'widget' }), YT_ORIGIN)}
-          className="absolute inset-0 h-full w-full border-0"
-        />
-      )}
-
-      {/* Voile : le glissé fait défiler le fil, un toucher met en pause. */}
-      <button type="button" onClick={onToggle} aria-label={paused ? t.edits.play : t.edits.pause} className="absolute inset-0 z-10 cursor-pointer">
-        {paused && (
-          <span className="absolute top-1/2 left-1/2 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 backdrop-blur">
-            <Play size={28} className="ml-1 fill-current" aria-hidden />
-          </span>
-        )}
-        {!paused && active && !playing && !failed && (
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-            <Loader2 size={28} className="animate-spin text-cream/70" aria-hidden />
-          </span>
-        )}
-      </button>
-
-      {failed && (
-        <p className="absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 rounded-2xl bg-black/65 px-4 py-3 text-center text-sm text-cream/85 backdrop-blur">{t.edits.unavailable}</p>
-      )}
-
-      {/* Légende : univers, titre, chaîne, et le lien vers YouTube. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pt-16 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        <div className="flex items-end gap-3">
-          <div className="min-w-0 flex-1">
-            {item.universe && (
-              <span className="mb-2 inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase backdrop-blur">
-                {t.edits.universes[item.universe]}
-              </span>
-            )}
-            <p className="line-clamp-2 text-[15px] leading-snug font-semibold drop-shadow">{item.title}</p>
-            {item.channel && <p className="mt-1 truncate text-xs text-cream/70">@{item.channel}</p>}
-          </div>
-          <div className="pointer-events-auto flex shrink-0 flex-col items-center gap-3">
-            <a
-              href={`https://www.youtube.com/shorts/${item.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={t.edits.youtube}
-              title={t.edits.youtube}
-              className="grid size-11 place-items-center rounded-full bg-black/45 backdrop-blur active:scale-95"
-            >
-              <ExternalLink size={18} />
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
   )
 }

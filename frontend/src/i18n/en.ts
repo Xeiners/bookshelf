@@ -1137,6 +1137,7 @@ export const en: Dictionary = {
     play: 'Play',
     pause: 'Pause',
     youtube: 'Watch on YouTube',
+    seek: 'Seek in the video',
     unavailable: 'Video unavailable, skipping to the next one…',
     loading: 'Loading edits…',
     empty: 'No edits found for now.',

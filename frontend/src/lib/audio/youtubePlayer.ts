@@ -1,3 +1,5 @@
+import { YT_STATE, loadYouTubeApi as loadApi, type YTNamespace, type YTPlayer } from '../youtube/iframeApi'
+
 /**
  * Lecteur de musique d'ambiance, partagé par toute l'application : un
  * `YT.Player` invisible (1 px, hors du flux, sans pointeur) dont on ne garde
@@ -73,87 +75,6 @@ export const youTubeUrl = (source: AmbientSource) =>
   source.kind === 'video'
     ? `https://www.youtube.com/watch?v=${source.id}`
     : `https://www.youtube.com/playlist?list=${source.id}`
-
-/* ---- Types minimaux de l'API IFrame (pas de dépendance @types) -------------- */
-
-const YT_STATE = { Unstarted: -1, Ended: 0, Playing: 1, Paused: 2 } as const
-
-interface YTPlayer {
-  playVideo(): void
-  pauseVideo(): void
-  loadVideoById(videoId: string): void
-  loadPlaylist(options: { list: string; listType: 'playlist' }): void
-  nextVideo(): void
-  previousVideo(): void
-  playVideoAt(index: number): void
-  getPlaylist(): string[] | null
-  getPlaylistIndex(): number
-  setLoop(loop: boolean): void
-  setVolume(volume: number): void
-  unMute(): void
-  seekTo(seconds: number, allowSeekAhead: boolean): void
-  getCurrentTime(): number
-  getDuration(): number
-  /** Non documentée mais stable depuis des années ; absente, on se passe du titre (et du direct). */
-  getVideoData?: () => { title?: string; isLive?: boolean } | undefined
-  destroy(): void
-}
-
-interface YTPlayerEvent<T = undefined> {
-  target: YTPlayer
-  data: T
-}
-
-interface YTPlayerOptions {
-  width: number
-  height: number
-  playerVars: Record<string, string | number>
-  events: {
-    onReady: (event: YTPlayerEvent) => void
-    onStateChange: (event: YTPlayerEvent<number>) => void
-    onError: (event: YTPlayerEvent<number>) => void
-  }
-}
-
-interface YTNamespace {
-  Player: new (element: HTMLElement, options: YTPlayerOptions) => YTPlayer
-}
-
-declare global {
-  interface Window {
-    YT?: YTNamespace
-    onYouTubeIframeAPIReady?: () => void
-  }
-}
-
-/* ---- Chargement de l'API ------------------------------------------------------ */
-
-const API_URL = 'https://www.youtube.com/iframe_api'
-let apiPromise: Promise<YTNamespace> | null = null
-
-function loadApi(): Promise<YTNamespace> {
-  if (window.YT?.Player) return Promise.resolve(window.YT)
-  apiPromise ??= new Promise<YTNamespace>((resolve, reject) => {
-    // L'API appelle ce global une fois prête : on chaîne un éventuel appelant précédent.
-    const previous = window.onYouTubeIframeAPIReady
-    window.onYouTubeIframeAPIReady = () => {
-      previous?.()
-      if (window.YT?.Player) resolve(window.YT)
-      else reject(new Error('YouTube IFrame API sans Player'))
-    }
-    const script = document.createElement('script')
-    script.src = API_URL
-    script.async = true
-    script.onerror = () => {
-      // Hors-ligne ou bloqué : on retentera au prochain `play()`.
-      apiPromise = null
-      script.remove()
-      reject(new Error('YouTube IFrame API injoignable'))
-    }
-    document.head.append(script)
-  })
-  return apiPromise
-}
 
 /* ---- Lecteur ------------------------------------------------------------------ */
 
