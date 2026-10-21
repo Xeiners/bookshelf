@@ -143,7 +143,7 @@ export function EditSlide({ item, index, active, playing, paused, failed, playba
 
       {/* Légende : univers, titre, chaîne, et le lien vers YouTube. Masquée pendant le glissé. */}
       <div
-        className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pt-16 pb-[max(1.75rem,calc(env(safe-area-inset-bottom)+1.25rem))] transition-opacity duration-200 ${scrub ? 'opacity-0' : 'opacity-100'}`}
+        className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pt-16 pb-[calc(env(safe-area-inset-bottom)+4.25rem)] transition-opacity duration-200 ${scrub ? 'opacity-0' : 'opacity-100'}`}
       >
         <div className="flex items-end gap-3">
           <div className="min-w-0 flex-1">
@@ -181,10 +181,12 @@ export function EditSlide({ item, index, active, playing, paused, failed, playba
           onPointerMove={moveScrub}
           onPointerUp={endScrub}
           onPointerCancel={endScrub}
-          className="group absolute inset-x-0 bottom-0 z-30 flex h-7 touch-none items-end pb-[env(safe-area-inset-bottom)]"
+          // Au-dessus de la zone des gestes du téléphone (glisser du bord bas change d'application) :
+          // la barre se tient ~3 rem plus haut, avec une prise de 2,5 rem pour le pouce.
+          className="group absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1.75rem)] z-30 flex h-10 touch-none items-center px-4"
         >
-          <div className={`relative w-full overflow-visible bg-white/20 transition-[height] duration-150 ${scrub ? 'h-1.5' : 'h-[3px] group-hover:h-1.5'}`}>
-            <div ref={barRef} className="absolute inset-0 origin-left bg-white [transform:scaleX(0)]" />
+          <div className={`relative w-full overflow-visible rounded-full bg-white/25 transition-[height] duration-150 ${scrub ? 'h-1.5' : 'h-[3px] group-hover:h-1.5'}`}>
+            <div ref={barRef} className="absolute inset-0 origin-left rounded-full bg-white [transform:scaleX(0)]" />
             {scrub && <span className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow" style={{ left: `${scrub.ratio * 100}%` }} />}
           </div>
         </div>
