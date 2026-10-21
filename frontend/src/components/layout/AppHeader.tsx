@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Clapperboard, Settings } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -31,8 +31,6 @@ export function AppHeader({ view }: AppHeaderProps) {
   const copy = t.header[shownView]
   const openSettings = useUiStore((state) => state.openSettings)
   const signedIn = useAuthStore((state) => state.user !== null)
-  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
-  const openEdits = useUiStore((state) => state.openEdits)
   // Recherche défilée : l'en-tête se replie pour laisser la place aux résultats.
   const collapsed = useUiStore((state) => state.chromeCollapsed) && view === 'search'
   const collapseRef = useRef<HTMLDivElement>(null)
@@ -85,23 +83,6 @@ export function AppHeader({ view }: AppHeaderProps) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 pt-1">
-        {/* Découverte : le fil des edits d'anime (en essai, administrateurs seulement). */}
-        {view === 'discover' && isAdmin && (
-          <Pressable
-            onClick={() => {
-              vibrate(8)
-              openEdits()
-            }}
-            aria-label={t.edits.openAria}
-            title={t.edits.openAria}
-            className="inline-flex size-10 items-center justify-center gap-1.5 rounded-full text-[13px] font-semibold text-white sm:w-auto sm:px-3.5 md:h-11"
-            style={{ background: 'linear-gradient(135deg, #ff5ec4, #7c5cff)', boxShadow: '0 8px 22px -10px rgba(255,94,196,0.9)' }}
-          >
-            <Clapperboard size={16} aria-hidden />
-            {/* Téléphone : l'icône seule (la place manque à côté de la musique et des notifications). */}
-            <span className="hidden sm:inline">{t.edits.open}</span>
-          </Pressable>
-        )}
         {/* Bibliothèque : une bulle vers les romans du compte et les fichiers de l'appareil. */}
         {view === 'library' && <LibraryMenu />}
         {/* Musique d'ambiance, et son mini-lecteur (anneau d'avancement, commandes en bulle) : sur toutes les vues. */}

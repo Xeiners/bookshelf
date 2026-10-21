@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react'
-import { RotateCcw, Shuffle, WifiOff } from 'lucide-react'
+import { Play, RotateCcw, Shuffle, WifiOff } from 'lucide-react'
 import { useDiscoveryQueue } from '../../hooks/useDiscoveryQueue'
 import type { DeckSource } from '../../lib/deckSources'
 import type { ShelfId } from '../../services/catalog'
 import { withoutDeckFields } from '../../services/discover'
 import { useT } from '../../i18n'
 import { type LibrarySnapshot, useLibraryStore } from '../../store/useLibraryStore'
+import { vibrate } from '../../lib/haptics'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useUiStore } from '../../store/useUiStore'
 import type { Book, SwipeIntent } from '../../types/book'
 import { Pressable } from '../ui/Pressable'
@@ -69,6 +71,7 @@ function DeckEmpty({ onReload }: { onReload: () => void }) {
 
 export function DiscoverView() {
   const t = useT()
+  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
   const {
     queue,
     cursor,
@@ -160,6 +163,8 @@ export function DiscoverView() {
     <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
       {/* Rail d'étagères + filtres, sur une seule ligne ; au-dessus du deck pour le panneau de filtres */}
       <div className="relative z-20 flex items-center gap-2">
+        {/* Le fil des edits (en essai, administrateurs) : une bulle « story » en tête du rail. */}
+        {isAdmin && <EditsBubble />}
         {/* Remonté quand la sélection change : le nouveau rail d'étagères rejoue son entrée. */}
         <ShelfPicker
           key={sourcesKey}
@@ -200,5 +205,31 @@ export function DiscoverView() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Entrée du fil « Edits » : une bulle façon story (anneau dégradé, icône de lecture), alignée sur
+ * les boutons ronds du rail. Elle reste en tête pendant que les étagères défilent.
+ */
+function EditsBubble() {
+  const t = useT()
+  const openEdits = useUiStore((state) => state.openEdits)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        vibrate(8)
+        openEdits()
+      }}
+      aria-label={t.edits.openAria}
+      title={t.edits.openAria}
+      className="relative z-10 grid size-11 shrink-0 place-items-center rounded-full p-[2px] transition-transform active:scale-90"
+      style={{ background: 'conic-gradient(from 210deg, #ff5ec4, #ffc46b, #7c5cff, #2bc3ff, #ff5ec4)' }}
+    >
+      <span className="grid size-full place-items-center rounded-full bg-void">
+        <Play size={15} className="ml-0.5 fill-cream text-cream" aria-hidden />
+      </span>
+    </button>
   )
 }
