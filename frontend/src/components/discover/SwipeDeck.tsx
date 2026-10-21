@@ -246,7 +246,7 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
       let setSkip: ((value: number) => void) | null = null
       let setRead: ((value: number) => void) | null = null
       let nextY: QuickTo | null = null
-      let nextScale: QuickTo | null = null
+      let nextScale: ((value: number) => void) | null = null
       let nextRotate: QuickTo | null = null
       /*
        * Lueurs de la scène, côté écran : nœuds fixes (pas liés à une carte),
@@ -349,7 +349,13 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
           gsap.killTweensOf(next, 'y,scale,rotation')
           // `quickTo` lisse le suivi : la carte du dessous « respire ».
           nextY = gsap.quickTo(next, 'y', { duration: 0.35, ease: 'power2.out' })
-          nextScale = gsap.quickTo(next, 'scale', { duration: 0.35, ease: 'power2.out' })
+          // `scale` est un raccourci (scaleX + scaleY) que `quickTo` ne sait pas animer : un suivi par axe.
+          const scaleX = gsap.quickTo(next, 'scaleX', { duration: 0.35, ease: 'power2.out' })
+          const scaleY = gsap.quickTo(next, 'scaleY', { duration: 0.35, ease: 'power2.out' })
+          nextScale = (value) => {
+            scaleX(value)
+            scaleY(value)
+          }
           nextRotate = gsap.quickTo(next, 'rotation', { duration: 0.35, ease: 'power2.out' })
           // Termine la promotion interrompue jusqu'au repos.
           restNext()
