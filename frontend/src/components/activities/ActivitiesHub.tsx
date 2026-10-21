@@ -25,7 +25,6 @@ import { STARDUST_GRADIENT } from '../dle/dleStyle'
 import { HL_DOWN, HL_GRADIENT, HL_UP } from '../higherlower/hlStyle'
 import { Bomb } from '../bomb/Bomb'
 import { BOMB_GRADIENT } from '../../lib/bomb'
-import { StardustBadge } from '../dle/StardustBadge'
 import { EnergyRing } from './EnergyRing'
 import { ShopBanners } from './ShopBanners'
 import { inkText } from '../../lib/ink'
@@ -35,14 +34,12 @@ import { canvasApi } from '../../services/canvasApi'
 const neon = (color: string): CSSProperties => ({ color, textShadow: `0 0 6px ${color}, 0 0 18px ${color}` })
 
 /**
- * Hub « Activités ». Trop de modules pour une seule colonne : la page est rangée.
- *
- * 1. En tête, le stock (boosters, Poussières) et « Aujourd'hui » : ce qui attend vraiment
- *    (récompense du jour, booster prêt, énigmes, tirage de l'Oracle, nouveautés du Marché),
- *    chacun à un toucher de son module. Quand tout est fait, une ligne le dit.
- * 2. Trois rubriques, toujours visibles (onglets collants, pastille quand quelque chose attend) :
- *    Cartes (autel, boutique, album, Marché), Jeux (grille de tuiles), Univers (Toile, Oracle).
- *    La rubrique est gardée dans le store : au retour d'un jeu, on retombe au même endroit.
+ * Hub « Activités ». L'ouverture des boosters est la vedette : elle ouvre la page, toujours
+ * visible au-dessus des rubriques. Au-dessus d'elle, seulement l'essentiel : la récompense
+ * du jour et le stock de boosters. Puis trois rubriques en onglets collants — Cartes (boutique,
+ * album, Marché), Jeux (grille de tuiles), Univers (Toile, Oracle) — dont seule celle affichée
+ * est montée (et animée). La rubrique est gardée dans le store : au retour d'un jeu, on retombe
+ * au même endroit.
  */
 export function ActivitiesHub() {
   const t = useT()
@@ -51,69 +48,55 @@ export function ActivitiesHub() {
   const boosters = useBoosters({ tick: false })
   // Ouverture de booster en plein écran : le hub, recouvert, cesse de s'animer.
   const covered = useUiStore((state) => state.boosterOpen)
-  const openActivity = useUiStore((state) => state.openActivity)
   const tab = useUiStore((state) => state.activityTab)
   const setTab = useUiStore((state) => state.setActivityTab)
   const signedIn = useAuthStore((state) => state.user !== null)
-  const stardust = useDleStore((state) => state.overview?.stardust ?? null)
   const loadDle = useDleStore((state) => state.loadOverview)
-  const pending = usePending()
 
-  // Solde de Poussières et énigmes du jour : de quoi allumer « Aujourd'hui » et la tuile du DLE.
+  // Énigmes du jour : de quoi allumer la tuile du DLE.
   useEffect(() => {
     if (signedIn) void loadDle()
   }, [signedIn, loadDle])
 
   useGSAP(
     () => {
-      gsap.fromTo('[data-artefact]', { y: 18, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.55, stagger: 0.06, ease: EASE.glide })
+      gsap.fromTo('[data-artefact]', { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, stagger: 0.05, ease: EASE.glide })
     },
     { scope: rootRef, dependencies: [tab], revertOnUpdate: true },
   )
-
-  // Pastille d'onglet : combien de MODULES attendent (pas combien d'énigmes : « 40 » n'aide personne).
-  const badges: Record<ActivityTab, number> = {
-    cards: (pending.boosters > 0 ? 1 : 0) + (pending.market > 0 ? 1 : 0),
-    games: pending.dle > 0 ? 1 : 0,
-    more: pending.oracle ? 1 : 0,
-  }
 
   const choose = (id: ActivityTab) => {
     if (id === tab) return
     vibrate(6)
     setTab(id)
     // La rubrique commence sous les onglets : on la montre depuis son début.
-    const panel = document.getElementById('hub-tabs')
-    if (rootRef.current && panel && rootRef.current.scrollTop > panel.offsetTop) rootRef.current.scrollTo({ top: panel.offsetTop, behavior: 'smooth' })
+    const tabs = document.getElementById('hub-tabs')
+    if (rootRef.current && tabs && rootRef.current.scrollTop > tabs.offsetTop) rootRef.current.scrollTo({ top: tabs.offsetTop, behavior: 'smooth' })
   }
 
   return (
     <div ref={rootRef} data-paused={covered || undefined} className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-10">
       <div className="flex shrink-0 flex-col gap-4 px-5">
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <DailyChip />
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#ffe39a]/25 bg-black/40 px-3 py-1.5 text-xs font-semibold text-[#fff4c8] tabular-nums"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#ffe39a]/25 bg-black/40 px-3 text-xs font-semibold text-[#fff4c8] tabular-nums"
             aria-label={t.activities.boosterCountAria(boosters.available, boosters.max)}
           >
             <Zap size={13} className="fill-gold text-gold" />
             {/* Le stock qui se régénère sur son plafond ; les boosters offerts à côté, hors plafond. */}
             {!boosters.ready ? '…' : boosters.unlimited ? t.activities.unlimited : t.activities.boosterCount(boosters.available - boosters.gifted, boosters.max)}
+            {boosters.gifted > 0 && !boosters.unlimited && (
+              <span className="ml-0.5 inline-flex items-center gap-1 text-gold">
+                <Gift size={12} aria-hidden />
+                {t.activities.giftedCount(boosters.gifted)}
+              </span>
+            )}
           </span>
-          {boosters.gifted > 0 && !boosters.unlimited && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold tabular-nums">
-              <Gift size={13} aria-hidden />
-              {t.activities.giftedCount(boosters.gifted)}
-            </span>
-          )}
-          {signedIn && stardust !== null && (
-            <button type="button" onClick={() => openActivity('dle')} className="rounded-full transition-transform active:scale-95">
-              <StardustBadge balance={stardust} />
-            </button>
-          )}
           {boosters.unlimited && (
             <span
               title={t.activities.sandboxHint}
-              className="inline-flex items-center gap-1 rounded-full border border-like/40 bg-like/10 px-2.5 py-1.5 text-[10px] font-semibold tracking-[0.14em] text-like uppercase"
+              className="inline-flex h-9 items-center gap-1 rounded-full border border-like/40 bg-like/10 px-2.5 text-[10px] font-semibold tracking-[0.14em] text-like uppercase"
             >
               <FlaskConical size={12} aria-hidden />
               {t.activities.sandbox}
@@ -127,10 +110,10 @@ export function ActivitiesHub() {
           )}
         </div>
 
-        <TodayPanel pending={pending} />
+        <BoosterHero />
       </div>
 
-      {/* Onglets collants : on sait toujours où l'on est, et où quelque chose attend. */}
+      {/* Onglets collants : on sait toujours où l'on est. */}
       <div id="hub-tabs" className="sticky top-0 z-10 mt-4 shrink-0 px-5 pt-2 pb-3">
         <div role="tablist" aria-label={t.activities.hub.tabsLabel} className="grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-[#101017]/90 p-1 backdrop-blur">
           {HUB_TABS.map(({ id, icon: Icon }) => {
@@ -144,17 +127,12 @@ export function ActivitiesHub() {
                 aria-selected={selected}
                 aria-controls="hub-panel"
                 onClick={() => choose(id)}
-                className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors ${
+                className={`inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors ${
                   selected ? 'bg-cream text-void' : 'text-cream/70 hover:text-cream'
                 }`}
               >
                 <Icon size={15} aria-hidden className="shrink-0" />
                 <span className="truncate">{t.activities.hub.tabs[id]}</span>
-                {badges[id] > 0 && (
-                  <span aria-hidden className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-[#ff4d6d] px-1 text-[10px] leading-none font-bold text-white tabular-nums">
-                    {badges[id]}
-                  </span>
-                )}
               </button>
             )
           })}
@@ -162,10 +140,8 @@ export function ActivitiesHub() {
       </div>
 
       <div id="hub-panel" role="tabpanel" aria-labelledby={`hub-tab-${tab}`} className="flex shrink-0 flex-col gap-4 px-5">
-        <p className="px-1 text-sm text-cream/55">{t.activities.hub.intro[tab]}</p>
         {tab === 'cards' ? (
           <>
-            <BoosterAltar />
             {/* La boutique : un booster ou une boîte mystère, achetés d'ici. */}
             <ShopBanners />
             <div className="grid shrink-0 gap-4 md:grid-cols-2">
@@ -192,115 +168,37 @@ const HUB_TABS: { id: ActivityTab; icon: typeof Layers }[] = [
   { id: 'more', icon: Sparkles },
 ]
 
-/* ---- Aujourd'hui --------------------------------------------------------------------------- */
-
-interface Pending {
-  boosters: number
-  oracle: boolean
-  dle: number
-  market: number
-}
-
-/** Ce qui attend le joueur, module par module : de quoi remplir « Aujourd'hui » et les pastilles des onglets. */
-function usePending(): Pending {
-  const boosters = useBoosters({ tick: false })
-  const oracle = useOracleStatus()
-  const signedIn = useAuthStore((state) => state.user !== null)
-  const overview = useDleStore((state) => state.overview)
-  const market = useUnreadTrades()
-  return {
-    boosters: boosters.ready && boosters.canOpen && !boosters.unlimited ? boosters.available : 0,
-    oracle: oracle.available,
-    dle: signedIn ? dailyToPlay(overview) : 0,
-    market: signedIn ? market : 0,
-  }
-}
-
 /** Énigmes du jour pas encore résolues (toutes catégories et tous formats). */
 const dailyToPlay = (overview: ReturnType<typeof useDleStore.getState>['overview']): number =>
   overview ? Object.values(overview.daily).flatMap((modes) => Object.values(modes)).filter((daily) => !daily.solved).length : 0
 
 /**
- * « Aujourd'hui » : une rangée de pastilles, une par chose qui attend (récompense du jour,
- * booster prêt, énigmes, tirage de l'Oracle, nouveautés du Marché), chacune menant droit au
- * module. Compacte : les rubriques restent visibles dès l'ouverture. Rien à faire : une ligne le dit.
+ * La récompense du jour, en pastille : dorée avec un point quand elle attend, sinon le jour
+ * de la série (un toucher rouvre le calendrier). Rien en invité.
  */
-function TodayPanel({ pending }: { pending: Pending }) {
+function DailyChip() {
   const t = useT()
-  const openActivity = useUiStore((state) => state.openActivity)
-  const openBooster = useUiStore((state) => state.openBooster)
   const signedIn = useAuthStore((state) => state.user !== null)
-  const daily = useDailyStore((state) => state.status)
-  const showDaily = useDailyStore((state) => state.show)
-  const today = t.activities.hub.today
-
-  const todo: TodayItem[] = []
-  if (daily?.claimable) todo.push({ key: 'daily', label: today.daily, icon: <CalendarCheck size={15} />, tint: TINT.booster, onClick: showDaily })
-  if (pending.boosters > 0)
-    todo.push({
-      key: 'booster',
-      label: today.booster(pending.boosters),
-      icon: <Zap size={15} className="fill-current" />,
-      tint: TINT.booster,
-      onClick: () => {
-        vibrate(12)
-        openBooster()
-      },
-    })
-  if (pending.dle > 0) todo.push({ key: 'dle', label: today.dle(pending.dle), icon: <Sparkle size={15} className="fill-current" />, tint: TINT.dle, onClick: () => openActivity('dle') })
-  if (pending.oracle) todo.push({ key: 'oracle', label: today.oracle, icon: <MoonStar size={15} />, tint: TINT.oracle, onClick: () => openActivity('oracle') })
-  if (pending.market > 0) todo.push({ key: 'market', label: today.market(pending.market), icon: <Handshake size={15} />, tint: TINT.market, onClick: () => openActivity('market') })
-  // Récompense déjà prise : le calendrier reste à un toucher, en retrait, après ce qui attend.
-  const calendar: TodayItem | null =
-    signedIn && daily && !daily.claimable
-      ? { key: 'calendar', label: today.dailyDone(Math.min(daily.streak, CYCLE_DAYS), CYCLE_DAYS), icon: <CalendarCheck size={15} />, tint: '#9a9aa8', onClick: showDaily, quiet: true }
-      : null
-  const items = calendar ? [...todo, calendar] : todo
-
+  const status = useDailyStore((state) => state.status)
+  const show = useDailyStore((state) => state.show)
+  if (!signedIn || !status) return null
+  const ready = status.claimable
   return (
-    <section data-artefact aria-label={today.title} className="flex shrink-0 flex-col gap-2.5 rounded-[1.5rem] border border-white/10 bg-[#101017] py-3.5">
-      <h2 className="flex items-center justify-between gap-3 px-4 text-[11px] font-semibold tracking-[0.28em] text-[#fff4c8]/70 uppercase">
-        {today.title}
-        {todo.length === 0 && (
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-normal text-like normal-case">
-            <Check size={14} aria-hidden />
-            {today.allDone}
-          </span>
-        )}
-      </h2>
-      {items.length > 0 && (
-        // Tout reste visible (retour à la ligne plutôt qu'une rangée qui cache la fin).
-        <ul className="flex flex-wrap gap-2 px-4">
-          {items.map((item) => (
-            <li key={item.key} className="shrink-0">
-              <button
-                type="button"
-                onClick={item.onClick}
-                className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold whitespace-nowrap transition-transform active:scale-95 ${item.quiet ? 'text-cream/65' : 'text-cream'}`}
-                style={{ borderColor: `${item.tint}${item.quiet ? '40' : '66'}`, backgroundColor: `${item.tint}14` }}
-              >
-                <span style={{ color: item.tint }} className="grid place-items-center">
-                  {item.icon}
-                </span>
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {!signedIn && <p className="px-4 text-xs leading-relaxed text-cream/50">{today.guest}</p>}
-    </section>
+    <button
+      type="button"
+      onClick={show}
+      className="relative inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-transform active:scale-95"
+      style={
+        ready
+          ? { background: 'linear-gradient(150deg, #fff6c8, #ffc23a 55%, #ff8a3d)', borderColor: 'transparent', color: '#3a2200' }
+          : { backgroundColor: 'rgba(0,0,0,0.4)', borderColor: 'rgba(255,227,154,0.25)', color: 'rgba(247,245,240,0.75)' }
+      }
+    >
+      <CalendarCheck size={14} aria-hidden />
+      {ready ? t.activities.hub.daily.claim : t.activities.hub.daily.streak(Math.min(status.streak, CYCLE_DAYS), CYCLE_DAYS)}
+      {ready && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2.5 animate-pulse rounded-full bg-[#ff4d6d] ring-2 ring-[#050507]" />}
+    </button>
   )
-}
-
-interface TodayItem {
-  key: string
-  label: string
-  icon: ReactNode
-  tint: string
-  onClick: () => void
-  /** En retrait : rien à faire, juste un raccourci. */
-  quiet?: boolean
 }
 
 /* ---- Cadre d'artefact ---------------------------------------------------------- */
@@ -313,175 +211,146 @@ const surface = (tint: string): CSSProperties => ({
 
 const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff', stack: '#ff9a5c' } as const
 
-/**
- * Lueur incandescente autour d'un artefact « chargé ». Fixe : une grande ombre
- * floue dont l'opacité pulse en continu coûte cher à recomposer sur mobile.
- */
-function Incandescence() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute -inset-px -z-10 rounded-[1.8rem]"
-      style={{ boxShadow: '0 0 0 1px rgba(255,228,160,0.7)' }}
-    />
-  )
-}
-
 const ARTEFACT_CLASS = 'relative isolate shrink-0 rounded-[1.75rem] border text-left'
 
-/* ---- Autel du booster ---------------------------------------------------------------- */
+/* ---- Vedette : l'ouverture des boosters ------------------------------------------------------------- */
 
-function BoosterAltar() {
+/**
+ * La vedette de la page : les trois séries en éventail qui flottent dans un halo, le titre, la
+ * Légendaire garantie, et un grand bouton « Ouvrir » avec sa jauge. Plus de booster : la jauge
+ * montre l'attente et le compte à rebours. Sans compte : les boosters d'essai, puis l'inscription.
+ * Une seule animation en boucle (le paquet qui flotte), coupée quand l'ouverture recouvre la page.
+ */
+function BoosterHero() {
   const t = useT()
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLElement>(null)
   const boosters = useBoosters()
   const openBooster = useUiStore((state) => state.openBooster)
   const openAuth = useUiStore((state) => state.openAuth)
   const covered = useUiStore((state) => state.boosterOpen)
   const lit = boosters.canOpen
+  // Invité à court d'essais : la suite passe par un compte.
+  const guestDone = !boosters.signedIn && !boosters.canOpen
 
-  // Le paquet flotte et respire ; un reflet balaie la feuille ; l'ombre suit la hauteur.
-  // Recouvert par l'ouverture d'un booster : tout s'arrête (`revertOnUpdate`).
   useGSAP(
     () => {
       if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.to('[data-altar-pack]', { y: -12, duration: 2, ease: 'sine.inOut', repeat: -1, yoyo: true })
-      gsap.to('[data-altar-shadow]', { scale: 0.8, autoAlpha: 0.35, duration: 2, ease: 'sine.inOut', repeat: -1, yoyo: true })
-      gsap.fromTo('[data-pack-shine]', { xPercent: -170 }, { xPercent: 260, duration: 2.4, ease: 'power1.inOut', repeat: -1, repeatDelay: 1.6 })
+      gsap.to('[data-hero-pack]', { y: -8, duration: 2.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
     },
     { scope: ref, dependencies: [covered], revertOnUpdate: true },
   )
 
-  // Invité à court d'essais : la suite passe par un compte.
-  const guestDone = !boosters.signedIn && !boosters.canOpen
-
-  const ringContent = guestDone ? (
-    <Gift size={22} className="text-[#fff4c8]/70" aria-hidden />
-  ) : boosters.unlimited ? (
-    <span className="flex flex-col items-center">
-      <span className="text-3xl leading-none font-semibold" style={neon('#3fe0a0')}>
-        ∞
-      </span>
-      <span className="mt-1 text-[9px] tracking-[0.25em] text-cream/60 uppercase">{t.activities.sandbox}</span>
-    </span>
-  ) : boosters.available > 0 ? (
-    <span className="flex flex-col items-center">
-      <span className="text-2xl leading-none font-semibold tabular-nums" style={neon('#ffc46b')}>
-        {boosters.available}/{boosters.max}
-      </span>
-      <span className="mt-1 text-[9px] tracking-[0.25em] text-[#fff4c8]/80 uppercase">{t.activities.ringReady}</span>
-    </span>
-  ) : (
-    <span className="flex flex-col items-center">
-      <span className="text-[13px] leading-none font-semibold tabular-nums" style={neon('#4cc9f0')}>
-        {boosters.remaining !== null ? formatCountdown(boosters.remaining * 1000) : '—'}
-      </span>
-      <span className="mt-1 text-[9px] tracking-[0.25em] text-cream/60 uppercase">{t.activities.ringNext}</span>
-    </span>
-  )
-
   // Jauge : pleine si un booster attend (ou en recette), sinon l'avancement du minuteur.
   const progress = boosters.unlimited || boosters.available > 0 ? 1 : boosters.progress
+  const ring = guestDone ? (
+    <Gift size={20} className="text-[#fff4c8]/70" aria-hidden />
+  ) : boosters.unlimited ? (
+    <span className="text-2xl leading-none font-semibold" style={neon('#3fe0a0')}>
+      ∞
+    </span>
+  ) : boosters.available > 0 ? (
+    <span className="text-lg leading-none font-semibold tabular-nums" style={neon('#ffc46b')}>
+      {boosters.available}/{boosters.max}
+    </span>
+  ) : (
+    <span className="text-[10px] leading-none font-semibold tabular-nums" style={neon('#4cc9f0')}>
+      {boosters.remaining !== null ? formatCountdown(boosters.remaining * 1000) : '—'}
+    </span>
+  )
+  const subtitle = boosters.signedIn ? t.activities.booster.pity(boosters.legendaryEvery, !boosters.unlimited ? boosters.legendaryIn : null) : guestDone ? t.activities.guest.body : t.activities.guest.trialBody(boosters.available)
 
   return (
-    <section data-artefact aria-label={t.activities.booster.title} className={`${ARTEFACT_CLASS} overflow-hidden`} style={surface(TINT.booster)}>
-      {lit && <Incandescence />}
-      <div ref={ref} className="flex flex-col items-center gap-5 p-5 md:flex-row md:items-center md:gap-8 md:p-7">
-        {/* Piédestal : cercle doré lumineux, ombre portée, paquet isométrique. */}
-        <div className="relative grid h-[15.5rem] w-full shrink-0 place-items-center md:w-64">
-          <div
-            aria-hidden
-            className="absolute bottom-3 h-14 w-48 rounded-[50%]"
-            style={{
-              background: lit
-                ? 'radial-gradient(closest-side, rgba(255,196,107,0.55), rgba(255,94,196,0.18) 60%, transparent)'
-                : 'radial-gradient(closest-side, rgba(124,92,255,0.35), transparent)',
-            }}
-          />
-          <div aria-hidden className="absolute bottom-5 h-8 w-40 rounded-[50%] border border-[#ffe39a]/35" style={{ boxShadow: lit ? '0 0 18px rgba(255,196,107,0.45)' : undefined }} />
-          <div data-altar-shadow aria-hidden className="absolute bottom-6 h-5 w-28 rounded-[50%]" style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,0.85), transparent)', willChange: 'transform' }} />
-          <div data-altar-pack className="relative mb-6" style={{ willChange: 'transform' }}>
-            {/* Vue isométrique : perspective et rotations dans un seul transform, sous-arbre aplati. */}
-            {/* Les trois séries en éventail : la 1 et la 2 en retrait, la nouvelle (3) devant, au centre. */}
-            <div className="absolute top-5 -left-14" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(18deg) rotateZ(-14deg)', opacity: 0.85 }}>
-              <BoosterPackArt width={100} series={1} lit={lit} dim={!lit} />
+    <section
+      ref={ref}
+      data-artefact
+      aria-label={t.activities.booster.title}
+      className="relative isolate shrink-0 overflow-hidden rounded-[2rem] border"
+      style={{
+        borderColor: lit ? 'rgba(255,214,130,0.6)' : 'rgba(255,196,107,0.22)',
+        background: lit
+          ? 'radial-gradient(120% 90% at 20% 20%, rgba(255,196,107,0.22), transparent 60%), radial-gradient(90% 80% at 90% 100%, rgba(255,94,196,0.18), transparent 60%), #101017'
+          : 'radial-gradient(120% 90% at 20% 20%, rgba(124,92,255,0.16), transparent 60%), #101017',
+      }}
+    >
+      <div className="flex items-center gap-3 p-5 pb-4 md:gap-8 md:p-7 md:pb-5">
+        {/* Les trois séries en éventail ; la nouvelle (3) devant. */}
+        <div aria-hidden className="relative grid h-[9.5rem] w-[9.25rem] shrink-0 place-items-center md:h-[12rem] md:w-[12rem]">
+          <div aria-hidden className="absolute bottom-0 h-6 w-28 rounded-[50%]" style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,0.75), transparent)' }} />
+          <div data-hero-pack className="relative" style={{ willChange: 'transform' }}>
+            <div className="absolute top-3 -left-8 md:-left-12" style={{ transform: 'rotate(-14deg)', opacity: 0.8 }}>
+              <BoosterPackArt width={64} series={1} lit={lit} dim={!lit} />
             </div>
-            <div className="absolute top-5 -right-14" style={{ transform: 'perspective(700px) rotateX(10deg) rotateY(-18deg) rotateZ(14deg)', opacity: 0.85 }}>
-              <BoosterPackArt width={100} series={2} lit={lit} dim={!lit} />
+            <div className="absolute top-3 -right-8 md:-right-12" style={{ transform: 'rotate(14deg)', opacity: 0.8 }}>
+              <BoosterPackArt width={64} series={2} lit={lit} dim={!lit} />
             </div>
-            <div className="relative" style={{ transform: 'perspective(700px) rotateX(10deg) rotateZ(-2deg)' }}>
-              <BoosterPackArt width={124} series={3} lit={lit} dim={!lit} halo={lit ? 'LEGENDARY' : null} />
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full px-2.5 py-0.5 text-[9px] font-bold tracking-[0.18em] whitespace-nowrap text-[#2a1a02] uppercase shadow-[0_4px_14px_-4px_rgba(255,90,110,0.8)]" style={{ background: '#ffb347' }}>
+            <div className="relative" style={{ transform: 'rotate(-2deg)' }}>
+              <BoosterPackArt width={82} series={3} lit={lit} dim={!lit} halo={lit ? 'LEGENDARY' : null} />
+              <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[8px] font-bold tracking-[0.16em] whitespace-nowrap text-[#2a1a02] uppercase" style={{ background: '#ffb347' }}>
                 {t.activities.booster.newSeries}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex w-full min-w-0 flex-col gap-4">
-          <div>
-            <p className="text-[10px] tracking-[0.32em] text-[#fff4c8]/60 uppercase">{t.activities.booster.eyebrow}</p>
-            <h2
-              className="mt-1 font-display text-[2rem] leading-[1.05]"
-              style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}
-            >
-              {t.activities.booster.title}
-            </h2>
-            <p className="mt-1.5 text-sm text-cream/65">{boosters.signedIn ? t.activities.booster.body : guestDone ? t.activities.guest.body : t.activities.guest.trialBody(boosters.available)}</p>
-            <p className="mt-1 text-xs font-semibold text-[#ffc46b]/85">{t.activities.booster.pity(boosters.legendaryEvery, boosters.signedIn && !boosters.unlimited ? boosters.legendaryIn : null)}</p>
-          </div>
-
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <EnergyRing progress={progress} size={96} charged={lit} label={t.activities.ringLabel}>
-              {ringContent}
-            </EnergyRing>
-            {guestDone ? (
-              <GoldButton onClick={openAuth} icon={<Gift size={15} />} label={t.activities.guest.cta} />
-            ) : (
-              <GoldButton
-                onClick={() => {
-                  vibrate(12)
-                  openBooster()
-                }}
-                disabled={!boosters.canOpen}
-                icon={<Zap size={15} className="fill-current" />}
-                label={boosters.canOpen ? t.activities.booster.open : t.activities.booster.empty}
-              />
-            )}
-          </div>
-          {/* Un booster peut encore arriver pendant qu'un autre attend : le minuteur reste lisible. */}
-          {boosters.signedIn && !boosters.unlimited && boosters.available > 0 && boosters.remaining !== null && (
-            <p className="text-[11px] tracking-[0.12em] text-cream/55 uppercase tabular-nums">{t.activities.booster.next(formatCountdown(boosters.remaining * 1000))}</p>
-          )}
-          {!boosters.signedIn && !guestDone && (
-            <p className="flex flex-wrap items-center gap-x-2 text-[11px] tracking-[0.12em] text-cream/55 uppercase">
-              {t.activities.guest.trial}
-              <span aria-hidden>·</span>
-              <button type="button" onClick={openAuth} className="text-[#fff4c8]/85 uppercase underline-offset-4 hover:underline">
-                {t.activities.guest.keep}
-              </button>
-            </p>
-          )}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <p className="text-[10px] tracking-[0.28em] text-[#fff4c8]/60 uppercase">{t.activities.booster.eyebrow}</p>
+          <h2 className="font-display text-[1.55rem] leading-[1.05] md:text-[2.2rem]" style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}>
+            {t.activities.booster.title}
+          </h2>
+          <p className="text-xs leading-snug text-[#ffc46b]/85 md:text-sm">{subtitle}</p>
         </div>
       </div>
+
+      <div className="flex items-center gap-3 px-5 pb-5 md:px-7 md:pb-7">
+        <EnergyRing progress={progress} size={56} charged={lit} label={t.activities.ringLabel}>
+          {ring}
+        </EnergyRing>
+        {guestDone ? (
+          <GoldButton wide onClick={openAuth} icon={<Gift size={16} />} label={t.activities.guest.cta} />
+        ) : (
+          <GoldButton
+            wide
+            onClick={() => {
+              vibrate(12)
+              openBooster()
+            }}
+            disabled={!boosters.canOpen}
+            icon={<Zap size={16} className="fill-current" />}
+            label={boosters.canOpen ? t.activities.booster.open : t.activities.booster.empty}
+          />
+        )}
+      </div>
+      {/* Un booster peut encore arriver pendant qu'un autre attend : le minuteur reste lisible. */}
+      {boosters.signedIn && !boosters.unlimited && boosters.available > 0 && boosters.remaining !== null && (
+        <p className="-mt-2 px-5 pb-4 text-[11px] tracking-[0.1em] text-cream/50 uppercase tabular-nums md:px-7">{t.activities.booster.next(formatCountdown(boosters.remaining * 1000))}</p>
+      )}
+      {!boosters.signedIn && !guestDone && (
+        <p className="-mt-2 flex flex-wrap items-center gap-x-2 px-5 pb-4 text-[11px] tracking-[0.1em] text-cream/50 uppercase md:px-7">
+          {t.activities.guest.trial}
+          <span aria-hidden>·</span>
+          <button type="button" onClick={openAuth} className="text-[#fff4c8]/85 uppercase underline-offset-4 hover:underline">
+            {t.activities.guest.keep}
+          </button>
+        </p>
+      )}
     </section>
   )
 }
 
-function GoldButton({ onClick, icon, label, disabled = false }: { onClick: () => void; icon: ReactNode; label: string; disabled?: boolean }) {
+function GoldButton({ onClick, icon, label, disabled = false, wide = false }: { onClick: () => void; icon: ReactNode; label: string; disabled?: boolean; wide?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="relative inline-flex h-12 max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-full px-5 text-sm font-semibold sm:px-6 transition-transform active:scale-95 disabled:cursor-not-allowed"
+      className={`relative inline-flex h-13 max-w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full px-5 text-[15px] font-semibold transition-transform active:scale-95 disabled:cursor-not-allowed sm:px-6 ${wide ? 'flex-1' : ''}`}
       style={
         disabled
           ? { background: 'rgba(247,245,240,0.08)', color: 'rgba(247,245,240,0.45)' }
           : {
               background: 'linear-gradient(180deg, #ffdf8a, #f2b83a)',
               color: '#2a1a02',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55), 0 8px 22px -10px rgba(242,184,58,0.8)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55), 0 10px 26px -10px rgba(242,184,58,0.9)',
             }
       }
     >

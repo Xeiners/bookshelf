@@ -159,21 +159,9 @@ export const en: Dictionary = {
     hub: {
       tabsLabel: 'Activity sections',
       tabs: { cards: 'Cards', games: 'Games', more: 'Worlds' },
-      intro: {
-        cards: 'Open boosters, complete your album, trade your duplicates.',
-        games: 'Play, beat records and earn Stardust ✦.',
-        more: 'Draw with everyone and consult the Oracle.',
-      },
-      today: {
-        title: 'Today',
-        allDone: 'All done for today. See you tomorrow!',
-        guest: 'Create an account for your daily reward, puzzles and the Market.',
-        daily: 'Daily reward',
-        dailyDone: (day: number, total: number) => `Calendar · day ${day}/${total}`,
-        booster: (count: number) => `${count} booster${count === 1 ? '' : 's'} to open`,
-        oracle: 'Oracle reading',
-        dle: (count: number) => `${count} daily puzzle${count === 1 ? '' : 's'}`,
-        market: (count: number) => `${count} Market update${count === 1 ? '' : 's'}`,
+      daily: {
+        claim: 'Daily reward',
+        streak: (day: number, total: number) => `Day ${day}/${total}`,
       },
       games: {
         dle: 'Guess the work of the day',
