@@ -116,7 +116,7 @@ export const fr = {
     },
     shop: {
       eyebrow: 'Boutique',
-      boosterTitle: 'Booster contre des ✦',
+      boosterTitle: 'Booster contre des\u00a0✦',
       boosterBody: '4 cartes, ouvert tout de suite. Choisis ta série.',
       boxEyebrow: 'Boutique · Manga Runner',
       boxBody: 'Une pièce de garde-robe culte pour ton aventurier.',

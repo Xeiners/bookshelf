@@ -108,7 +108,7 @@ export const en: Dictionary = {
     },
     shop: {
       eyebrow: 'Shop',
-      boosterTitle: 'Booster for ✦',
+      boosterTitle: 'Booster for\u00a0✦',
       boosterBody: '4 cards, opened right away. Pick your series.',
       boxEyebrow: 'Shop · Manga Runner',
       boxBody: 'An iconic wardrobe piece for your adventurer.',

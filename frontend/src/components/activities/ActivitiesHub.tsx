@@ -7,7 +7,7 @@ import { useUnreadTrades } from '../../hooks/useNotifications'
 import { useOracleStatus } from '../../hooks/useOracleStatus'
 import { useT } from '../../i18n'
 import { completion, rarityRank } from '../../lib/boosters'
-import { EASE, gsap, useGSAP } from '../../lib/gsap'
+import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { formatCountdown } from '../../lib/oracle'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -58,16 +58,25 @@ export function ActivitiesHub() {
     if (signedIn) void loadDle()
   }, [signedIn, loadDle])
 
+  // Changement de rubrique : l'ancienne sort d'un côté pendant que la nouvelle entre de l'autre
+  // (vers la gauche si l'on va à droite, et inversement). La vedette, au-dessus, ne bouge pas.
+  const [leaving, setLeaving] = useState<{ tab: ActivityTab; direction: 1 | -1 } | null>(null)
   useGSAP(
     () => {
-      gsap.fromTo('[data-artefact]', { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, stagger: 0.05, ease: EASE.glide })
+      if (!leaving) return
+      const done = () => setLeaving(null)
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return done()
+      const shift = leaving.direction * 100
+      gsap.fromTo('[data-panel="out"]', { xPercent: 0, autoAlpha: 1 }, { xPercent: -shift, autoAlpha: 0.4, duration: 0.42, ease: 'power3.inOut' })
+      gsap.fromTo('[data-panel="in"]', { xPercent: shift }, { xPercent: 0, duration: 0.42, ease: 'power3.inOut', onComplete: done })
     },
-    { scope: rootRef, dependencies: [tab], revertOnUpdate: true },
+    { scope: rootRef, dependencies: [leaving] },
   )
 
   const choose = (id: ActivityTab) => {
     if (id === tab) return
     vibrate(6)
+    setLeaving({ tab, direction: TAB_ORDER.indexOf(id) > TAB_ORDER.indexOf(tab) ? 1 : -1 })
     setTab(id)
     // La rubrique commence sous les onglets : on la montre depuis son début.
     const tabs = document.getElementById('hub-tabs')
@@ -115,7 +124,13 @@ export function ActivitiesHub() {
 
       {/* Onglets collants : on sait toujours où l'on est. */}
       <div id="hub-tabs" className="sticky top-0 z-10 mt-4 shrink-0 px-5 pt-2 pb-3">
-        <div role="tablist" aria-label={t.activities.hub.tabsLabel} className="grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-[#101017]/90 p-1 backdrop-blur">
+        <div role="tablist" aria-label={t.activities.hub.tabsLabel} className="relative grid grid-cols-3 rounded-full border border-white/10 bg-[#101017]/90 p-1 backdrop-blur">
+          {/* Le sélecteur glisse d'une rubrique à l'autre. */}
+          <span
+            aria-hidden
+            className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-full bg-cream shadow-[0_6px_18px_-8px_rgba(247,245,240,0.6)] transition-transform duration-[420ms] ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none"
+            style={{ transform: `translateX(${TAB_ORDER.indexOf(tab) * 100}%)` }}
+          />
           {HUB_TABS.map(({ id, icon: Icon }) => {
             const selected = tab === id
             return (
@@ -127,8 +142,8 @@ export function ActivitiesHub() {
                 aria-selected={selected}
                 aria-controls="hub-panel"
                 onClick={() => choose(id)}
-                className={`inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors ${
-                  selected ? 'bg-cream text-void' : 'text-cream/70 hover:text-cream'
+                className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors duration-300 ${
+                  selected ? 'text-void' : 'text-cream/70 hover:text-cream'
                 }`}
               >
                 <Icon size={15} aria-hidden className="shrink-0" />
@@ -139,28 +154,43 @@ export function ActivitiesHub() {
         </div>
       </div>
 
-      <div id="hub-panel" role="tabpanel" aria-labelledby={`hub-tab-${tab}`} className="flex shrink-0 flex-col gap-4 px-5">
-        {tab === 'cards' ? (
-          <>
-            {/* La boutique : un booster ou une boîte mystère, achetés d'ici. */}
-            <ShopBanners />
-            <div className="grid shrink-0 gap-4 md:grid-cols-2">
-              <CollectionArtefact />
-              <MarketArtefact />
-            </div>
-          </>
-        ) : tab === 'games' ? (
-          <GamesGrid />
-        ) : (
-          <div className="grid shrink-0 gap-4 md:grid-cols-2">
-            <CanvasArtefact />
-            <OracleArtefact />
+      {/* Les deux rubriques partagent la même case pendant la transition ; le débord est masqué. */}
+      <div id="hub-panel" role="tabpanel" aria-labelledby={`hub-tab-${tab}`} className="grid shrink-0 overflow-x-clip">
+        {(leaving ? [leaving.tab, tab] : [tab]).map((id) => (
+          <div
+            key={id}
+            data-panel={leaving ? (id === tab ? 'in' : 'out') : undefined}
+            aria-hidden={id !== tab || undefined}
+            inert={id !== tab || undefined}
+            className="col-start-1 row-start-1 flex min-w-0 flex-col gap-4 self-start px-5"
+          >
+            <HubPanel tab={id} />
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
 }
+
+/** Le contenu d'une rubrique. */
+function HubPanel({ tab }: { tab: ActivityTab }) {
+  if (tab === 'games') return <GamesGrid />
+  if (tab === 'cards')
+    return (
+      <div className="grid shrink-0 gap-4 md:grid-cols-2">
+        <CollectionArtefact />
+        <MarketArtefact />
+      </div>
+    )
+  return (
+    <div className="grid shrink-0 gap-4 md:grid-cols-2">
+      <CanvasArtefact />
+      <OracleArtefact />
+    </div>
+  )
+}
+
+const TAB_ORDER: readonly ActivityTab[] = ['cards', 'games', 'more']
 
 const HUB_TABS: { id: ActivityTab; icon: typeof Layers }[] = [
   { id: 'cards', icon: Layers },
@@ -262,9 +292,8 @@ function BoosterHero() {
   return (
     <section
       ref={ref}
-      data-artefact
       aria-label={t.activities.booster.title}
-      className="relative isolate shrink-0 overflow-hidden rounded-[2rem] border"
+      className="relative isolate grid shrink-0 overflow-hidden rounded-[2rem] border lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
       style={{
         borderColor: lit ? 'rgba(255,214,130,0.6)' : 'rgba(255,196,107,0.22)',
         background: lit
@@ -272,6 +301,7 @@ function BoosterHero() {
           : 'radial-gradient(120% 90% at 20% 20%, rgba(124,92,255,0.16), transparent 60%), #101017',
       }}
     >
+      <div className="flex min-w-0 flex-col justify-center">
       <div className="flex items-center gap-3 p-5 pb-4 md:gap-8 md:p-7 md:pb-5">
         {/* Les trois séries en éventail ; la nouvelle (3) devant. */}
         <div aria-hidden className="relative grid h-[9.5rem] w-[9.25rem] shrink-0 place-items-center md:h-[12rem] md:w-[12rem]">
@@ -333,6 +363,11 @@ function BoosterHero() {
           </button>
         </p>
       )}
+      </div>
+      {/* La boutique à côté (PC) ou dessous (téléphone) : un booster ou une boîte mystère contre des ✦. */}
+      <div className="flex min-w-0 flex-col justify-center border-t border-white/8 p-3 sm:p-4 md:p-5 lg:border-t-0 lg:border-l lg:p-6">
+        <ShopBanners />
+      </div>
     </section>
   )
 }

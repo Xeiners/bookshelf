@@ -140,15 +140,15 @@ export function ShopBanners() {
     <div ref={ref} className="flex shrink-0 flex-col gap-3">
       {/* Booster contre des Poussières. */}
       <section className="overflow-hidden rounded-[1.5rem] border border-[#ffc46b]/35" style={{ background: 'linear-gradient(110deg, #2a1a08 0%, #1a1020 55%, #2a0f22 100%)' }}>
-        <button type="button" onClick={() => toggle('booster')} aria-expanded={open === 'booster'} className="relative flex w-full items-center gap-4 overflow-hidden p-4 text-left">
+        <button type="button" onClick={() => toggle('booster')} aria-expanded={open === 'booster'} className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left sm:gap-4 sm:p-4">
           <span data-shop-shine aria-hidden className="pointer-events-none absolute inset-y-0 w-16 -skew-x-12 bg-white/10 blur-sm" />
           <span data-shop-bob className="relative -my-2 shrink-0 will-change-transform" style={{ transform: 'rotate(-8deg)' }}>
             <BoosterPackArt width={46} series={3} lit />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-semibold tracking-[0.24em] text-[#ffc46b]/80 uppercase">{t.activities.shop.eyebrow}</span>
-            <span className="block font-display text-xl leading-tight text-cream">{t.activities.shop.boosterTitle}</span>
-            <span className="block text-xs text-cream/60">{t.activities.shop.boosterBody}</span>
+            <span className="block truncate text-[10px] font-semibold tracking-[0.2em] text-[#ffc46b]/80 uppercase">{t.activities.shop.eyebrow}</span>
+            <span className="block font-display text-lg leading-tight text-cream sm:text-xl">{t.activities.shop.boosterTitle}</span>
+            <span className="hidden text-xs text-cream/60 sm:block">{t.activities.shop.boosterBody}</span>
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
             <PricePill price={boosterPrice} promo={boosterPromo} now={now} style={{ background: 'linear-gradient(135deg, #fff0a8, #ffc23a)' }} className="text-[#1a0b1f]" />
@@ -181,7 +181,7 @@ export function ShopBanners() {
         className="overflow-hidden rounded-[1.5rem] border"
         style={{ borderColor: glowing ? '#ffd35c99' : '#b05cff55', background: 'linear-gradient(110deg, #2a1150 0%, #160a33 55%, #2d1238 100%)', boxShadow: glowing ? '0 0 30px -10px #ffc23a' : undefined }}
       >
-        <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-4 overflow-hidden p-4 text-left">
+        <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left sm:gap-4 sm:p-4">
           <span data-shop-shine aria-hidden className="pointer-events-none absolute inset-y-0 w-16 -skew-x-12 bg-white/10 blur-sm" />
           <span data-shop-bob aria-hidden className="relative grid size-12 shrink-0 place-items-center will-change-transform">
             <span className="absolute inset-0 rounded-xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: `0 0 18px -2px ${glowing ? '#ffd35c' : '#b05cff'}, inset 0 0 0 2px #ffc93c` }} />
@@ -191,8 +191,8 @@ export function ShopBanners() {
             {glowing && <span className="absolute -top-1 -right-1 size-3 animate-ping rounded-full bg-like" />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-semibold tracking-[0.24em] text-[#dcb2ff]/80 uppercase">{t.activities.shop.boxEyebrow}</span>
-            <span className="block font-display text-xl leading-tight text-cream">{t.runner.wardrobe.box.title}</span>
+            <span className="block truncate text-[10px] font-semibold tracking-[0.2em] text-[#dcb2ff]/80 uppercase">{t.activities.shop.boxEyebrow}</span>
+            <span className="block font-display text-lg leading-tight text-cream sm:text-xl">{t.runner.wardrobe.box.title}</span>
             <span className={`block text-xs tabular-nums ${glowing ? 'font-bold text-gold' : 'text-cream/60'}`}>
               {gifts > 0 ? t.runner.wardrobe.box.gifted(gifts) : freeReady ? t.runner.wardrobe.box.freeReady : freeAt ? t.runner.wardrobe.box.freeIn(countdown(freeAt - now)) : t.activities.shop.boxBody}
             </span>
