@@ -165,6 +165,38 @@ export const fr = {
     ringLabel: 'Énergie du prochain booster',
     ringReady: 'Prêt',
     ringNext: 'Prochain',
+    hub: {
+      tabsLabel: 'Rubriques des activités',
+      tabs: { cards: 'Cartes', games: 'Jeux', more: 'Univers' },
+      intro: {
+        cards: 'Ouvre tes boosters, complète ton album, échange tes doublons.',
+        games: 'Joue, bats des records et gagne des Poussières ✦.',
+        more: 'Dessine avec tout le monde et consulte l’Oracle.',
+      },
+      today: {
+        title: 'Aujourd’hui',
+        allDone: 'Tout est fait pour aujourd’hui. À demain !',
+        guest: 'Crée un compte pour ta récompense du jour, les énigmes et le Marché.',
+        daily: 'Récompense du jour',
+        dailyDone: (day: number, total: number) => `Calendrier · jour ${day}/${total}`,
+        booster: (count: number) => `${count} booster${plural(count, '', 's')} à ouvrir`,
+        oracle: 'Tirage de l’Oracle',
+        dle: (count: number) => `${count} énigme${plural(count, '', 's')} du jour`,
+        market: (count: number) => `${count} nouveauté${plural(count, '', 's')} au Marché`,
+      },
+      games: {
+        dle: 'Devine l’œuvre du jour',
+        hl: 'Plus haut ou plus bas ?',
+        bomb: 'Un mot avant l’explosion',
+        stack: 'Empile les tomes',
+        runner: 'Course en 3D',
+        modes: { dle: 'Solo · Salons', hl: 'Solo · Coop', bomb: 'Solo · 2 à 8', stack: 'Solo · Versus · Coop', runner: 'Solo' },
+        record: (score: number) => `Record ${score}`,
+        toPlay: (count: number) => `${count} à jouer`,
+        new: 'Nouveau',
+        done: 'Fait',
+      },
+    },
   },
 
   boosters: {

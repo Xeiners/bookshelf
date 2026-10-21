@@ -5,7 +5,23 @@ import type { ReaderSession } from '../types/reader'
 
 export type ViewId = 'discover' | 'activities' | 'search' | 'library' | 'profile'
 /** Écran de l'onglet « Activités » : le hub, ou un de ses modules. */
+/** Rubrique du hub des Activités. */
+export type ActivityTab = 'cards' | 'games' | 'more'
+
 export type ActivityScreen = 'hub' | 'oracle' | 'collection' | 'market' | 'dle' | 'higherlower' | 'bomb' | 'runner' | 'canvas' | 'stack'
+/** Rubrique du hub qui contient chaque module. */
+const TAB_OF: Record<Exclude<ActivityScreen, 'hub'>, ActivityTab> = {
+  collection: 'cards',
+  market: 'cards',
+  dle: 'games',
+  higherlower: 'games',
+  bomb: 'games',
+  runner: 'games',
+  stack: 'games',
+  oracle: 'more',
+  canvas: 'more',
+}
+
 export type ToastTone = 'like' | 'nope' | 'neutral'
 
 export interface Toast {
@@ -33,6 +49,8 @@ interface UiState {
   /** Feuille « Mes romans » (EPUB du compte, synchronisés). */
   novelsOpen: boolean
   activity: ActivityScreen
+  /** Rubrique affichée dans le hub ; gardée au retour d'un jeu ou d'un module. */
+  activityTab: ActivityTab
   /** Ouverture de booster en plein écran. */
   boosterOpen: boolean
   /** Feuille « Paramètres » (ouverte depuis le Profil). */
@@ -70,7 +88,8 @@ interface UiState {
   openNovels: () => void
   closeNovels: () => void
   /** Va sur un écran des Activités (le hub, l'Oracle, la collection). */
-  openActivity: (activity: ActivityScreen) => void
+  openActivity: (activity: ActivityScreen, tab?: ActivityTab) => void
+  setActivityTab: (tab: ActivityTab) => void
   /** Ouvre la fenêtre des boosters ; `series` : déjà choisie (achat d'une série), sinon le choix s'affiche. */
   openBooster: (series?: SeriesChoice) => void
   /** Série demandée à l'ouverture de la fenêtre ; `null` : à choisir. */
@@ -109,6 +128,7 @@ export const useUiStore = create<UiState>((set) => ({
   filesOpen: false,
   novelsOpen: false,
   activity: 'hub',
+  activityTab: 'cards',
   boosterOpen: false,
   boosterSeries: null,
   settingsOpen: false,
@@ -135,7 +155,10 @@ export const useUiStore = create<UiState>((set) => ({
   closeFiles: () => set({ filesOpen: false }),
   openNovels: () => set({ novelsOpen: true, detail: null }),
   closeNovels: () => set({ novelsOpen: false }),
-  openActivity: (activity) => set({ view: 'activities', activity, chromeCollapsed: false }),
+  // Ouvrir un module place aussi le hub sur sa rubrique : le retour y ramène.
+  openActivity: (activity, tab) =>
+    set((state) => ({ view: 'activities', activity, chromeCollapsed: false, activityTab: tab ?? (activity === 'hub' ? state.activityTab : TAB_OF[activity]) })),
+  setActivityTab: (activityTab) => set({ activityTab }),
   openBooster: (series) => set({ boosterOpen: true, boosterSeries: series ?? null, detail: null }),
   closeBooster: () => set({ boosterOpen: false }),
   openSettings: () => set({ settingsOpen: true, profileEditorOpen: false }),

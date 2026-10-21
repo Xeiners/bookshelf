@@ -156,6 +156,38 @@ export const en: Dictionary = {
     ringLabel: 'Next booster energy',
     ringReady: 'Ready',
     ringNext: 'Next',
+    hub: {
+      tabsLabel: 'Activity sections',
+      tabs: { cards: 'Cards', games: 'Games', more: 'Worlds' },
+      intro: {
+        cards: 'Open boosters, complete your album, trade your duplicates.',
+        games: 'Play, beat records and earn Stardust ✦.',
+        more: 'Draw with everyone and consult the Oracle.',
+      },
+      today: {
+        title: 'Today',
+        allDone: 'All done for today. See you tomorrow!',
+        guest: 'Create an account for your daily reward, puzzles and the Market.',
+        daily: 'Daily reward',
+        dailyDone: (day: number, total: number) => `Calendar · day ${day}/${total}`,
+        booster: (count: number) => `${count} booster${count === 1 ? '' : 's'} to open`,
+        oracle: 'Oracle reading',
+        dle: (count: number) => `${count} daily puzzle${count === 1 ? '' : 's'}`,
+        market: (count: number) => `${count} Market update${count === 1 ? '' : 's'}`,
+      },
+      games: {
+        dle: 'Guess the work of the day',
+        hl: 'Higher or lower?',
+        bomb: 'A word before it blows',
+        stack: 'Stack the volumes',
+        runner: '3D runner',
+        modes: { dle: 'Solo · Rooms', hl: 'Solo · Co-op', bomb: 'Solo · 2 to 8', stack: 'Solo · Versus · Co-op', runner: 'Solo' },
+        record: (score: number) => `Best ${score}`,
+        toPlay: (count: number) => `${count} to play`,
+        new: 'New',
+        done: 'Done',
+      },
+    },
   },
 
   boosters: {

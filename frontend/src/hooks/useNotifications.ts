@@ -93,7 +93,8 @@ export function openNotification(item: AppNotification) {
   }
   // Cadeaux : l'autel des boosters (le hub), ou l'album.
   if (target.kind === 'boosters' || target.kind === 'collection') {
-    ui.openActivity(target.kind === 'boosters' ? 'hub' : 'collection')
+    if (target.kind === 'boosters') ui.openActivity('hub', 'cards')
+    else ui.openActivity('collection')
     return
   }
   ui.openActivity('market')
