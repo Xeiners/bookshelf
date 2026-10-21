@@ -31,6 +31,7 @@ import { dailyRouter } from './modules/daily/daily.routes.js'
 import { stackRouter } from './modules/stack/stack.routes.js'
 import { rewardsRouter } from './modules/rewards/rewards.routes.js'
 import { canvasRouter } from './modules/canvas/canvas.routes.js'
+import { editsRouter } from './modules/edits/edits.routes.js'
 
 // Messages de validation en français, renvoyés tels quels au front.
 z.config(z.locales.fr())
@@ -78,6 +79,7 @@ export function createApp() {
   app.use('/api/daily', dailyRouter)
   app.use('/api/stack', stackRouter)
   app.use('/api/canvas', canvasRouter)
+  app.use('/api/edits', editsRouter)
   app.use('/api/higher-lower', higherLowerRouter)
   app.use('/api/bomb', bombRouter)
   app.use('/api/runner', runnerRouter)

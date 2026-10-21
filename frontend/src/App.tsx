@@ -64,6 +64,7 @@ const PROFILE_PRELOAD_DELAY_MS = 1500
 
 // Administration (comptes de `ADMIN_EMAILS`) : jamais téléchargée par les autres.
 const ReviewerView = lazy(() => import('./components/admin/ReviewerView').then((module) => ({ default: module.ReviewerView })))
+const EditsFeed = lazy(() => import('./components/edits/EditsFeed').then((module) => ({ default: module.EditsFeed })))
 const AdminView = lazy(() => import('./components/admin/AdminView').then((module) => ({ default: module.AdminView })))
 
 const NovelsSheet = lazy(() => import('./components/novels/NovelsSheet').then((module) => ({ default: module.NovelsSheet })))
@@ -97,6 +98,7 @@ export default function App() {
   const notificationsOpen = useUiStore((state) => state.notificationsOpen)
   const adminOpen = useUiStore((state) => state.adminOpen)
   const reviewOpen = useUiStore((state) => state.reviewOpen)
+  const editsOpen = useUiStore((state) => state.editsOpen)
   const isReviewer = useAuthStore((state) => state.user?.isImageReviewer === true)
   const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
 
@@ -316,6 +318,11 @@ export default function App() {
       <GiftReveal />
       {/* « Quel livre est-ce ? » : un EPUB importé à rattacher à sa fiche. */}
       <EpubMatchModal />
+      {editsOpen && isAdmin && (
+        <Suspense fallback={<div className="fixed inset-0 z-[90] bg-black" />}>
+          <EditsFeed />
+        </Suspense>
+      )}
       {adminOpen && isAdmin && (
         <Suspense fallback={<div className="fixed inset-0 z-[76] bg-void" />}>
           <AdminView />

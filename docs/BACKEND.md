@@ -1429,3 +1429,19 @@ compte, ou un invité du BookshelfDLE (`requirePlayer`, reçus signés pour ses 
   Un envoi en `Transfer-Encoding: chunked` qui dépasse la limite est coupé net :
   le client voit une erreur réseau, pas le 413 (les navigateurs annoncent toujours
   la taille d'un `File`).
+
+## Fil « Edits » (`src/modules/edits/`) — essai, administrateurs seulement
+
+`GET /api/edits?universe=&seed=&offset=` (404 hors `ADMIN_EMAILS`) : des edits, AMV, MMV et MAD
+d'anime en vidéos verticales (YouTube Shorts), page de 8, `next: null` en fin de fil.
+
+- **Recherches** (`edits.logic.ts`) : un format (« edit », « amv », « edit 4k ») par univers,
+  plus des recherches générales, dans un ordre propre à la graine du fil ; lancées quatre par quatre
+  au fil du défilement, chacune gardée 12 h (5 min si elle n'a rien donné).
+- **Source** : avec `YOUTUBE_API_KEY`, l'API officielle (`search.list` 100 unités + `videos.list`
+  1 unité ; on ne garde que les vidéos courtes, intégrables, plus hautes que larges) ; sans clé ou
+  quota épuisé, la page de résultats publique, dont on ne garde que les Shorts.
+- **Tri** : un titre doit porter un indice de montage (edit, amv, mmv, mad, 4k, sync…) et aucun
+  signe d'autre chose (réaction, analyse, bande-annonce, épisode, tutoriel, direct…).
+- Le front n'affiche que le lecteur officiel (`youtube-nocookie.com`), un seul à la fois ; rien
+  n'est téléchargé ni réhébergé.
