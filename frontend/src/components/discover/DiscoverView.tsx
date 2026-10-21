@@ -7,7 +7,6 @@ import { withoutDeckFields } from '../../services/discover'
 import { useT } from '../../i18n'
 import { type LibrarySnapshot, useLibraryStore } from '../../store/useLibraryStore'
 import { vibrate } from '../../lib/haptics'
-import { useAuthStore } from '../../store/useAuthStore'
 import { useUiStore } from '../../store/useUiStore'
 import type { Book, SwipeIntent } from '../../types/book'
 import { Pressable } from '../ui/Pressable'
@@ -71,7 +70,6 @@ function DeckEmpty({ onReload }: { onReload: () => void }) {
 
 export function DiscoverView() {
   const t = useT()
-  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
   const {
     queue,
     cursor,
@@ -163,8 +161,8 @@ export function DiscoverView() {
     <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
       {/* Rail d'étagères + filtres, sur une seule ligne ; au-dessus du deck pour le panneau de filtres */}
       <div className="relative z-20 flex items-center gap-2">
-        {/* Le fil des edits (en essai, administrateurs) : une bulle « story » en tête du rail. */}
-        {isAdmin && <EditsBubble />}
+        {/* Le fil des edits : une bulle « story » en tête du rail. */}
+        <EditsBubble />
         {/* Remonté quand la sélection change : le nouveau rail d'étagères rejoue son entrée. */}
         <ShelfPicker
           key={sourcesKey}

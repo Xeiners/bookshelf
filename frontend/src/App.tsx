@@ -318,7 +318,7 @@ export default function App() {
       <GiftReveal />
       {/* « Quel livre est-ce ? » : un EPUB importé à rattacher à sa fiche. */}
       <EpubMatchModal />
-      {editsOpen && isAdmin && (
+      {editsOpen && (
         <Suspense fallback={<div className="fixed inset-0 z-[90] bg-black" />}>
           <EditsFeed />
         </Suspense>

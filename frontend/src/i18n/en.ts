@@ -1126,7 +1126,6 @@ export const en: Dictionary = {
     openAria: 'Open the anime edits feed',
     eyebrow: 'Anime · Shorts',
     title: 'Edits',
-    beta: 'Trial · admins',
     close: 'Close',
     filters: 'Series',
     all: 'All',

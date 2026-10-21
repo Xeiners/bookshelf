@@ -1,6 +1,6 @@
 /**
  * Fil « Edits » : recherches, tri de ce qui est un edit, lecture des réponses de YouTube
- * (API officielle et page de résultats), assemblage du fil, et accès réservé aux administrateurs.
+ * (API officielle et page de résultats), assemblage du fil, et accès ouvert à tous.
  */
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
@@ -126,9 +126,9 @@ describe('edits — API', () => {
     assert.equal((await member.signUp({ email: 'edits-member@example.com', password: 'motdepasse-test', displayName: 'Membre' })).status, 201)
   })
 
-  it('réservé aux administrateurs : 404 pour un membre, 401 sans compte', async () => {
-    assert.equal((await member.request('GET', '/edits')).status, 404)
-    assert.equal((await client().request('GET', '/edits')).status, 401)
+  it('ouvert à tous : membre, administrateur et invité', async () => {
+    assert.equal((await member.request('GET', '/edits?universe=berserk&seed=pub')).status, 200)
+    assert.equal((await client().request('GET', '/edits?universe=berserk&seed=pub')).status, 200)
   })
 
   it('pages successives sans doublon ; les recherches ne partent qu’au fil du défilement, puis restent en cache', async () => {

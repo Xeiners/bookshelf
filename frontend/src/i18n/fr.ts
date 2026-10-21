@@ -1137,7 +1137,6 @@ export const fr = {
     openAria: 'Ouvrir le fil des edits d’anime',
     eyebrow: 'Anime · Shorts',
     title: 'Edits',
-    beta: 'Essai · admins',
     close: 'Fermer',
     filters: 'Univers',
     all: 'Tout',

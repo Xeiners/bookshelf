@@ -1430,9 +1430,9 @@ compte, ou un invité du BookshelfDLE (`requirePlayer`, reçus signés pour ses 
   le client voit une erreur réseau, pas le 413 (les navigateurs annoncent toujours
   la taille d'un `File`).
 
-## Fil « Edits » (`src/modules/edits/`) — essai, administrateurs seulement
+## Fil « Edits » (`src/modules/edits/`)
 
-`GET /api/edits?universe=&seed=&offset=` (404 hors `ADMIN_EMAILS`) : des edits, AMV, MMV et MAD
+`GET /api/edits?universe=&seed=&offset=` (ouvert à tous, invités compris) : des edits, AMV, MMV et MAD
 d'anime en vidéos verticales (YouTube Shorts), page de 8, `next: null` en fin de fil.
 
 - **Recherches** (`edits.logic.ts`) : un format (« edit », « amv », « edit 4k ») par univers,

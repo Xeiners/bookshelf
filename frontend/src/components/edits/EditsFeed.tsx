@@ -10,7 +10,7 @@ import { EditsPool } from './editsPool'
 
 /*
  * Fil « Edits » : des edits, AMV et MMV d'anime (YouTube Shorts), une vidéo par écran, qu'on
- * fait défiler du doigt (ou des flèches) comme sur TikTok. En essai, réservé aux administrateurs.
+ * fait défiler du doigt (ou des flèches) comme sur TikTok.
  *
  *  - Quatre lecteurs YouTube, créés une fois et réutilisés (`editsPool.ts`) : la vidéo à l'écran,
  *    celle d'avant et les deux suivantes déjà chargées (pas d'écran noir), et le son qui tient
@@ -289,7 +289,6 @@ export function EditsFeed() {
               <p className="text-[10px] tracking-[0.28em] text-cream/60 uppercase">{t.edits.eyebrow}</p>
               <p className="flex items-center gap-2 font-display text-xl leading-tight">
                 {t.edits.title}
-                <span className="rounded-full bg-[#ff5ec4]/20 px-2 py-0.5 font-sans text-[9px] font-bold tracking-[0.14em] text-[#ff9ad8] uppercase">{t.edits.beta}</span>
               </p>
             </div>
             <button
