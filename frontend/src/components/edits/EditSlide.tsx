@@ -1,25 +1,20 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { ExternalLink, Loader2, Play } from 'lucide-react'
 import { useT } from '../../i18n'
-import { YT_STATE, loadYouTubeApi, type YTPlayer } from '../../lib/youtube/iframeApi'
 import type { EditVideo } from '../../services/editsApi'
 
 /*
- * Une vidéo du fil « Edits », avec NOTRE lecteur par-dessus celui de YouTube :
+ * Une vidéo du fil « Edits » : tout ce qui se pose PAR-DESSUS le lecteur YouTube (qui vit dans la
+ * réserve de lecteurs, `editsPool.ts`) — notre lecteur à nous :
  *
- *  - Le lecteur YouTube (API IFrame, sans cookie, sans commandes) n'est qu'une surface vidéo.
- *    Il est plus haut que l'écran : ses bandeaux (titre, « Plus de vidéos »…) tombent hors
- *    du cadre, seule l'image reste visible.
- *  - Un voile couvre tout : le glissé fait défiler le fil, un toucher met en pause (▶ affiché
- *    tant que c'est en pause), un second relance et l'icône disparaît aussitôt.
- *  - Une barre de progression, tout en bas, se saisit au doigt : on avance ou recule dans
- *    l'edit, le temps s'affiche en grand pendant le glissé.
- *  - Préchargement : les deux vidéos suivantes ont déjà leur lecteur, lancé sans le son puis
- *    arrêté sur la première image — en arrivant dessus, la lecture part sans écran noir.
+ *  - l'affiche, tant que la vidéo ne joue pas encore (jamais d'écran noir) ;
+ *  - un voile qui couvre tout : le glissé fait défiler le fil, un toucher met en pause (▶ affiché
+ *    tant que c'est en pause), un second relance et l'icône disparaît aussitôt ;
+ *  - une barre de progression, tout en bas, qu'on saisit au doigt pour avancer ou reculer dans
+ *    l'edit (le temps s'affiche en grand pendant le glissé) ;
+ *  - la légende (univers, titre, chaîne) et le lien vers YouTube.
  */
 
-/** Hauteur rognée en haut et en bas du lecteur YouTube (ses bandeaux). */
-const CHROME_PX = 72
 const thumbnail = (id: string) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
 
 const clock = (seconds: number) => {
@@ -27,137 +22,43 @@ const clock = (seconds: number) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
+export interface PlaybackControl {
+  progress: () => { current: number; duration: number } | null
+  seek: (seconds: number) => void
+}
+
 interface EditSlideProps {
   item: EditVideo
   index: number
-  /** À l'écran : elle joue. */
+  /** À l'écran. */
   active: boolean
-  /** Lecteur monté (la vidéo à l'écran, sa voisine d'avant et les deux suivantes). */
-  mounted: boolean
-  muted: boolean
+  /** Sa vidéo joue vraiment : l'affiche s'efface. */
+  playing: boolean
   paused: boolean
   failed: boolean
+  playback: PlaybackControl
   onToggle: () => void
-  onFailed: () => void
 }
 
-export function EditSlide({ item, index, active, mounted, muted, paused, failed, onToggle, onFailed }: EditSlideProps) {
+export function EditSlide({ item, index, active, playing, paused, failed, playback, onToggle }: EditSlideProps) {
   const t = useT()
-  const hostRef = useRef<HTMLDivElement>(null)
-  const playerRef = useRef<YTPlayer | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
-  const [ready, setReady] = useState(false)
-  const [playing, setPlaying] = useState(false)
   const [scrub, setScrub] = useState<{ ratio: number; duration: number } | null>(null)
-  // Relus par les événements du lecteur, qui vivent hors du rendu.
-  const live = useRef({ active, muted, paused, onFailed })
-  useEffect(() => {
-    live.current = { active, muted, paused, onFailed }
-  }, [active, muted, paused, onFailed])
-
-  // Le lecteur : créé quand la vidéo entre dans la fenêtre de préchargement, détruit en sortant.
-  useEffect(() => {
-    if (!mounted || failed) return
-    let cancelled = false
-    let player: YTPlayer | null = null
-    void loadYouTubeApi()
-      .then((YT) => {
-        if (cancelled || !hostRef.current) return
-        const target = document.createElement('div')
-        hostRef.current.replaceChildren(target)
-        player = new YT.Player(target, {
-          width: '100%',
-          height: '100%',
-          videoId: item.id,
-          host: 'https://www.youtube-nocookie.com',
-          playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, origin: window.location.origin },
-          events: {
-            onReady: (event) => {
-              if (cancelled) return
-              playerRef.current = event.target
-              event.target.mute()
-              // À l'écran : la lecture. Préchargée : lancée sans le son, puis arrêtée sur la première image.
-              event.target.playVideo()
-              setReady(true)
-            },
-            onStateChange: (event) => {
-              if (cancelled) return
-              const { active: isActive, paused: isPaused } = live.current
-              if (event.data === YT_STATE.Playing) {
-                if (!isActive || isPaused) {
-                  event.target.pauseVideo()
-                  if (!isActive) event.target.seekTo(0, true)
-                }
-                if (isActive) setPlaying(true)
-              } else if (event.data === YT_STATE.Ended) {
-                // En boucle, comme sur TikTok.
-                event.target.seekTo(0, true)
-                event.target.playVideo()
-              }
-            },
-            onError: () => {
-              if (!cancelled) live.current.onFailed()
-            },
-          },
-        })
-      })
-      .catch(() => {
-        if (!cancelled) live.current.onFailed()
-      })
-    return () => {
-      cancelled = true
-      player?.destroy()
-      playerRef.current = null
-      setReady(false)
-      setPlaying(false)
-    }
-  }, [mounted, failed, item.id])
-
-  // À l'écran : de zéro, au son choisi ; hors de l'écran : arrêtée et rembobinée.
-  useEffect(() => {
-    const player = playerRef.current
-    if (!ready || !player) return
-    if (active) {
-      player.seekTo(0, true)
-      player.playVideo()
-    } else if (player.getPlayerState() === YT_STATE.Playing) {
-      // Préchargée qui tamponne encore : elle s'arrêtera seule sur sa première image (cf. onStateChange).
-      player.pauseVideo()
-      player.seekTo(0, true)
-    }
-    return () => setPlaying(false)
-  }, [active, ready])
-
-  useEffect(() => {
-    const player = playerRef.current
-    if (!ready || !player || !active) return
-    if (muted) player.mute()
-    else player.unMute()
-  }, [active, muted, ready])
-
-  useEffect(() => {
-    const player = playerRef.current
-    if (!ready || !player || !active) return
-    if (paused) player.pauseVideo()
-    else player.playVideo()
-  }, [active, paused, ready])
+  const ready = active && playing
 
   // Progression : lue à chaque image (sans rendu React), tant que la vidéo est à l'écran.
   useEffect(() => {
     if (!active || !ready || scrub) return
     let frame = 0
     const tick = () => {
-      const player = playerRef.current
+      const state = playback.progress()
       const bar = barRef.current
-      if (player && bar) {
-        const duration = player.getDuration()
-        bar.style.transform = `scaleX(${duration > 0 ? Math.min(1, player.getCurrentTime() / duration) : 0})`
-      }
+      if (state && bar) bar.style.transform = `scaleX(${state.duration > 0 ? Math.min(1, state.current / state.duration) : 0})`
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [active, ready, scrub])
+  }, [active, ready, scrub, playback])
 
   // La barre n'est écrite que par ce code (jamais par le rendu) : aucun retour à zéro entre deux images.
   const setBar = (ratio: number) => {
@@ -170,13 +71,13 @@ export function EditSlide({ item, index, active, mounted, muted, paused, failed,
     return Math.min(1, Math.max(0, (event.clientX - box.left) / box.width))
   }
   const startScrub = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const player = playerRef.current
-    if (!player || !ready) return
+    const state = playback.progress()
+    if (!state || !ready) return
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
     const ratio = ratioAt(event)
     setBar(ratio)
-    setScrub({ ratio, duration: player.getDuration() })
+    setScrub({ ratio, duration: state.duration })
   }
   const moveScrub = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!scrub) return
@@ -186,19 +87,14 @@ export function EditSlide({ item, index, active, mounted, muted, paused, failed,
   }
   const endScrub = useCallback(() => {
     if (!scrub) return
-    playerRef.current?.seekTo(scrub.ratio * scrub.duration, true)
+    playback.seek(scrub.ratio * scrub.duration)
     setScrub(null)
-  }, [scrub])
+  }, [scrub, playback])
 
   const showPoster = !(active && playing)
 
   return (
-    <section data-index={index} aria-label={item.title} className="relative h-full snap-start snap-always overflow-hidden bg-black">
-      {/* Surface vidéo : plus haute que l'écran, les bandeaux de YouTube sont hors cadre. */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0" style={{ top: -CHROME_PX, bottom: -CHROME_PX }}>
-        <div ref={hostRef} className="h-full w-full [&>iframe]:h-full [&>iframe]:w-full" />
-      </div>
-
+    <section data-index={index} aria-label={item.title} className="relative z-[1] h-full snap-start snap-always overflow-hidden">
       {/* Affiche : tant que la vidéo ne joue pas (chargement, préchargée, hors de l'écran). */}
       <img
         src={thumbnail(item.id)}

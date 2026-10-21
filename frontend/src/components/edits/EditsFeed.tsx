@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronUp, Loader2, RotateCcw, Volume2, VolumeX } from 'lucide-react'
 import { useT } from '../../i18n'
 import { ambientPlayer } from '../../lib/audio/youtubePlayer'
 import { vibrate } from '../../lib/haptics'
 import { EDIT_UNIVERSES, editsApi, type EditUniverse, type EditVideo } from '../../services/editsApi'
 import { useUiStore } from '../../store/useUiStore'
-import { EditSlide } from './EditSlide'
+import { EditSlide, type PlaybackControl } from './EditSlide'
+import { EditsPool } from './editsPool'
 
 /*
  * Fil « Edits » : des edits, AMV et MMV d'anime (YouTube Shorts), une vidéo par écran, qu'on
  * fait défiler du doigt (ou des flèches) comme sur TikTok. En essai, réservé aux administrateurs.
  *
- *  - Quatre lecteurs au plus : la vidéo à l'écran, celle d'avant, et les deux suivantes déjà
- *    chargées (pas d'écran noir en arrivant dessus). Les autres ne sont qu'une affiche.
+ *  - Quatre lecteurs YouTube, créés une fois et réutilisés (`editsPool.ts`) : la vidéo à l'écran,
+ *    celle d'avant et les deux suivantes déjà chargées (pas d'écran noir), et le son qui tient
+ *    d'une vidéo à l'autre. Les autres vidéos ne sont qu'une affiche.
  *  - Notre propre lecteur par-dessus celui de YouTube (`EditSlide`) : pause au toucher, barre de
  *    progression qu'on saisit pour avancer dans l'edit.
  *  - Le son démarre coupé (seule lecture automatique permise par les navigateurs) ; le réglage
@@ -21,8 +23,6 @@ import { EditSlide } from './EditSlide'
  *    est sautée toute seule.
  */
 
-/** Vidéos suivantes dont le lecteur est déjà prêt (préchargées, arrêtées sur leur première image). */
-const PRELOAD = 2
 /** Pages demandées quand il ne reste plus que ce nombre de vidéos devant soi. */
 const PREFETCH_AHEAD = 3
 
@@ -44,7 +44,11 @@ export function EditsFeed() {
   const [muted, setMuted] = useState(true)
   const [paused, setPaused] = useState(false)
   const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set())
+  /** Vidéo dont la lecture a vraiment démarré (son affiche s'efface). */
+  const [playingIndex, setPlayingIndex] = useState<number | null>(null)
   const loadingRef = useRef(false)
+  const layerRef = useRef<HTMLDivElement>(null)
+  const poolRef = useRef<EditsPool | null>(null)
 
   // La musique d'ambiance se tait pendant les edits, et reprend en sortant.
   useEffect(() => {
@@ -95,6 +99,46 @@ export function EditsFeed() {
     }
   }, [loadMore])
 
+  // La réserve de lecteurs : créée à l'ouverture, détruite à la fermeture.
+  const failRef = useRef<(id: string) => void>(() => undefined)
+  useEffect(() => {
+    const layer = layerRef.current
+    if (!layer) return
+    const pool = new EditsPool(layer, { onPlaying: (index) => setPlayingIndex(index), onFailed: (id) => failRef.current(id) })
+    poolRef.current = pool
+    const scroller = scrollerRef.current
+    const resize = new ResizeObserver(() => pool.layout(scroller?.clientHeight ?? 0))
+    if (scroller) resize.observe(scroller)
+    return () => {
+      resize.disconnect()
+      pool.destroy()
+      poolRef.current = null
+    }
+  }, [])
+
+  // Chaque lecteur prend sa place quand la vidéo à l'écran (ou le fil) change.
+  useEffect(() => {
+    poolRef.current?.update(
+      items.map((item) => item.id),
+      active,
+    )
+  }, [items, active])
+
+  const playback = useMemo<PlaybackControl>(
+    () => ({ progress: () => poolRef.current?.progress() ?? null, seek: (seconds) => poolRef.current?.seek(seconds) }),
+    [],
+  )
+
+  // Son et pause : appliqués DANS le geste (clic, touche) — c'est lui qui autorise le son.
+  const toggleMuted = useCallback(() => {
+    poolRef.current?.setMuted(!muted)
+    setMuted(!muted)
+  }, [muted])
+  const togglePaused = useCallback(() => {
+    poolRef.current?.setPaused(!paused)
+    setPaused(!paused)
+  }, [paused])
+
   // La vidéo à l'écran : celle qui en occupe la plus grande part.
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -129,6 +173,9 @@ export function EditsFeed() {
 
   // Vidéo refusée par YouTube (intégration interdite, supprimée) : notée ; à l'écran, on la saute.
   const onFailed = useCallback((id: string) => setFailed((current) => (current.has(id) ? current : new Set(current).add(id))), [])
+  useEffect(() => {
+    failRef.current = onFailed
+  }, [onFailed])
   const activeFailed = items[active] !== undefined && failed.has(items[active].id)
   useEffect(() => {
     if (!activeFailed) return
@@ -146,15 +193,15 @@ export function EditsFeed() {
       } else if (event.key === 'ArrowUp' || event.key === 'k') {
         event.preventDefault()
         goTo(Math.max(0, active - 1))
-      } else if (event.key === 'm') setMuted((value) => !value)
+      } else if (event.key === 'm') toggleMuted()
       else if (event.key === ' ') {
         event.preventDefault()
-        setPaused((value) => !value)
+        togglePaused()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active, close, goTo])
+  }, [active, close, goTo, toggleMuted, togglePaused])
 
   const chooseUniverse = (value: EditUniverse | null) => {
     if (value === universe) return
@@ -172,19 +219,20 @@ export function EditsFeed() {
       )}
 
       <div className="relative mx-auto h-full w-full md:w-[min(100vw,calc(100dvh*9/16))] md:shadow-[0_0_80px_rgba(0,0,0,0.9)]">
-        <div ref={scrollerRef} className="no-scrollbar h-full snap-y snap-mandatory overflow-y-scroll overscroll-contain">
+        <div ref={scrollerRef} className="no-scrollbar relative h-full snap-y snap-mandatory overflow-y-scroll overscroll-contain bg-black">
+          {/* Les lecteurs YouTube (réserve), sous les diapositives qui portent notre lecteur. */}
+          <div ref={layerRef} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-0" />
           {items.map((item, index) => (
             <EditSlide
               key={item.id}
               item={item}
               index={index}
               active={index === active}
-              mounted={index >= active - 1 && index <= active + PRELOAD}
-              muted={muted}
+              playing={playingIndex === index}
               paused={paused && index === active}
               failed={failed.has(item.id)}
-              onToggle={() => setPaused((value) => !value)}
-              onFailed={() => onFailed(item.id)}
+              playback={playback}
+              onToggle={togglePaused}
             />
           ))}
           {status === 'ready' && next === null && (
@@ -246,7 +294,7 @@ export function EditsFeed() {
             </div>
             <button
               type="button"
-              onClick={() => setMuted((value) => !value)}
+              onClick={toggleMuted}
               aria-label={muted ? t.edits.unmute : t.edits.mute}
               aria-pressed={!muted}
               className="grid size-10 place-items-center rounded-full bg-black/40 backdrop-blur active:scale-95"
@@ -266,7 +314,7 @@ export function EditsFeed() {
         {muted && active === 0 && current && (
           <button
             type="button"
-            onClick={() => setMuted(false)}
+            onClick={toggleMuted}
             className="absolute top-36 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-xs font-semibold backdrop-blur active:scale-95"
           >
             <VolumeX size={14} aria-hidden />
