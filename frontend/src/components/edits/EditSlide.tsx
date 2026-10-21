@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { ExternalLink, Loader2, Play } from 'lucide-react'
+import { ExternalLink, Loader2, Pause, Play } from 'lucide-react'
 import { useT } from '../../i18n'
 import type { EditVideo } from '../../services/editsApi'
 
@@ -93,6 +93,13 @@ export function EditSlide({ item, index, active, playing, paused, failed, playba
 
   const showPoster = !(active && playing)
 
+  // Toucher : l'icône de ce qui se passe (pause, ou lecture qui reprend), en éclair.
+  const [flash, setFlash] = useState<{ kind: 'play' | 'pause'; key: number } | null>(null)
+  const toggle = () => {
+    setFlash({ kind: paused ? 'play' : 'pause', key: Date.now() })
+    onToggle()
+  }
+
   return (
     <section data-index={index} aria-label={item.title} className="relative z-[1] h-full snap-start snap-always overflow-hidden">
       {/* Affiche : tant que la vidéo ne joue pas (chargement, préchargée, hors de l'écran). */}
@@ -105,10 +112,14 @@ export function EditSlide({ item, index, active, playing, paused, failed, playba
       />
 
       {/* Voile : le glissé fait défiler le fil, un toucher met en pause ou relance. */}
-      <button type="button" onClick={onToggle} aria-label={paused ? t.edits.play : t.edits.pause} className="absolute inset-0 z-10 cursor-pointer">
-        {paused && active && (
-          <span className="animate-pop absolute top-1/2 left-1/2 grid size-[4.5rem] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/40 backdrop-blur-sm">
-            <Play size={32} className="ml-1 fill-white text-white" aria-hidden />
+      <button type="button" onClick={toggle} aria-label={paused ? t.edits.play : t.edits.pause} className="absolute inset-0 z-10 cursor-pointer">
+        {/* L'icône ne reste pas : elle surgit au toucher (pause ou lecture) et s'efface aussitôt. */}
+        {flash && active && (
+          <span
+            key={flash.key}
+            className="animate-flash pointer-events-none absolute top-1/2 left-1/2 -mt-9 -ml-9 grid size-[4.5rem] place-items-center rounded-full bg-black/40"
+          >
+            {flash.kind === 'play' ? <Play size={32} className="ml-1 fill-white text-white" aria-hidden /> : <Pause size={30} className="fill-white text-white" aria-hidden />}
           </span>
         )}
         {!paused && active && !playing && !failed && (
