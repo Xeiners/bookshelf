@@ -53,6 +53,8 @@ services:
       PUBLIC_API_BASE: ${PUBLIC_API_BASE:-/api}
       CATALOG_SYNC: ${CATALOG_SYNC:-on}
       MANGADEX_USER_AGENT: ${MANGADEX_USER_AGENT:-Bookshelf/0.1 (projet perso)}
+      # YouTube Data API v3 (facultative) : musique d'ambiance et fil « Edits ». Sans clé : page publique.
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
       # E-mails (code de vérification à l'inscription). Sans SMTP_HOST, les
       # inscriptions sont refusées : aucun compte sans adresse vérifiée.
       SMTP_HOST: ${SMTP_HOST:-}
