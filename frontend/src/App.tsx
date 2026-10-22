@@ -46,7 +46,9 @@ import { NotificationCenter } from './components/notifications/NotificationCente
 import { DailyRewardModal } from './components/daily/DailyRewardModal'
 import { RecordRewardModal } from './components/rewards/RecordRewardModal'
 import { GiftReveal } from './components/cards/GiftReveal'
-import { PatchNotesModal } from './components/layout/PatchNotesModal'
+import { NewsPage } from './components/news/NewsPage'
+import { NewsPopup } from './components/news/NewsPopup'
+import { useNews } from './store/useNews'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
 const UniversalReader = lazy(() =>
@@ -99,6 +101,7 @@ export default function App() {
   const adminOpen = useUiStore((state) => state.adminOpen)
   const reviewOpen = useUiStore((state) => state.reviewOpen)
   const editsOpen = useUiStore((state) => state.editsOpen)
+  const newsPage = useNews((state) => state.page)
   const isReviewer = useAuthStore((state) => state.user?.isImageReviewer === true)
   const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
 
@@ -311,7 +314,8 @@ export default function App() {
       {musicOpen && <MusicSheet />}
       {notificationsOpen && <NotificationCenter />}
       <DailyRewardModal />
-      <PatchNotesModal />
+      <NewsPopup />
+      {newsPage && <NewsPage />}
       <RecordRewardModal />
       <NotificationBanner />
       {/* Carte offerte : la surprise, face cachée, à la visite suivante. */}

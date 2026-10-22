@@ -45,6 +45,59 @@
   --animate-flash: flash 0.5s ease-out both;
 }
 
+/* Actus : illustrations animées. */
+@keyframes news-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+@keyframes news-reel {
+  0%,
+  22% {
+    transform: translateY(0);
+  }
+  33%,
+  55% {
+    transform: translateY(-100%);
+  }
+  66%,
+  88% {
+    transform: translateY(-200%);
+  }
+  100% {
+    transform: translateY(-300%);
+  }
+}
+
+@keyframes news-draw {
+  0% {
+    stroke-dashoffset: 260;
+  }
+  55%,
+  85% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -260;
+  }
+}
+
+@keyframes news-in {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 @keyframes flash {
   0% {
     opacity: 0;

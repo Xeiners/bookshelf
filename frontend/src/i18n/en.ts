@@ -1,4 +1,3 @@
-import type { PatchIcon } from '../lib/patchNotes'
 import type { Dictionary } from './fr'
 
 const plural = (count: number, one: string, many: string) => (count === 1 ? one : many)
@@ -244,20 +243,68 @@ export const en: Dictionary = {
     hint: 'Keep or ban the BookshelfDLE puzzle images.',
   },
 
-  patchNotes: {
-    title: 'What’s new',
-    subtitle: 'Update of October 19',
-    close: 'Let’s go!',
-    open: 'See what’s new',
-    hint: 'What changed in the latest update.',
-    items: [
-      { icon: 'stack', title: 'Page Stack, the new arcade game', text: 'Stack manga volumes as high as you can across six Japanese worlds. Records, a leaderboard, and multiplayer: versus on 2-4 shared screens or turn-by-turn co-op. When it’s over, save your tower as an image.' },
-      { icon: 'gift', title: 'Daily reward', text: 'A 30-day calendar: Stardust, boosters, mystery boxes. Keep your streak going to win the day-30 pack, with a guaranteed Legendary.' },
-      { icon: 'dust', title: 'Duplicates → Stardust', text: 'Convert your duplicates, one card at a time or in bulk (untick what you keep): Common 5 ✦, Rare 10, Epic 25, Legendary 250. You always keep one copy, and Mythics can’t be sold.' },
-      { icon: 'market', title: 'Trades go through the Market', text: 'Members can no longer gift cards to each other: to part with a card, list it on the Market for another of the same rarity.' },
-      { icon: 'library', title: 'Library and reading', text: 'A Cards tab (owned, favorites), adding cards straight to your profile showcase, and a more reliable offline novel reader.' },
-      { icon: 'canvas', title: 'The Canvas on phones', text: 'Finger drawing fixed, a mobile-first interface, and reference images with adjustable opacity.' },
-    ] as { icon: PatchIcon; title: string; text: string }[],
+  news: {
+    title: 'News',
+    subtitle: 'What’s new on Bookshelf',
+    open: 'News',
+    openAria: 'See the news',
+    hint: 'Everything new, with visuals.',
+    all: 'All news',
+    later: 'Later',
+    close: 'Close',
+    back: 'Back',
+    fresh: 'New',
+    unseen: (count: number) => `${count} new`,
+    items: {
+      edits: {
+        tag: 'Videos',
+        title: 'Edits: the vertical anime feed',
+        text: 'Anime edits, AMVs and MMVs in full screen, swiped through like on TikTok. Filter by series (Naruto, One Piece, JoJo…), scrub through the video with the bar, tap the screen to pause. Open it from the ▶ bubble in Discover.',
+        cta: 'Watch the edits',
+      },
+      activities: {
+        tag: 'Redesign',
+        title: 'A clearer Activities page',
+        text: 'Opening boosters front and centre, the shop right beside it, and three sections — Cards, Games, Worlds — that slide from one to the next. Your daily reward, boosters and Stardust ✦ always at the top.',
+        cta: 'See activities',
+      },
+      stack: {
+        tag: 'Game',
+        title: 'Page Stack, the volume-stacking arcade',
+        text: 'Stack manga volumes as high as you can across six Japanese worlds. Records, a leaderboard, and multiplayer: versus on 2-4 shared screens or turn-by-turn co-op. When it’s over, save your tower as an image.',
+        cta: 'Play',
+      },
+      daily: {
+        tag: 'Rewards',
+        title: 'Daily reward',
+        text: 'A 30-day calendar: Stardust, boosters, mystery boxes. Keep your streak going to win the day-30 pack, with a guaranteed Legendary.',
+        cta: 'Open the calendar',
+      },
+      dust: {
+        tag: 'Cards',
+        title: 'Duplicates → Stardust',
+        text: 'Convert your duplicates, one card at a time or in bulk: Common 5 ✦, Rare 10, Epic 25, Legendary 250. You always keep one copy, and Mythics can’t be sold.',
+        cta: 'See my album',
+      },
+      market: {
+        tag: 'Market',
+        title: 'Trades go through the Market',
+        text: 'Members can no longer gift cards to each other: to part with a card, list it on the Market for another of the same rarity.',
+        cta: 'Go to the Market',
+      },
+      library: {
+        tag: 'Reading',
+        title: 'Library and reading',
+        text: 'A Cards tab (owned, favorites), adding cards straight to your profile showcase, and a more reliable offline novel reader.',
+        cta: 'My library',
+      },
+      canvas: {
+        tag: 'Canvas',
+        title: 'The Canvas on phones',
+        text: 'Finger drawing fixed, a mobile-first interface, and reference images with adjustable opacity.',
+        cta: 'Draw',
+      },
+    },
   },
 
   cards: {

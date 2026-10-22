@@ -6,7 +6,6 @@
  * Les textes variables sont des fonctions : interpolation et pluriels restent
  * typés, sans moteur de gabarits.
  */
-import type { PatchIcon } from '../lib/patchNotes'
 
 const plural = (count: number, one: string, many: string) => (count > 1 ? many : one)
 
@@ -253,20 +252,68 @@ export const fr = {
     hint: 'Valide ou bannis les images d’énigme du BookshelfDLE.',
   },
 
-  patchNotes: {
-    title: 'Nouveautés',
-    subtitle: 'Mise à jour du 19 octobre',
-    close: 'C’est parti !',
-    open: 'Voir les nouveautés',
-    hint: 'Ce qui a changé dans la dernière mise à jour.',
-    items: [
-      { icon: 'stack', title: 'Page Stack, le nouveau jeu d’arcade', text: 'Empile des tomes de manga le plus haut possible, à travers six univers japonais. Record, classement, et du multijoueur : versus à 2-4 écrans partagés ou coop tour par tour. À la fin, enregistre ta tour en image.' },
-      { icon: 'gift', title: 'Récompense du jour', text: 'Un calendrier de 30 jours : Poussières, boosters, boîtes mystère. Enchaîne les jours pour décrocher le pack du 30ᵉ, avec une Légendaire garantie.' },
-      { icon: 'dust', title: 'Doublons → Poussières', text: 'Convertis tes doublons, carte par carte ou en lot (tu décoches ce que tu gardes) : Commune 5 ✦, Rare 10, Épique 25, Légendaire 250. Tu gardes toujours un exemplaire, et les Mythiques sont invendables.' },
-      { icon: 'market', title: 'Les échanges passent par le Marché', text: 'On ne s’offre plus de cartes entre membres : pour céder une carte, propose-la sur le Marché contre une autre de même rareté.' },
-      { icon: 'library', title: 'Bibliothèque et lecture', text: 'Un onglet Cartes (possédées, favoris), l’ajout direct de cartes à la vitrine de ton profil, et un lecteur de romans hors ligne plus fiable.' },
-      { icon: 'canvas', title: 'La Toile sur téléphone', text: 'Dessin au doigt corrigé, interface repensée pour le mobile, et images de référence à opacité réglable.' },
-    ] as { icon: PatchIcon; title: string; text: string }[],
+  news: {
+    title: 'Actus',
+    subtitle: 'Les nouveautés de Bookshelf',
+    open: 'Actus',
+    openAria: 'Voir les actus',
+    hint: 'Toutes les nouveautés, en images.',
+    all: 'Toutes les actus',
+    later: 'Plus tard',
+    close: 'Fermer',
+    back: 'Retour',
+    fresh: 'Nouveau',
+    unseen: (count: number) => `${count} nouveauté${plural(count, '', 's')}`,
+    items: {
+      edits: {
+        tag: 'Vidéos',
+        title: 'Edits : le fil vertical d’anime',
+        text: 'Des edits, AMV et MMV d’anime en plein écran, à faire défiler du doigt comme sur TikTok. Filtre par univers (Naruto, One Piece, JoJo…), avance dans la vidéo avec la barre, touche l’écran pour mettre en pause. À ouvrir depuis la bulle ▶ de Découverte.',
+        cta: 'Regarder les edits',
+      },
+      activities: {
+        tag: 'Refonte',
+        title: 'Une page Activités plus claire',
+        text: 'L’ouverture des boosters en vedette, la boutique juste à côté, et trois rubriques — Cartes, Jeux, Univers — qui glissent de l’une à l’autre. Ta récompense du jour, tes boosters et tes Poussières ✦ toujours en haut.',
+        cta: 'Voir les activités',
+      },
+      stack: {
+        tag: 'Jeu',
+        title: 'Page Stack, l’arcade des tomes',
+        text: 'Empile des tomes de manga le plus haut possible, à travers six univers japonais. Record, classement, et du multijoueur : versus à 2-4 écrans partagés ou coop tour par tour. À la fin, enregistre ta tour en image.',
+        cta: 'Jouer',
+      },
+      daily: {
+        tag: 'Récompenses',
+        title: 'Récompense du jour',
+        text: 'Un calendrier de 30 jours : Poussières, boosters, boîtes mystère. Enchaîne les jours pour décrocher le pack du 30ᵉ, avec une Légendaire garantie.',
+        cta: 'Ouvrir le calendrier',
+      },
+      dust: {
+        tag: 'Cartes',
+        title: 'Doublons → Poussières',
+        text: 'Convertis tes doublons, carte par carte ou en lot : Commune 5 ✦, Rare 10, Épique 25, Légendaire 250. Tu gardes toujours un exemplaire, et les Mythiques sont invendables.',
+        cta: 'Voir mon album',
+      },
+      market: {
+        tag: 'Marché',
+        title: 'Les échanges passent par le Marché',
+        text: 'On ne s’offre plus de cartes entre membres : pour céder une carte, propose-la sur le Marché contre une autre de même rareté.',
+        cta: 'Aller au Marché',
+      },
+      library: {
+        tag: 'Lecture',
+        title: 'Bibliothèque et lecture',
+        text: 'Un onglet Cartes (possédées, favoris), l’ajout direct de cartes à la vitrine de ton profil, et un lecteur de romans hors ligne plus fiable.',
+        cta: 'Ma bibliothèque',
+      },
+      canvas: {
+        tag: 'Toile',
+        title: 'La Toile sur téléphone',
+        text: 'Dessin au doigt corrigé, interface repensée pour le mobile, et images de référence à opacité réglable.',
+        cta: 'Dessiner',
+      },
+    },
   },
 
   cards: {

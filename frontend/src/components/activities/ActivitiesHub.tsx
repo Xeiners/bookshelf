@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { CalendarCheck, Check, ChevronRight, FlaskConical, Gamepad2, Gift, Handshake, Layers, MoonStar, Sparkle, Sparkles, TrendingUp, WifiOff, Zap } from 'lucide-react'
+import { CalendarCheck, Check, Newspaper, ChevronRight, FlaskConical, Gamepad2, Gift, Handshake, Layers, MoonStar, Sparkle, Sparkles, TrendingUp, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
 import { useCollection } from '../../hooks/useCollection'
@@ -16,12 +16,14 @@ import { useHigherLowerStore } from '../../store/useHigherLowerStore'
 import { useTradeStore } from '../../store/useTradeStore'
 import { CYCLE_DAYS } from '../../services/dailyApi'
 import { useDailyStore } from '../../store/useDailyStore'
+import { useNews } from '../../store/useNews'
 import { useUiStore, type ActivityTab } from '../../store/useUiStore'
 import { StackEmblem } from '../stack/StackEmblem'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
 import { CARD_FRAMES } from '../cards/cardFrames'
 import { STARDUST_GRADIENT } from '../dle/dleStyle'
+import { StardustBadge } from '../dle/StardustBadge'
 import { HL_DOWN, HL_GRADIENT, HL_UP } from '../higherlower/hlStyle'
 import { Bomb } from '../bomb/Bomb'
 import { BOMB_GRADIENT } from '../../lib/bomb'
@@ -52,6 +54,7 @@ export function ActivitiesHub() {
   const setTab = useUiStore((state) => state.setActivityTab)
   const signedIn = useAuthStore((state) => state.user !== null)
   const loadDle = useDleStore((state) => state.loadOverview)
+  const stardust = useDleStore((state) => state.overview?.stardust ?? null)
 
   // Énigmes du jour : de quoi allumer la tuile du DLE.
   useEffect(() => {
@@ -102,6 +105,10 @@ export function ActivitiesHub() {
               </span>
             )}
           </span>
+          {/* Les Poussières ✦, juste à côté des boosters : ce qu'on peut dépenser à la boutique, juste dessous. */}
+          {signedIn && stardust !== null && <StardustBadge balance={stardust} />}
+          {/* Les actus : la pastille rouge tant qu'une nouveauté n'a pas été vue. */}
+          <NewsChip />
           {boosters.unlimited && (
             <span
               title={t.activities.sandboxHint}
@@ -197,6 +204,26 @@ const HUB_TABS: { id: ActivityTab; icon: typeof Layers }[] = [
   { id: 'games', icon: Gamepad2 },
   { id: 'more', icon: Sparkles },
 ]
+
+function NewsChip() {
+  const t = useT()
+  const unseen = useNews((state) => state.unseen)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        vibrate(6)
+        useNews.getState().openPage()
+      }}
+      aria-label={unseen > 0 ? `${t.news.openAria} · ${t.news.unseen(unseen)}` : t.news.openAria}
+      className="relative ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-white/12 bg-black/40 px-3 text-xs font-semibold text-cream/85 transition-transform active:scale-95"
+    >
+      <Newspaper size={14} aria-hidden />
+      {t.news.open}
+      {unseen > 0 && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-[#ff4d6d] ring-2 ring-[#050507]" />}
+    </button>
+  )
+}
 
 /** Énigmes du jour pas encore résolues (toutes catégories et tous formats). */
 const dailyToPlay = (overview: ReturnType<typeof useDleStore.getState>['overview']): number =>

@@ -38,7 +38,7 @@ import { useSettingsStore } from '../../store/useSettingsStore'
 import { useDownloadStore, type DownloadedChapter } from '../../store/useDownloadStore'
 import { useProfileStore } from '../../store/useProfileStore'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
-import { usePatchNotes } from '../../store/usePatchNotes'
+import { useNews } from '../../store/useNews'
 import { useUiStore } from '../../store/useUiStore'
 import type { ReaderLayout, TextTheme } from '../../types/reader'
 import { Pressable } from '../ui/Pressable'
@@ -736,16 +736,16 @@ function ReviewSection() {
   )
 }
 
-/** Rouvre la fenêtre des nouveautés (celle de l'ouverture du site). */
+/** Ouvre la page des actus (toutes les nouveautés, en images). */
 function NewsSection() {
   const t = useT()
   return (
-    <Section icon={Sparkles} title={t.patchNotes.title}>
+    <Section icon={Sparkles} title={t.news.title}>
       <button
         type="button"
         onClick={() => {
           vibrate(6)
-          usePatchNotes.getState().show()
+          useNews.getState().openPage()
         }}
         className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left"
       >
@@ -753,8 +753,8 @@ function NewsSection() {
           <Sparkles size={19} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-cream">{t.patchNotes.open}</span>
-          <span className="block text-xs text-mist">{t.patchNotes.hint}</span>
+          <span className="block text-sm font-semibold text-cream">{t.news.all}</span>
+          <span className="block text-xs text-mist">{t.news.hint}</span>
         </span>
         <ChevronRight size={16} className="shrink-0 text-cream/40" aria-hidden />
       </button>
