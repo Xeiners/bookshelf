@@ -6,7 +6,7 @@ import { prepareEnvironment, startServer } from './harness.js'
 
 prepareEnvironment('security')
 
-const { client, close } = await startServer()
+const { client, close, port } = await startServer()
 after(close)
 
 describe('en-têtes de sécurité', () => {
@@ -72,5 +72,25 @@ describe('changement de mot de passe', () => {
     assert.equal(changed.status, 204)
     assert.equal((await thief.request('GET', '/auth/me')).status, 401, 'l’autre appareil est déconnecté')
     assert.equal((await owner.request('GET', '/auth/me')).status, 200, 'cet appareil reste connecté')
+  })
+})
+
+describe('CSRF : origine des requêtes qui modifient', () => {
+  it('refuse un POST venu d’une autre origine (même avec la session), accepte la nôtre et les clients hors navigateur', async () => {
+    const device = client()
+    assert.equal((await device.signUp({ email: 'csrf@example.com', password: 'motdepasse-test', displayName: 'Csrf' })).status, 201)
+    const post = (headers: Record<string, string>) =>
+      device.send('PATCH', '/auth/me', { body: JSON.stringify({ displayName: 'Piraté' }), headers: { 'Content-Type': 'application/json', ...headers } })
+
+    // Site tiers, ou voisin « même site » (autre port de la même IP, autre sous-domaine).
+    assert.equal((await post({ Origin: 'https://evil.example' })).status, 403)
+    assert.equal((await post({ Origin: 'http://127.0.0.1:9999' })).status, 403)
+    assert.equal((await post({ 'Sec-Fetch-Site': 'same-site' })).status, 403)
+    assert.equal((await post({ Origin: 'null' })).status, 403, 'iframe isolée, fichier local')
+    // Notre origine (l'hôte servi), ou un client sans en-tête de navigateur.
+    assert.equal((await post({ Origin: `http://127.0.0.1:${port}` })).status, 200)
+    assert.equal((await post({})).status, 200)
+    // Lecture : jamais bloquée.
+    assert.equal((await device.send('GET', '/auth/me', { headers: { Origin: 'https://evil.example' } })).status, 200)
   })
 })

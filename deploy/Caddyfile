@@ -22,7 +22,7 @@ http://YOUR_VPS_IP:8080 {
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Host {hostport}
 	}
 
 	# Journal d'accès dédié (facultatif) : sudo tail -f /var/log/caddy/bookshelf.log
@@ -45,7 +45,7 @@ http://YOUR_VPS_IP:8080 {
 # 		header_up X-Real-IP {remote_host}
 # 		header_up X-Forwarded-For {remote_host}
 # 		header_up X-Forwarded-Proto {scheme}
-# 		header_up X-Forwarded-Host {host}
+# 		header_up X-Forwarded-Host {hostport}
 # 	}
 # }
 

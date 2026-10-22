@@ -11,6 +11,7 @@ Aucun audit ne garantit « zéro faille » : ce document dit ce qui est couvert,
 | Sessions | JWT HS256 (issuer, `sessionVersion`, suspension), cookie `HttpOnly` + `SameSite=Lax` + `Secure` en production | `core/security/session.ts` |
 | Secret | production : `JWT_SECRET` ≥ 32 caractères exigé ; le build compilé (`dist/*.js`) est « production » par défaut | `core/config.ts` |
 | Codes e-mail | HMAC, 6 chiffres `randomInt`, 15 min, 5 essais **réservés atomiquement** avant comparaison, plafond par compte en plus de l'IP | `modules/auth/auth.routes.ts` |
+| CSRF | cookie `SameSite=Lax` + garde d'origine sur POST/PUT/PATCH/DELETE (`Origin` ou `Sec-Fetch-Site` doivent être les nôtres : bloque aussi les voisins « même site », autre port de la même IP ou autre sous-domaine) ; aucune route GET ne modifie | `core/http/csrf.ts` |
 | Limiteurs | par IP (IPv6 regroupée par /64) et par compte visé | `core/http/rateLimit.ts` |
 | Mot de passe | scrypt N=2^16 ; changer le mot de passe coupe toutes les autres sessions | `core/security/password.ts` |
 | En-têtes API | `nosniff`, `X-Frame-Options`, CSP `default-src 'none'; sandbox`, `Referrer-Policy`, HSTS (cookie `Secure`), `no-store` sur le JSON | `core/http/securityHeaders.ts` |

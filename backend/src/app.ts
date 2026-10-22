@@ -5,6 +5,7 @@ import { ZodError, z } from 'zod'
 import { config } from './core/config.js'
 import { HttpError } from './core/http/errors.js'
 import { securityHeaders } from './core/http/securityHeaders.js'
+import { csrfGuard } from './core/http/csrf.js'
 import { authRouter } from './modules/auth/auth.routes.js'
 import { booksRouter } from './modules/books/books.routes.js'
 import { boostersRouter, cardsRouter } from './modules/cards/cards.routes.js'
@@ -48,6 +49,8 @@ export function createApp() {
   // En dev le front passe par le proxy Vite (même origine) : CORS ne sert
   // qu'aux déploiements où le front est servi depuis une autre origine.
   app.use(cors({ origin: config.corsOrigins, credentials: true }))
+  // Requêtes qui modifient : seulement depuis notre origine (cf. `csrf.ts`).
+  app.use(csrfGuard)
   app.use(express.json({ limit: '2mb' }))
   app.use(cookieParser())
 
