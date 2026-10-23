@@ -51,6 +51,8 @@ export function BoosterPackModal() {
   const openActivity = useUiStore((state) => state.openActivity)
   const openAuth = useUiStore((state) => state.openAuth)
   const openBooster = useBoosterStore((state) => state.open)
+  /** Pack Légendaire offert : même mise en scène, dernière carte Légendaire ou mieux. */
+  const [legendary, setLegendary] = useState(() => useUiStore.getState().boosterLegendary)
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
   // Une seule série en jeu : elle s'ouvre d'office (ni choix, ni roulette).
@@ -126,7 +128,8 @@ export function BoosterPackModal() {
     requested.current = round
     const current = round
     // Invité : booster d'essai, tiré aussi par le serveur (reçu signé gardé sur l'appareil).
-    openBooster(useAuthStore.getState().user ? 'account' : 'guest', choice)
+    const draw = legendary ? useBoosterStore.getState().openLegendary() : openBooster(useAuthStore.getState().user ? 'account' : 'guest', choice)
+    draw
       .then((pulled) => {
         if (requested.current !== current) return
         setCards(pulled.cards)
@@ -140,7 +143,7 @@ export function BoosterPackModal() {
         setError(messageFor(reason))
         setStage('error')
       })
-  }, [round, choice, openBooster, messageFor])
+  }, [round, choice, legendary, openBooster, messageFor])
 
   const pick = (next: SeriesChoice) => {
     vibrate(10)
@@ -197,8 +200,9 @@ export function BoosterPackModal() {
       spread: count < 20 ? Math.PI * 0.55 : Math.PI * 0.9,
     })
 
-  // Booster suivant : on rechoisit sa série (ou la roulette).
+  // Booster suivant : on rechoisit sa série (ou la roulette). Les packs Légendaire offerts passent d'abord.
   const again = () => {
+    setLegendary(boosters.legendaryPacks > 0)
     setSharing(null)
     setCards([])
     setBait(null)
@@ -230,7 +234,7 @@ export function BoosterPackModal() {
   const best = cards.length > 0 ? bestRarity(cards.map((pulled) => pulled.card.rarity)) : null
   // Pendant la révélation, le fond garde la lueur-appât ; la vraie couleur n'arrive qu'à la fin.
   const tone = stage === 'done' && best ? RARITY_STYLE[best].color : stage === 'reveal' && bait ? RARITY_STYLE[bait].color : '#7c5cff'
-  const canAgain = boosters.unlimited || boosters.available > 0
+  const canAgain = boosters.unlimited || boosters.available > 0 || boosters.legendaryPacks > 0
   // Invité à court d'essais : la suite passe par un compte (et ses 2 boosters offerts).
   const signUp =
     !boosters.signedIn && !canAgain
@@ -273,9 +277,16 @@ export function BoosterPackModal() {
             aria-label={t.activities.boosterCountAria(boosters.available, boosters.max)}
           >
             <Zap size={13} className="fill-gold text-gold" />
-            {boosters.unlimited ? '∞' : t.activities.boosterCount(boosters.available, boosters.max)}
+            {boosters.unlimited ? '∞' : t.activities.boosterCount(boosters.available - boosters.gifted, boosters.max)}
+            {/* Boosters offerts : à part, comme dans les Activités (ils ne comptent pas dans le stock). */}
+            {boosters.gifted > 0 && !boosters.unlimited && <span className="text-[#fff4c8]/70">· {t.activities.giftedCount(boosters.gifted)}</span>}
           </span>
           {boosters.unlimited && <SandboxChip />}
+          {legendary && (
+            <span className="rounded-full border border-[#ffd27a]/50 bg-[#ffc46b]/15 px-2.5 py-1.5 text-[10px] font-semibold tracking-[0.14em] whitespace-nowrap text-[#ffd27a] uppercase">
+              {t.boosters.legendaryPack}
+            </span>
+          )}
           <SfxVolume />
         </span>
         <button

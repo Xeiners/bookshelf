@@ -195,6 +195,9 @@ model UserBooster {
   availableBoosters Int       @default(3)
   /// Boosters offerts par un administrateur : hors plafond, jamais perdus, ouverts après le stock normal.
   giftedBoosters    Int       @default(0)
+  /// Packs Légendaire offerts (dernière carte Légendaire ou mieux), à ouvrir quand on veut ; ils
+  /// ne touchent ni au stock ni aux compteurs de garantie.
+  legendaryPacks    Int       @default(0)
   /// Boosters consécutifs sans Mythique ; le 400e force le dernier slot.
   boostersSinceLastMythic Int  @default(0)
   /// Boosters ouverts dans le cycle de la Légendaire garantie (0 à 99) ; le 100e force le dernier slot, puis il repart de 0.

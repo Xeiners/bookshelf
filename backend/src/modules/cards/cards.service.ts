@@ -266,12 +266,14 @@ export interface BoosterStatus {
   legendaryEvery: number
   /** Dans combien de boosters la garantie tombe (1 : le prochain) ; `null` en mode recette. */
   legendaryIn: number | null
+  /** Packs Légendaire offerts, à ouvrir. */
+  legendaryPacks: number
 }
 
 const toState = (row: { availableBoosters: number; nextBoosterAt: Date | null; lastClaimedAt: Date | null } | null): BoosterState =>
   row ? { available: row.availableBoosters, nextBoosterAt: row.nextBoosterAt, lastClaimedAt: row.lastClaimedAt } : initialState()
 
-function statusOf(state: BoosterState, now: Date, unlimited = false, gifted = 0, sinceLegendary = 0): BoosterStatus {
+function statusOf(state: BoosterState, now: Date, unlimited = false, gifted = 0, sinceLegendary = 0, legendaryPacks = 0): BoosterStatus {
   const current = unlimited ? { ...initialState() } : regenerate(state, now)
   const bonus = unlimited ? 0 : Math.max(0, gifted)
   return {
@@ -285,12 +287,13 @@ function statusOf(state: BoosterState, now: Date, unlimited = false, gifted = 0,
     unlimited,
     legendaryEvery: LEGENDARY_PITY_PACKS,
     legendaryIn: unlimited ? null : LEGENDARY_PITY_PACKS - Math.min(Math.max(0, sinceLegendary), LEGENDARY_PITY_PACKS - 1),
+    legendaryPacks: Math.max(0, legendaryPacks),
   }
 }
 
 export async function boosterStatus(userId: string, now = new Date(), unlimited = config.cards.unlimited): Promise<BoosterStatus> {
   const row = await prisma.userBooster.findUnique({ where: { userId } })
-  return statusOf(toState(row), now, unlimited, row?.giftedBoosters ?? 0, row?.boostersSinceLastLegendary ?? 0)
+  return statusOf(toState(row), now, unlimited, row?.giftedBoosters ?? 0, row?.boostersSinceLastLegendary ?? 0, row?.legendaryPacks ?? 0)
 }
 
 /* ---- Ouverture ----------------------------------------------------------------------- */
@@ -334,6 +337,8 @@ interface SpentBooster {
   boostersSinceLastLegendary: number
   /** Boosters offerts restants après cette ouverture. */
   gifted: number
+  /** Packs Légendaire offerts, encore à ouvrir. */
+  legendaryPacks: number
 }
 
 async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: Date): Promise<SpentBooster> {
@@ -349,7 +354,7 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
           where: { userId, giftedBoosters: gifted, boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary },
           data: { giftedBoosters: { decrement: 1 } },
         })
-        if (count === 1) return { state: regenerate(toState(row), now), boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary, gifted: gifted - 1 }
+        if (count === 1) return { state: regenerate(toState(row), now), boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary, gifted: gifted - 1, legendaryPacks: row.legendaryPacks }
         continue
       }
       const status = statusOf(toState(row), now, false, 0, row?.boostersSinceLastLegendary ?? 0)
@@ -361,7 +366,7 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
     if (!row) {
       try {
         await tx.userBooster.create({ data: { userId, ...data } })
-        return { state: next, boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0 }
+        return { state: next, boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0, legendaryPacks: 0 }
       } catch (error) {
         if (isUniqueViolation(error)) continue
         throw error
@@ -377,7 +382,7 @@ async function spendBooster(tx: Prisma.TransactionClient, userId: string, now: D
       },
       data,
     })
-    if (count === 1) return { state: next, boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary, gifted }
+    if (count === 1) return { state: next, boostersSinceLastMythic: row.boostersSinceLastMythic, boostersSinceLastLegendary: row.boostersSinceLastLegendary, gifted, legendaryPacks: row.legendaryPacks }
   }
   throw conflict('Ouverture déjà en cours, réessaie.', 'booster_busy')
 }
@@ -444,7 +449,7 @@ export async function openBooster(
   // Dépense et cartes ensemble : un booster n'est jamais dépensé sans ses cartes.
   return prisma.$transaction(async (tx) => {
     const spent = unlimited
-      ? { state: initialState(), boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0 }
+      ? { state: initialState(), boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0, legendaryPacks: 0 }
       : await spendBooster(tx, userId, now)
     const drawn = drawPack(pool, random, {
       forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
@@ -466,7 +471,30 @@ export async function openBooster(
         },
       })
     }
-    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted, legendarySince), series }
+    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted, legendarySince, spent.legendaryPacks), series }
+  })
+}
+
+/**
+ * Ouvre un pack Légendaire offert (geste de l'équipe) : quatre cartes de la série en jeu, la
+ * dernière Légendaire ou mieux. Il ne coûte aucun booster et ne touche pas aux garanties. Un
+ * pack n'est dépensé qu'une fois, même ouvert deux fois au même instant : 409 `no_legendary_pack`.
+ */
+export async function openLegendaryPack(
+  userId: string,
+  options: { now?: Date; random?: () => number; unlimited?: boolean } = {},
+): Promise<{ cards: PulledCard[]; status: BoosterStatus; series: number }> {
+  const now = options.now ?? new Date()
+  const random = options.random ?? secureRandom
+  const unlimited = options.unlimited ?? config.cards.unlimited
+  // Les cartes d'abord : si la collection n'est pas prête, aucun pack n'est dépensé.
+  const { series, cards: pool } = await rewardPackPool(random)
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.userBooster.updateMany({ where: { userId, legendaryPacks: { gte: 1 } }, data: { legendaryPacks: { decrement: 1 } } })
+    if (count !== 1) throw new HttpError(409, 'no_legendary_pack', 'Aucun pack Légendaire à ouvrir.')
+    const cards = await grantLegendaryPack(tx, userId, pool, { now, random })
+    const row = await tx.userBooster.findUniqueOrThrow({ where: { userId } })
+    return { cards, status: statusOf(toState(row), now, unlimited, row.giftedBoosters, row.boostersSinceLastLegendary, row.legendaryPacks), series }
   })
 }
 

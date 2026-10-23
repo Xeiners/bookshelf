@@ -87,6 +87,16 @@
   }
 }
 
+@keyframes shine {
+  0% {
+    translate: 0 0;
+  }
+  55%,
+  100% {
+    translate: 640px 0;
+  }
+}
+
 @keyframes news-in {
   from {
     opacity: 0;

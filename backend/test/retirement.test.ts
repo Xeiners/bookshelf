@@ -164,6 +164,27 @@ describe('retrait des séries 1 et 2', () => {
     assert.equal(offer.body.error.code, 'series_retired')
   })
 
+  it('pack Légendaire offert : dernière carte Légendaire ou mieux, jamais ouvert deux fois, stock et garanties intacts', async () => {
+    const account = await member()
+    await prisma.userBooster.create({ data: { userId: account.userId, legendaryPacks: 2, boostersSinceLastLegendary: 40 } })
+    const results = await Promise.all([0, 1, 2].map(() => account.request('POST', '/boosters/legendary/open')))
+    const opened = results.filter((result) => result.status === 200)
+    assert.equal(opened.length, 2)
+    assert.equal(results.find((result) => result.status !== 200)?.body.error.code, 'no_legendary_pack')
+    for (const { body } of opened) {
+      assert.equal(body.cards.length, 4)
+      assert.ok(['LEGENDARY', 'MYTHIC'].includes(body.cards[3].card.rarity))
+      assert.ok(body.cards.every((pulled: { card: { series: number } }) => pulled.card.series === 3))
+    }
+    const row = await prisma.userBooster.findUniqueOrThrow({ where: { userId: account.userId } })
+    assert.equal(row.legendaryPacks, 0)
+    assert.equal(row.availableBoosters, 3)
+    assert.equal(row.boostersSinceLastLegendary, 40)
+    const status = await account.request('GET', '/boosters/status')
+    assert.equal(status.body.legendaryPacks, 0)
+    assert.equal(status.body.available, 3)
+  })
+
   it('inscription d’un invité : ses cartes d’essai retirées deviennent des Poussières, montrées à leur tour', async () => {
     const receipt = signGuestPack(['o-c', 'o-c', 'o-e', 's3_900'])
     const account = client()

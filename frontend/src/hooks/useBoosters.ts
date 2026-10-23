@@ -25,6 +25,8 @@ export interface BoosterView {
   /** Une Légendaire garantie tous les N boosters, et dans combien de boosters (`null` : inconnu). */
   legendaryEvery: number
   legendaryIn: number | null
+  /** Packs Légendaire offerts, à ouvrir. */
+  legendaryPacks: number
 }
 
 /**
@@ -85,6 +87,7 @@ export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
       canOpen: left > 0,
       legendaryEvery: LEGENDARY_EVERY,
       legendaryIn: null,
+      legendaryPacks: 0,
     }
   }
 
@@ -101,5 +104,6 @@ export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
     canOpen: signedIn && status !== null && !offline && (status.unlimited === true || status.available > 0),
     legendaryEvery: status?.legendaryEvery ?? LEGENDARY_EVERY,
     legendaryIn: status?.legendaryIn ?? null,
+    legendaryPacks: status?.legendaryPacks ?? 0,
   }
 }

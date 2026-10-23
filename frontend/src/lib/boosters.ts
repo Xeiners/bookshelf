@@ -28,6 +28,8 @@ export interface BoosterStatus {
   serverTime: string
   /** Mode recette côté serveur (`BOOSTER_UNLIMITED_MODE`) : ni stock ni minuteur. */
   unlimited?: boolean
+  /** Packs Légendaire offerts par l'équipe, à ouvrir (dernière carte Légendaire ou mieux). */
+  legendaryPacks?: number
   /** Une Légendaire (ou mieux) garantie tous les N boosters. */
   legendaryEvery?: number
   /** Dans combien de boosters la garantie tombe (1 : le prochain) ; `null` : inconnu (mode recette). */

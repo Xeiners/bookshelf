@@ -71,7 +71,7 @@ function absorb(get: () => NotificationState, set: (partial: Partial<Notificatio
     if (useTradeStore.getState().mine) void useTradeStore.getState().loadMine()
   }
   // Boosters offerts : le stock affiché (hub, navigation) se met à jour tout de suite.
-  if (fresh.some((item) => item.type === 'booster_gift')) void useBoosterStore.getState().refresh()
+  if (fresh.some((item) => item.type === 'booster_gift' || item.type === 'team_gift')) void useBoosterStore.getState().refresh()
   // Promotion lancée : les prix de la boutique se mettent à jour.
   if (fresh.some((item) => item.type === 'promotion')) void usePromotions.getState().load(true)
   // Record battu (Bomb Party, Plus ou Moins…) : la fenêtre de la récompense s'ouvre.

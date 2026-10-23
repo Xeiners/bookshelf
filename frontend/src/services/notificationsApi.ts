@@ -28,6 +28,12 @@ export interface BoosterGiftNotification extends NotificationBase {
   data: { count: number; message: string | null }
 }
 
+/** Cadeau de l'équipe à tous les joueurs (geste d'excuse) : boosters et packs Légendaire. */
+export interface TeamGiftNotification extends NotificationBase {
+  type: 'team_gift'
+  data: { boosters: number; legendaryPacks: number; reason: 'drop_incident' }
+}
+
 /** L'équipe a offert une carte (administration). */
 export interface CardGiftNotification extends NotificationBase {
   type: 'card_gift'
@@ -91,6 +97,7 @@ export type AppNotification =
   | CanvasInviteNotification
   | CanvasModeratedNotification
   | CanvasRewardNotification
+  | TeamGiftNotification
 
 export interface NotificationList {
   notifications: AppNotification[]

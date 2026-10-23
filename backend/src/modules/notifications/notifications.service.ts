@@ -10,7 +10,7 @@ import type { CardDto } from '../cards/cards.service.js'
  * aucune connexion permanente à tenir derrière Caddy et Nginx.
  */
 
-export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift', 'card_share', 'box_gift', 'promotion', 'record_reward', 'canvas_invite', 'canvas_moderated', 'canvas_reward'] as const
+export const NOTIFICATION_TYPES = ['trade_accepted', 'trade_match', 'booster_gift', 'card_gift', 'card_share', 'box_gift', 'promotion', 'record_reward', 'canvas_invite', 'canvas_moderated', 'canvas_reward', 'team_gift'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
 export interface NotificationParty {
@@ -43,6 +43,16 @@ export interface BoosterGiftData {
   count: number
   /** Mot de l'équipe, facultatif. */
   message: string | null
+}
+
+/**
+ * Cadeau de l'équipe à tous les joueurs (geste d'excuse…) : boosters offerts et packs Légendaire.
+ * `reason` choisit le mot d'accompagnement, rédigé par l'app dans sa langue.
+ */
+export interface TeamGiftData {
+  boosters: number
+  legendaryPacks: number
+  reason: 'drop_incident'
 }
 
 /** Carte offerte par l'équipe (administration), ou par un autre membre (`from`). */
@@ -125,6 +135,7 @@ interface DataOf {
   canvas_invite: CanvasInviteData
   canvas_moderated: CanvasModeratedData
   canvas_reward: CanvasRewardData
+  team_gift: TeamGiftData
 }
 
 export type NotificationDto = {

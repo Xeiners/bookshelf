@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { config } from '../../core/config.js'
 import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { rateLimit } from '../../core/http/rateLimit.js'
-import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, seriesShowcase, setFavorite } from './cards.service.js'
+import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, openLegendaryPack, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
 import { characterArt } from './cards.art.js'
 import { CONVERTIBLE_RARITIES, MAX_CONVERT_CARDS } from './duplicates/duplicates.logic.js'
@@ -67,6 +67,12 @@ const openLimiter = rateLimit({ windowMs: 60 * 1000, max: config.cards.unlimited
 boostersRouter.post('/open', openLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store')
   res.json(await openBooster(currentUserId(req), { series: OpenBody.parse(req.body ?? {}).series }))
+})
+
+/** Ouvre un pack Légendaire offert (dernière carte Légendaire ou mieux). 409 `no_legendary_pack` s'il n'en reste pas. */
+boostersRouter.post('/legendary/open', openLimiter, async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  res.json(await openLegendaryPack(currentUserId(req)))
 })
 
 /** Monté sous `/api/cards`. */

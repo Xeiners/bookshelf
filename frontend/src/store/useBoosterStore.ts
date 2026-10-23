@@ -28,6 +28,8 @@ interface BoosterState {
    * 503 : collection en préparation).
    */
   open: (as: 'account' | 'guest', series: SeriesChoice) => Promise<{ cards: PulledCard[]; series: CardSeries }>
+  /** Ouvre un pack Légendaire offert (compte seulement). */
+  openLegendary: () => Promise<{ cards: PulledCard[]; series: CardSeries }>
   /** Couvertures de chaque série (illustration des paquets) ; `null` tant qu'elles ne sont pas chargées. */
   showcase: SeriesShowcase[] | null
   loadShowcase: () => Promise<void>
@@ -97,6 +99,17 @@ export const useBoosterStore = create<BoosterState>((set) => ({
       offline: false,
       collectionVersion: state.collectionVersion + 1,
       tally: addToTally(state.tally, cards.map((pulled) => pulled.card.rarity)),
+    }))
+    return { cards, series }
+  },
+
+  openLegendary: async () => {
+    const { cards, status, series } = await cardsApi.openLegendary()
+    set((state) => ({
+      status,
+      syncedAt: performance.now(),
+      offline: false,
+      collectionVersion: state.collectionVersion + 1,
     }))
     return { cards, series }
   },

@@ -916,6 +916,15 @@ deux conversions simultanées n'en font qu'une. Le bilan (`stardust`, `copies`, 
 `POST /api/cards/retirement/seen` l'acquitte (204). Recharger la page rejoue
 l'animation sans rien recréditer.
 
+**Packs Légendaire offerts** (`UserBooster.legendaryPacks`) : `POST /api/boosters/legendary/open`
+(auth) ouvre un pack de la série en jeu dont la dernière carte est Légendaire ou mieux
+(`grantLegendaryPack`) ; il ne coûte aucun booster et ne touche pas aux garanties. Un pack
+n'est dépensé qu'une fois (décrément conditionnel) : 409 `no_legendary_pack` sinon. Le
+stock (`/boosters/status`) expose `legendaryPacks`. Geste d'excuse après l'incident des
+Légendaires (migration `gift_drop_incident`, appliquée une seule fois) : chaque compte
+existant reçoit 5 boosters offerts, un pack Légendaire et une notification `team_gift`
+(`{ boosters, legendaryPacks, reason: 'drop_incident' }`, texte rédigé par l'app).
+
 **Base** (migration `cards_and_boosters`) : `UserBooster` (userId, availableBoosters,
 lastClaimedAt, nextBoosterAt), `Card` (id, number, title, characterName, imageUrl,
 rarity, mangaId), `UserCard` (userId, cardId, obtainedAt, isFavorite, count).

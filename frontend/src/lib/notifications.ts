@@ -55,7 +55,7 @@ export type NotificationTarget =
 
 export function targetOf(item: AppNotification): NotificationTarget {
   if (item.type === 'trade_accepted') return { kind: 'my-trades' }
-  if (item.type === 'booster_gift' || item.type === 'box_gift' || item.type === 'promotion') return { kind: 'boosters' }
+  if (item.type === 'booster_gift' || item.type === 'box_gift' || item.type === 'promotion' || item.type === 'team_gift') return { kind: 'boosters' }
   if (item.type === 'record_reward') return { kind: 'reward' }
   if (item.type === 'canvas_invite') return { kind: 'canvas', x: item.data.x, y: item.data.y }
   if (item.type === 'canvas_moderated' || item.type === 'canvas_reward') return { kind: 'canvas' }
@@ -130,6 +130,12 @@ export function notificationCopy(item: AppNotification, t: Dictionary): Notifica
         title: t.notifications.boosterGift.title(item.data.count),
         body: t.notifications.boosterGift.body(item.data.message),
         visual: { kind: 'booster', count: item.data.count },
+      }
+    case 'team_gift':
+      return {
+        title: t.notifications.teamGift.title(item.data.legendaryPacks, item.data.boosters),
+        body: t.notifications.teamGift.reasons[item.data.reason] ?? t.notifications.boosterGift.body(null),
+        visual: { kind: 'booster', count: item.data.boosters + item.data.legendaryPacks },
       }
     case 'box_gift':
       return {

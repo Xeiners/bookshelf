@@ -126,6 +126,7 @@ export function ActivitiesHub() {
           )}
         </div>
 
+        {boosters.signedIn && boosters.legendaryPacks > 0 && <LegendaryPackBanner count={boosters.legendaryPacks} />}
         <BoosterHero />
       </div>
 
@@ -278,6 +279,35 @@ const ARTEFACT_CLASS = 'relative isolate shrink-0 rounded-[1.75rem] border text-
  * montre l'attente et le compte à rebours. Sans compte : les boosters d'essai, puis l'inscription.
  * Une seule animation en boucle (le paquet qui flotte), coupée quand l'ouverture recouvre la page.
  */
+/** Pack Légendaire offert par l'équipe : il s'ouvre ici, avec la mise en scène des boosters. */
+function LegendaryPackBanner({ count }: { count: number }) {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        vibrate(12)
+        useUiStore.getState().openLegendaryPack()
+      }}
+      className="relative mb-3 flex w-full shrink-0 items-center gap-3 overflow-hidden rounded-[1.5rem] border border-[#ffd27a]/60 p-3.5 text-left shadow-[0_0_40px_-14px_#ffc46b] transition-transform active:scale-[0.99] sm:gap-4 sm:p-4"
+      style={{ background: 'radial-gradient(120% 120% at 0% 0%, rgba(255,214,130,0.35), transparent 55%), linear-gradient(110deg, #3a2408, #24120a 55%, #2a0f22)' }}
+    >
+      <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-10 w-16 -skew-x-12 bg-white/15 blur-sm motion-safe:animate-[shine_3.2s_ease-in-out_infinite]" />
+      <span className="relative -my-2 shrink-0" style={{ transform: 'rotate(-8deg)' }}>
+        <BoosterPackArt width={46} series={3} lit halo="LEGENDARY" />
+      </span>
+      <span className="relative min-w-0 flex-1">
+        <span className="block text-[10px] font-semibold tracking-[0.2em] text-[#ffd27a] uppercase">{t.activities.legendaryPack.eyebrow}</span>
+        <span className="block font-display text-lg leading-tight text-cream sm:text-xl">{t.activities.legendaryPack.title(count)}</span>
+        <span className="block text-xs text-cream/65">{t.activities.legendaryPack.body}</span>
+      </span>
+      <span className="relative shrink-0 rounded-full px-4 py-2 text-sm font-bold text-[#2a1a02]" style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' }}>
+        {t.activities.legendaryPack.open}
+      </span>
+    </button>
+  )
+}
+
 function BoosterHero() {
   const t = useT()
   const ref = useRef<HTMLElement>(null)

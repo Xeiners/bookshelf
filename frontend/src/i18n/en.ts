@@ -115,6 +115,12 @@ export const en: Dictionary = {
       short: (missing: number) => `You need ${missing} more ✦.`,
       promoEnds: (time: string) => `ends in ${time}`,
     },
+    legendaryPack: {
+      eyebrow: 'Gift from the team',
+      title: (count: number) => (count > 1 ? `${count} Legendary packs to open` : 'Legendary pack to open'),
+      body: 'A guaranteed Legendary (or better), to make up for the drop incident.',
+      open: 'Open',
+    },
     booster: {
       eyebrow: 'The booster altar',
       newSeries: 'New',
@@ -211,6 +217,7 @@ export const en: Dictionary = {
     },
     cardBack: (index: number) => `Card ${index}, face down: tap to reveal`,
     isNew: 'New',
+    legendaryPack: 'Legendary pack',
     copies: (count: number) => `×${count}`,
     again: 'Open the next one',
     share: {
@@ -507,6 +514,14 @@ export const en: Dictionary = {
     boxGift: {
       title: (who: string) => `${who} sent you a mystery box!`,
       body: (message: string | null) => message ?? 'It’s waiting in the Activities shop.',
+    },
+    teamGift: {
+      title: (packs: number, boosters: number) =>
+        `The team gives you ${packs > 1 ? `${packs} Legendary packs` : 'a Legendary pack'} and ${boosters} booster${plural(boosters, '', 's')}!`,
+      reasons: {
+        drop_incident:
+          'Our apologies for the Legendary drop incident: the guarantee was triggered by mistake for many of you. It is fixed. To make it up to you: a pack with a guaranteed Legendary and 5 boosters, waiting in Activities. Thanks for your patience!',
+      },
     },
     boosterGift: {
       title: (count: number) => `The team gave you ${count} ${plural(count, 'booster', 'boosters')}!`,

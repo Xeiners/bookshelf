@@ -94,6 +94,10 @@ interface UiState {
   setActivityTab: (tab: ActivityTab) => void
   /** Ouvre la fenêtre des boosters ; `series` : déjà choisie (achat d'une série), sinon le choix s'affiche. */
   openBooster: (series?: SeriesChoice) => void
+  /** Ouvre un pack Légendaire offert (même mise en scène qu'un booster). */
+  openLegendaryPack: () => void
+  /** La fenêtre des boosters ouvre un pack Légendaire offert. */
+  boosterLegendary: boolean
   /** Série demandée à l'ouverture de la fenêtre ; `null` : à choisir. */
   boosterSeries: SeriesChoice | null
   closeBooster: () => void
@@ -135,6 +139,7 @@ export const useUiStore = create<UiState>((set) => ({
   activityTab: 'cards',
   boosterOpen: false,
   boosterSeries: null,
+  boosterLegendary: false,
   settingsOpen: false,
   profileEditorOpen: false,
   musicOpen: false,
@@ -164,7 +169,8 @@ export const useUiStore = create<UiState>((set) => ({
   openActivity: (activity, tab) =>
     set((state) => ({ view: 'activities', activity, chromeCollapsed: false, activityTab: tab ?? (activity === 'hub' ? state.activityTab : TAB_OF[activity]) })),
   setActivityTab: (activityTab) => set({ activityTab }),
-  openBooster: (series) => set({ boosterOpen: true, boosterSeries: series ?? null, detail: null }),
+  openBooster: (series) => set({ boosterOpen: true, boosterSeries: series ?? null, boosterLegendary: false, detail: null }),
+  openLegendaryPack: () => set({ boosterOpen: true, boosterSeries: null, boosterLegendary: true, detail: null }),
   closeBooster: () => set({ boosterOpen: false }),
   openSettings: () => set({ settingsOpen: true, profileEditorOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),

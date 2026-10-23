@@ -123,6 +123,12 @@ export const fr = {
       short: (missing: number) => `Il te manque ${missing} ✦.`,
       promoEnds: (time: string) => `fin dans ${time}`,
     },
+    legendaryPack: {
+      eyebrow: 'Cadeau de l’équipe',
+      title: (count: number) => (count > 1 ? `${count} packs Légendaire offerts` : 'Pack Légendaire offert'),
+      body: 'Une Légendaire garantie (ou mieux), en dédommagement de l’incident des drops.',
+      open: 'Ouvrir',
+    },
     booster: {
       eyebrow: 'L’autel des boosters',
       newSeries: 'Nouveau',
@@ -220,6 +226,7 @@ export const fr = {
     },
     cardBack: (index: number) => `Carte ${index}, face cachée : toucher pour révéler`,
     isNew: 'Nouvelle',
+    legendaryPack: 'Pack Légendaire',
     copies: (count: number) => `×${count}`,
     again: 'Ouvrir le suivant',
     share: {
@@ -517,6 +524,14 @@ export const fr = {
     boxGift: {
       title: (who: string) => `${who} t’offre une boîte mystère !`,
       body: (message: string | null) => message ?? 'Elle t’attend dans la boutique des Activités.',
+    },
+    teamGift: {
+      title: (packs: number, boosters: number) =>
+        `L’équipe t’offre ${packs > 1 ? `${packs} packs Légendaire` : 'un pack Légendaire'} et ${boosters} booster${plural(boosters, '', 's')} !`,
+      reasons: {
+        drop_incident:
+          'Toutes nos excuses pour l’incident sur les drops de Légendaires : la garantie s’est déclenchée par erreur pour beaucoup d’entre vous. C’est corrigé. Pour nous faire pardonner : un pack avec une Légendaire garantie et 5 boosters, à ouvrir dans les Activités. Merci pour votre patience !',
+      },
     },
     boosterGift: {
       title: (count: number) => `L’équipe t’offre ${count} booster${plural(count, '', 's')} !`,

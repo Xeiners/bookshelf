@@ -78,6 +78,8 @@ export interface SeriesRetirement {
 export const cardsApi = {
   status: (signal?: AbortSignal) => api<BoosterStatus>('/boosters/status', { signal }),
   open: (series: SeriesChoice) => api<{ cards: PulledCard[]; status: BoosterStatus; series: CardSeries }>('/boosters/open', { method: 'POST', body: { series } }),
+  /** Ouvre un pack Légendaire offert. 409 `no_legendary_pack` s'il n'en reste pas. */
+  openLegendary: () => api<{ cards: PulledCard[]; status: BoosterStatus; series: CardSeries }>('/boosters/legendary/open', { method: 'POST' }),
   /** Les séries et leurs couvertures (illustration des boosters). */
   series: () => api<{ series: SeriesShowcase[] }>('/boosters/series'),
   collection: (signal?: AbortSignal) => api<Collection>('/cards/collection', { signal }),
