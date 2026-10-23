@@ -404,9 +404,9 @@ export async function rewardPackPool(random: () => number = secureRandom) {
 
 /**
  * Pack offert (récompense du 30e jour) : un booster de quatre cartes dont la dernière est
- * obligatoirement Légendaire ou Mythique. Il ne coûte aucun booster, et remet à zéro les
- * compteurs de garantie de ce que le joueur obtient (une Légendaire déjà tirée ne lui sera
- * pas redonnée « de force » par la garantie du 120e booster).
+ * obligatoirement Légendaire ou Mythique. Il ne coûte aucun booster et n'avance pas le cycle
+ * de la Légendaire garantie (qui compte les boosters ouverts) ; une Mythique remet à zéro le
+ * compteur de la Mythique garantie.
  */
 export async function grantLegendaryPack(
   tx: Prisma.TransactionClient,
@@ -418,12 +418,8 @@ export async function grantLegendaryPack(
   const drawn = drawPack(pool, options.random ?? secureRandom, { forceLegendary: true })
   const cards = await grantCards(tx, userId, drawn, now)
   await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })
-  const rarities = drawn.map((card) => card.rarity)
-  if (rarities.includes('LEGENDARY') || rarities.includes('MYTHIC')) {
-    await tx.userBooster.updateMany({
-      where: { userId },
-      data: { boostersSinceLastLegendary: 0, ...(rarities.includes('MYTHIC') && { boostersSinceLastMythic: 0 }) },
-    })
+  if (drawn.some((card) => card.rarity === 'MYTHIC')) {
+    await tx.userBooster.updateMany({ where: { userId }, data: { boostersSinceLastMythic: 0 } })
   }
   return cards
 }
@@ -450,7 +446,7 @@ export async function openBooster(
       forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
       forceLegendary: !unlimited && hasReachedLegendaryPity(spent.boostersSinceLastLegendary),
     })
-    const legendarySince = unlimited ? 0 : nextLegendaryPityCount(spent.boostersSinceLastLegendary, drawn.map((card) => card.rarity))
+    const legendarySince = unlimited ? 0 : nextLegendaryPityCount(spent.boostersSinceLastLegendary)
     const cards = await grantCards(tx, userId, drawn, now)
     // Statistique du profil : compte aussi les ouvertures de recette.
     await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })

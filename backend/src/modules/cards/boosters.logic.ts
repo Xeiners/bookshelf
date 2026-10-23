@@ -12,11 +12,14 @@ export const BOOSTER_INTERVAL_MS = 3 * 60 * 60 * 1000
 export const CARDS_PER_PACK = 4
 /** Le 400e booster consécutif sans Mythique en garantit une sur son dernier slot. */
 export const HARD_PITY_PACKS = 400
-/** Le 125e booster consécutif sans Légendaire (ni Mythique) en garantit une sur son dernier slot. */
+/**
+ * Un booster ouvert sur 125 (le 125e, le 250e…) garantit une Légendaire (ou mieux) sur son
+ * dernier slot, quelles que soient les Légendaires tirées entre-temps.
+ */
 export const LEGENDARY_PITY_PACKS = 125
-/** Chances d'une carte des emplacements 3 et 4 : Légendaire 0,5 %, Mythique 0,20 % (jamais sur les cartes 1 et 2). */
-export const LEGENDARY_RATE = 0.005
-export const MYTHIC_RATE = 0.002
+/** Chances d'une carte des emplacements 3 et 4 : Légendaire 2 %, Mythique 0,5 % (jamais sur les cartes 1 et 2). */
+export const LEGENDARY_RATE = 0.02
+export const MYTHIC_RATE = 0.005
 
 export const RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] as const
 export type Rarity = (typeof RARITIES)[number]
@@ -24,9 +27,9 @@ export type Rarity = (typeof RARITIES)[number]
 export const isRarity = (value: string): value is Rarity => (RARITIES as readonly string[]).includes(value)
 
 /**
- * Cartes 1 et 2 : jamais de Légendaire ni de Mythique. Cartes 3 et 4 : Légendaire 0,5 % et Mythique
- * 0,20 % chacune (la part retirée vient de la rareté la plus fréquente du slot). Sur un booster :
- * ≈ 1,00 % d'avoir au moins une Légendaire, ≈ 0,40 % une Mythique.
+ * Cartes 1 et 2 : jamais de Légendaire ni de Mythique. Cartes 3 et 4 : Légendaire 2 % et Mythique
+ * 0,5 % chacune (la part retirée vient de la rareté la plus fréquente du slot). Sur un booster :
+ * ≈ 3,96 % d'avoir au moins une Légendaire, ≈ 1,00 % une Mythique.
  */
 
 /** Premiers slots (1 et 2) : cartes de base. */
@@ -41,7 +44,7 @@ export const BASE_SLOT_RATES: Record<Rarity, number> = {
 /** Avant-dernier slot (3) : wildcard Rare+. */
 export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
-  RARE: 0.743,
+  RARE: 0.725,
   EPIC: 0.25,
   LEGENDARY: LEGENDARY_RATE,
   MYTHIC: MYTHIC_RATE,
@@ -51,12 +54,12 @@ export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
 export const HIGH_RARITY_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
-  EPIC: 0.993,
+  EPIC: 0.975,
   LEGENDARY: LEGENDARY_RATE,
   MYTHIC: MYTHIC_RATE,
 }
 
-/** Dernier slot du 125e booster sans Légendaire : Légendaire ou mieux, dans la proportion 0,5 / 0,2. */
+/** Dernier slot d'un 125e booster : Légendaire ou mieux, dans la proportion 2 / 0,5. */
 const LEGENDARY_PITY_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
@@ -221,13 +224,18 @@ export function chooseSeries(available: readonly number[], choice: SeriesChoice,
 export const hasReachedHardPity = (boostersSinceLastMythic: number): boolean =>
   boostersSinceLastMythic >= HARD_PITY_PACKS - 1
 
-/** Le prochain booster est le 125e sans Légendaire : son dernier slot est Légendaire ou mieux. */
-export const hasReachedLegendaryPity = (boostersSinceLastLegendary: number): boolean =>
-  boostersSinceLastLegendary >= LEGENDARY_PITY_PACKS - 1
+/**
+ * Le prochain booster ferme un cycle de 125 (`opened` : boosters ouverts depuis le début du
+ * cycle) : son dernier slot est Légendaire ou mieux.
+ */
+export const hasReachedLegendaryPity = (opened: number): boolean => opened >= LEGENDARY_PITY_PACKS - 1
 
-/** Compteur Légendaire : une Légendaire ou une Mythique (plus rare encore) le remet à zéro. */
-export function nextLegendaryPityCount(boostersSinceLastLegendary: number, rarities: readonly string[]): number {
-  return rarities.includes('LEGENDARY') || rarities.includes('MYTHIC') ? 0 : boostersSinceLastLegendary + 1
+/**
+ * Compteur du cycle Légendaire : il avance à chaque booster ouvert, quoi qu'il contienne, et
+ * repart de zéro après le booster garanti. Une Légendaire tirée par chance ne le remet pas à zéro.
+ */
+export function nextLegendaryPityCount(opened: number): number {
+  return hasReachedLegendaryPity(opened) ? 0 : opened + 1
 }
 
 /** Compteur après attribution : toute Mythique le remet immédiatement à zéro. */

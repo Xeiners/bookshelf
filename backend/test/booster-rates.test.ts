@@ -51,9 +51,9 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       }
     })
 
-    // Cartes 3 et 4 : Légendaire 0,5 % et Mythique 0,20 % chacune, soit ≈ 1,00 % et ≈ 0,40 % par booster.
-    const legendary = 1 - 0.995 ** 2
-    const mythic = 1 - 0.998 ** 2
+    // Cartes 3 et 4 : Légendaire 2 % et Mythique 0,5 % chacune, soit ≈ 3,96 % et ≈ 1,00 % par booster.
+    const legendary = 1 - 0.98 ** 2
+    const mythic = 1 - 0.995 ** 2
     assert.ok(Math.abs(mythicPacks / packs - mythic) < 0.003, `boosters mythiques : ${mythicPacks}`)
     assert.ok(Math.abs(legendaryPacks / packs - legendary) < 0.004, `boosters légendaires : ${legendaryPacks}`)
     assert.ok(Math.abs(bySeries[1] / (packs * CARDS_PER_PACK) - 0.5) < 0.015, `Série 1 : ${bySeries[1]}`)
@@ -70,17 +70,17 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
     assert.equal(nextPityCount(HARD_PITY_PACKS - 1, cards.map((card) => card.rarity)), 0)
   })
 
-  it('cartes 1 et 2 : 0 % de Légendaire et de Mythique ; cartes 3 et 4 : 0,5 % et 0,20 % ; chaque table fait 100 %', () => {
+  it('cartes 1 et 2 : 0 % de Légendaire et de Mythique ; cartes 3 et 4 : 2 % et 0,5 % ; chaque table fait 100 %', () => {
     for (let slot = 0; slot < CARDS_PER_PACK; slot += 1) {
       const rates = slotRates(slot, CARDS_PER_PACK)
       const base = slot < 2
-      assert.equal(rates.LEGENDARY, base ? 0 : 0.005, `slot ${slot + 1}`)
-      assert.equal(rates.MYTHIC, base ? 0 : 0.002, `slot ${slot + 1}`)
+      assert.equal(rates.LEGENDARY, base ? 0 : 0.02, `slot ${slot + 1}`)
+      assert.equal(rates.MYTHIC, base ? 0 : 0.005, `slot ${slot + 1}`)
       assert.ok(Math.abs(RARITIES.reduce((sum, rarity) => sum + rates[rarity], 0) - 1) < 1e-12, `slot ${slot + 1}`)
     }
   })
 
-  it('garantit une Légendaire (ou mieux) au 125e booster sec, puis remet le compteur à zéro', () => {
+  it('garantit une Légendaire (ou mieux) à chaque 125e booster ouvert, puis remet le compteur à zéro', () => {
     assert.equal(LEGENDARY_PITY_PACKS, 125)
     assert.equal(hasReachedLegendaryPity(LEGENDARY_PITY_PACKS - 2), false)
     assert.equal(hasReachedLegendaryPity(LEGENDARY_PITY_PACKS - 1), true)
@@ -88,20 +88,26 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       const cards = drawPack(SET, () => roll, { forceLegendary: true })
       assert.ok(['LEGENDARY', 'MYTHIC'].includes(cards[CARDS_PER_PACK - 1]!.rarity), `tirage ${roll}`)
     }
-    assert.equal(nextLegendaryPityCount(LEGENDARY_PITY_PACKS - 1, ['COMMON', 'RARE', 'EPIC', 'LEGENDARY']), 0)
-    assert.equal(nextLegendaryPityCount(50, ['COMMON', 'RARE', 'EPIC', 'MYTHIC']), 0)
-    assert.equal(nextLegendaryPityCount(50, ['COMMON', 'RARE', 'EPIC', 'EPIC']), 51)
+    assert.equal(nextLegendaryPityCount(LEGENDARY_PITY_PACKS - 1), 0)
+    // Une Légendaire tirée par chance ne change rien : le compteur suit les boosters ouverts.
+    assert.equal(nextLegendaryPityCount(50), 51)
+    assert.equal(nextLegendaryPityCount(0), 1)
   })
 
-  it('simulation : au plus 125 boosters sans Légendaire ou mieux, avec la garantie', () => {
+  it('simulation : les 125e, 250e, 375e… boosters ont tous une Légendaire ou mieux, même juste après une Légendaire', () => {
     const random = seededRandom('legendary-pity')
-    let dry = 0
-    let longest = 0
-    for (let pack = 0; pack < 40_000; pack += 1) {
-      const cards = drawPack(SET, random, { forceLegendary: hasReachedLegendaryPity(dry) })
-      dry = nextLegendaryPityCount(dry, cards.map((card) => card.rarity))
-      longest = Math.max(longest, dry)
+    let opened = 0
+    let guaranteed = 0
+    for (let pack = 1; pack <= 40_000; pack += 1) {
+      const forced = hasReachedLegendaryPity(opened)
+      assert.equal(forced, pack % LEGENDARY_PITY_PACKS === 0, `booster ${pack}`)
+      const cards = drawPack(SET, random, { forceLegendary: forced })
+      if (forced) {
+        guaranteed += 1
+        assert.ok(['LEGENDARY', 'MYTHIC'].includes(cards[CARDS_PER_PACK - 1]!.rarity), `booster ${pack}`)
+      }
+      opened = nextLegendaryPityCount(opened)
     }
-    assert.ok(longest <= LEGENDARY_PITY_PACKS - 1, `série sèche : ${longest}`)
+    assert.equal(guaranteed, Math.floor(40_000 / LEGENDARY_PITY_PACKS))
   })
 })

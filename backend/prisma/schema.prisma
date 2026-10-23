@@ -194,7 +194,7 @@ model UserBooster {
   giftedBoosters    Int       @default(0)
   /// Boosters consécutifs sans Mythique ; le 400e force le dernier slot.
   boostersSinceLastMythic Int  @default(0)
-  /// Boosters consécutifs sans Légendaire ni Mythique ; le 120e force le dernier slot.
+  /// Boosters ouverts dans le cycle de la Légendaire garantie (0 à 124) ; le 125e force le dernier slot, puis il repart de 0.
   boostersSinceLastLegendary Int @default(0)
   /// Dernière ouverture.
   lastClaimedAt     DateTime?
