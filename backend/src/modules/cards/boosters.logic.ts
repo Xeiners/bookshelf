@@ -17,9 +17,9 @@ export const HARD_PITY_PACKS = 400
  * dernier slot, quelles que soient les Légendaires tirées entre-temps.
  */
 export const LEGENDARY_PITY_PACKS = 100
-/** Chances d'une carte des emplacements 3 et 4 : Légendaire 1 %, Mythique 0,5 % (jamais sur les cartes 1 et 2). */
-export const LEGENDARY_RATE = 0.01
-export const MYTHIC_RATE = 0.005
+/** Chances d'une carte des emplacements 3 et 4 : Légendaire 0,8 %, Mythique 0,4 % (jamais sur les cartes 1 et 2). */
+export const LEGENDARY_RATE = 0.008
+export const MYTHIC_RATE = 0.004
 
 export const RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] as const
 export type Rarity = (typeof RARITIES)[number]
@@ -27,9 +27,9 @@ export type Rarity = (typeof RARITIES)[number]
 export const isRarity = (value: string): value is Rarity => (RARITIES as readonly string[]).includes(value)
 
 /**
- * Cartes 1 et 2 : jamais de Légendaire ni de Mythique. Cartes 3 et 4 : Légendaire 1 % et Mythique
- * 0,5 % chacune (la part retirée vient de la rareté la plus fréquente du slot). Sur un booster :
- * ≈ 1,99 % d'avoir au moins une Légendaire, ≈ 1,00 % une Mythique.
+ * Cartes 1 et 2 : jamais de Légendaire ni de Mythique. Cartes 3 et 4 : Légendaire 0,8 % et Mythique
+ * 0,4 % chacune (la part retirée vient de la rareté la plus fréquente du slot). Sur un booster :
+ * ≈ 1,59 % d'avoir au moins une Légendaire, ≈ 0,80 % une Mythique.
  */
 
 /** Premiers slots (1 et 2) : cartes de base. */
@@ -44,7 +44,7 @@ export const BASE_SLOT_RATES: Record<Rarity, number> = {
 /** Avant-dernier slot (3) : wildcard Rare+. */
 export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
-  RARE: 0.735,
+  RARE: 0.738,
   EPIC: 0.25,
   LEGENDARY: LEGENDARY_RATE,
   MYTHIC: MYTHIC_RATE,
@@ -54,12 +54,12 @@ export const WILDCARD_SLOT_RATES: Record<Rarity, number> = {
 export const HIGH_RARITY_SLOT_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
-  EPIC: 0.985,
+  EPIC: 0.988,
   LEGENDARY: LEGENDARY_RATE,
   MYTHIC: MYTHIC_RATE,
 }
 
-/** Dernier slot d’un 100e booster : Légendaire ou mieux, dans la proportion 1 / 0,5. */
+/** Dernier slot d’un 100e booster : Légendaire ou mieux, dans la proportion 0,8 / 0,4. */
 const LEGENDARY_PITY_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,

@@ -123,8 +123,8 @@ describe('boosters — tirage aléatoire', () => {
       assert.ok(Math.abs(sum(rates) - 1) < 1e-9)
     }
     assert.deepEqual(BASE_SLOT_RATES, { COMMON: 0.7, RARE: 0.25, EPIC: 0.05, LEGENDARY: 0, MYTHIC: 0 })
-    assert.deepEqual(WILDCARD_SLOT_RATES, { COMMON: 0, RARE: 0.735, EPIC: 0.25, LEGENDARY: 0.01, MYTHIC: 0.005 })
-    assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.985, LEGENDARY: 0.01, MYTHIC: 0.005 })
+    assert.deepEqual(WILDCARD_SLOT_RATES, { COMMON: 0, RARE: 0.738, EPIC: 0.25, LEGENDARY: 0.008, MYTHIC: 0.004 })
+    assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.988, LEGENDARY: 0.008, MYTHIC: 0.004 })
   })
 
   it('4 cartes : deux de base, la wildcard Rare+, puis la haute rareté (forcée Mythique par le pity)', () => {
@@ -157,8 +157,8 @@ describe('boosters — tirage aléatoire', () => {
         assert.ok(Math.abs(slot[rarity] / packs - expected[index]![rarity]) < 0.015, `slot ${index + 1} ${rarity}`)
       }
     })
-    // Mythique 0,5 % sur les cartes 3 et 4 : ≈ 1,00 % des boosters en contiennent une.
-    assert.ok(Math.abs(mythicPacks / packs - (1 - 0.995 ** 2)) < 0.003, `boosters mythiques : ${mythicPacks}`)
+    // Mythique 0,4 % sur les cartes 3 et 4 : ≈ 0,80 % des boosters en contiennent une.
+    assert.ok(Math.abs(mythicPacks / packs - (1 - 0.996 ** 2)) < 0.003, `boosters mythiques : ${mythicPacks}`)
   })
 
   it('un booster : 4 cartes distinctes, avant-dernier slot Rare+ et dernier Épique+', () => {
