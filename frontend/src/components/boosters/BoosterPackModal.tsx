@@ -274,6 +274,12 @@ export function BoosterPackModal() {
             {boosters.unlimited ? '∞' : t.activities.boosterCount(boosters.available, boosters.max)}
           </span>
           {boosters.unlimited && <SandboxChip />}
+          {/* Repère de l'essai : seuls les admins ont la nouvelle ouverture. */}
+          {deluxe && (
+            <span className="rounded-full border border-[#ff5ec4]/40 bg-[#ff5ec4]/10 px-2.5 py-1.5 text-[10px] whitespace-nowrap font-semibold tracking-[0.14em] text-[#ff9ad8] uppercase">
+              {t.boosters.deluxe}
+            </span>
+          )}
           <SfxVolume />
         </span>
         <button

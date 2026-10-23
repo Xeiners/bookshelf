@@ -128,15 +128,15 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
           .fromTo(
             [...emerged].reverse(),
             { y: 0, rotation: 0 },
-            { y: -rise, rotation: (index: number) => fanOf(emerged.length - 1 - index), duration: 0.75, ease: 'power2.out', stagger: 0.11 },
+            { y: -rise, rotation: (index: number) => fanOf(emerged.length - 1 - index), duration: 0.9, ease: 'power2.out', stagger: 0.18 },
             'rise',
           )
           // Le paquet s'efface ; les cartes, libres, achèvent de sortir.
-          .addLabel('drop', '-=0.15')
+          .addLabel('drop', '+=0.25')
           .set('[data-emerge-clip]', { overflow: 'visible' }, 'drop')
-          .to(emerged, { y: -rise - cardHeight * 0.12, duration: 0.6, ease: 'sine.out' }, 'drop')
+          .to(emerged, { y: -rise - cardHeight * 0.12, duration: 0.7, ease: 'sine.out' }, 'drop')
           .to('[data-pack-beam]', { autoAlpha: 0, duration: 0.4 }, 'drop')
-          .to('[data-pack-float]', { y: 260, autoAlpha: 0, duration: 0.6, ease: 'power2.in' }, 'drop')
+          .to('[data-pack-float]', { y: 260, autoAlpha: 0, duration: 0.7, ease: 'power2.in' }, 'drop')
           .to('[data-pack-shadow]', { scale: 0.2, autoAlpha: 0, duration: 0.5 }, 'drop')
         return
       }

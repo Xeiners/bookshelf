@@ -299,7 +299,7 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
       if (!deluxe || !busy.current.has(top)) return false
       enqueue(direction)
       // Le geste presse un peu le retournement, sans le brusquer.
-      flips.current.get(top)?.timeScale(1.6)
+      flips.current.get(top)?.timeScale(1.3)
       return true
     }
     if (deluxe) {
@@ -364,21 +364,21 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
           x: `+=${direction * Math.min(380, window.innerWidth * 0.72)}`,
           y: '-=30',
           rotation: direction * 24,
-          duration: 0.32,
+          duration: 0.4,
           ease: 'sine.in',
           overwrite: 'auto',
         })
         .set(slot, { zIndex: back.zIndex })
-        .to(slot, { ...back, duration: 0.55, ease: 'power3.out' })
-      rest.forEach((index, position) => timeline.to(slotOf(index), { ...place(position, index), duration: 0.5, ease: 'power2.inOut', overwrite: 'auto' }, 0.14))
+        .to(slot, { ...back, duration: 0.6, ease: 'power3.out' })
+      rest.forEach((index, position) => timeline.to(slotOf(index), { ...place(position, index), duration: 0.6, ease: 'power2.inOut', overwrite: 'auto' }, 0.2))
       if (!last)
         timeline.add(() => {
           moving.current = false
           revealTop()
           // Geste déjà reçu pour celle-ci : son retournement file.
           const upcoming = order.current[0]
-          if (queued.current.count > 0 && upcoming !== undefined) flips.current.get(upcoming)?.timeScale(1.6)
-        }, 0.55)
+          if (queued.current.count > 0 && upcoming !== undefined) flips.current.get(upcoming)?.timeScale(1.3)
+        }, 0.8)
     })()
 
   /** « Passer » : tout se retourne d'un coup et le récapitulatif s'affiche. */
@@ -421,8 +421,8 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
               zIndex: target.zIndex,
               autoAlpha: 1,
             },
-            { ...target, duration: 0.8, ease: 'power3.inOut' },
-            (cards.length - 1 - index) * 0.07,
+            { ...target, duration: 1, ease: 'power3.inOut' },
+            (cards.length - 1 - index) * 0.1,
           )
         }
         else

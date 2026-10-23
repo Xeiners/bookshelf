@@ -211,6 +211,7 @@ export const en: Dictionary = {
     },
     cardBack: (index: number) => `Card ${index}, face down: tap to reveal`,
     isNew: 'New',
+    deluxe: 'Deluxe',
     copies: (count: number) => `×${count}`,
     again: 'Open the next one',
     share: {
