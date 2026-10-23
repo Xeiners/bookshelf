@@ -910,15 +910,15 @@ stock plein lance le minuteur, ouvrir ensuite ne le remet pas à zéro.
 
 **Tirage** : 4 cartes, une table de raretés par emplacement
 (`boosters.logic.ts`). Cartes 1 et 2 : Commune 70 % / Rare 25 % / Épique 5 %,
-**jamais de Légendaire ni de Mythique**. Carte 3 (Rare ou mieux) : Rare 72,5 % /
-Épique 25 % / **Légendaire 2 % / Mythique 0,5 %**. Carte 4 (Épique ou mieux) :
-Épique 97,5 % / **Légendaire 2 % / Mythique 0,5 %**. Soit ≈ 3,96 % des boosters
+**jamais de Légendaire ni de Mythique**. Carte 3 (Rare ou mieux) : Rare 73,5 % /
+Épique 25 % / **Légendaire 1 % / Mythique 0,5 %**. Carte 4 (Épique ou mieux) :
+Épique 98,5 % / **Légendaire 1 % / Mythique 0,5 %**. Soit ≈ 1,99 % des boosters
 avec au moins une Légendaire et ≈ 1,00 % avec une Mythique. Puis une carte au
 hasard dans la rareté, sans doublon dans un même booster tant que le set le
 permet ; rareté absente → la voisine. Doublons entre boosters : `count` augmente.
 
 **Garanties (pity)** : un booster ouvert sur 100 (le 100ᵉ, le 200ᵉ… du compte)
-a une Légendaire ou mieux sur sa 4ᵉ carte (proportion 2 / 0,5). Le compteur
+a une Légendaire ou mieux sur sa 4ᵉ carte (proportion 1 / 0,5). Le compteur
 (`boostersSinceLastLegendary`, de 0 à 99) avance à chaque booster ouvert et ne
 repart de zéro qu'après le booster garanti : une Légendaire tirée par chance ne
 le décale pas, et le pack offert du 30ᵉ jour ne le fait pas avancer. Le 400ᵉ

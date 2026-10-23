@@ -51,8 +51,8 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       }
     })
 
-    // Cartes 3 et 4 : Légendaire 2 % et Mythique 0,5 % chacune, soit ≈ 3,96 % et ≈ 1,00 % par booster.
-    const legendary = 1 - 0.98 ** 2
+    // Cartes 3 et 4 : Légendaire 1 % et Mythique 0,5 % chacune, soit ≈ 1,99 % et ≈ 1,00 % par booster.
+    const legendary = 1 - 0.99 ** 2
     const mythic = 1 - 0.995 ** 2
     assert.ok(Math.abs(mythicPacks / packs - mythic) < 0.003, `boosters mythiques : ${mythicPacks}`)
     assert.ok(Math.abs(legendaryPacks / packs - legendary) < 0.004, `boosters légendaires : ${legendaryPacks}`)
@@ -70,11 +70,11 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
     assert.equal(nextPityCount(HARD_PITY_PACKS - 1, cards.map((card) => card.rarity)), 0)
   })
 
-  it('cartes 1 et 2 : 0 % de Légendaire et de Mythique ; cartes 3 et 4 : 2 % et 0,5 % ; chaque table fait 100 %', () => {
+  it('cartes 1 et 2 : 0 % de Légendaire et de Mythique ; cartes 3 et 4 : 1 % et 0,5 % ; chaque table fait 100 %', () => {
     for (let slot = 0; slot < CARDS_PER_PACK; slot += 1) {
       const rates = slotRates(slot, CARDS_PER_PACK)
       const base = slot < 2
-      assert.equal(rates.LEGENDARY, base ? 0 : 0.02, `slot ${slot + 1}`)
+      assert.equal(rates.LEGENDARY, base ? 0 : 0.01, `slot ${slot + 1}`)
       assert.equal(rates.MYTHIC, base ? 0 : 0.005, `slot ${slot + 1}`)
       assert.ok(Math.abs(RARITIES.reduce((sum, rarity) => sum + rates[rarity], 0) - 1) < 1e-12, `slot ${slot + 1}`)
     }

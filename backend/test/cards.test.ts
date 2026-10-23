@@ -123,8 +123,8 @@ describe('boosters — tirage aléatoire', () => {
       assert.ok(Math.abs(sum(rates) - 1) < 1e-9)
     }
     assert.deepEqual(BASE_SLOT_RATES, { COMMON: 0.7, RARE: 0.25, EPIC: 0.05, LEGENDARY: 0, MYTHIC: 0 })
-    assert.deepEqual(WILDCARD_SLOT_RATES, { COMMON: 0, RARE: 0.725, EPIC: 0.25, LEGENDARY: 0.02, MYTHIC: 0.005 })
-    assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.975, LEGENDARY: 0.02, MYTHIC: 0.005 })
+    assert.deepEqual(WILDCARD_SLOT_RATES, { COMMON: 0, RARE: 0.735, EPIC: 0.25, LEGENDARY: 0.01, MYTHIC: 0.005 })
+    assert.deepEqual(HIGH_RARITY_SLOT_RATES, { COMMON: 0, RARE: 0, EPIC: 0.985, LEGENDARY: 0.01, MYTHIC: 0.005 })
   })
 
   it('4 cartes : deux de base, la wildcard Rare+, puis la haute rareté (forcée Mythique par le pity)', () => {
