@@ -13,10 +13,10 @@ export const CARDS_PER_PACK = 4
 /** Le 400e booster consécutif sans Mythique en garantit une sur son dernier slot. */
 export const HARD_PITY_PACKS = 400
 /**
- * Un booster ouvert sur 125 (le 125e, le 250e…) garantit une Légendaire (ou mieux) sur son
+ * Un booster ouvert sur 100 (le 100e, le 200e…) garantit une Légendaire (ou mieux) sur son
  * dernier slot, quelles que soient les Légendaires tirées entre-temps.
  */
-export const LEGENDARY_PITY_PACKS = 125
+export const LEGENDARY_PITY_PACKS = 100
 /** Chances d'une carte des emplacements 3 et 4 : Légendaire 2 %, Mythique 0,5 % (jamais sur les cartes 1 et 2). */
 export const LEGENDARY_RATE = 0.02
 export const MYTHIC_RATE = 0.005
@@ -59,7 +59,7 @@ export const HIGH_RARITY_SLOT_RATES: Record<Rarity, number> = {
   MYTHIC: MYTHIC_RATE,
 }
 
-/** Dernier slot d'un 125e booster : Légendaire ou mieux, dans la proportion 2 / 0,5. */
+/** Dernier slot d’un 100e booster : Légendaire ou mieux, dans la proportion 2 / 0,5. */
 const LEGENDARY_PITY_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
@@ -225,7 +225,7 @@ export const hasReachedHardPity = (boostersSinceLastMythic: number): boolean =>
   boostersSinceLastMythic >= HARD_PITY_PACKS - 1
 
 /**
- * Le prochain booster ferme un cycle de 125 (`opened` : boosters ouverts depuis le début du
+ * Le prochain booster ferme un cycle de 100 (`opened` : boosters ouverts depuis le début du
  * cycle) : son dernier slot est Légendaire ou mieux.
  */
 export const hasReachedLegendaryPity = (opened: number): boolean => opened >= LEGENDARY_PITY_PACKS - 1

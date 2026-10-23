@@ -80,8 +80,8 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
     }
   })
 
-  it('garantit une Légendaire (ou mieux) à chaque 125e booster ouvert, puis remet le compteur à zéro', () => {
-    assert.equal(LEGENDARY_PITY_PACKS, 125)
+  it('garantit une Légendaire (ou mieux) à chaque 100e booster ouvert, puis remet le compteur à zéro', () => {
+    assert.equal(LEGENDARY_PITY_PACKS, 100)
     assert.equal(hasReachedLegendaryPity(LEGENDARY_PITY_PACKS - 2), false)
     assert.equal(hasReachedLegendaryPity(LEGENDARY_PITY_PACKS - 1), true)
     for (const roll of [0, 0.5, 0.7142, 0.72, 0.9999]) {
@@ -94,7 +94,7 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
     assert.equal(nextLegendaryPityCount(0), 1)
   })
 
-  it('simulation : les 125e, 250e, 375e… boosters ont tous une Légendaire ou mieux, même juste après une Légendaire', () => {
+  it('simulation : les 100e, 200e, 300e… boosters ont tous une Légendaire ou mieux, même juste après une Légendaire', () => {
     const random = seededRandom('legendary-pity')
     let opened = 0
     let guaranteed = 0

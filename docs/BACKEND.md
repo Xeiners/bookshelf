@@ -917,15 +917,15 @@ avec au moins une Légendaire et ≈ 1,00 % avec une Mythique. Puis une carte au
 hasard dans la rareté, sans doublon dans un même booster tant que le set le
 permet ; rareté absente → la voisine. Doublons entre boosters : `count` augmente.
 
-**Garanties (pity)** : un booster ouvert sur 125 (le 125ᵉ, le 250ᵉ… du compte)
+**Garanties (pity)** : un booster ouvert sur 100 (le 100ᵉ, le 200ᵉ… du compte)
 a une Légendaire ou mieux sur sa 4ᵉ carte (proportion 2 / 0,5). Le compteur
-(`boostersSinceLastLegendary`, de 0 à 124) avance à chaque booster ouvert et ne
+(`boostersSinceLastLegendary`, de 0 à 99) avance à chaque booster ouvert et ne
 repart de zéro qu'après le booster garanti : une Légendaire tirée par chance ne
 le décale pas, et le pack offert du 30ᵉ jour ne le fait pas avancer. Le 400ᵉ
 booster sans Mythique (`boostersSinceLastMythic`, remis à zéro par toute
 Mythique) a une Mythique ; cette garantie est prioritaire. L'état du stock
 (`GET /boosters/status`, réponse de `POST /boosters/open`) expose
-`legendaryEvery` (125) et `legendaryIn` (dans combien de boosters la garantie
+`legendaryEvery` (100) et `legendaryIn` (dans combien de boosters la garantie
 tombe, 1 = le prochain ; `null` en mode recette) : l'écran des boosters l'affiche.
 
 **Ouverture atomique** : dépense et cartes dans une même transaction ; la

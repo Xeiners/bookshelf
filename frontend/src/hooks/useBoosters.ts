@@ -34,7 +34,7 @@ export interface BoosterView {
  * boosters d'essai restants, comptés sur l'appareil (le serveur a le dernier mot).
  */
 /** Valeur d'affichage tant que le serveur n'a pas répondu (le serveur fait foi : `legendaryEvery`). */
-const LEGENDARY_EVERY = 125
+const LEGENDARY_EVERY = 100
 
 export function useBoosters(options: { tick?: boolean } = {}): BoosterView {
   const tick = options.tick ?? true
