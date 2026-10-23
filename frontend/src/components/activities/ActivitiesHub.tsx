@@ -329,15 +329,22 @@ function BoosterHero() {
 
   // Jauge : pleine si un booster attend (ou en recette), sinon l'avancement du minuteur.
   const progress = boosters.unlimited || boosters.available > 0 ? 1 : boosters.progress
+  // Le stock normal (3 au plus) ; les boosters offerts, hors plafond, s'affichent à part.
+  const stock = boosters.available - boosters.gifted
   const ring = guestDone ? (
     <Gift size={20} className="text-[#fff4c8]/70" aria-hidden />
   ) : boosters.unlimited ? (
     <span className="text-2xl leading-none font-semibold" style={neon('#3fe0a0')}>
       ∞
     </span>
-  ) : boosters.available > 0 ? (
+  ) : stock > 0 ? (
     <span className="text-lg leading-none font-semibold tabular-nums" style={neon('#ffc46b')}>
-      {boosters.available}/{boosters.max}
+      {stock}/{boosters.max}
+    </span>
+  ) : boosters.gifted > 0 ? (
+    // Stock vide, boosters offerts en réserve : on les montre (ils s'ouvrent tout de suite).
+    <span className="text-lg leading-none font-semibold tabular-nums" style={neon('#ffc46b')}>
+      +{boosters.gifted}
     </span>
   ) : (
     <span className="text-[10px] leading-none font-semibold tabular-nums" style={neon('#4cc9f0')}>

@@ -116,7 +116,7 @@ export const fr = {
     shop: {
       eyebrow: 'Boutique',
       boosterTitle: 'Booster contre des\u00a0✦',
-      boosterBody: '4 cartes, ouvert tout de suite. Choisis ta série.',
+      boosterBody: '4 cartes de la Série 3, ouvert tout de suite.',
       boxEyebrow: 'Boutique · Manga Runner',
       boxBody: 'Une pièce de garde-robe culte pour ton aventurier.',
       balance: (balance: number) => `Ton solde : ${balance} ✦`,
@@ -227,6 +227,7 @@ export const fr = {
     cardBack: (index: number) => `Carte ${index}, face cachée : toucher pour révéler`,
     isNew: 'Nouvelle',
     legendaryPack: 'Pack Légendaire',
+    buyAgain: (price: number) => `Acheter un autre · ${price} ✦`,
     copies: (count: number) => `×${count}`,
     again: 'Ouvrir le suivant',
     share: {

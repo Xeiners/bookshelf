@@ -87,9 +87,10 @@ interface DleState {
   /** Suit le salon affiché en attente longue ; renvoie de quoi arrêter. */
   watch: () => () => void
 
-  /** Achète un booster avec des Poussières, puis l'ouvre aussitôt. */
-  /** Achète un booster de la série choisie, et l'ouvre. */
+  /** Achète un booster de la série choisie avec des Poussières, et l'ouvre aussitôt. */
   buyBooster: (series: CardSeries) => Promise<void>
+  /** Achète un booster sans ouvrir de fenêtre (on y est déjà : « Acheter un autre »). */
+  purchaseBooster: () => Promise<void>
   /** Nouveau solde de Poussières gagné ailleurs (Higher or Lower) : le badge suit. */
   setStardust: (balance: number) => void
   reset: () => void
@@ -265,10 +266,14 @@ export const useDleStore = create<DleState>((set, get) => ({
   },
 
   buyBooster: async (series) => {
+    await get().purchaseBooster()
+    useUiStore.getState().openBooster(series, { purchased: true })
+  },
+
+  purchaseBooster: async () => {
     const { balance, status } = await stardustApi.buyBooster()
     set((state) => ({ overview: state.overview ? { ...state.overview, stardust: balance } : state.overview }))
     useBoosterStore.setState({ status, syncedAt: performance.now(), offline: false })
-    useUiStore.getState().openBooster(series)
   },
 
   setStardust: (balance) => set((state) => ({ overview: state.overview ? { ...state.overview, stardust: balance } : state.overview })),

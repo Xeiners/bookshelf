@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dices, FlaskConical, Gift, Megaphone, Users, X, Zap } from 'lucide-react'
+import { Dices, FlaskConical, Gift, Loader2, Megaphone, Sparkles, Users, X, Zap } from 'lucide-react'
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
@@ -11,6 +11,9 @@ import { ApiError, isNetworkError } from '../../services/api'
 import { LIVE_SERIES, type CardSeries, type PulledCard, type SeriesChoice } from '../../services/cardsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useBoosterStore } from '../../store/useBoosterStore'
+import { useDleStore } from '../../store/useDleStore'
+import { promotionOf, usePromotions } from '../../store/usePromotions'
+import { STARDUST_GRADIENT } from '../dle/dleStyle'
 import { useUiStore } from '../../store/useUiStore'
 import { CARD_RATIO } from '../cards/CollectibleCard'
 import { CardZoom } from '../cards/CardZoom'
@@ -53,6 +56,14 @@ export function BoosterPackModal() {
   const openBooster = useBoosterStore((state) => state.open)
   /** Pack Légendaire offert : même mise en scène, dernière carte Légendaire ou mieux. */
   const [legendary, setLegendary] = useState(() => useUiStore.getState().boosterLegendary)
+  /** Ouvert par un achat à la boutique : la fin propose d'en racheter un, si le solde suffit. */
+  const [purchased] = useState(() => useUiStore.getState().boosterPurchased)
+  const [buying, setBuying] = useState(false)
+  const stardust = useDleStore((state) => state.overview?.stardust ?? null)
+  const promotions = usePromotions((state) => state.items)
+  const basePrice = useDleStore((state) => state.overview?.boosterPrice ?? null)
+  const [now] = useState(() => Date.now())
+  const price = promotionOf(promotions, 'booster', now)?.price ?? basePrice
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
   // Une seule série en jeu : elle s'ouvre d'office (ni choix, ni roulette).
@@ -200,9 +211,10 @@ export function BoosterPackModal() {
       spread: count < 20 ? Math.PI * 0.55 : Math.PI * 0.9,
     })
 
-  // Booster suivant : on rechoisit sa série (ou la roulette). Les packs Légendaire offerts passent d'abord.
-  const again = () => {
-    setLegendary(boosters.legendaryPacks > 0)
+  // Booster suivant : on rechoisit sa série (ou la roulette). Les packs Légendaire offerts passent
+  // d'abord, sauf pour un booster qu'on vient d'acheter.
+  const again = (options: { bought?: boolean } = {}) => {
+    setLegendary(!options.bought && boosters.legendaryPacks > 0)
     setSharing(null)
     setCards([])
     setBait(null)
@@ -235,6 +247,21 @@ export function BoosterPackModal() {
   // Pendant la révélation, le fond garde la lueur-appât ; la vraie couleur n'arrive qu'à la fin.
   const tone = stage === 'done' && best ? RARITY_STYLE[best].color : stage === 'reveal' && bait ? RARITY_STYLE[bait].color : '#7c5cff'
   const canAgain = boosters.unlimited || boosters.available > 0 || boosters.legendaryPacks > 0
+  // Racheter : seulement après un achat à la boutique, et si le solde le permet.
+  const canBuyAgain = purchased && boosters.signedIn && !boosters.unlimited && price !== null && stardust !== null && stardust >= price
+  const buyAnother = async () => {
+    if (buying) return
+    setBuying(true)
+    vibrate(12)
+    try {
+      await useDleStore.getState().purchaseBooster()
+      again({ bought: true })
+    } catch (reason) {
+      useUiStore.getState().notify(messageFor(reason), 'nope')
+    } finally {
+      setBuying(false)
+    }
+  }
   // Invité à court d'essais : la suite passe par un compte (et ses 2 boosters offerts).
   const signUp =
     !boosters.signedIn && !canAgain
@@ -352,7 +379,8 @@ export function BoosterPackModal() {
               ) : (
                 <DoneActions
                   canAgain={canAgain}
-                  onAgain={again}
+                  onAgain={() => again()}
+                  buyAgain={canBuyAgain ? { price: price!, busy: buying, onBuy: () => void buyAnother() } : undefined}
                   onAlbum={toAlbum}
                   onSignUp={signUp}
                   // Seul un compte peut prévenir ses amis (l'invité n'a pas d'album côté serveur).
@@ -373,7 +401,7 @@ export function BoosterPackModal() {
                 </button>
               )}
               {canAgain && (
-                <button type="button" onClick={again} className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-void">
+                <button type="button" onClick={() => again()} className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-void">
                   {t.boosters.retry}
                 </button>
               )}
@@ -603,12 +631,15 @@ function ShareActions({ count, onCancel, onPick }: { count: number; onCancel: ()
 function DoneActions({
   canAgain,
   onAgain,
+  buyAgain,
   onAlbum,
   onSignUp,
   onShare,
 }: {
   canAgain: boolean
   onAgain: () => void
+  /** Booster acheté : en racheter un, au prix courant. */
+  buyAgain?: { price: number; busy: boolean; onBuy: () => void }
   onAlbum: () => void
   onSignUp?: () => void
   onShare?: () => void
@@ -647,6 +678,18 @@ function DoneActions({
         >
           <Zap size={15} className="fill-[#2a1a02]" />
           {t.boosters.again}
+        </button>
+      )}
+      {buyAgain && (
+        <button
+          type="button"
+          onClick={buyAgain.onBuy}
+          disabled={buyAgain.busy}
+          className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-[#1a0b1f] shadow-[0_0_28px_rgba(255,94,196,0.45)] disabled:opacity-60"
+          style={{ background: STARDUST_GRADIENT }}
+        >
+          {buyAgain.busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+          {t.boosters.buyAgain(buyAgain.price)}
         </button>
       )}
       {onShare && (

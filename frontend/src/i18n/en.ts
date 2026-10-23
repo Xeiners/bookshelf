@@ -108,7 +108,7 @@ export const en: Dictionary = {
     shop: {
       eyebrow: 'Shop',
       boosterTitle: 'Booster for\u00a0✦',
-      boosterBody: '4 cards, opened right away. Pick your series.',
+      boosterBody: '4 Series 3 cards, opened right away.',
       boxEyebrow: 'Shop · Manga Runner',
       boxBody: 'An iconic wardrobe piece for your adventurer.',
       balance: (balance: number) => `Your balance: ${balance} ✦`,
@@ -218,6 +218,7 @@ export const en: Dictionary = {
     cardBack: (index: number) => `Card ${index}, face down: tap to reveal`,
     isNew: 'New',
     legendaryPack: 'Legendary pack',
+    buyAgain: (price: number) => `Buy another · ${price} ✦`,
     copies: (count: number) => `×${count}`,
     again: 'Open the next one',
     share: {
