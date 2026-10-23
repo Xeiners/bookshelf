@@ -9,6 +9,9 @@ import { CardBack } from '../cards/CardBack'
 import { CARD_RATIO } from '../cards/CollectibleCard'
 import { BoosterPackArt } from './BoosterPackArt'
 
+/** Espace gardé libre en haut de l'écran (barre des boosters, bouton fermer) quand les cartes sortent. */
+const TOP_MARGIN = 72
+
 /** Éventail des cartes sorties du booster : celle du dessus droite, les autres penchées de part et d'autre. */
 const fanOf = (index: number) => (index === 0 ? 0 : (index % 2 ? -1 : 1) * Math.ceil(index / 2) * 7)
 
@@ -100,7 +103,12 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
         // paquet s'efface vers le bas en les laissant suspendues — le paquet de révélation
         // repart exactement de là (`onTorn(origins)`).
         const emerged = gsap.utils.toArray<HTMLElement>('[data-emerge-card]', rootRef.current)
-        const rise = cardHeight * 0.82
+        // Hauteur de sortie : 82 % de la carte, sans que l'éventail ne passe sous la barre du haut
+        // (petits écrans) ; puis un dernier élan quand le booster s'efface.
+        const packTop = rootRef.current?.getBoundingClientRect().top ?? 0
+        const room = Math.max(cardHeight * 0.4, packTop + height * 0.05 - TOP_MARGIN)
+        const rise = Math.min(cardHeight * 0.82, room)
+        const lift = Math.max(0, Math.min(cardHeight * 0.12, room - rise))
         gsap
           .timeline({
             onComplete: () =>
@@ -121,7 +129,7 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
           .fromTo('[data-pack-beam]', { scaleY: 0, autoAlpha: 0 }, { scaleY: 1, autoAlpha: 1, duration: 0.4, ease: 'power3.out' }, '<0.1')
           .fromTo('[data-pack-flash]', { scale: 0.2, autoAlpha: 0 }, { scale: 1.7, autoAlpha: 1, duration: 0.26, ease: 'power2.out' }, '<')
           .to('[data-pack-flash]', { autoAlpha: 0, duration: 0.5, ease: 'power1.in' })
-          .to('[data-pack-beam]', { autoAlpha: 0.35, duration: 0.5, ease: 'sine.inOut' }, '<')
+          .to('[data-pack-beam]', { autoAlpha: 0, duration: 0.6, ease: 'sine.inOut' }, '<')
           // Les cartes sortent, de celle du fond à celle du dessus.
           .addLabel('rise', '-=0.35')
           .add(() => playDeal(0), 'rise')
@@ -131,11 +139,11 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
             { y: -rise, rotation: (index: number) => fanOf(emerged.length - 1 - index), duration: 0.9, ease: 'power2.out', stagger: 0.18 },
             'rise',
           )
-          // Le paquet s'efface ; les cartes, libres, achèvent de sortir.
+          // Le paquet s'efface ; les cartes, libres, achèvent de sortir. Elles passent devant lui :
+          // il glisse et pâlit SOUS elles, sans jamais les laisser voir à travers.
           .addLabel('drop', '+=0.25')
-          .set('[data-emerge-clip]', { overflow: 'visible' }, 'drop')
-          .to(emerged, { y: -rise - cardHeight * 0.12, duration: 0.7, ease: 'sine.out' }, 'drop')
-          .to('[data-pack-beam]', { autoAlpha: 0, duration: 0.4 }, 'drop')
+          .set('[data-emerge]', { zIndex: 3 }, 'drop')
+          .to(emerged, { y: -rise - lift, duration: 0.7, ease: 'sine.out' }, 'drop')
           .to('[data-pack-float]', { y: 260, autoAlpha: 0, duration: 0.7, ease: 'power2.in' }, 'drop')
           .to('[data-pack-shadow]', { scale: 0.2, autoAlpha: 0, duration: 0.5 }, 'drop')
         return
@@ -239,6 +247,22 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
 
   return (
     <div ref={rootRef} className="relative flex flex-col items-center">
+      {deluxe && torn && count > 0 && (
+        // Les cartes, rangées DERRIÈRE la face du booster (rendues avant lui) : en montant, elles
+        // apparaissent par son ouverture, là où la bande a été arrachée, sans ligne de coupe.
+        <div data-emerge aria-hidden className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2" style={{ width, height }}>
+          {Array.from({ length: count }, (_, index) => (
+            <div
+              key={index}
+              data-emerge-card
+              className="absolute left-1/2"
+              style={{ top: height * 0.05, width: cardWidth, height: cardHeight, marginLeft: -cardWidth / 2, zIndex: count - index, transformOrigin: '50% 100%', willChange: 'transform' }}
+            >
+              <CardBack width={cardWidth} animated={false} />
+            </div>
+          ))}
+        </div>
+      )}
       <button
         type="button"
         aria-label={t.boosters.tear}
@@ -272,27 +296,6 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
             mixBlendMode: 'screen',
           }}
         />
-      )}
-      {deluxe && count > 0 && (
-        // Fente du booster : tout ce qui dépasse sous la ligne d'ouverture (13 % du haut) est
-        // caché ; les cartes, placées juste dessous, en sortent en montant.
-        <div
-          data-emerge-clip
-          aria-hidden
-          className="pointer-events-none absolute left-1/2 -translate-x-1/2 overflow-hidden"
-          style={{ width: width * 2.4, top: -cardHeight * 1.2, height: cardHeight * 1.2 + height * 0.13 }}
-        >
-          {Array.from({ length: count }, (_, index) => (
-            <div
-              key={index}
-              data-emerge-card
-              className="absolute top-full left-1/2"
-              style={{ width: cardWidth, height: cardHeight, marginLeft: -cardWidth / 2, zIndex: count - index, transformOrigin: '50% 100%', willChange: 'transform' }}
-            >
-              <CardBack width={cardWidth} animated={false} />
-            </div>
-          ))}
-        </div>
       )}
       {/* Ombre portée au sol. */}
       <div
