@@ -51,8 +51,6 @@ export function BoosterPackModal() {
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
   const preset = useUiStore((state) => state.boosterSeries)
-  /** Nouvelle ouverture (plus vive, plus lumineuse), en essai : les admins seulement pour l'instant. */
-  const deluxe = useAuthStore((state) => state.user?.isAdmin === true)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -65,7 +63,7 @@ export function BoosterPackModal() {
   const [cards, setCards] = useState<PulledCard[]>([])
   /** Lueur-appât du paquet, tirée avec son contenu : la vraie couleur attend la fin. */
   const [bait, setBait] = useState<Rarity | null>(null)
-  /** Deluxe : où chaque carte est sortie du booster ; le paquet de révélation en part. */
+  /** Où chaque carte est sortie du booster ; le paquet de révélation en part. */
   const [origins, setOrigins] = useState<CardOrigin[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [burst, setBurst] = useState<Burst | null>(null)
@@ -274,12 +272,6 @@ export function BoosterPackModal() {
             {boosters.unlimited ? '∞' : t.activities.boosterCount(boosters.available, boosters.max)}
           </span>
           {boosters.unlimited && <SandboxChip />}
-          {/* Repère de l'essai : seuls les admins ont la nouvelle ouverture. */}
-          {deluxe && (
-            <span className="rounded-full border border-[#ff5ec4]/40 bg-[#ff5ec4]/10 px-2.5 py-1.5 text-[10px] whitespace-nowrap font-semibold tracking-[0.14em] text-[#ff9ad8] uppercase">
-              {t.boosters.deluxe}
-            </span>
-          )}
           <SfxVolume />
         </span>
         <button
@@ -317,10 +309,9 @@ export function BoosterPackModal() {
               onTear={tear}
               onSparks={sparks}
               onTorn={(emerged) => {
-                setOrigins(emerged ?? null)
+                setOrigins(emerged)
                 setStage('reveal')
               }}
-              deluxe={deluxe}
               count={cards.length}
             />
             <p className="text-center text-xs tracking-[0.2em] text-cream/60 uppercase" aria-live="polite">
@@ -339,7 +330,6 @@ export function BoosterPackModal() {
             onShake={shake}
             onInspect={setInspected}
             selection={sharing && { picked: sharing, toggle: toggleShared }}
-            deluxe={deluxe}
             origins={origins}
             footer={
               stage !== 'done' ? null : sharing ? (

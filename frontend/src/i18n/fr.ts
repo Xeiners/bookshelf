@@ -220,7 +220,6 @@ export const fr = {
     },
     cardBack: (index: number) => `Carte ${index}, face cachée : toucher pour révéler`,
     isNew: 'Nouvelle',
-    deluxe: 'Deluxe',
     copies: (count: number) => `×${count}`,
     again: 'Ouvrir le suivant',
     share: {
