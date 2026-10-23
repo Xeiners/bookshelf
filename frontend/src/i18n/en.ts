@@ -250,6 +250,19 @@ export const en: Dictionary = {
     title: 'Game sounds',
     hint: 'Sound effects in games and boosters. Ambient music has its own setting.',
   },
+  retirement: {
+    eyebrow: 'End of an era',
+    title: 'Series 1 and 2 are retiring',
+    body: (cards: number, copies: number) =>
+      `Your ${cards} card${plural(cards, '', 's')} from Series 1 and 2 (${copies} cop${plural(copies, 'y', 'ies')}) turn into Stardust ✦, at the duplicate sale rate. Series 3 — Characters — is now the only one in play.`,
+    skip: 'Skip',
+    gained: 'Stardust received',
+    copies: (count: number) => `${count} cop.`,
+    more: (count: number) => `and ${count} more card${plural(count, '', 's')} converted`,
+    balance: (stardust: number) => `Your balance: ${stardust.toLocaleString('en-US')} ✦`,
+    cta: 'Discover Series 3',
+    note: 'The Stardust is already on your account. Spend it in the Activities shop.',
+  },
   news: {
     title: 'News',
     subtitle: 'What’s new on Bookshelf',
@@ -263,6 +276,12 @@ export const en: Dictionary = {
     fresh: 'New',
     unseen: (count: number) => `${count} new`,
     items: {
+      series3: {
+        tag: 'Cards',
+        title: 'Make way for Series 3 — Characters',
+        text: 'Series 1 and 2 are retiring: their cards were converted into Stardust ✦ at the duplicate sale rate (Mythics included). Boosters now only hold Series 3: 1,200 characters to collect.',
+        cta: 'Open a booster',
+      },
       edits: {
         tag: 'Videos',
         title: 'Edits: the vertical anime feed',

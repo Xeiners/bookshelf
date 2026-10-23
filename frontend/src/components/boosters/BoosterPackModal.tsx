@@ -8,7 +8,7 @@ import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playHlTick, playTear } from '../../lib/sfx'
 import { ApiError, isNetworkError } from '../../services/api'
-import { CARD_SERIES, type CardSeries, type PulledCard, type SeriesChoice } from '../../services/cardsApi'
+import { LIVE_SERIES, type CardSeries, type PulledCard, type SeriesChoice } from '../../services/cardsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useBoosterStore } from '../../store/useBoosterStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -26,6 +26,9 @@ import { ShareCardsSheet } from './ShareCardsSheet'
  * serveur tire ; `summoning` : le serveur tire le booster pendant que le paquet s'avance.
  */
 type Stage = 'choose' | 'roulette' | 'summoning' | 'intro' | 'tearing' | 'reveal' | 'done' | 'error'
+
+/** La série ouverte d'office quand une seule est en jeu ; `null` : on choisit. */
+const SOLE_SERIES: CardSeries | null = LIVE_SERIES.length === 1 ? LIVE_SERIES[0]! : null
 
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight })
 
@@ -50,7 +53,8 @@ export function BoosterPackModal() {
   const openBooster = useBoosterStore((state) => state.open)
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
-  const preset = useUiStore((state) => state.boosterSeries)
+  // Une seule série en jeu : elle s'ouvre d'office (ni choix, ni roulette).
+  const preset = useUiStore((state) => SOLE_SERIES ?? state.boosterSeries)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -201,9 +205,9 @@ export function BoosterPackModal() {
     setOrigins(null)
     setError(null)
     setBurst(null)
-    setChoice(null)
-    setSeries(null)
-    setStage('choose')
+    setChoice(SOLE_SERIES)
+    setSeries(SOLE_SERIES)
+    setStage(SOLE_SERIES === null ? 'choose' : 'summoning')
     setRound((value) => value + 1)
   }
 
@@ -291,7 +295,7 @@ export function BoosterPackModal() {
         data-shake
         className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-x-hidden overflow-y-auto' : 'overflow-visible'}`}
       >
-        {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round((viewport.width - 32) / CARD_SERIES.length) - 14)} onPick={pick} />}
+        {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round((viewport.width - 32) / LIVE_SERIES.length) - 14)} onPick={pick} />}
 
         {stage === 'roulette' && (
           <Roulette width={Math.min(150, Math.round(viewport.width * 0.38))} result={series} onLanded={() => setStage('intro')} />
@@ -422,7 +426,7 @@ function SeriesPicker({ width, onPick }: { width: number; onPick: (choice: Serie
         <p className="mt-1.5 text-xs text-cream/60">{t.boosters.choose.hint}</p>
       </div>
       <div className="flex items-end gap-3">
-        {CARD_SERIES.map((series) => (
+        {LIVE_SERIES.map((series) => (
           <button
             key={series}
             type="button"
@@ -487,9 +491,9 @@ function Roulette({ width, result, onLanded }: { width: number; result: CardSeri
     const step = () => {
       const elapsed = performance.now() - started
       const target = resultRef.current
-      const next = (index + 1) % CARD_SERIES.length
+      const next = (index + 1) % LIVE_SERIES.length
       // Assez tourné, résultat connu, et la lumière tombe sur la bonne série : on s'arrête.
-      if (elapsed >= ROULETTE_MIN_MS && target !== null && CARD_SERIES[next] === target && delay > 220) {
+      if (elapsed >= ROULETTE_MIN_MS && target !== null && LIVE_SERIES[next] === target && delay > 220) {
         index = next
         setLit(next)
         setLanded(target)
@@ -520,7 +524,7 @@ function Roulette({ width, result, onLanded }: { width: number; result: CardSeri
   return (
     <div ref={ref} className="flex flex-col items-center gap-7 text-center" aria-live="polite">
       <div className="flex items-end gap-5">
-        {CARD_SERIES.map((series, index) => {
+        {LIVE_SERIES.map((series, index) => {
           const on = index === lit
           return (
             <span

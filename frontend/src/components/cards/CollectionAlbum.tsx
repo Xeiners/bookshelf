@@ -13,7 +13,7 @@ import {
   type Ownership,
 } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
-import type { Collection } from '../../services/cardsApi'
+import { LIVE_SERIES, type Collection } from '../../services/cardsApi'
 import { CardZoom } from './CardZoom'
 import { CollectibleCard } from './CollectibleCard'
 
@@ -158,8 +158,9 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null, locke
             className="min-w-0 flex-1 bg-transparent text-sm text-cream outline-none placeholder:text-mist"
           />
         </label>
+        {LIVE_SERIES.length > 1 && (
         <div className="glass flex self-start rounded-full p-1" role="radiogroup" aria-label={t.cards.filters.series}>
-          {(['all', 1, 2, 3] as const).map((series) => (
+          {(['all', ...LIVE_SERIES] as const).map((series) => (
             <button
               key={series}
               type="button"
@@ -172,6 +173,7 @@ export function CollectionAlbum({ data, status, retry, intro, mine = null, locke
             </button>
           ))}
         </div>
+        )}
         <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label={t.cards.filters.rarity}>
           {(['all', ...RARITIES] as const).map((rarity) => {
             const active = filter.rarity === rarity

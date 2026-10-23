@@ -14,6 +14,8 @@ import { StackEmblem } from '../stack/StackEmblem'
 
 export function NewsVisual({ id }: { id: NewsId }) {
   switch (id) {
+    case 'series3':
+      return <Series3Scene />
     case 'edits':
       return <EditsScene />
     case 'activities':
@@ -123,6 +125,33 @@ const TAG_SPOTS = [
   { bottom: '22%', left: '13%' },
   { bottom: '12%', right: '12%' },
 ]
+
+/* ---- Série 3 : les anciennes cartes s'évaporent, le paquet des Personnages s'avance ---------------- */
+
+function Series3Scene() {
+  return (
+    <Stage background="radial-gradient(70% 60% at 60% 45%, #ff5ec455, transparent 70%), radial-gradient(50% 50% at 15% 80%, #ffc46b33, transparent 70%), linear-gradient(160deg, #1d0f33, #0a0716)">
+      <div className="relative flex items-center gap-[8%]">
+        <div className="relative h-28 w-24">
+          {[0, 1, 2].map((index) => (
+            <span
+              key={index}
+              className="absolute inset-0 motion-safe:animate-[news-float_3s_ease-in-out_infinite]"
+              style={{ transform: `rotate(${(index - 1) * 12}deg) translateY(${index * 4}px)`, opacity: 0.35 + index * 0.15, filter: `blur(${2 - index}px) grayscale(0.6)`, animationDelay: `${index * 0.4}s` }}
+            >
+              <CardBack width={80} animated={false} />
+            </span>
+          ))}
+          <Sparkles size={28} className="absolute -top-3 -right-3 text-[#ffc46b] drop-shadow-[0_0_10px_#ffc46b]" />
+        </div>
+        <span className="text-3xl text-cream/60">→</span>
+        <span className="motion-safe:animate-[news-float_3.5s_ease-in-out_infinite]">
+          <BoosterPackArt width={92} series={3} lit halo="MYTHIC" />
+        </span>
+      </div>
+    </Stage>
+  )
+}
 
 /* ---- Activités : le paquet en vedette au-dessus des trois rubriques ------------------------------ */
 

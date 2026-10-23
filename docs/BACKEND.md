@@ -898,6 +898,24 @@ d'essai, puis l'inscription (voir « Invités » plus bas).
 | POST | `/api/boosters/guest/open` | `{ receipts }` | `{ cards, receipt, remaining }` — 409 `guest_limit` après 2 essais ; 12/h par IP |
 | POST | `/api/cards/guest/collection` | `{ receipts }` | album au format de `/cards/collection`, reconstitué depuis les reçus |
 
+**Séries retirées** (`series.ts`, `retirement/`) : dès que la Série 3 est complète, les
+Séries 1 et 2 sont retirées. Seule la Série 3 se tire (le choix de série d'un booster
+n'a plus d'effet), se collectionne (album, vitrine `/boosters/series`, profil) et
+s'échange (offre ou acceptation autour d'une carte retirée : 400 / 409 `series_retired`,
+`offer_closed`) ; l'admin ne peut plus en offrir. Les lignes `Card` restent (le
+BookshelfDLE s'appuie sur leurs œuvres). Les cartes possédées sont converties en
+Poussières, chaque exemplaire au barème des doublons (Commune 5, Rare 10, Épique 25,
+Légendaire 250) et les Mythiques à 1 000 ✦ : au démarrage du serveur pour tous les
+comptes (`retireAll`, qui annule aussi les offres ouvertes concernées), et à chaque
+`GET /cards/retirement` ou inscription d'un invité (cartes d'essai). Une transaction par
+compte (cartes retirées une à une si leur nombre n'a pas bougé, Poussières créditées —
+motif `series_retirement` —, avatar et vitrine libérés, bilan `SeriesRetirement`) :
+deux conversions simultanées n'en font qu'une. Le bilan (`stardust`, `copies`, `cards`,
+`byRarity`, `highlights` : les 36 cartes les plus rares) est renvoyé par
+`GET /api/cards/retirement` (auth) tant que son animation n'a pas été vue ;
+`POST /api/cards/retirement/seen` l'acquitte (204). Recharger la page rejoue
+l'animation sans rien recréditer.
+
 **Base** (migration `cards_and_boosters`) : `UserBooster` (userId, availableBoosters,
 lastClaimedAt, nextBoosterAt), `Card` (id, number, title, characterName, imageUrl,
 rarity, mangaId), `UserCard` (userId, cardId, obtainedAt, isFavorite, count).

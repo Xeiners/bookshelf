@@ -8,6 +8,7 @@ import { GUEST_BOOSTERS } from './guestPacks.js'
 import { characterArt } from './cards.art.js'
 import { CONVERTIBLE_RARITIES, MAX_CONVERT_CARDS } from './duplicates/duplicates.logic.js'
 import { convertDuplicates, duplicatesOf } from './duplicates/duplicates.service.js'
+import { acknowledgeRetirement, pendingRetirement } from './retirement/retirement.service.js'
 import { GIFT_MESSAGE_MAX, SHARE_MAX_CARDS, SHARE_MAX_RECIPIENTS, shareCards } from '../trades/trades.service.js'
 
 /*
@@ -92,6 +93,21 @@ cardsRouter.use(requireAuth)
 cardsRouter.get('/collection', async (req, res) => {
   res.set('Cache-Control', 'no-store')
   res.json(await collectionOf(currentUserId(req)))
+})
+
+/**
+ * Retrait des Séries 1 et 2 : le bilan de la conversion en Poussières, tant que son animation n'a
+ * pas été vue jusqu'au bout (`null` sinon). La conversion elle-même se fait côté serveur, une fois.
+ */
+cardsRouter.get('/retirement', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  res.json({ retirement: await pendingRetirement(currentUserId(req)) })
+})
+
+/** L'animation de conversion a été vue : elle ne revient plus. */
+cardsRouter.post('/retirement/seen', async (req, res) => {
+  await acknowledgeRetirement(currentUserId(req))
+  res.status(204).end()
 })
 
 const FavoriteBody = z.object({ isFavorite: z.boolean() })

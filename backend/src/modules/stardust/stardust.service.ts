@@ -14,7 +14,7 @@ import { BOOSTER_PRICE } from './prices.js'
 
 export { BOOSTER_PRICE }
 
-export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'runner_revive' | 'runner_box' | 'runner_gift' | 'runner_refund' | 'canvas_like' | 'canvas_season' | 'canvas_brush' | 'booster_purchase' | 'guest_claim' | 'daily_reward' | 'page_stack' | 'card_convert'
+export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'runner_revive' | 'runner_box' | 'runner_gift' | 'runner_refund' | 'canvas_like' | 'canvas_season' | 'canvas_brush' | 'booster_purchase' | 'guest_claim' | 'daily_reward' | 'page_stack' | 'card_convert' | 'series_retirement'
 
 /** Crédite (ou débite, `amount` < 0) un compte et inscrit le mouvement, dans la transaction donnée. */
 export async function creditStardust(

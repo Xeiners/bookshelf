@@ -19,6 +19,7 @@ import { CollectibleCard } from '../cards/CollectibleCard'
 import { CreateTradeSheet } from './CreateTradeSheet'
 import { MyTradesSheet } from './MyTradesSheet'
 import { TradeSwapAnimation } from './TradeSwapAnimation'
+import { LIVE_SERIES } from '../../services/cardsApi'
 
 /** Un tap arme le bouton « Échanger » ; sans confirmation dans ce délai, il se désarme. */
 const CONFIRM_WINDOW_MS = 3500
@@ -243,17 +244,14 @@ export function TradingHubView() {
             ]}
             onChange={setSort}
           />
-          <Segmented
-            label={t.cards.filters.series}
-            value={query.series}
-            options={[
-              { value: 'all', label: t.cards.filters.all },
-              { value: 1, label: t.cards.filters.seriesName(1) },
-              { value: 2, label: t.cards.filters.seriesName(2) },
-              { value: 3, label: t.cards.filters.seriesName(3) },
-            ]}
-            onChange={(series) => setQuery({ series })}
-          />
+          {LIVE_SERIES.length > 1 && (
+            <Segmented
+              label={t.cards.filters.series}
+              value={query.series}
+              options={[{ value: 'all', label: t.cards.filters.all }, ...LIVE_SERIES.map((series) => ({ value: series, label: t.cards.filters.seriesName(series) }))]}
+              onChange={(series) => setQuery({ series })}
+            />
+          )}
           <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-cream/80">
             <input
               type="checkbox"

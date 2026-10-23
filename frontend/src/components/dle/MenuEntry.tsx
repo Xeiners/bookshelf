@@ -4,7 +4,7 @@ import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { vibrate } from '../../lib/haptics'
 import type { DleMode, DleOverview } from '../../services/dleApi'
-import { CARD_SERIES, type CardSeries } from '../../services/cardsApi'
+import { LIVE_SERIES, type CardSeries } from '../../services/cardsApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
@@ -108,7 +108,8 @@ export function BoosterEntry({ balance, price }: { balance: number; price: numbe
         icon={busy !== null ? <Loader2 size={22} className="animate-spin" aria-hidden /> : <Zap size={22} className="fill-current" aria-hidden />}
         label={t.dle.home.booster}
         disabled={!affordable || busy !== null}
-        onClick={() => setPicking((value) => !value)}
+        // Une seule série en jeu : on l'achète tout de suite, sans choix à faire.
+        onClick={() => (LIVE_SERIES.length === 1 ? void buy(LIVE_SERIES[0]!) : setPicking((value) => !value))}
         trailing={
           affordable ? (
             <span className="rounded-full px-3 py-1.5 text-sm font-bold text-[#1a0b1f]" style={{ background: STARDUST_GRADIENT }}>
@@ -123,7 +124,7 @@ export function BoosterEntry({ balance, price }: { balance: number; price: numbe
       />
       {picking && affordable && (
         <div className="grid grid-cols-2 gap-2" role="group" aria-label={t.boosters.choose.title}>
-          {CARD_SERIES.map((series) => (
+          {LIVE_SERIES.map((series) => (
             <button
               key={series}
               type="button"

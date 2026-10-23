@@ -259,6 +259,19 @@ export const fr = {
     title: 'Sons des jeux',
     hint: 'Bruitages des jeux et des boosters. La musique d’ambiance a son propre réglage.',
   },
+  retirement: {
+    eyebrow: 'Fin d’une ère',
+    title: 'Les Séries 1 et 2 prennent leur retraite',
+    body: (cards: number, copies: number) =>
+      `Tes ${cards} carte${plural(cards, '', 's')} des Séries 1 et 2 (${copies} exemplaire${plural(copies, '', 's')}) se changent en Poussières ✦, au barème de la vente des doublons. La Série 3 — Personnages — devient la seule en jeu.`,
+    skip: 'Passer',
+    gained: 'Poussières reçues',
+    copies: (count: number) => `${count} ex.`,
+    more: (count: number) => `et ${count} autre${plural(count, '', 's')} carte${plural(count, '', 's')} converties`,
+    balance: (stardust: number) => `Ton solde : ${stardust.toLocaleString('fr-FR')} ✦`,
+    cta: 'Découvrir la Série 3',
+    note: 'Les Poussières sont déjà sur ton compte. Dépense-les à la boutique des Activités.',
+  },
   news: {
     title: 'Actus',
     subtitle: 'Les nouveautés de Bookshelf',
@@ -272,6 +285,12 @@ export const fr = {
     fresh: 'Nouveau',
     unseen: (count: number) => `${count} nouveauté${plural(count, '', 's')}`,
     items: {
+      series3: {
+        tag: 'Cartes',
+        title: 'Place à la Série 3 — Personnages',
+        text: 'Les Séries 1 et 2 prennent leur retraite : leurs cartes ont été converties en Poussières ✦, au barème de la vente des doublons (Mythiques comprises). Les boosters ne contiennent plus que la Série 3 : 1 200 personnages à collectionner.',
+        cta: 'Ouvrir un booster',
+      },
       edits: {
         tag: 'Vidéos',
         title: 'Edits : le fil vertical d’anime',

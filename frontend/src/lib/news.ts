@@ -6,11 +6,11 @@
  * dans la page Actus. Fonctions pures, testées (`frontend/test/news.test.ts`).
  */
 
-export const NEWS_IDS = ['edits', 'activities', 'stack', 'daily', 'dust', 'market', 'library', 'canvas'] as const
+export const NEWS_IDS = ['series3', 'edits', 'activities', 'stack', 'daily', 'dust', 'market', 'library', 'canvas'] as const
 export type NewsId = (typeof NEWS_IDS)[number]
 
 /** Où mène le bouton d'une actu. */
-export type NewsAction = 'edits' | 'activities' | 'stack' | 'daily' | 'collection' | 'market' | 'library' | 'canvas'
+export type NewsAction = 'booster' | 'edits' | 'activities' | 'stack' | 'daily' | 'collection' | 'market' | 'library' | 'canvas'
 
 export interface NewsEntry {
   id: NewsId
@@ -21,6 +21,7 @@ export interface NewsEntry {
 
 /** La plus récente d'abord. */
 export const NEWS: readonly NewsEntry[] = [
+  { id: 'series3', date: '2026-10-23', action: 'booster' },
   { id: 'edits', date: '2026-10-22', action: 'edits' },
   { id: 'activities', date: '2026-10-21', action: 'activities' },
   { id: 'stack', date: '2026-10-19', action: 'stack' },

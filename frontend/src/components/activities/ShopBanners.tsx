@@ -5,7 +5,7 @@ import { apiErrorMessage } from '../../lib/apiErrors'
 import type { BoxKind } from '../../lib/runner/wardrobe'
 import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { CARD_SERIES, type CardSeries } from '../../services/cardsApi'
+import { LIVE_SERIES, type CardSeries } from '../../services/cardsApi'
 import type { Promotion } from '../../services/promotionsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDleStore } from '../../store/useDleStore'
@@ -156,8 +156,8 @@ export function ShopBanners() {
           </span>
         </button>
         {open === 'booster' && (
-          <div className="grid grid-cols-3 gap-2 px-4 pb-4" role="group" aria-label={t.boosters.choose.title}>
-            {CARD_SERIES.map((series) => (
+          <div className="grid gap-2 px-4 pb-4" style={{ gridTemplateColumns: `repeat(${LIVE_SERIES.length}, minmax(0, 1fr))` }} role="group" aria-label={t.boosters.choose.title}>
+            {LIVE_SERIES.map((series) => (
               <button
                 key={series}
                 type="button"
@@ -171,7 +171,7 @@ export function ShopBanners() {
                 {busy === series && <Loader2 size={14} className="animate-spin text-cream/70" aria-hidden />}
               </button>
             ))}
-            <p className="col-span-3 text-center text-[11px] text-cream/50 tabular-nums">{t.activities.shop.balance(balance)}</p>
+            <p className="col-span-full text-center text-[11px] text-cream/50 tabular-nums">{t.activities.shop.balance(balance)}</p>
           </div>
         )}
       </section>

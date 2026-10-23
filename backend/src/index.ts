@@ -4,6 +4,7 @@ import { prisma } from './core/db.js'
 import { aotPortraits, dragonBallPortraits, fireForcePortraits, hxhPortraits, jjkPortraits, jojoPortraits, mhaPortraits, narutoPortraits, onePiecePortraits } from './modules/dle/dle.games.js'
 import { refreshWorkCovers } from './modules/higherlower/hl.covers.js'
 import { ensureSeries3 } from './modules/cards/seeds/series3.seed.js'
+import { retireAll } from './modules/cards/retirement/retirement.service.js'
 import { startCatalogSync } from './modules/catalog/catalog.service.js'
 import { attachCanvas, ensureCanvas, shutdownCanvas } from './modules/canvas/canvas.boot.js'
 import { refuseUnknownUpgrades } from './core/security/socketAuth.js'
@@ -23,6 +24,11 @@ if (config.env !== 'test') {
   // tant qu'elle n'est pas complète (chaque passage reprend où le précédent s'est arrêté).
   ensureSeries3()
   setInterval(() => ensureSeries3(), 5 * 60 * 1000).unref()
+  // Séries 1 et 2 retirées (dès la Série 3 complète) : les cartes de tous les comptes converties en
+  // Poussières. Idempotent ; chaque compte l'est aussi à sa prochaine visite, s'il restait quelque chose.
+  void retireAll()
+    .then(({ users, stardust }) => users > 0 && console.log(`[cartes] Séries 1 et 2 retirées : ${users} compte(s) converti(s), ${stardust} ✦ au total`))
+    .catch((error: unknown) => console.error('[cartes] retrait des séries 1 et 2', error))
 }
 // Mode recette oublié en production : il donnerait des boosters à l'infini, le démarrage est refusé.
 if (config.cards.unlimited && config.env === 'production') {

@@ -80,6 +80,7 @@ model User {
   tradesAccepted TradeOffer[] @relation("TradeResponder")
   notifications  Notification[]
   stardustEntries StardustEntry[]
+  seriesRetirement SeriesRetirement?
   canvasObjects  CanvasObject[]
   canvasLikes    CanvasLike[]
   canvasReports  CanvasReport[]
@@ -334,6 +335,26 @@ model PendingRegistration {
 
 /// Mot de passe oublié : un code à 6 chiffres par e-mail (cf. `src/modules/auth/`).
 /// Même garde-fous que l'inscription ; la ligne disparaît dès le mot de passe changé.
+/// Retrait des Séries 1 et 2 : ce qu'un compte en possédait, converti en Poussières (une ligne par
+/// compte ; des cartes retirées reçues plus tard, boosters d'essai d'un invité devenu membre, s'y
+/// ajoutent). `seenAt` : l'animation de conversion a été vue jusqu'au bout (`null` : à montrer).
+model SeriesRetirement {
+  userId     String    @id
+  /// Poussières créditées, exemplaires et cartes distinctes convertis.
+  stardust   Int
+  copies     Int
+  cards      Int
+  /// JSON : exemplaires et Poussières par rareté.
+  byRarity   String    @default("{}")
+  /// JSON : quelques cartes converties (instantanés, les plus rares d'abord), pour l'animation.
+  highlights String    @default("[]")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  seenAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 /// Reçu d'invité (booster ou Poussières) déjà échangé : il ne vaut qu'une seule fois, tous comptes confondus.
 model GuestReceiptClaim {
   nonce     String   @id
@@ -452,7 +473,7 @@ model StardustEntry {
   id        String   @id @default(cuid())
   userId    String
   amount    Int
-  /// 'dle_daily' | 'dle_room' | 'booster_purchase'
+  /// 'dle_daily' | 'dle_room' | 'booster_purchase' | 'series_retirement'…
   reason    String
   /// JSON propre au motif (jour et mode, salon et rang…).
   data      String   @default("{}")

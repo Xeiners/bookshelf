@@ -5,6 +5,7 @@ import { NEWS, newsDate } from '../../lib/news'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDailyStore } from '../../store/useDailyStore'
 import { useNews } from '../../store/useNews'
+import { useRetirementStore } from '../../store/useRetirementStore'
 import { useUiStore } from '../../store/useUiStore'
 import { runNewsAction } from './newsActions'
 import { NewsVisual } from './NewsVisual'
@@ -25,6 +26,8 @@ export function NewsPopup() {
   const dailyOpen = useDailyStore((state) => state.open)
   const authOpen = useUiStore((state) => state.authOpen)
   const signedIn = useAuthStore((state) => state.user !== null)
+  // La conversion des Séries 1 et 2 passe avant : l'actu attendra.
+  const retiring = useRetirementStore((state) => state.retirement !== null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => useNews.getState().showIfNew(), OPEN_DELAY_MS)
@@ -32,7 +35,7 @@ export function NewsPopup() {
   }, [])
 
   const latest = NEWS[0]
-  if (!open || !latest || (signedIn && dailyOpen) || authOpen) return null
+  if (!open || !latest || (signedIn && dailyOpen) || authOpen || retiring) return null
   const copy = t.news.items[latest.id]
   const close = () => useNews.getState().closePopup()
 

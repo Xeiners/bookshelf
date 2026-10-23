@@ -10,6 +10,7 @@ import { booksFor, findWork } from '../catalog/catalog.service.js'
 import { photoOwner, withPublicPhoto } from './avatarUpload.js'
 import type { ProfilePatch } from './profile.schemas.js'
 import { isUnlocked, titlesFor, type ProfileStats, type TitleId } from './titles.js'
+import { liveCardFilter } from '../cards/series.js'
 
 /*
  * Profil d'un compte : présentation (pseudo, bio, titre), avatar et vitrine de
@@ -63,8 +64,8 @@ export function parseFeatured(raw: string): string[] {
 
 export async function profileStats(userId: string): Promise<ProfileStats> {
   const [setByRarity, owned, statuses, chapters, novels, novelsStarted, novelsFinished, user, dle, higherLower] = await Promise.all([
-    prisma.card.groupBy({ by: ['rarity'], _count: { _all: true } }),
-    prisma.userCard.findMany({ where: { userId }, select: { count: true, card: { select: { rarity: true } } } }),
+    prisma.card.groupBy({ by: ['rarity'], where: await liveCardFilter(), _count: { _all: true } }),
+    prisma.userCard.findMany({ where: { userId, card: await liveCardFilter() }, select: { count: true, card: { select: { rarity: true } } } }),
     prisma.libraryEntry.groupBy({ by: ['status'], where: { userId }, _count: { _all: true } }),
     prisma.libraryEntry.aggregate({ where: { userId }, _sum: { chaptersRead: true } }),
     prisma.userBook.count({ where: { userId } }),

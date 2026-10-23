@@ -34,6 +34,8 @@ import {
 } from './boosters.logic.js'
 import { GUEST_BOOSTERS, readGuestPacks, signGuestPack, type GuestPack } from './guestPacks.js'
 import { SERIES_2, seedSeries2 } from './seeds/series2.seed.js'
+import { liveCardFilter, seriesRetired } from './series.js'
+import { retireUser } from './retirement/retirement.service.js'
 import { SERIES_3_SIZE, ensureSeries3 } from './seeds/series3.seed.js'
 
 /*
@@ -203,7 +205,8 @@ export async function ensureCardSet(): Promise<{ id: string; rarity: string; ser
   if (series1Count >= SET_SIZE && (await prisma.card.count({ where: { series: SERIES_2 } })) >= SET_SIZE) {
     if ((await prisma.card.count({ where: { series: 3, mangaTitle: { not: '' } } })) < SERIES_3_SIZE) ensureSeries3()
   }
-  return prisma.card.findMany({ select: { id: true, rarity: true, series: true } })
+  // Séries 1 et 2 retirées (Série 3 complète) : seules les cartes en jeu se tirent.
+  return prisma.card.findMany({ where: await liveCardFilter(), select: { id: true, rarity: true, series: true } })
 }
 
 /** Les cartes d'une série (choisie, ou tirée à la roulette) ; 503 si aucune carte n'est prête. */
@@ -229,8 +232,9 @@ let showcase: { at: number; value: SeriesShowcase[] } | null = null
 /** Les séries prêtes et de quoi illustrer leurs boosters (mis en cache 10 min). */
 export async function seriesShowcase(now = Date.now()): Promise<SeriesShowcase[]> {
   // Une série encore en préparation (la 3, en arrière-plan) : on revérifie vite.
-  if (showcase && now - showcase.at < (showcase.value.length === CARD_SERIES.length ? 10 * 60 * 1000 : 30 * 1000)) return showcase.value
-  const cards = await prisma.card.findMany({ select: { series: true, rarity: true, imageUrl: true, number: true }, orderBy: { number: 'asc' } })
+  const retired = await seriesRetired()
+  if (showcase && now - showcase.at < (retired || showcase.value.length === CARD_SERIES.length ? 10 * 60 * 1000 : 30 * 1000)) return showcase.value
+  const cards = await prisma.card.findMany({ where: await liveCardFilter(), select: { series: true, rarity: true, imageUrl: true, number: true }, orderBy: { number: 'asc' } })
   const rank = (rarity: string) => (isRarity(rarity) ? RARITIES.indexOf(rarity) : -1)
   const value = CARD_SERIES.flatMap((series) => {
     const own = cards.filter((card) => card.series === series)
@@ -514,7 +518,7 @@ export async function collectionOf(userId: string): Promise<Collection> {
 
 /** Tout le set, dans l'ordre de l'album, avec ce qui est possédé. */
 async function buildCollection(mine: ReadonlyMap<string, Owned>): Promise<Collection> {
-  const cards = await prisma.card.findMany({ orderBy: { number: 'asc' } })
+  const cards = await prisma.card.findMany({ where: await liveCardFilter(), orderBy: { number: 'asc' } })
   const byRarity = Object.fromEntries(Object.keys(SET_LAYOUT).map((rarity) => [rarity, { total: 0, owned: 0 }])) as Collection['byRarity']
   const entries = cards.map((card): CollectionEntry => {
     const entry = mine.get(card.id)
@@ -632,5 +636,7 @@ export async function claimGuestPacks(userId: string, receipts: readonly string[
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') claimed = 0
       else throw error
     })
+  // Cartes d'essai des séries retirées : converties en Poussières, comme celles des autres comptes.
+  if (claimed > 0) await retireUser(userId)
   return claimed
 }

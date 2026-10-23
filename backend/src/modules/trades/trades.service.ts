@@ -5,6 +5,7 @@ import type { Rarity } from '../cards/boosters.logic.js'
 import { toCardDto, type CardDto } from '../cards/cards.service.js'
 import { createNotification, notifyTradeMatch } from '../notifications/notifications.service.js'
 import { parseFeatured } from '../users/profile.service.js'
+import { RETIRED_SERIES, seriesRetired } from '../cards/series.js'
 
 /*
  * Marché d'échange de doublons. Un compte propose un doublon contre une carte
@@ -167,10 +168,13 @@ export async function createOffer(userId: string, input: { offeredCardId: string
   const { offeredCardId, requestedCardId } = input
   if (offeredCardId === requestedCardId) throw badRequest('Propose une autre carte que celle que tu demandes.', 'same_card')
   const [offered, requested] = await Promise.all([
-    prisma.card.findUnique({ where: { id: offeredCardId }, select: { rarity: true } }),
-    prisma.card.findUnique({ where: { id: requestedCardId }, select: { rarity: true } }),
+    prisma.card.findUnique({ where: { id: offeredCardId }, select: { rarity: true, series: true } }),
+    prisma.card.findUnique({ where: { id: requestedCardId }, select: { rarity: true, series: true } }),
   ])
   if (!offered || !requested) throw notFound('Carte inconnue.')
+  if ((await seriesRetired()) && (RETIRED_SERIES.includes(offered.series) || RETIRED_SERIES.includes(requested.series))) {
+    throw badRequest('Les cartes des séries retirées ne s’échangent plus.', 'series_retired')
+  }
   if (offered.rarity !== requested.rarity) throw badRequest('Un échange se fait entre cartes de même rareté.', 'rarity_mismatch')
 
   const row = await prisma.$transaction(async (tx) => {
@@ -245,9 +249,15 @@ const receive = (tx: Prisma.TransactionClient, userId: string, cardId: string, n
  *  4. chacun reçoit la carte de l'autre.
  */
 export async function acceptOffer(offerId: string, responderId: string, now = new Date()): Promise<TradeResult> {
+  const retired = await seriesRetired()
   const row = await prisma.$transaction(async (tx) => {
-    const offer = await tx.tradeOffer.findUnique({ where: { id: offerId }, select: { userId: true, status: true, offeredCardId: true, requestedCardId: true } })
+    const offer = await tx.tradeOffer.findUnique({
+      where: { id: offerId },
+      select: { userId: true, status: true, offeredCardId: true, requestedCardId: true, offeredCard: { select: { series: true } }, requestedCard: { select: { series: true } } },
+    })
     if (!offer) throw notFound('Offre introuvable.')
+    // Une offre autour d'une série retirée (pas encore annulée par le retrait) ne se conclut plus.
+    if (retired && (RETIRED_SERIES.includes(offer.offeredCard.series) || RETIRED_SERIES.includes(offer.requestedCard.series))) throw offerClosed()
     if (offer.userId === responderId) throw badRequest('Tu ne peux pas accepter ta propre offre.', 'own_offer')
     if (offer.status !== 'OPEN') throw offerClosed()
     const { userId: ownerId, offeredCardId, requestedCardId } = offer

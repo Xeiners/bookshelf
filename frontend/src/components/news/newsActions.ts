@@ -21,6 +21,9 @@ export function runNewsAction(action: NewsAction): void {
     case 'edits':
       ui.openEdits()
       return
+    case 'booster':
+      ui.openBooster()
+      return
     case 'activities':
       ui.openActivity('hub', 'cards')
       return

@@ -48,6 +48,7 @@ import { RecordRewardModal } from './components/rewards/RecordRewardModal'
 import { GiftReveal } from './components/cards/GiftReveal'
 import { NewsPage } from './components/news/NewsPage'
 import { NewsPopup } from './components/news/NewsPopup'
+import { SeriesRetirementGate } from './components/cards/SeriesRetirementOverlay'
 import { useNews } from './store/useNews'
 
 // Le lecteur (et ses moteurs) n'est téléchargé qu'à la première lecture.
@@ -315,6 +316,7 @@ export default function App() {
       {notificationsOpen && <NotificationCenter />}
       <DailyRewardModal />
       <NewsPopup />
+      <SeriesRetirementGate />
       {newsPage && <NewsPage />}
       <RecordRewardModal />
       <NotificationBanner />

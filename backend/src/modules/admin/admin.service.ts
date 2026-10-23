@@ -8,6 +8,7 @@ import { photoOwner, removeAvatar } from '../users/avatarUpload.js'
 import { profileStats } from '../users/profile.service.js'
 import type { ProfileStats } from '../users/titles.js'
 import { isAdminEmail } from './admin.access.js'
+import { RETIRED_SERIES, liveCardFilter, seriesRetired } from '../cards/series.js'
 
 /*
  * Administration : voir et chercher les comptes, leur offrir des boosters ou
@@ -238,6 +239,7 @@ export async function giftCard(admin: Admin, userId: string, cardId: string, cou
   await requireUser(userId)
   const card = await prisma.card.findUnique({ where: { id: cardId } })
   if (!card) throw notFound('Carte inconnue.')
+  if ((await seriesRetired()) && RETIRED_SERIES.includes(card.series)) throw badRequest('Cette carte appartient à une série retirée.', 'series_retired')
   const dto = toCardDto(card)
   const owned = await prisma.$transaction(async (tx) => {
     const row = await tx.userCard.upsert({
@@ -339,9 +341,11 @@ export async function moderateUser(admin: Admin, userId: string, moderation: Mod
 
 export async function searchCards(q: string): Promise<CardDto[]> {
   const query = q.trim()
+  const live = await liveCardFilter()
   const cards = await prisma.card.findMany({
     where: query
       ? {
+          ...live,
           OR: [
             { name: { contains: query } },
             { title: { contains: query } },
@@ -351,7 +355,7 @@ export async function searchCards(q: string): Promise<CardDto[]> {
             ...(/^\d+$/.test(query) ? [{ number: Number(query) }] : []),
           ],
         }
-      : {},
+      : live,
     orderBy: { number: 'asc' },
     take: 40,
   })
