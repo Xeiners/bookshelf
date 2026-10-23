@@ -68,6 +68,17 @@ export const RARITY_STYLE: Record<Rarity, RarityStyle> = {
   MYTHIC: { color: '#ff5ec4', holo: true, dramatic: true },
 }
 
+/**
+ * Où une carte est sortie du booster (ouverture deluxe), en pixels de la fenêtre : son
+ * centre, sa largeur et son inclinaison. Le paquet de révélation part de là.
+ */
+export interface CardOrigin {
+  x: number
+  y: number
+  width: number
+  rotation: number
+}
+
 export const rarityRank = (rarity: Rarity) => RARITIES.indexOf(rarity)
 
 /** La plus rare d'une série de cartes (couleur du booster ouvert, par exemple). */

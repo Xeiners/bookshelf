@@ -3,7 +3,7 @@ import { Dices, FlaskConical, Gift, Megaphone, Users, X, Zap } from 'lucide-reac
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
-import { RARITIES, RARITY_STYLE, baitRarity, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
+import { RARITIES, RARITY_STYLE, baitRarity, type CardOrigin, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playHlTick, playTear } from '../../lib/sfx'
@@ -65,6 +65,8 @@ export function BoosterPackModal() {
   const [cards, setCards] = useState<PulledCard[]>([])
   /** Lueur-appât du paquet, tirée avec son contenu : la vraie couleur attend la fin. */
   const [bait, setBait] = useState<Rarity | null>(null)
+  /** Deluxe : où chaque carte est sortie du booster ; le paquet de révélation en part. */
+  const [origins, setOrigins] = useState<CardOrigin[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [burst, setBurst] = useState<Burst | null>(null)
   /** Carte révélée affichée en grand, avec son résumé. */
@@ -198,6 +200,7 @@ export function BoosterPackModal() {
     setSharing(null)
     setCards([])
     setBait(null)
+    setOrigins(null)
     setError(null)
     setBurst(null)
     setChoice(null)
@@ -307,8 +310,12 @@ export function BoosterPackModal() {
               torn={stage === 'tearing'}
               onTear={tear}
               onSparks={sparks}
-              onTorn={() => setStage('reveal')}
+              onTorn={(emerged) => {
+                setOrigins(emerged ?? null)
+                setStage('reveal')
+              }}
               deluxe={deluxe}
+              count={cards.length}
             />
             <p className="text-center text-xs tracking-[0.2em] text-cream/60 uppercase" aria-live="polite">
               {stage === 'summoning' ? t.boosters.summoning : stage === 'tearing' ? t.boosters.opening : t.boosters.swipeToOpen}
@@ -327,6 +334,7 @@ export function BoosterPackModal() {
             onInspect={setInspected}
             selection={sharing && { picked: sharing, toggle: toggleShared }}
             deluxe={deluxe}
+            origins={origins}
             footer={
               stage !== 'done' ? null : sharing ? (
                 <ShareActions count={sharing.size} onCancel={() => setSharing(null)} onPick={() => setPickingMembers(true)} />

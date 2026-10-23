@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import { useT } from '../../i18n'
-import { RARITY_STYLE, rarityRank, type Rarity } from '../../lib/boosters'
+import { RARITY_STYLE, rarityRank, type CardOrigin, type Rarity } from '../../lib/boosters'
 import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playDeal, playFlip, playHlSlide, playReveal, playRiser } from '../../lib/sfx'
@@ -34,18 +34,6 @@ const STAGING: Record<Rarity, Staging> = {
   MYTHIC: { suspense: 0.3, flip: 1.05, shake: 13, burst: { colors: RAINBOW, count: 170, kind: 'confetti' }, flash: 1 },
 }
 
-/**
- * Ouverture « deluxe » (en essai, réservée aux admins) : retournements plus vifs, suspense
- * plus court ; les grandes cartes gardent leur moment, mais la suivante n'attend plus.
- */
-const STAGING_DELUXE: Record<Rarity, Staging> = {
-  COMMON: { ...STAGING.COMMON, flip: 0.36, flash: 0.6 },
-  RARE: { ...STAGING.RARE, flip: 0.4 },
-  EPIC: { ...STAGING.EPIC, suspense: 0.16, flip: 0.5 },
-  LEGENDARY: { ...STAGING.LEGENDARY, suspense: 0.22, flip: 0.6 },
-  MYTHIC: { ...STAGING.MYTHIC, suspense: 0.26, flip: 0.7 },
-}
-
 /** Intensité des rayons derrière la carte révélée, par rang (deluxe). */
 const RAYS = [0.18, 0.4, 0.7, 0.9, 1]
 
@@ -65,11 +53,13 @@ interface CardRevealProps {
   /** Mode « Informer » : toucher une carte la coche ou la décoche (index dans le tirage). */
   selection?: { picked: ReadonlySet<number>; toggle: (index: number) => void } | null
   /**
-   * Ouverture deluxe (essai admin) : retournements raccourcis, un toucher pendant le
-   * retournement l'accélère et fait passer la carte, la suivante se retourne pendant que la
-   * précédente repart ; rayons de lumière, nom de la rareté et pastilles de progression.
+   * Ouverture deluxe (essai admin) : même rythme, gestes plus coulés — un toucher pendant le
+   * retournement est gardé (la carte passera ensuite), la suivante se retourne dès que le
+   * paquet est en place ; rayons de lumière, nom de la rareté et pastilles de progression.
    */
   deluxe?: boolean
+  /** Deluxe : où chaque carte est sortie du booster ; le paquet se forme à partir de là. */
+  origins?: CardOrigin[] | null
 }
 
 /**
@@ -83,7 +73,7 @@ interface CardRevealProps {
  *   traverse la carte, onde de choc et explosion de particules — plus ample
  *   à chaque rang.
  */
-export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onInspect, footer, selection, deluxe = false }: CardRevealProps) {
+export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onInspect, footer, selection, deluxe = false, origins = null }: CardRevealProps) {
   const { columns, width, gap } = layout
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -107,7 +97,6 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
   const queued = useRef<{ direction: 1 | -1; count: number }>({ direction: 1, count: 0 })
   /** Dernière carte révélée (deluxe) : son nom de rareté et la couleur des rayons. */
   const [spot, setSpot] = useState<number | null>(null)
-  const staging = deluxe ? STAGING_DELUXE : STAGING
   const busy = useRef<Set<number>>(new Set())
   /** Cartes retournées, lues par les minuteurs de « Tout révéler » (l'état React y serait périmé). */
   const done = useRef<Set<number>>(new Set())
@@ -122,7 +111,7 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
       if (!pulled) return
       busy.current.add(index)
       const { rarity } = pulled.card
-      const stage = staging[rarity]
+      const stage = STAGING[rarity]
       const tier = rarityRank(rarity)
       const card = `[data-reveal-card="${index}"]`
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -309,7 +298,8 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
       // Deluxe : pas besoin d'attendre la fin du retournement — il file, puis la carte passe.
       if (!deluxe || !busy.current.has(top)) return false
       enqueue(direction)
-      flips.current.get(top)?.timeScale(3.5)
+      // Le geste presse un peu le retournement, sans le brusquer.
+      flips.current.get(top)?.timeScale(1.6)
       return true
     }
     if (deluxe) {
@@ -344,9 +334,8 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
   }
 
   /**
-   * Deluxe : la carte est lancée sur le côté (en arc) et revient au fond du paquet ; la
-   * suivante monte et se retourne PENDANT ce temps, et un nouveau geste est permis presque
-   * aussitôt.
+   * Deluxe : la carte est lancée sur le côté (en arc) et revient au fond du paquet, le paquet
+   * avance d'un même mouvement continu, et la suivante se retourne dès qu'il est en place.
    */
   const passDeluxe = (top: number, direction: 1 | -1) =>
     contextSafe(() => {
@@ -373,23 +362,23 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
       timeline
         .to(slot, {
           x: `+=${direction * Math.min(380, window.innerWidth * 0.72)}`,
-          y: '-=36',
-          rotation: direction * 30,
-          duration: 0.22,
-          ease: 'power2.in',
+          y: '-=30',
+          rotation: direction * 24,
+          duration: 0.32,
+          ease: 'sine.in',
           overwrite: 'auto',
         })
         .set(slot, { zIndex: back.zIndex })
-        .to(slot, { ...back, duration: 0.38, ease: 'power3.out' })
-      rest.forEach((index, position) => timeline.to(slotOf(index), { ...place(position, index), duration: 0.32, ease: 'power3.out', overwrite: 'auto' }, 0.06))
+        .to(slot, { ...back, duration: 0.55, ease: 'power3.out' })
+      rest.forEach((index, position) => timeline.to(slotOf(index), { ...place(position, index), duration: 0.5, ease: 'power2.inOut', overwrite: 'auto' }, 0.14))
       if (!last)
         timeline.add(() => {
           moving.current = false
           revealTop()
           // Geste déjà reçu pour celle-ci : son retournement file.
           const upcoming = order.current[0]
-          if (queued.current.count > 0 && upcoming !== undefined) flips.current.get(upcoming)?.timeScale(3.5)
-        }, 0.12)
+          if (queued.current.count > 0 && upcoming !== undefined) flips.current.get(upcoming)?.timeScale(1.6)
+        }, 0.55)
     })()
 
   /** « Passer » : tout se retourne d'un coup et le récapitulatif s'affiche. */
@@ -417,14 +406,25 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
         const target = place(index, index)
         const slot = slotOf(index)
         if (reduced) timeline.set(slot, target, 0)
-        else if (deluxe)
-          // Deluxe : le paquet jaillit en éventail serré, en tournoyant légèrement.
+        else if (deluxe && origins?.[index] && slot) {
+          // Deluxe : chaque carte part de là où elle est sortie du booster (même dos, même
+          // taille, même inclinaison) et descend se ranger dans le paquet.
+          const origin = origins[index]
+          const box = slot.getBoundingClientRect()
           timeline.fromTo(
             slot,
-            { ...target, y: target.y + 300, rotation: (index % 2 ? 1 : -1) * 14, scale: target.scale * 0.7, autoAlpha: 0 },
-            { ...target, autoAlpha: 1, duration: 0.5, ease: 'back.out(1.4)' },
-            (cards.length - 1 - index) * 0.05,
+            {
+              x: origin.x - (box.left + box.width / 2),
+              y: origin.y - (box.top + box.height / 2),
+              scale: origin.width / width,
+              rotation: origin.rotation,
+              zIndex: target.zIndex,
+              autoAlpha: 1,
+            },
+            { ...target, duration: 0.8, ease: 'power3.inOut' },
+            (cards.length - 1 - index) * 0.07,
           )
+        }
         else
           timeline.fromTo(
             slot,
@@ -433,9 +433,7 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
             (cards.length - 1 - index) * 0.08,
           )
       })
-      if (!reduced) timeline.add(() => playDeal(0), 0)
-      // Deluxe : la première carte commence à se retourner avant que le paquet soit posé.
-      if (deluxe && !reduced) timeline.add(revealTop, '-=0.22')
+      if (!reduced && !origins) timeline.add(() => playDeal(0), 0)
     },
     { scope: rootRef },
   )
