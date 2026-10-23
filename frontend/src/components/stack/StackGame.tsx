@@ -5,6 +5,7 @@ import { chooseCovers, coverList, loadCovers } from '../../lib/stack/covers'
 import { outcomeOf, pageCount, type StackOutcome } from '../../lib/stack/engine'
 import { TOWER_SIZE, towerSource } from '../../lib/stack/tower'
 import { Board, popScore } from './board'
+import { SfxVolume } from '../ui/SfxVolume'
 
 /** Après la chute de la dernière page, le temps de la voir tomber avant le bilan. */
 const OVER_DELAY = 1.05
@@ -154,6 +155,9 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
       >
         <X size={18} />
       </button>
+      <span data-stack-ui className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 grid size-10 place-items-center rounded-full border border-white/20 bg-black/30 backdrop-blur-sm">
+        <SfxVolume />
+      </span>
       {hint && (
         <p className="pointer-events-none absolute inset-x-0 bottom-[12%] animate-pulse text-center text-sm font-semibold tracking-wide text-white/90 drop-shadow-[0_2px_8px_rgba(30,10,70,0.8)]">
           {t.stack.game.hint}

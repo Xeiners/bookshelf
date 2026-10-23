@@ -1,6 +1,6 @@
 import { useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useT } from '../../i18n'
-import type { Rarity } from '../../lib/boosters'
+import { RARITY_STYLE, type Rarity } from '../../lib/boosters'
 import type { CardSeries } from '../../services/cardsApi'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
@@ -27,6 +27,8 @@ interface BoosterOpeningAnimationProps {
   onTorn: () => void
   /** Série du paquet (son illustration) ; `null` tant que la roulette n'a pas parlé. */
   series?: CardSeries | null
+  /** Ouverture deluxe (essai admin) : arrivée plus vive, colonne de lumière à l'arrachement, sortie plus courte. */
+  deluxe?: boolean
 }
 
 /**
@@ -37,7 +39,7 @@ interface BoosterOpeningAnimationProps {
  * (ou relâchée aux trois quarts), la bande s'arrache, une gerbe d'étincelles
  * jaillit, le paquet s'enfonce hors champ ; relâchée trop tôt, elle se recolle.
  */
-export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSparks, onTorn, series = null }: BoosterOpeningAnimationProps) {
+export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSparks, onTorn, series = null, deluxe = false }: BoosterOpeningAnimationProps) {
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   /** Découpe en cours : point de départ, avancement (0 → 1), dernières étincelles et vibrations. */
@@ -48,15 +50,18 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
   useGSAP(
     () => {
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const arrival = deluxe ? 0.8 : 1.15
       gsap.fromTo(
         '[data-pack-body]',
-        { scale: 0.42, y: 90, rotationX: 28, transformPerspective: 1100, autoAlpha: 0 },
-        { scale: 1, y: 0, rotationX: 0, autoAlpha: 1, duration: 1.15, ease: 'power3.out' },
+        deluxe
+          ? { scale: 0.3, y: 140, rotationX: 40, rotationZ: -12, transformPerspective: 1100, autoAlpha: 0 }
+          : { scale: 0.42, y: 90, rotationX: 28, transformPerspective: 1100, autoAlpha: 0 },
+        { scale: 1, y: 0, rotationX: 0, rotationZ: 0, autoAlpha: 1, duration: arrival, ease: deluxe ? 'back.out(1.2)' : 'power3.out' },
       )
-      gsap.fromTo('[data-pack-shadow]', { scale: 0.3, autoAlpha: 0 }, { scale: 1, autoAlpha: 0.7, duration: 1.15, ease: 'power3.out' })
+      gsap.fromTo('[data-pack-shadow]', { scale: 0.3, autoAlpha: 0 }, { scale: 1, autoAlpha: 0.7, duration: arrival, ease: 'power3.out' })
       if (reduced) return
-      gsap.to('[data-pack-float]', { y: -16, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 1.1 })
-      gsap.to('[data-pack-shadow]', { scale: 0.78, autoAlpha: 0.38, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 1.1 })
+      gsap.to('[data-pack-float]', { y: -16, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: arrival - 0.05 })
+      gsap.to('[data-pack-shadow]', { scale: 0.78, autoAlpha: 0.38, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: arrival - 0.05 })
       gsap.to('[data-pack-float]', { rotationY: 11, rotationX: 4, transformPerspective: 1100, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
       gsap.fromTo('[data-pack-shine]', { xPercent: -170 }, { xPercent: 260, duration: 2.2, ease: 'power1.inOut', repeat: -1, repeatDelay: 1.3 })
     },
@@ -78,6 +83,25 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
       if (!torn) return
       gsap.killTweensOf(['[data-pack-float]', '[data-pack-shadow]'])
       const strip = rootRef.current?.querySelector('[data-pack-strip]')
+      if (deluxe) {
+        // Deluxe : un frisson bref, la bande s'arrache, une colonne de lumière jaillit du paquet
+        // ouvert, puis il s'efface vers le bas — les cartes arrivent bien plus tôt.
+        gsap
+          .timeline({ onComplete: onTorn })
+          .to('[data-pack-float]', { x: 3, rotation: 0.6, duration: 0.04, repeat: 3, yoyo: true, ease: 'none' })
+          .add(() => {
+            const box = strip?.getBoundingClientRect()
+            if (box) onSparks(box.left + box.width / 2, box.bottom, 90)
+          })
+          .to('[data-pack-strip]', { transformOrigin: '100% 100%', x: 190, y: -230, rotation: 60, autoAlpha: 0, duration: 0.45, ease: 'power2.in' }, '<')
+          .fromTo('[data-pack-beam]', { scaleY: 0, autoAlpha: 0 }, { scaleY: 1, autoAlpha: 1, duration: 0.3, ease: 'power3.out' }, '<')
+          .fromTo('[data-pack-flash]', { scale: 0.2, autoAlpha: 0 }, { scale: 1.9, autoAlpha: 1, duration: 0.22, ease: 'power2.out' }, '<0.05')
+          .to('[data-pack-flash]', { autoAlpha: 0, duration: 0.4, ease: 'power1.in' })
+          .to('[data-pack-beam]', { scaleX: 2.2, autoAlpha: 0, duration: 0.45, ease: 'power2.in' }, '<')
+          .to('[data-pack-float]', { y: 300, scale: 0.9, autoAlpha: 0, duration: 0.42, ease: 'power3.in' }, '<-0.1')
+          .to('[data-pack-shadow]', { scale: 0.2, autoAlpha: 0, duration: 0.35 }, '<')
+        return
+      }
       gsap
         .timeline({ onComplete: onTorn })
         .to('[data-pack-float]', { x: 4, rotation: 0.8, duration: 0.045, repeat: 7, yoyo: true, ease: 'none' })
@@ -196,6 +220,21 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
           </div>
         </div>
       </button>
+      {deluxe && (
+        // Colonne de lumière qui jaillit du haut du paquet à l'arrachement (couleur du halo).
+        <div
+          data-pack-beam
+          aria-hidden
+          className="pointer-events-none absolute bottom-[88%] left-1/2 h-[140%] origin-bottom -translate-x-1/2 opacity-0 blur-[2px]"
+          style={{
+            width: width * 0.62,
+            background: `linear-gradient(to top, #ffffff, ${halo ? RARITY_STYLE[halo].color : '#ffc46b'} 30%, transparent)`,
+            maskImage: 'linear-gradient(to right, transparent, #000 30%, #000 70%, transparent)',
+            WebkitMaskImage: 'linear-gradient(to right, transparent, #000 30%, #000 70%, transparent)',
+            mixBlendMode: 'screen',
+          }}
+        />
+      )}
       {/* Ombre portée au sol. */}
       <div
         data-pack-shadow

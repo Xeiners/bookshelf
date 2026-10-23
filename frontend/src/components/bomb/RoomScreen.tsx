@@ -14,7 +14,7 @@ import { useUiStore } from '../../store/useUiStore'
 import { CardAvatar } from '../profile/CardAvatar'
 import { DleBar } from '../dle/DleBar'
 import { STARDUST_GRADIENT } from '../dle/dleStyle'
-import { SoundToggle } from '../higherlower/SoundToggle'
+import { SfxVolume } from '../ui/SfxVolume'
 import { Bomb } from './Bomb'
 import { TypedWord, WordInput } from './BombParts'
 import { Arena } from './Arena'
@@ -64,7 +64,7 @@ export function RoomScreen({ room, me }: { room: BombRoomView; me: string }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <DleBar label={t.bomb.room.leave} onBack={() => void leaveRoom()} danger={room.phase === 'playing'}>
         <span className="rounded-full bg-white/[0.06] px-2.5 py-1 font-mono text-xs tracking-[0.18em] text-cream/85">{displayRoomCode(room.code)}</span>
-        <SoundToggle />
+        <SfxVolume />
       </DleBar>
       {room.phase === 'lobby' ? <Lobby room={room} me={me} /> : <Table room={room} me={me} />}
     </div>

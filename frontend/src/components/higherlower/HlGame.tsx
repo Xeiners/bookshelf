@@ -9,7 +9,7 @@ import type { HlChoice, HlGuessResult } from '../../services/higherLowerApi'
 import { hlSound, useHigherLowerStore } from '../../store/useHigherLowerStore'
 import { DleBar } from '../dle/DleBar'
 import { HlCard } from './HlCard'
-import { SoundToggle } from './SoundToggle'
+import { SfxVolume } from '../ui/SfxVolume'
 import { HL_DOWN, HL_GRADIENT, HL_UP } from './hlStyle'
 import { inkText } from '../../lib/ink'
 
@@ -207,7 +207,7 @@ export function HlGame() {
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <DleBar label={t.hl.quit} onBack={onQuit} danger={streak > 0}>
-        <SoundToggle />
+        <SfxVolume />
         {/* Chances : un cœur par erreur encore permise. */}
         <span className="inline-flex items-center gap-0.5" aria-label={t.hl.livesAria(lives)}>
           {Array.from({ length: maxLives }, (_, index) => (

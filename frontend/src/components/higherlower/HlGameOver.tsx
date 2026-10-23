@@ -9,7 +9,7 @@ import { playHlOver, playHlStart, playHlTier, playReveal } from '../../lib/sfx'
 import { hlSound, useHigherLowerStore, useStardustBalance } from '../../store/useHigherLowerStore'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
-import { SoundToggle } from './SoundToggle'
+import { SfxVolume } from '../ui/SfxVolume'
 import { MetricIcon } from './MetricIcon'
 import { HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE } from './hlStyle'
 import { inkText } from '../../lib/ink'
@@ -69,7 +69,7 @@ export function HlGameOver() {
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <DleBar label={t.hl.title} onBack={openHome}>
-        <SoundToggle />
+        <SfxVolume />
         <StardustBadge balance={balance} />
       </DleBar>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-10">

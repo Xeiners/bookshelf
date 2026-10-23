@@ -16,8 +16,50 @@
  */
 import type { Rarity } from './boosters'
 
+/* ---- Volume des bruitages (tous les jeux) ------------------------------------------------ */
+
+const VOLUME_KEY = 'bookshelf:sfx:volume'
+/** Ancien réglage « couper les bruitages » du Higher or Lower : repris comme volume 0. */
+const LEGACY_MUTED_KEY = 'bookshelf.hl.muted'
+
+function savedVolume(): number {
+  try {
+    const raw = localStorage.getItem(VOLUME_KEY)
+    if (raw !== null) {
+      const value = Number(raw)
+      if (Number.isFinite(value)) return Math.round(Math.min(100, Math.max(0, value)))
+    }
+    if (localStorage.getItem(LEGACY_MUTED_KEY) === '1') return 0
+  } catch {
+    // Stockage indisponible : volume plein.
+  }
+  return 100
+}
+
+let volume = typeof window === 'undefined' ? 100 : savedVolume()
+
+/** Gain de sortie pour un volume 0-100 : courbe au carré, plus naturelle à l'oreille qu'une droite. */
+const outputGain = (value: number) => 0.8 * (value / 100) ** 2
+
+export function getSfxVolume(): number {
+  return volume
+}
+
+/** Volume des bruitages (0-100), gardé sur l'appareil ; 0 : aucun son n'est même synthétisé. */
+export function setSfxVolume(next: number): void {
+  volume = Math.round(Math.min(100, Math.max(0, next)))
+  try {
+    localStorage.setItem(VOLUME_KEY, String(volume))
+  } catch {
+    // Stockage indisponible : le réglage vaut pour la visite.
+  }
+  if (engine) engine.master.gain.setTargetAtTime(outputGain(volume), engine.ctx.currentTime, 0.03)
+}
+
 interface Engine {
   ctx: AudioContext
+  /** Sortie générale : le volume réglé par le joueur. */
+  master: GainNode
   /** Entrée sèche (vers le compresseur). */
   dry: GainNode
   /** Envoi vers la réverbération. */
@@ -45,7 +87,7 @@ function impulse(ctx: AudioContext, seconds: number, decay: number): AudioBuffer
 }
 
 function start(): Engine | null {
-  if (typeof window === 'undefined' || !('AudioContext' in window)) return null
+  if (typeof window === 'undefined' || !('AudioContext' in window) || volume === 0) return null
   try {
     if (!engine) {
       const ctx = new AudioContext()
@@ -53,7 +95,7 @@ function start(): Engine | null {
       compressor.threshold.value = -18
       compressor.ratio.value = 3
       const master = ctx.createGain()
-      master.gain.value = 0.8
+      master.gain.value = outputGain(volume)
       compressor.connect(master).connect(ctx.destination)
 
       const dry = ctx.createGain()
@@ -67,7 +109,7 @@ function start(): Engine | null {
       const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
       const data = noise.getChannelData(0)
       for (let index = 0; index < data.length; index += 1) data[index] = Math.random() * 2 - 1
-      engine = { ctx, dry, wet, noise }
+      engine = { ctx, master, dry, wet, noise }
     }
     if (engine.ctx.state === 'suspended') void engine.ctx.resume()
     return engine

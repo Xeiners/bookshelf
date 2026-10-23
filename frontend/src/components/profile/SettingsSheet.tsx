@@ -10,6 +10,8 @@ import {
   Eye,
   Globe,
   Link2,
+  Volume2,
+  VolumeX,
   HardDrive,
   ImageOff,
   KeyRound,
@@ -39,6 +41,8 @@ import { useDownloadStore, type DownloadedChapter } from '../../store/useDownloa
 import { useProfileStore } from '../../store/useProfileStore'
 import { TEXT_LIMITS, useReaderStore } from '../../store/useReaderStore'
 import { useNews } from '../../store/useNews'
+import { useSfxStore } from '../../store/useSfxStore'
+import { SfxSlider } from '../ui/SfxVolume'
 import { useUiStore } from '../../store/useUiStore'
 import type { ReaderLayout, TextTheme } from '../../types/reader'
 import { Pressable } from '../ui/Pressable'
@@ -737,6 +741,23 @@ function ReviewSection() {
 }
 
 /** Ouvre la page des actus (toutes les nouveautés, en images). */
+/** Volume des bruitages de tous les jeux (le même que le haut-parleur de chaque jeu). */
+function SoundSection() {
+  const t = useT()
+  const volume = useSfxStore((state) => state.volume)
+  return (
+    <Section icon={volume === 0 ? VolumeX : Volume2} title={t.sfx.title}>
+      <div className="flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+        <div className="flex items-center gap-3">
+          <SfxSlider />
+          <span className="w-10 shrink-0 text-right text-xs font-semibold text-cream tabular-nums">{volume} %</span>
+        </div>
+        <p className="text-xs text-mist">{t.sfx.hint}</p>
+      </div>
+    </Section>
+  )
+}
+
 function NewsSection() {
   const t = useT()
   return (
@@ -818,6 +839,7 @@ export function SettingsSheet() {
           {userId && <PublicProfileSection userId={userId} />}
           <StorageSection />
           <DownloadsSection />
+          <SoundSection />
           <NewsSection />
           {isReviewer && !isAdmin && <ReviewSection />}
           {isAdmin && <AdminSection />}

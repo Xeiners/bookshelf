@@ -15,6 +15,7 @@ import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { RunnerScene } from './RunnerScene'
 import { ShotAim } from './shots'
 import { BossHud, BossVictory, type BossView } from './BossHud'
+import { SfxSlider } from '../ui/SfxVolume'
 
 export interface RunnerOutcome {
   distance: number
@@ -917,6 +918,10 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
               <X size={17} />
               {t.runner.hud.quit}
             </button>
+            <label className="mt-2 flex w-full flex-col gap-2 text-xs font-semibold text-white/75">
+              {t.sfx.volume}
+              <SfxSlider />
+            </label>
           </div>
         </div>
       )}

@@ -252,6 +252,13 @@ export const fr = {
     hint: 'Valide ou bannis les images d’énigme du BookshelfDLE.',
   },
 
+  sfx: {
+    volume: 'Volume des sons',
+    mute: 'Couper les sons',
+    unmute: 'Remettre les sons',
+    title: 'Sons des jeux',
+    hint: 'Bruitages des jeux et des boosters. La musique d’ambiance a son propre réglage.',
+  },
   news: {
     title: 'Actus',
     subtitle: 'Les nouveautés de Bookshelf',

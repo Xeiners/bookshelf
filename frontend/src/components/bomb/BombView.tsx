@@ -10,7 +10,6 @@ import { useStardustBalance } from '../../store/useHigherLowerStore'
 import { useUiStore } from '../../store/useUiStore'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
-import { SoundToggle } from '../higherlower/SoundToggle'
 import { BombHome } from './BombHome'
 import { RoomScreen } from './RoomScreen'
 import { SoloGame } from './SoloGame'
@@ -91,7 +90,6 @@ export function BombView() {
       ) : (
         <>
           <DleBar label={t.activities.back} onBack={() => openActivity('hub')}>
-            {ready && <SoundToggle />}
             <StardustBadge balance={stardust} />
           </DleBar>
           {ready ? (

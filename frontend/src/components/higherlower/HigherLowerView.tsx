@@ -14,7 +14,6 @@ import { HlCoop } from './HlCoop'
 import { HlGame } from './HlGame'
 import { HlGameOver } from './HlGameOver'
 import { HlHome } from './HlHome'
-import { SoundToggle } from './SoundToggle'
 
 /**
  * Higher or Lower : accueil, duel, bilan (et le COOP). Chaque écran a sa barre (retour
@@ -98,7 +97,6 @@ export function HigherLowerView() {
       ) : (
         <>
           <DleBar label={t.activities.back} onBack={() => openActivity('hub')}>
-            {ready && <SoundToggle />}
             <StardustBadge balance={stardust} />
           </DleBar>
           {ready ? (

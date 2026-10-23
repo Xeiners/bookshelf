@@ -18,7 +18,7 @@ import { StardustBadge } from '../dle/StardustBadge'
 import { CardAvatar } from '../profile/CardAvatar'
 import { HlCard } from './HlCard'
 import { MetricIcon } from './MetricIcon'
-import { SoundToggle } from './SoundToggle'
+import { SfxVolume } from '../ui/SfxVolume'
 import { HL_DOWN, HL_GRADIENT, HL_UP, METRIC_STYLE } from './hlStyle'
 import { inkText } from '../../lib/ink'
 
@@ -124,7 +124,7 @@ function CoopLobby({ room }: { room: CoopView }) {
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <DleBar label={t.hl.coop.leave} onBack={() => void leave()}>
-        <SoundToggle />
+        <SfxVolume />
       </DleBar>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-12">
         <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6 pt-2 text-center">
@@ -402,7 +402,7 @@ function CoopPlay({ room, onOver }: { room: CoopView; onOver: () => void }) {
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <DleBar label={t.hl.coop.leave} onBack={() => void leave()}>
-        <SoundToggle />
+        <SfxVolume />
         <span className="inline-flex items-center gap-0.5" aria-label={t.hl.coop.livesAria(lives)}>
           {Array.from({ length: room.maxLives }, (_, index) => (
             <span key={index} data-coop-heart={index} className="grid will-change-transform">
@@ -577,7 +577,7 @@ function CoopResults({ room }: { room: CoopView }) {
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <DleBar label={t.hl.coop.leave} onBack={() => void leave()}>
-        <SoundToggle />
+        <SfxVolume />
         <StardustBadge balance={balance} />
       </DleBar>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-10">

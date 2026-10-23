@@ -18,6 +18,7 @@ import { BoosterOpeningAnimation } from './BoosterOpeningAnimation'
 import { BoosterPackArt } from './BoosterPackArt'
 import { CardReveal } from './CardReveal'
 import { ParticleBurst, type Burst } from './ParticleBurst'
+import { SfxVolume } from '../ui/SfxVolume'
 import { ShareCardsSheet } from './ShareCardsSheet'
 
 /**
@@ -50,6 +51,8 @@ export function BoosterPackModal() {
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
   const preset = useUiStore((state) => state.boosterSeries)
+  /** Nouvelle ouverture (plus vive, plus lumineuse), en essai : les admins seulement pour l'instant. */
+  const deluxe = useAuthStore((state) => state.user?.isAdmin === true)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -268,6 +271,7 @@ export function BoosterPackModal() {
             {boosters.unlimited ? '∞' : t.activities.boosterCount(boosters.available, boosters.max)}
           </span>
           {boosters.unlimited && <SandboxChip />}
+          <SfxVolume />
         </span>
         <button
           ref={closeRef}
@@ -304,6 +308,7 @@ export function BoosterPackModal() {
               onTear={tear}
               onSparks={sparks}
               onTorn={() => setStage('reveal')}
+              deluxe={deluxe}
             />
             <p className="text-center text-xs tracking-[0.2em] text-cream/60 uppercase" aria-live="polite">
               {stage === 'summoning' ? t.boosters.summoning : stage === 'tearing' ? t.boosters.opening : t.boosters.swipeToOpen}
@@ -321,6 +326,7 @@ export function BoosterPackModal() {
             onShake={shake}
             onInspect={setInspected}
             selection={sharing && { picked: sharing, toggle: toggleShared }}
+            deluxe={deluxe}
             footer={
               stage !== 'done' ? null : sharing ? (
                 <ShareActions count={sharing.size} onCancel={() => setSharing(null)} onPick={() => setPickingMembers(true)} />

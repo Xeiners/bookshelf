@@ -243,6 +243,13 @@ export const en: Dictionary = {
     hint: 'Keep or ban the BookshelfDLE puzzle images.',
   },
 
+  sfx: {
+    volume: 'Sound volume',
+    mute: 'Mute sounds',
+    unmute: 'Unmute sounds',
+    title: 'Game sounds',
+    hint: 'Sound effects in games and boosters. Ambient music has its own setting.',
+  },
   news: {
     title: 'News',
     subtitle: 'What’s new on Bookshelf',

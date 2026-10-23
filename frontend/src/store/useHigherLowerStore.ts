@@ -14,15 +14,7 @@ import { pendingGuestStardust, useGuestStardustStore } from './useGuestStardustS
 export type HlScreen = 'home' | 'play' | 'over'
 
 /** Bruitages coupés : gardé sur l'appareil (confort, jamais indispensable). */
-const MUTED_KEY = 'bookshelf.hl.muted'
 
-function savedMuted(): boolean {
-  try {
-    return localStorage.getItem(MUTED_KEY) === '1'
-  } catch {
-    return false
-  }
-}
 
 interface HigherLowerState {
   screen: HlScreen
@@ -35,9 +27,7 @@ interface HigherLowerState {
   lastDuel: { current: HlCard; next: HlCard } | null
   /** Une partie démarre (bouton d'une catégorie qui tourne). */
   starting: HlMetric | null
-  muted: boolean
 
-  toggleMuted: () => void
 
   loadOverview: () => Promise<void>
   start: (metric: HlMetric) => Promise<void>
@@ -61,17 +51,7 @@ export const useHigherLowerStore = create<HigherLowerState>((set, get) => ({
   result: null,
   lastDuel: null,
   starting: null,
-  muted: savedMuted(),
 
-  toggleMuted: () => {
-    const muted = !get().muted
-    try {
-      localStorage.setItem(MUTED_KEY, muted ? '1' : '0')
-    } catch {
-      // Stockage indisponible : le réglage vaut pour la visite.
-    }
-    set({ muted })
-  },
 
   loadOverview: async () => {
     if (get().overview === null) set({ overviewStatus: 'loading' })
@@ -164,7 +144,7 @@ export function useStardustBalance(): number {
   return signedIn ? balance : pendingGuestStardust(receipts)
 }
 
-/** Joue un bruitage du jeu, sauf s'ils sont coupés. */
+/** Joue un bruitage du jeu (son volume, commun à tous les jeux, est appliqué par `sfx.ts`). */
 export function hlSound(play: () => void): void {
-  if (!useHigherLowerStore.getState().muted) play()
+  play()
 }

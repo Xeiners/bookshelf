@@ -9,7 +9,7 @@ import { useBombStore } from '../../store/useBombStore'
 import { hlSound } from '../../store/useHigherLowerStore'
 import { useUiStore } from '../../store/useUiStore'
 import { DleBar } from '../dle/DleBar'
-import { SoundToggle } from '../higherlower/SoundToggle'
+import { SfxVolume } from '../ui/SfxVolume'
 import { Bomb } from './Bomb'
 import { SoloOver } from './SoloOver'
 import { Lives, WordInput } from './BombParts'
@@ -154,7 +154,7 @@ export function SoloGame({ solo }: { solo: SoloView }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <DleBar label={solo.over ? t.bomb.title : t.bomb.quit} onBack={() => void quit()} danger={!solo.over}>
         <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] text-cream/80">{t.bomb.modes[solo.mode].short}</span>
-        <SoundToggle />
+        <SfxVolume />
       </DleBar>
 
       <div className="mx-auto flex w-full max-w-lg min-h-0 flex-1 flex-col px-5 pb-5">
