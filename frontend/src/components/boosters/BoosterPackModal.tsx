@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dices, FlaskConical, Gift, Loader2, Megaphone, Sparkles, Users, X, Zap } from 'lucide-react'
+import { Dices, FlaskConical, Gift, Megaphone, Users, X, Zap } from 'lucide-react'
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
-import { RARITIES, RARITY_STYLE, baitRarity, type CardOrigin, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
+import { MAX_PACKS_AT_ONCE, RARITIES, RARITY_STYLE, baitRarity, type CardOrigin, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playHlTick, playTear } from '../../lib/sfx'
@@ -11,9 +11,6 @@ import { ApiError, isNetworkError } from '../../services/api'
 import { LIVE_SERIES, type CardSeries, type PulledCard, type SeriesChoice } from '../../services/cardsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useBoosterStore } from '../../store/useBoosterStore'
-import { useDleStore } from '../../store/useDleStore'
-import { promotionOf, usePromotions } from '../../store/usePromotions'
-import { STARDUST_GRADIENT } from '../dle/dleStyle'
 import { useUiStore } from '../../store/useUiStore'
 import { CARD_RATIO } from '../cards/CollectibleCard'
 import { CardZoom } from '../cards/CardZoom'
@@ -23,12 +20,15 @@ import { CardReveal } from './CardReveal'
 import { ParticleBurst, type Burst } from './ParticleBurst'
 import { SfxVolume } from '../ui/SfxVolume'
 import { ShareCardsSheet } from './ShareCardsSheet'
+import { PackCountPicker } from './PackCountPicker'
+import { PackStack } from './PackStack'
 
 /**
- * `choose` : Série 1, Série 2 ou la roulette ; `roulette` : elle tourne pendant que le
- * serveur tire ; `summoning` : le serveur tire le booster pendant que le paquet s'avance.
+ * `choose` : Série 1, Série 2 ou la roulette ; `count` : combien de boosters ouvrir d'un coup ;
+ * `roulette` : elle tourne pendant que le serveur tire ; `summoning` : le serveur tire le
+ * booster pendant que le paquet s'avance.
  */
-type Stage = 'choose' | 'roulette' | 'summoning' | 'intro' | 'tearing' | 'reveal' | 'done' | 'error'
+type Stage = 'choose' | 'count' | 'roulette' | 'summoning' | 'intro' | 'tearing' | 'reveal' | 'done' | 'error'
 
 /** La série ouverte d'office quand une seule est en jeu ; `null` : on choisit. */
 const SOLE_SERIES: CardSeries | null = LIVE_SERIES.length === 1 ? LIVE_SERIES[0]! : null
@@ -36,6 +36,9 @@ const SOLE_SERIES: CardSeries | null = LIVE_SERIES.length === 1 ? LIVE_SERIES[0]
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight })
 
 const packWidthFor = (viewport: number) => Math.min(250, Math.round(viewport * 0.56))
+
+/** Après la série : on demande combien en ouvrir, ou on ouvre aussitôt. */
+const stageAfter = (choice: SeriesChoice, packs: number | null): Stage => (packs === null ? 'count' : choice === 'random' ? 'roulette' : 'summoning')
 
 
 /**
@@ -56,18 +59,16 @@ export function BoosterPackModal() {
   const openBooster = useBoosterStore((state) => state.open)
   /** Pack Légendaire offert : même mise en scène, dernière carte Légendaire ou mieux. */
   const [legendary, setLegendary] = useState(() => useUiStore.getState().boosterLegendary)
-  /** Ouvert par un achat à la boutique : la fin propose d'en racheter un, si le solde suffit. */
-  const [purchased] = useState(() => useUiStore.getState().boosterPurchased)
-  const [buying, setBuying] = useState(false)
-  const stardust = useDleStore((state) => state.overview?.stardust ?? null)
-  const promotions = usePromotions((state) => state.items)
-  const basePrice = useDleStore((state) => state.overview?.boosterPrice ?? null)
-  const [now] = useState(() => Date.now())
-  const price = promotionOf(promotions, 'booster', now)?.price ?? basePrice
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
   // Une seule série en jeu : elle s'ouvre d'office (ni choix, ni roulette).
   const preset = useUiStore((state) => SOLE_SERIES ?? state.boosterSeries)
+  /** Ouvrir plusieurs boosters d'un coup : un compte, au moins deux en stock, hors pack Légendaire. */
+  const countable = (legendaryPack: boolean) => !legendaryPack && boosters.signedIn && (boosters.unlimited || boosters.available >= 2)
+  /** Au plus : le stock (6 au plus). */
+  const maxPacks = boosters.unlimited ? MAX_PACKS_AT_ONCE : Math.max(1, Math.min(MAX_PACKS_AT_ONCE, boosters.available))
+  /** Boosters ouverts d'un coup ; `null` : à choisir. */
+  const [packs, setPacks] = useState<number | null>(() => (countable(legendary) ? null : 1))
 
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -75,7 +76,7 @@ export function BoosterPackModal() {
   const [choice, setChoice] = useState<SeriesChoice | null>(preset)
   /** Série du booster tiré (celle que la roulette a désignée). */
   const [series, setSeries] = useState<CardSeries | null>(preset === 'random' ? null : preset)
-  const [stage, setStage] = useState<Stage>(preset === null ? 'choose' : preset === 'random' ? 'roulette' : 'summoning')
+  const [stage, setStage] = useState<Stage>(() => (preset === null ? 'choose' : stageAfter(preset, packs)))
   const [round, setRound] = useState(0)
   const [cards, setCards] = useState<PulledCard[]>([])
   /** Lueur-appât du paquet, tirée avec son contenu : la vraie couleur attend la fin. */
@@ -135,11 +136,11 @@ export function BoosterPackModal() {
   // Tirage côté serveur à chaque nouveau booster (`round`), une fois la série choisie,
   // pendant que le paquet s'avance (ou que la roulette tourne).
   useEffect(() => {
-    if (choice === null || requested.current === round) return
+    if (choice === null || packs === null || requested.current === round) return
     requested.current = round
     const current = round
     // Invité : booster d'essai, tiré aussi par le serveur (reçu signé gardé sur l'appareil).
-    const draw = legendary ? useBoosterStore.getState().openLegendary() : openBooster(useAuthStore.getState().user ? 'account' : 'guest', choice)
+    const draw = legendary ? useBoosterStore.getState().openLegendary() : openBooster(useAuthStore.getState().user ? 'account' : 'guest', choice, packs)
     draw
       .then((pulled) => {
         if (requested.current !== current) return
@@ -154,13 +155,20 @@ export function BoosterPackModal() {
         setError(messageFor(reason))
         setStage('error')
       })
-  }, [round, choice, legendary, openBooster, messageFor])
+  }, [round, choice, packs, legendary, openBooster, messageFor])
 
   const pick = (next: SeriesChoice) => {
     vibrate(10)
     setChoice(next)
     setSeries(next === 'random' ? null : next)
-    setStage(next === 'random' ? 'roulette' : 'summoning')
+    setStage(stageAfter(next, packs))
+  }
+
+  /** Nombre de boosters choisi : le tirage part. */
+  const pickCount = (count: number) => {
+    vibrate([10, 30, 14])
+    setPacks(count)
+    if (choice !== null) setStage(stageAfter(choice, count))
   }
 
   const { contextSafe } = useGSAP(
@@ -211,10 +219,13 @@ export function BoosterPackModal() {
       spread: count < 20 ? Math.PI * 0.55 : Math.PI * 0.9,
     })
 
-  // Booster suivant : on rechoisit sa série (ou la roulette). Les packs Légendaire offerts passent
-  // d'abord, sauf pour un booster qu'on vient d'acheter.
-  const again = (options: { bought?: boolean } = {}) => {
-    setLegendary(!options.bought && boosters.legendaryPacks > 0)
+  // Booster suivant : on rechoisit sa série (ou la roulette) et combien en ouvrir. Les packs
+  // Légendaire offerts passent d'abord.
+  const again = () => {
+    const legendaryNext = boosters.legendaryPacks > 0
+    const nextPacks = countable(legendaryNext) ? null : 1
+    setLegendary(legendaryNext)
+    setPacks(nextPacks)
     setSharing(null)
     setCards([])
     setBait(null)
@@ -223,7 +234,7 @@ export function BoosterPackModal() {
     setBurst(null)
     setChoice(SOLE_SERIES)
     setSeries(SOLE_SERIES)
-    setStage(SOLE_SERIES === null ? 'choose' : 'summoning')
+    setStage(SOLE_SERIES === null ? 'choose' : stageAfter(SOLE_SERIES, nextPacks))
     setRound((value) => value + 1)
   }
 
@@ -247,21 +258,6 @@ export function BoosterPackModal() {
   // Pendant la révélation, le fond garde la lueur-appât ; la vraie couleur n'arrive qu'à la fin.
   const tone = stage === 'done' && best ? RARITY_STYLE[best].color : stage === 'reveal' && bait ? RARITY_STYLE[bait].color : '#7c5cff'
   const canAgain = boosters.unlimited || boosters.available > 0 || boosters.legendaryPacks > 0
-  // Racheter : seulement après un achat à la boutique, et si le solde le permet.
-  const canBuyAgain = purchased && boosters.signedIn && !boosters.unlimited && price !== null && stardust !== null && stardust >= price
-  const buyAnother = async () => {
-    if (buying) return
-    setBuying(true)
-    vibrate(12)
-    try {
-      await useDleStore.getState().purchaseBooster()
-      again({ bought: true })
-    } catch (reason) {
-      useUiStore.getState().notify(messageFor(reason), 'nope')
-    } finally {
-      setBuying(false)
-    }
-  }
   // Invité à court d'essais : la suite passe par un compte (et ses 2 boosters offerts).
   const signUp =
     !boosters.signedIn && !canAgain
@@ -331,9 +327,19 @@ export function BoosterPackModal() {
       {/* Pendant le suspens et la déchirure, rien ne doit rogner la bande qui s'envole ni l'éclair : pas de défilement. */}
       <div
         data-shake
-        className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-x-hidden overflow-y-auto' : 'overflow-visible'}`}
+        className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center-safe gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-x-hidden overflow-y-auto' : 'overflow-visible'}`}
       >
         {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round((viewport.width - 32) / LIVE_SERIES.length) - 14)} onPick={pick} />}
+
+        {stage === 'count' && (
+          <PackCount
+            max={maxPacks}
+            available={boosters.unlimited ? null : boosters.available}
+            series={series ?? LIVE_SERIES[LIVE_SERIES.length - 1]!}
+            width={Math.min(84, Math.round(viewport.width * 0.2))}
+            onPick={pickCount}
+          />
+        )}
 
         {stage === 'roulette' && (
           <Roulette width={Math.min(150, Math.round(viewport.width * 0.38))} result={series} onLanded={() => setStage('intro')} />
@@ -341,6 +347,11 @@ export function BoosterPackModal() {
 
         {(stage === 'summoning' || stage === 'intro' || stage === 'tearing') && (
           <>
+            {packs !== null && packs > 1 && (
+              <span className="-mb-4 rounded-full border border-[#ffe39a]/30 bg-black/40 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-[#fff4c8] uppercase tabular-nums">
+                {t.boosters.count.badge(packs)}
+              </span>
+            )}
             <BoosterOpeningAnimation
               key={round}
               series={series}
@@ -380,7 +391,6 @@ export function BoosterPackModal() {
                 <DoneActions
                   canAgain={canAgain}
                   onAgain={() => again()}
-                  buyAgain={canBuyAgain ? { price: price!, busy: buying, onBuy: () => void buyAnother() } : undefined}
                   onAlbum={toAlbum}
                   onSignUp={signUp}
                   // Seul un compte peut prévenir ses amis (l'invité n'a pas d'album côté serveur).
@@ -584,6 +594,43 @@ function Roulette({ width, result, onLanded }: { width: number; result: CardSeri
   )
 }
 
+/** Combien de boosters ouvrir d'un coup : de 1 à 6 (le stock), 4 cartes chacun. */
+function PackCount({ max, available, series, width, onPick }: { max: number; available: number | null; series: CardSeries; width: number; onPick: (count: number) => void }) {
+  const t = useT()
+  const ref = useRef<HTMLDivElement>(null)
+  const [count, setCount] = useState(max)
+  useGSAP(
+    () => {
+      gsap.fromTo('[data-count-item]', { y: 24, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.6, stagger: 0.08, ease: EASE.glide })
+    },
+    { scope: ref },
+  )
+  return (
+    <div ref={ref} className="flex max-w-sm flex-col items-center gap-6 text-center">
+      <div data-count-item>
+        <h2 className="font-display text-3xl text-cream">{t.boosters.count.title}</h2>
+        <p className="mt-1.5 text-xs text-cream/60">{available === null ? t.boosters.count.unlimitedHint : t.boosters.count.hint(available)}</p>
+      </div>
+      <div data-count-item>
+        <PackStack count={count} width={width} series={series} />
+      </div>
+      <div data-count-item>
+        <PackCountPicker value={count} max={max} onChange={setCount} label={t.boosters.count.title} />
+      </div>
+      <button
+        type="button"
+        data-count-item
+        onClick={() => onPick(count)}
+        className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-[#2a1a02] shadow-[0_0_28px_rgba(255,196,107,0.55)] transition-transform active:scale-95"
+        style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' }}
+      >
+        <Zap size={15} className="fill-[#2a1a02]" aria-hidden />
+        {t.boosters.count.open(count)}
+      </button>
+    </div>
+  )
+}
+
 function SandboxChip() {
   const t = useT()
   return (
@@ -633,15 +680,12 @@ function ShareActions({ count, onCancel, onPick }: { count: number; onCancel: ()
 function DoneActions({
   canAgain,
   onAgain,
-  buyAgain,
   onAlbum,
   onSignUp,
   onShare,
 }: {
   canAgain: boolean
   onAgain: () => void
-  /** Booster acheté : en racheter un, au prix courant. */
-  buyAgain?: { price: number; busy: boolean; onBuy: () => void }
   onAlbum: () => void
   onSignUp?: () => void
   onShare?: () => void
@@ -680,18 +724,6 @@ function DoneActions({
         >
           <Zap size={15} className="fill-[#2a1a02]" />
           {t.boosters.again}
-        </button>
-      )}
-      {buyAgain && (
-        <button
-          type="button"
-          onClick={buyAgain.onBuy}
-          disabled={buyAgain.busy}
-          className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-[#1a0b1f] shadow-[0_0_28px_rgba(255,94,196,0.45)] disabled:opacity-60"
-          style={{ background: STARDUST_GRADIENT }}
-        >
-          {buyAgain.busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-          {t.boosters.buyAgain(buyAgain.price)}
         </button>
       )}
       {onShare && (

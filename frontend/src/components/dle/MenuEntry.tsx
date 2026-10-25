@@ -1,13 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { Check, Loader2, Zap } from 'lucide-react'
+import { Check, Zap } from 'lucide-react'
 import { useT } from '../../i18n'
-import { apiErrorMessage } from '../../lib/apiErrors'
 import { vibrate } from '../../lib/haptics'
 import type { DleMode, DleOverview } from '../../services/dleApi'
-import { LIVE_SERIES, type CardSeries } from '../../services/cardsApi'
-import { useDleStore } from '../../store/useDleStore'
-import { useUiStore } from '../../store/useUiStore'
-import { BoosterPackArt } from '../boosters/BoosterPackArt'
+import { BuyBoostersSheet } from '../boosters/BuyBoostersSheet'
 import { STARDUST_GRADIENT, VERDICT_STYLE } from './dleStyle'
 
 /** Couleur de chaque entrée : un dégradé pour sa pastille, un halo assorti. */
@@ -78,38 +74,22 @@ export function DailyStatus({ progress }: { progress: DleOverview['daily']['mang
 }
 
 /**
- * Le booster contre des Poussières : un tap propose les deux séries, le choix l'achète
- * et l'ouvre ; sinon, ce qu'il reste à gagner.
+ * Le booster contre des Poussières : un tap ouvre l'achat (de 1 à 6 boosters, rangés dans la
+ * réserve) ; sinon, ce qu'il reste à gagner.
  */
 export function BoosterEntry({ balance, price }: { balance: number; price: number }) {
   const t = useT()
-  const buyBooster = useDleStore((state) => state.buyBooster)
-  const notify = useUiStore((state) => state.notify)
-  const [busy, setBusy] = useState<CardSeries | null>(null)
-  const [picking, setPicking] = useState(false)
+  const [buying, setBuying] = useState(false)
   const affordable = balance >= price
 
-  const buy = async (series: CardSeries) => {
-    setBusy(series)
-    try {
-      await buyBooster(series)
-      setPicking(false)
-    } catch (error) {
-      notify(apiErrorMessage(error, t), 'nope')
-    } finally {
-      setBusy(null)
-    }
-  }
-
   return (
-    <div className="flex flex-col gap-2">
+    <>
       <MenuEntry
         accent="booster"
-        icon={busy !== null ? <Loader2 size={22} className="animate-spin" aria-hidden /> : <Zap size={22} className="fill-current" aria-hidden />}
+        icon={<Zap size={22} className="fill-current" aria-hidden />}
         label={t.dle.home.booster}
-        disabled={!affordable || busy !== null}
-        // Une seule série en jeu : on l'achète tout de suite, sans choix à faire.
-        onClick={() => (LIVE_SERIES.length === 1 ? void buy(LIVE_SERIES[0]!) : setPicking((value) => !value))}
+        disabled={!affordable}
+        onClick={() => setBuying(true)}
         trailing={
           affordable ? (
             <span className="rounded-full px-3 py-1.5 text-sm font-bold text-[#1a0b1f]" style={{ background: STARDUST_GRADIENT }}>
@@ -122,26 +102,7 @@ export function BoosterEntry({ balance, price }: { balance: number; price: numbe
           )
         }
       />
-      {picking && affordable && (
-        <div className="grid grid-cols-2 gap-2" role="group" aria-label={t.boosters.choose.title}>
-          {LIVE_SERIES.map((series) => (
-            <button
-              key={series}
-              type="button"
-              disabled={busy !== null}
-              onClick={() => void buy(series)}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-left transition-transform active:scale-95 disabled:opacity-60"
-            >
-              <BoosterPackArt width={40} series={series} lit />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-sm font-bold text-cream">{t.boosters.seriesName(series)}</span>
-                <span className="truncate text-[11px] text-cream/55">{t.boosters.seriesTagline[series]}</span>
-              </span>
-              {busy === series && <Loader2 size={16} className="ml-auto animate-spin text-cream/70" aria-hidden />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {buying && <BuyBoostersSheet price={price} balance={balance} onClose={() => setBuying(false)} />}
+    </>
   )
 }

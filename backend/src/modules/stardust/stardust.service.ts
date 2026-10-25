@@ -76,13 +76,14 @@ export async function walletOf(userId: string): Promise<StardustWallet> {
 }
 
 /**
- * Achète un booster : son prix du moment (promotion comprise) contre un booster de réserve (hors
- * plafond, jamais perdu, comme un booster offert). Atomique : le débit n'aboutit que si
- * le solde suffit au moment de l'écriture — deux achats simultanés ne dépensent jamais
- * deux fois les mêmes Poussières. 409 `not_enough_stardust` sinon.
+ * Achète `quantity` boosters (1 à `MAX_PACKS_AT_ONCE`) : le prix du moment de chacun (promotion
+ * comprise) contre autant de boosters de réserve (hors plafond, jamais perdus, comme un booster
+ * offert). Atomique : le débit n'aboutit que si le solde suffit au moment de l'écriture — deux
+ * achats simultanés ne dépensent jamais deux fois les mêmes Poussières. 409 `not_enough_stardust` sinon.
  */
-export async function buyBooster(userId: string): Promise<{ balance: number; status: BoosterStatus; price: number }> {
-  const price = await priceOf('booster')
+export async function buyBooster(userId: string, quantity = 1): Promise<{ balance: number; status: BoosterStatus; price: number; quantity: number }> {
+  const unit = await priceOf('booster')
+  const price = unit * quantity
   const balance = await prisma.$transaction(async (tx) => {
     const { count } = await tx.user.updateMany({
       where: { id: userId, stardust: { gte: price } },
@@ -95,12 +96,13 @@ export async function buyBooster(userId: string): Promise<{ balance: number; sta
         price,
       })
     }
-    await tx.userBooster.upsert({ where: { userId }, create: { userId, giftedBoosters: 1 }, update: { giftedBoosters: { increment: 1 } } })
-    await tx.stardustEntry.create({ data: { userId, amount: -price, reason: 'booster_purchase', data: JSON.stringify(price < BOOSTER_PRICE ? { promotion: true } : {}) } })
+    await tx.userBooster.upsert({ where: { userId }, create: { userId, giftedBoosters: quantity }, update: { giftedBoosters: { increment: quantity } } })
+    const data = { ...(unit < BOOSTER_PRICE ? { promotion: true } : {}), ...(quantity > 1 ? { quantity } : {}) }
+    await tx.stardustEntry.create({ data: { userId, amount: -price, reason: 'booster_purchase', data: JSON.stringify(data) } })
     const user = await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } })
     return user?.stardust ?? 0
   })
-  return { balance, status: await boosterStatus(userId), price }
+  return { balance, status: await boosterStatus(userId), price, quantity }
 }
 
 /**

@@ -3,6 +3,7 @@ import { config } from '../../core/config.js'
 import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { rateLimit } from '../../core/http/rateLimit.js'
 import { z } from 'zod'
+import { MAX_PACKS_AT_ONCE } from '../cards/boosters.logic.js'
 import { buyBooster, claimGuestStardust, walletOf } from './stardust.service.js'
 
 /** Poussières d'Étoile (cf. `stardust.service.ts`). Monté sous `/api/stardust`. */
@@ -17,10 +18,13 @@ stardustRouter.get('/', async (req, res) => {
 
 const buyLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 10 })
 
-/** Achète un booster de réserve. 409 `not_enough_stardust` si le solde ne suffit pas. */
+/** Boosters achetés d'un coup (1 par défaut). */
+const BuyBody = z.object({ quantity: z.number().int().min(1).max(MAX_PACKS_AT_ONCE).default(1) })
+
+/** Achète un ou plusieurs boosters de réserve. 409 `not_enough_stardust` si le solde ne suffit pas. */
 stardustRouter.post('/booster', buyLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store')
-  res.json(await buyBooster(currentUserId(req)))
+  res.json(await buyBooster(currentUserId(req), BuyBody.parse(req.body ?? {}).quantity))
 })
 
 const ClaimBody = z.object({ receipts: z.array(z.string().max(2048)).max(50) })

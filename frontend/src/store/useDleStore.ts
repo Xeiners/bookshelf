@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { getT } from '../i18n'
 import { clockOffset, isNewer } from '../lib/dle'
 import { ApiError } from '../services/api'
-import type { CardSeries } from '../services/cardsApi'
 import {
   DLE_MODES,
   dleApi,
@@ -87,10 +86,8 @@ interface DleState {
   /** Suit le salon affiché en attente longue ; renvoie de quoi arrêter. */
   watch: () => () => void
 
-  /** Achète un booster de la série choisie avec des Poussières, et l'ouvre aussitôt. */
-  buyBooster: (series: CardSeries) => Promise<void>
-  /** Achète un booster sans ouvrir de fenêtre (on y est déjà : « Acheter un autre »). */
-  purchaseBooster: () => Promise<void>
+  /** Achète `quantity` boosters avec des Poussières : ils rejoignent la réserve, à ouvrir quand on veut. */
+  purchaseBooster: (quantity?: number) => Promise<void>
   /** Nouveau solde de Poussières gagné ailleurs (Higher or Lower) : le badge suit. */
   setStardust: (balance: number) => void
   reset: () => void
@@ -265,13 +262,8 @@ export const useDleStore = create<DleState>((set, get) => ({
     return () => controller.abort()
   },
 
-  buyBooster: async (series) => {
-    await get().purchaseBooster()
-    useUiStore.getState().openBooster(series, { purchased: true })
-  },
-
-  purchaseBooster: async () => {
-    const { balance, status } = await stardustApi.buyBooster()
+  purchaseBooster: async (quantity = 1) => {
+    const { balance, status } = await stardustApi.buyBooster(quantity)
     set((state) => ({ overview: state.overview ? { ...state.overview, stardust: balance } : state.overview }))
     useBoosterStore.setState({ status, syncedAt: performance.now(), offline: false })
   },

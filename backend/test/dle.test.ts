@@ -332,6 +332,23 @@ describe('poussières — achat de booster', () => {
     assert.equal(wallet.body.history[0].reason, 'booster_purchase')
     assert.equal(wallet.body.history[0].amount, -BOOSTER_PRICE)
   })
+
+  it('achat de plusieurs boosters d’un coup : le prix de chacun, autant de boosters de réserve ; 6 au plus', async () => {
+    await prisma.user.update({ where: { id: chloe.userId }, data: { stardust: BOOSTER_PRICE * 3 + 5 } })
+    const before = (await chloe.request('GET', '/boosters/status')).body.gifted
+    const tooMuch = await chloe.request('POST', '/stardust/booster', { quantity: 4 })
+    assert.equal(tooMuch.status, 409)
+    assert.equal(tooMuch.body.error.price, BOOSTER_PRICE * 4)
+    assert.equal((await chloe.request('POST', '/stardust/booster', { quantity: 7 })).status, 400)
+    const bought = await chloe.request('POST', '/stardust/booster', { quantity: 3 })
+    assert.equal(bought.status, 200)
+    assert.equal(bought.body.balance, 5)
+    assert.equal(bought.body.quantity, 3)
+    assert.equal(bought.body.status.gifted, before + 3)
+    const wallet = await chloe.request('GET', '/stardust')
+    assert.equal(wallet.body.history[0].amount, -BOOSTER_PRICE * 3)
+    assert.equal(wallet.body.history[0].data.quantity, 3)
+  })
 })
 
 /* ---- Salons ------------------------------------------------------------------------- */

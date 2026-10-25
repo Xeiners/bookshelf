@@ -118,10 +118,13 @@ export interface DropTally {
 export const emptyTally = (): DropTally => ({ packs: 0, cards: { COMMON: 0, RARE: 0, EPIC: 0, LEGENDARY: 0, MYTHIC: 0 } })
 
 /** Ajoute un booster ouvert au relevé (copie, l'entrée est intacte). */
-export function addToTally(tally: DropTally, rarities: readonly Rarity[]): DropTally {
+/** Boosters achetés, ou ouverts, d'un coup : au plus (comme le serveur). */
+export const MAX_PACKS_AT_ONCE = 6
+
+export function addToTally(tally: DropTally, rarities: readonly Rarity[], packs = 1): DropTally {
   const cards = { ...tally.cards }
   for (const rarity of rarities) cards[rarity] += 1
-  return { packs: tally.packs + 1, cards }
+  return { packs: tally.packs + packs, cards }
 }
 
 /** Part observée d'une rareté, en pourcentage à une décimale. */
@@ -203,6 +206,8 @@ export interface Viewport {
  * boutons sous les cartes (`h-32` + écart), bilan du bac à sable et marges.
  */
 const RESERVED_HEIGHT = 330
+/** Largeur minimale d'une carte du récapitulatif. */
+const MIN_REVEAL_WIDTH = 84
 
 /**
  * Disposition des cartes révélées : 2 × 2 sur téléphone (quatre de front y
@@ -215,12 +220,16 @@ export function revealLayout(
   /** Hauteur / largeur d'une carte (`CARD_RATIO`). */
   ratio: number,
 ): { columns: number; width: number; gap: number } {
-  const columns = viewport.width >= 640 ? Math.max(1, count) : Math.min(2, Math.max(1, count))
+  // Plusieurs boosters ouverts d'un coup : autant de colonnes que la largeur en tient (8 au plus),
+  // la grille défile en hauteur si besoin.
+  const fit = Math.max(1, Math.floor((viewport.width - 32 - MIN_REVEAL_WIDTH * 0.25 + 24) / (MIN_REVEAL_WIDTH + 24)))
+  const columns =
+    count > 4 ? Math.min(count, 8, fit) : viewport.width >= 640 ? Math.max(1, count) : Math.min(2, Math.max(1, count))
   const rows = Math.ceil(count / columns)
   const gap = columns <= 2 ? 16 : 24
   // Éventail d'une rangée : les cartes des bouts, inclinées, débordent d'environ 12 % de leur largeur de chaque côté.
   const tiltMargin = columns > 2 ? 0.25 : 0.1
   const byWidth = (viewport.width - 32 - gap * (columns - 1)) / (columns + tiltMargin)
   const byHeight = (viewport.height - RESERVED_HEIGHT - gap * (rows - 1)) / rows / ratio
-  return { columns, gap, width: Math.floor(Math.max(84, Math.min(200, byWidth, byHeight))) }
+  return { columns, gap, width: Math.floor(Math.max(MIN_REVEAL_WIDTH, Math.min(200, byWidth, byHeight))) }
 }

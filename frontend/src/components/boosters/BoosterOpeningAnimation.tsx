@@ -9,6 +9,9 @@ import { CardBack } from '../cards/CardBack'
 import { CARD_RATIO } from '../cards/CollectibleCard'
 import { BoosterPackArt } from './BoosterPackArt'
 
+/** Dos de carte qui sortent du paquet, au plus (plusieurs boosters ouverts d'un coup : les autres suivent, cachés). */
+const MAX_EMERGED = 5
+
 /** Espace gardé libre en haut de l'écran (barre des boosters, bouton fermer) quand les cartes sortent. */
 const TOP_MARGIN = 72
 
@@ -80,7 +83,7 @@ interface BoosterOpeningAnimationProps {
   onTorn: (origins: CardOrigin[]) => void
   /** Série du paquet (son illustration) ; `null` tant que la roulette n'a pas parlé. */
   series?: CardSeries | null
-  /** Nombre de cartes du booster : autant de dos de carte sortent du paquet. */
+  /** Nombre de cartes du booster : autant de dos de carte sortent du paquet (`MAX_EMERGED` au plus). */
   count?: number
 }
 
@@ -308,7 +311,7 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
               <TornEdge points={BACK_TEAR} />
             </div>
             {torn &&
-              Array.from({ length: count }, (_, index) => (
+              Array.from({ length: Math.min(count, MAX_EMERGED) }, (_, index) => (
                 <div
                   key={index}
                   data-emerge-card

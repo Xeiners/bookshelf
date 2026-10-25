@@ -315,8 +315,8 @@ export const dleApi = {
 
 export const stardustApi = {
   wallet: (signal?: AbortSignal) => api<StardustWallet>('/stardust', { signal }),
-  /** 409 `not_enough_stardust` si le solde ne suffit pas. */
-  buyBooster: () => api<{ balance: number; status: BoosterStatus }>('/stardust/booster', { method: 'POST' }),
+  /** Achète `quantity` boosters (1 à 6), rangés dans la réserve. 409 `not_enough_stardust` si le solde ne suffit pas. */
+  buyBooster: (quantity = 1) => api<{ balance: number; status: BoosterStatus; quantity: number }>('/stardust/booster', { method: 'POST', body: { quantity } }),
   /** Reçus gagnés en invité → Poussières du compte (plafonné, chaque reçu une seule fois). */
   claim: (receipts: string[]) => api<{ balance: number; credited: number }>('/stardust/claim', { method: 'POST', body: { receipts } }),
 }

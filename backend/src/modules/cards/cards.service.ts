@@ -9,6 +9,7 @@ import {
   BOOSTER_INTERVAL_MS,
   CARD_SERIES,
   MAX_BOOSTERS,
+  MAX_PACKS_AT_ONCE,
   RARITIES,
   SET_LAYOUT,
   SET_SIZE,
@@ -433,12 +434,18 @@ export async function grantLegendaryPack(
   return cards
 }
 
+/**
+ * Ouvre `packs` boosters d'un coup (1 à `MAX_PACKS_AT_ONCE`) : exactement comme s'ils étaient
+ * ouverts l'un après l'autre — chacun est dépensé, tiré et compté dans les garanties à son tour,
+ * les taux ne changent pas. Tout ou rien : s'il en manque un, aucun n'est dépensé (409).
+ */
 export async function openBooster(
   userId: string,
-  options: { now?: Date; random?: () => number; unlimited?: boolean; series?: SeriesChoice } = {},
-): Promise<{ cards: PulledCard[]; status: BoosterStatus; series: number }> {
+  options: { now?: Date; random?: () => number; unlimited?: boolean; series?: SeriesChoice; packs?: number } = {},
+): Promise<{ cards: PulledCard[]; status: BoosterStatus; series: number; packs: number }> {
   const now = options.now ?? new Date()
   const random = options.random ?? secureRandom
+  const packs = Math.min(MAX_PACKS_AT_ONCE, Math.max(1, Math.floor(options.packs ?? 1)))
   // Recette : aucun booster n'est dépensé, le stock enregistré reste intact.
   const unlimited = options.unlimited ?? config.cards.unlimited
   // Le set d'abord : si la collection n'est pas prête, aucun booster n'est dépensé.
@@ -448,30 +455,35 @@ export async function openBooster(
   const { series, cards: pool } = seriesCards(set, options.series ?? 'random', random)
   // Dépense et cartes ensemble : un booster n'est jamais dépensé sans ses cartes.
   return prisma.$transaction(async (tx) => {
-    const spent = unlimited
-      ? { state: initialState(), boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0, legendaryPacks: 0 }
-      : await spendBooster(tx, userId, now)
-    const drawn = drawPack(pool, random, {
-      forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
-      forceLegendary: !unlimited && hasReachedLegendaryPity(spent.boostersSinceLastLegendary),
-    })
-    const legendarySince = unlimited ? 0 : nextLegendaryPityCount(spent.boostersSinceLastLegendary)
-    const cards = await grantCards(tx, userId, drawn, now)
-    // Statistique du profil : compte aussi les ouvertures de recette.
-    await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })
-    if (!unlimited) {
-      await tx.userBooster.update({
-        where: { userId },
-        data: {
-          boostersSinceLastMythic: nextPityCount(
-            spent.boostersSinceLastMythic,
-            drawn.map((card) => card.rarity),
-          ),
-          boostersSinceLastLegendary: legendarySince,
-        },
+    const cards: PulledCard[] = []
+    let status: BoosterStatus | null = null
+    for (let pack = 0; pack < packs; pack += 1) {
+      const spent = unlimited
+        ? { state: initialState(), boostersSinceLastMythic: 0, boostersSinceLastLegendary: 0, gifted: 0, legendaryPacks: 0 }
+        : await spendBooster(tx, userId, now)
+      const drawn = drawPack(pool, random, {
+        forceMythic: !unlimited && hasReachedHardPity(spent.boostersSinceLastMythic),
+        forceLegendary: !unlimited && hasReachedLegendaryPity(spent.boostersSinceLastLegendary),
       })
+      const legendarySince = unlimited ? 0 : nextLegendaryPityCount(spent.boostersSinceLastLegendary)
+      cards.push(...(await grantCards(tx, userId, drawn, now)))
+      if (!unlimited) {
+        await tx.userBooster.update({
+          where: { userId },
+          data: {
+            boostersSinceLastMythic: nextPityCount(
+              spent.boostersSinceLastMythic,
+              drawn.map((card) => card.rarity),
+            ),
+            boostersSinceLastLegendary: legendarySince,
+          },
+        })
+      }
+      status = statusOf(spent.state, now, unlimited, spent.gifted, legendarySince, spent.legendaryPacks)
     }
-    return { cards, status: statusOf(spent.state, now, unlimited, spent.gifted, legendarySince, spent.legendaryPacks), series }
+    // Statistique du profil : compte aussi les ouvertures de recette.
+    await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: packs } } })
+    return { cards, status: status!, series, packs }
   })
 }
 

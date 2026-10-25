@@ -188,4 +188,22 @@ describe('révélation — disposition des 4 cartes', () => {
       assert.ok(rowWidth(layout) + 0.2 * layout.width <= viewport.width - 32, `${viewport.width} px : ${rowWidth(layout)}`)
     }
   })
+
+  it('plusieurs boosters d’un coup (jusqu’à 24 cartes) : jamais plus large que l’écran', () => {
+    for (const viewport of [
+      { width: 320, height: 640 },
+      { width: 390, height: 844 },
+      { width: 700, height: 900 },
+      { width: 1280, height: 800 },
+    ]) {
+      for (const count of [8, 12, 24]) {
+        const layout = revealLayout(viewport, count, RATIO)
+        assert.ok(layout.columns <= 8 && layout.columns >= 2, `${viewport.width} px, ${count} cartes : ${layout.columns} colonnes`)
+        assert.ok(rowWidth(layout) + 0.2 * layout.width <= viewport.width - 32, `${viewport.width} px, ${count} cartes : ${rowWidth(layout)}`)
+      }
+    }
+    // Ordinateur : les 24 cartes tiennent dans la hauteur de l'écran.
+    const desk = revealLayout({ width: 1280, height: 800 }, 24, RATIO)
+    assert.ok(Math.ceil(24 / desk.columns) * (desk.width * RATIO + desk.gap) <= 800 - 300)
+  })
 })

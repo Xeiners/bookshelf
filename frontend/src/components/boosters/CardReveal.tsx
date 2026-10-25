@@ -37,6 +37,28 @@ const STAGING: Record<Rarity, Staging> = {
 /** Intensité des rayons derrière la carte révélée, par rang. */
 const RAYS = [0.18, 0.4, 0.7, 0.9, 1]
 
+/** Cartes visibles derrière celle du dessus, dans le paquet. */
+const DECK_DEPTH = 4
+/** Bloque (en haut) ou libère le défilement de la zone des cartes. */
+function lockScroll(scroller: HTMLElement, locked: boolean) {
+  if (locked) scroller.scrollTop = 0
+  scroller.style.overflowY = locked ? 'hidden' : ''
+}
+
+/** Hauteur des commandes sous le paquet (zone fixe `h-32`, écart et marge du bas). */
+const DECK_CONTROLS = 180
+
+/**
+ * Centre du paquet, dans la grille, et la hauteur dont il dispose. Grille plus haute que la
+ * zone visible (plusieurs boosters) : elle commence en haut de la zone, et le paquet se tient
+ * au milieu de ce qui reste au-dessus des commandes.
+ */
+function deckCenter(row: HTMLElement, scroller: HTMLElement | null): { x: number; y: number; room: number } {
+  const visible = (scroller?.clientHeight ?? window.innerHeight) - DECK_CONTROLS
+  const room = Math.min(row.offsetHeight, Math.max(240, visible))
+  return { x: row.offsetWidth / 2, y: room / 2, room }
+}
+
 interface CardRevealProps {
   cards: PulledCard[]
   /** Colonnes, largeur d'une carte et écart (px) : cf. `revealLayout`. */
@@ -98,6 +120,8 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
   /** Cartes retournées, lues par les minuteurs de « Tout révéler » (l'état React y serait périmé). */
   const done = useRef<Set<number>>(new Set())
   const height = Math.round(width * CARD_RATIO)
+  /** Plusieurs boosters ouverts d'un coup : pastilles serrées, commandes toujours visibles. */
+  const many = cards.length > 8
   const { contextSafe } = useGSAP({ scope: rootRef })
 
   // Enveloppe créée à l'appel, pas au rendu : aucune ref n'est lue pendant le rendu.
@@ -180,8 +204,12 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
           if (stage.shake > 0) onShake(stage.shake)
           setSpot(index)
           // Centrés sur le paquet (la carte, elle, peut encore être en train d'y monter).
-          const box = rowRef.current?.getBoundingClientRect()
-          if (box) gsap.set('[data-rays]', { left: box.left + box.width / 2, top: box.top + box.height / 2 })
+          const row = rowRef.current
+          if (row) {
+            const box = row.getBoundingClientRect()
+            const center = deckCenter(row, rootRef.current?.parentElement ?? null)
+            gsap.set('[data-rays]', { left: box.left + center.x, top: box.top + center.y })
+          }
           // Rayons de lumière derrière la carte, à la couleur (et à la mesure) de sa rareté.
           gsap.fromTo('[data-rays]', { autoAlpha: 0, scale: 0.55 }, { autoAlpha: RAYS[tier] ?? 0.2, scale: 1, duration: 0.55, ease: 'power3.out', overwrite: 'auto' })
         }, revealAt)
@@ -230,13 +258,16 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
     const row = rowRef.current
     const slot = slotOf(index)
     if (!row || !slot) return { x: 0, y: 0, scale: 1, rotation: 0, zIndex: 1 }
-    const scale = Math.max(1, Math.min(1.75, (Math.min(window.innerWidth, 480) - 72) / width, (row.offsetHeight * 1.15) / height))
+    const center = deckCenter(row, rootRef.current?.parentElement ?? null)
+    const scale = Math.max(1, Math.min(1.75, (Math.min(window.innerWidth, 480) - 72) / width, (center.room * 1.15) / height))
+    // Au-delà de quelques cartes, les suivantes attendent, cachées, derrière la dernière visible.
+    const depth = Math.min(position, DECK_DEPTH)
     return {
-      x: row.offsetWidth / 2 - (slot.offsetLeft + width / 2) + position * 3,
-      y: row.offsetHeight / 2 - (slot.offsetTop + height / 2) - position * 18,
-      scale: scale * (1 - position * 0.05),
-      rotation: position === 0 ? 0 : (index % 2 ? 1 : -1) * (2 + position * 1.5),
-      zIndex: 50 - position,
+      x: center.x - (slot.offsetLeft + width / 2) + depth * 3,
+      y: center.y - (slot.offsetTop + height / 2) - depth * 18,
+      scale: scale * (1 - depth * 0.05),
+      rotation: depth === 0 ? 0 : (index % 2 ? 1 : -1) * (2 + depth * 1.5),
+      zIndex: 100 - position,
     }
   }
 
@@ -264,10 +295,10 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
         .timeline({
           onComplete: () => {
             onAllRevealed()
-            slots.forEach((slot, index) => gsap.to(slot.querySelector('[data-bob]'), { y: -7, duration: 1.5 + index * 0.2, ease: 'sine.inOut', repeat: -1, yoyo: true }))
+            slots.forEach((slot, index) => gsap.to(slot.querySelector('[data-bob]'), { y: -7, duration: 1.5 + (index % 6) * 0.2, ease: 'sine.inOut', repeat: -1, yoyo: true }))
           },
         })
-        .to(slots, { x: 0, y: 0, scale: 1, rotation: (index: number) => tiltOf(index), duration: 0.75, ease: 'back.out(1.3)', stagger: 0.09 })
+        .to(slots, { x: 0, y: 0, scale: 1, rotation: (index: number) => tiltOf(index), duration: 0.75, ease: 'back.out(1.3)', stagger: Math.min(0.09, 1.2 / cards.length) })
         .set(slots, { zIndex: 1 })
     })()
 
@@ -367,14 +398,17 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
     () => {
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const timeline = gsap.timeline({ onComplete: revealTop })
+      // Toujours moins d'une seconde d'attente, même pour 24 cartes.
+      const dealStep = Math.min(0.1, 0.9 / Math.max(1, cards.length - 1))
       cards.forEach((_, index) => {
         const target = place(index, index)
         const slot = slotOf(index)
         if (reduced) timeline.set(slot, target, 0)
-        else if (origins?.[index] && slot) {
+        else if (origins && origins.length > 0 && slot) {
           // Chaque carte part de là où elle est sortie du booster (même dos, même
-          // taille, même inclinaison) et descend se ranger dans le paquet.
-          const origin = origins[index]
+          // taille, même inclinaison) et descend se ranger dans le paquet. Plusieurs boosters :
+          // seules les premières sont sorties, les autres partent de derrière la dernière.
+          const origin = origins[Math.min(index, origins.length - 1)]!
           const box = slot.getBoundingClientRect()
           timeline.fromTo(
             slot,
@@ -387,7 +421,7 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
               autoAlpha: 1,
             },
             { ...target, duration: 1, ease: 'power3.inOut' },
-            (cards.length - 1 - index) * 0.1,
+            (cards.length - 1 - index) * dealStep,
           )
         }
         else
@@ -395,13 +429,22 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
             slot,
             { ...target, y: target.y + 260, autoAlpha: 0 },
             { ...target, autoAlpha: 1, duration: 0.65, ease: 'back.out(1.3)' },
-            (cards.length - 1 - index) * 0.08,
+            (cards.length - 1 - index) * dealStep * 0.8,
           )
       })
       if (!reduced && !origins) timeline.add(() => playDeal(0), 0)
     },
     { scope: rootRef },
   )
+
+  // Plusieurs boosters : la grille dépasse l'écran. Pendant le paquet, rien ne défile (il
+  // resterait en haut, hors de vue) ; le récapitulatif, lui, se parcourt.
+  useEffect(() => {
+    const scroller = rootRef.current?.parentElement
+    if (!many || !scroller || phase !== 'deck') return
+    lockScroll(scroller, true)
+    return () => lockScroll(scroller, false)
+  }, [many, phase])
 
   // Clavier : les flèches font passer la carte du dessus.
   useEffect(() => {
@@ -559,18 +602,18 @@ export function CardReveal({ cards, layout, onAllRevealed, onBurst, onShake, onI
         Le contenu étant centré verticalement, la moindre variation ferait
         monter et descendre toute la rangée de cartes.
       */}
-      <div className="flex h-32 w-full flex-col items-center justify-start gap-3">
+      <div className={`flex h-32 w-full flex-col items-center justify-start gap-3 ${many ? 'sticky bottom-0 z-[120] bg-gradient-to-t from-[#050507] via-[#050507]/90 to-transparent pt-2' : ''}`}>
         {phase === 'deck' ? (
           <>
             <RarityTitle pulled={spot === null ? null : (cards[spot] ?? null)} index={spot} />
-            <div className="flex items-center gap-1.5" aria-label={t.boosters.deck.counter(Math.min(seen + 1, cards.length), cards.length)} role="img">
+            <div className={`flex items-center ${many ? 'gap-1' : 'gap-1.5'}`} aria-label={t.boosters.deck.counter(Math.min(seen + 1, cards.length), cards.length)} role="img">
               {cards.map((pulled, index) => (
                 <span
                   key={index}
                   aria-hidden
                   className="h-1.5 rounded-full transition-[width,background-color,box-shadow] duration-300"
                   style={{
-                    width: index === Math.min(seen, cards.length - 1) ? 22 : 8,
+                    width: index === Math.min(seen, cards.length - 1) ? (many ? 14 : 22) : many ? 5 : 8,
                     background: revealed[index] ? RARITY_STYLE[pulled.card.rarity].color : 'rgba(255,255,255,0.18)',
                     boxShadow: revealed[index] && rarityRank(pulled.card.rarity) >= 2 ? `0 0 10px ${RARITY_STYLE[pulled.card.rarity].color}` : undefined,
                   }}

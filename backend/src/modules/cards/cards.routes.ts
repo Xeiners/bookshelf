@@ -5,6 +5,7 @@ import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { rateLimit } from '../../core/http/rateLimit.js'
 import { boosterStatus, collectionOf, guestCollection, openBooster, openGuestBooster, openLegendaryPack, seriesShowcase, setFavorite } from './cards.service.js'
 import { GUEST_BOOSTERS } from './guestPacks.js'
+import { MAX_PACKS_AT_ONCE } from './boosters.logic.js'
 import { characterArt } from './cards.art.js'
 import { CONVERTIBLE_RARITIES, MAX_CONVERT_CARDS } from './duplicates/duplicates.logic.js'
 import { convertDuplicates, duplicatesOf } from './duplicates/duplicates.service.js'
@@ -23,7 +24,8 @@ import { GIFT_MESSAGE_MAX, SHARE_MAX_CARDS, SHARE_MAX_RECIPIENTS, shareCards } f
 const GuestBody = z.object({ receipts: z.array(z.string().max(1024)).max(GUEST_BOOSTERS * 2).default([]) })
 /** Série du booster : 1, 2, 3, ou la roulette (par défaut). */
 const Series = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal('random')]).default('random')
-const OpenBody = z.object({ series: Series })
+/** Boosters ouverts d'un coup (1 par défaut). */
+const OpenBody = z.object({ series: Series, packs: z.number().int().min(1).max(MAX_PACKS_AT_ONCE).default(1) })
 
 /** Monté sous `/api/boosters`. */
 export const boostersRouter = Router()
@@ -63,10 +65,14 @@ boostersRouter.get('/status', async (req, res) => {
  */
 const openLimiter = rateLimit({ windowMs: 60 * 1000, max: config.cards.unlimited ? 600 : 20 })
 
-/** Ouvre un booster : 4 cartes tirées, enregistrées, et le stock à jour. 409 si le stock est vide. */
+/**
+ * Ouvre un booster, ou jusqu'à `MAX_PACKS_AT_ONCE` d'un coup (`packs`) : 4 cartes par booster,
+ * enregistrées, et le stock à jour. 409 si le stock n'y suffit pas (rien n'est alors dépensé).
+ */
 boostersRouter.post('/open', openLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store')
-  res.json(await openBooster(currentUserId(req), { series: OpenBody.parse(req.body ?? {}).series }))
+  const { series, packs } = OpenBody.parse(req.body ?? {})
+  res.json(await openBooster(currentUserId(req), { series, packs }))
 })
 
 /** Ouvre un pack Légendaire offert (dernière carte Légendaire ou mieux). 409 `no_legendary_pack` s'il n'en reste pas. */

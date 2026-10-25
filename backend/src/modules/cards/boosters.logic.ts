@@ -10,6 +10,8 @@ export const MAX_BOOSTERS = 3
 export const BOOSTER_INTERVAL_MS = 3 * 60 * 60 * 1000
 /** Cartes par booster : deux de base, une wildcard Rare+, une Épique+ garantie. */
 export const CARDS_PER_PACK = 4
+/** Boosters achetés, ou ouverts, d'un coup : au plus. */
+export const MAX_PACKS_AT_ONCE = 6
 /** Le 400e booster consécutif sans Mythique en garantit une sur son dernier slot. */
 export const HARD_PITY_PACKS = 400
 /**

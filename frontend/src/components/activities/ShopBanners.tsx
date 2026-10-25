@@ -1,11 +1,9 @@
 import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ChevronDown, Gift, Loader2, Send, Sparkles } from 'lucide-react'
+import { ChevronDown, Gift, Send, Sparkles } from 'lucide-react'
 import { useT } from '../../i18n'
-import { apiErrorMessage } from '../../lib/apiErrors'
 import type { BoxKind } from '../../lib/runner/wardrobe'
 import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { LIVE_SERIES, type CardSeries } from '../../services/cardsApi'
 import type { Promotion } from '../../services/promotionsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDleStore } from '../../store/useDleStore'
@@ -13,11 +11,11 @@ import { promotionOf, usePromotions } from '../../store/usePromotions'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
+import { BuyBoostersSheet } from '../boosters/BuyBoostersSheet'
 
 /*
  * La boutique, sous l'autel des boosters : deux bannières pour dépenser ses Poussières sans
- * quitter les activités. La première achète un booster (au choix de la série) et l'ouvre
- * aussitôt ; la seconde ouvre une boîte mystère de la garde-robe du Manga Runner — la
+ * quitter les activités. La première achète de 1 à 6 boosters, rangés dans la réserve ; la seconde ouvre une boîte mystère de la garde-robe du Manga Runner — la
  * gratuite du jour, ou une payée — directement ici.
  */
 
@@ -60,11 +58,11 @@ export function ShopBanners() {
   const openAuth = useUiStore((state) => state.openAuth)
   const notify = useUiStore((state) => state.notify)
   const overview = useDleStore((state) => state.overview)
-  const buyBooster = useDleStore((state) => state.buyBooster)
   const wardrobe = useRunnerWardrobe((state) => state.view)
   const loadWardrobe = useRunnerWardrobe((state) => state.load)
-  const [open, setOpen] = useState<'booster' | 'box' | null>(null)
-  const [busy, setBusy] = useState<CardSeries | null>(null)
+  const [open, setOpen] = useState<'box' | null>(null)
+  /** Feuille d'achat des boosters ouverte. */
+  const [buying, setBuying] = useState(false)
   const [box, setBox] = useState<{ kind: BoxKind; key: number } | null>(null)
   const [gifting, setGifting] = useState(false)
   const [now, setNow] = useState(() => Date.now())
@@ -101,29 +99,27 @@ export function ShopBanners() {
   const gifts = wardrobe?.gifts ?? 0
   const glowing = freeReady || gifts > 0
 
-  const toggle = (which: 'booster' | 'box') => {
+  const buyBoosters = () => {
+    vibrate(8)
+    if (!signedIn) {
+      openAuth()
+      return
+    }
+    if (boosterPrice === null) return
+    if (balance < boosterPrice) {
+      notify(t.activities.shop.short(boosterPrice - balance), 'nope')
+      return
+    }
+    setBuying(true)
+  }
+
+  const toggle = (which: 'box') => {
     vibrate(8)
     if (!signedIn) {
       openAuth()
       return
     }
     setOpen((current) => (current === which ? null : which))
-  }
-
-  const buy = async (series: CardSeries) => {
-    if (boosterPrice !== null && balance < boosterPrice) {
-      notify(t.activities.shop.short(boosterPrice - balance), 'nope')
-      return
-    }
-    setBusy(series)
-    try {
-      await buyBooster(series)
-      setOpen(null)
-    } catch (error) {
-      notify(apiErrorMessage(error, t), 'nope')
-    } finally {
-      setBusy(null)
-    }
   }
 
   const openBox = (kind: BoxKind) => {
@@ -140,7 +136,7 @@ export function ShopBanners() {
     <div ref={ref} className="flex shrink-0 flex-col gap-3">
       {/* Booster contre des Poussières. */}
       <section className="overflow-hidden rounded-[1.5rem] border border-[#ffc46b]/35" style={{ background: 'linear-gradient(110deg, #2a1a08 0%, #1a1020 55%, #2a0f22 100%)' }}>
-        <button type="button" onClick={() => toggle('booster')} aria-expanded={open === 'booster'} className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left sm:gap-4 sm:p-4">
+        <button type="button" onClick={buyBoosters} aria-haspopup="dialog" className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left sm:gap-4 sm:p-4">
           <span data-shop-shine aria-hidden className="pointer-events-none absolute inset-y-0 w-16 -skew-x-12 bg-white/10 blur-sm" />
           <span data-shop-bob className="relative -my-2 shrink-0 will-change-transform" style={{ transform: 'rotate(-8deg)' }}>
             <BoosterPackArt width={46} series={3} lit />
@@ -152,28 +148,9 @@ export function ShopBanners() {
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
             <PricePill price={boosterPrice} promo={boosterPromo} now={now} style={{ background: 'linear-gradient(135deg, #fff0a8, #ffc23a)' }} className="text-[#1a0b1f]" />
-            <ChevronDown size={16} className={`text-cream/50 transition-transform ${open === 'booster' ? 'rotate-180' : ''}`} aria-hidden />
           </span>
         </button>
-        {open === 'booster' && (
-          <div className="grid gap-2 px-4 pb-4" style={{ gridTemplateColumns: `repeat(${LIVE_SERIES.length}, minmax(0, 1fr))` }} role="group" aria-label={t.boosters.choose.title}>
-            {LIVE_SERIES.map((series) => (
-              <button
-                key={series}
-                type="button"
-                disabled={busy !== null}
-                onClick={() => void buy(series)}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] p-2.5 transition-transform active:scale-95 disabled:opacity-60"
-              >
-                <BoosterPackArt width={44} series={series} lit />
-                <span className="text-xs font-bold text-cream">{t.boosters.seriesName(series)}</span>
-                <span className="truncate text-[10px] text-cream/50">{t.boosters.seriesTagline[series]}</span>
-                {busy === series && <Loader2 size={14} className="animate-spin text-cream/70" aria-hidden />}
-              </button>
-            ))}
-            <p className="col-span-full text-center text-[11px] text-cream/50 tabular-nums">{t.activities.shop.balance(balance)}</p>
-          </div>
-        )}
+        {buying && boosterPrice !== null && <BuyBoostersSheet price={boosterPrice} balance={balance} onClose={() => setBuying(false)} />}
       </section>
 
       {/* Boîte mystère de la garde-robe. */}

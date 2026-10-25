@@ -23,11 +23,11 @@ interface BoosterState {
 
   refresh: () => Promise<void>
   /**
-   * Ouvre un booster du compte, ou un booster d'essai (`guest` : son reçu est
-   * gardé sur l'appareil). Lève l'erreur de l'API (409 : plus de stock,
-   * 503 : collection en préparation).
+   * Ouvre un booster du compte — ou `packs` d'un coup — ou un booster d'essai (`guest` :
+   * un seul, son reçu est gardé sur l'appareil). Lève l'erreur de l'API (409 : plus de
+   * stock, 503 : collection en préparation).
    */
-  open: (as: 'account' | 'guest', series: SeriesChoice) => Promise<{ cards: PulledCard[]; series: CardSeries }>
+  open: (as: 'account' | 'guest', series: SeriesChoice, packs?: number) => Promise<{ cards: PulledCard[]; series: CardSeries }>
   /** Ouvre un pack Légendaire offert (compte seulement). */
   openLegendary: () => Promise<{ cards: PulledCard[]; series: CardSeries }>
   /** Couvertures de chaque série (illustration des paquets) ; `null` tant qu'elles ne sont pas chargées. */
@@ -81,7 +81,7 @@ export const useBoosterStore = create<BoosterState>((set) => ({
     return inflight
   },
 
-  open: async (as, choice) => {
+  open: async (as, choice, packs = 1) => {
     if (as === 'guest') {
       const guest = useGuestCardsStore.getState()
       const { cards, receipt, series } = await cardsApi.guestOpen(guest.receipts, choice)
@@ -92,13 +92,13 @@ export const useBoosterStore = create<BoosterState>((set) => ({
       }))
       return { cards, series }
     }
-    const { cards, status, series } = await cardsApi.open(choice)
+    const { cards, status, series } = await cardsApi.open(choice, packs)
     set((state) => ({
       status,
       syncedAt: performance.now(),
       offline: false,
       collectionVersion: state.collectionVersion + 1,
-      tally: addToTally(state.tally, cards.map((pulled) => pulled.card.rarity)),
+      tally: addToTally(state.tally, cards.map((pulled) => pulled.card.rarity), packs),
     }))
     return { cards, series }
   },

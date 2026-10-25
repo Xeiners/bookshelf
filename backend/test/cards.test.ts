@@ -513,6 +513,39 @@ describe('API — boosters et collection', () => {
     assert.equal(copies._sum.count, 6 * CARDS_PER_PACK)
   })
 
+  it('plusieurs boosters d’un coup : 4 cartes chacun, chacun dépensé et compté comme ouvert à la suite', async () => {
+    const account = await signedUp()
+    const { prisma } = await import('../src/core/db.js')
+    const { LEGENDARY_PITY_PACKS } = await import('../src/modules/cards/boosters.logic.js')
+    // 3 du stock + 3 offerts ; la garantie Légendaire tombe au 2e booster du lot.
+    await prisma.userBooster.create({ data: { userId: account.userId, giftedBoosters: 3, boostersSinceLastLegendary: LEGENDARY_PITY_PACKS - 2 } })
+    const { openBooster } = await import('../src/modules/cards/cards.service.js')
+    const opened = await openBooster(account.userId, { packs: 6, random: () => 0 })
+    assert.equal(opened.packs, 6)
+    assert.equal(opened.cards.length, 6 * CARDS_PER_PACK)
+    assert.equal(opened.status.available, 0)
+    const last = (pack: number) => opened.cards[pack * CARDS_PER_PACK + CARDS_PER_PACK - 1]!.card.rarity
+    assert.ok(['LEGENDARY', 'MYTHIC'].includes(last(1)), last(1))
+    assert.ok(!['LEGENDARY', 'MYTHIC'].includes(last(0)) && !['LEGENDARY', 'MYTHIC'].includes(last(2)))
+    const row = await prisma.userBooster.findUniqueOrThrow({ where: { userId: account.userId } })
+    // Après la garantie (2e booster), quatre boosters de plus.
+    assert.equal(row.boostersSinceLastLegendary, 4)
+    assert.equal(row.giftedBoosters, 0)
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: account.userId } })).boostersOpened, 6)
+  })
+
+  it('plusieurs boosters d’un coup, stock insuffisant : 409, rien n’est dépensé ; au-delà de 6 : 400', async () => {
+    const account = await signedUp()
+    const tooMany = await account.request('POST', '/boosters/open', { packs: MAX_BOOSTERS + 1 })
+    assert.equal(tooMany.status, 409)
+    assert.equal((await account.request('GET', '/boosters/status')).body.available, MAX_BOOSTERS)
+    assert.equal((await account.request('POST', '/boosters/open', { packs: 7 })).status, 400)
+    const two = await account.request('POST', '/boosters/open', { packs: 2 })
+    assert.equal(two.status, 200)
+    assert.equal(two.body.cards.length, 2 * CARDS_PER_PACK)
+    assert.equal(two.body.status.available, MAX_BOOSTERS - 2)
+  })
+
   it('mode recette coupé par défaut : le statut le dit', async () => {
     const { body } = await (await signedUp()).request('GET', '/boosters/status')
     assert.equal(body.unlimited, false)
