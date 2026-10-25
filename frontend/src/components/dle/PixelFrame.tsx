@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useT } from '../../i18n'
-import { PIXEL_STEPS, pixelColumns } from '../../lib/dle'
+import { PIXEL_STEPS } from '../../lib/dle'
 import { gsap, useGSAP } from '../../lib/gsap'
 
 interface PixelFrameProps {
-  /** Image à deviner (portrait, couverture), servie par une adresse qui ne la nomme pas. */
+  /**
+   * Image à deviner, PRÉPARÉE par le serveur au cran du joueur (quelques gros pixels), puis
+   * nette après la victoire : l'image d'origine n'arrive jamais avant (anti-triche).
+   */
   src: string
   /** Erreurs commises : chacune affine les pixels d'un cran. */
   errors: number
@@ -16,25 +19,24 @@ interface PixelFrameProps {
   portrait: boolean
 }
 
-/** Format du cadre (largeur / hauteur), le même que les couvertures. */
-const RATIO = 3 / 4
-
 /**
  * Mode Pixels : l'image réduite à quelques pixels (8 de large au départ), puis de
  * plus en plus fins à chaque erreur, jusqu'à l'image nette à la quinzième — ou à
- * la victoire. L'image est dessinée dans un tout petit canevas, agrandi par le
- * navigateur sans lissage (`image-rendering: pixelated`) : des pixels nets, aucun
- * flou, et un seul petit dessin par erreur (léger sur téléphone).
+ * la victoire. Le serveur envoie l'image déjà réduite (un PNG de quelques pixels) ;
+ * elle est dessinée telle quelle dans un canevas, agrandi par le navigateur sans
+ * lissage (`image-rendering: pixelated`) : des pixels nets, aucun flou. Le cran
+ * précédent reste affiché tant que le suivant se charge.
  */
 export function PixelFrame({ src, errors, revealed, glow, portrait }: PixelFrameProps) {
   const t = useT()
   const frameRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [image, setImage] = useState<HTMLImageElement | null>(null)
-  const columns = revealed ? null : pixelColumns(errors)
   const first = useRef(true)
+  // Victoire : l'image nette ne remplace les pixels qu'une fois chargée (jamais de cadre vide).
+  const sharp = revealed && image !== null && image.src.endsWith(src)
 
-  // L'image, chargée une fois (même origine : le canevas peut la dessiner).
+  // Chaque cran est une nouvelle image (même origine : le canevas peut la dessiner).
   useEffect(() => {
     const element = new Image()
     element.decoding = 'async'
@@ -45,41 +47,30 @@ export function PixelFrame({ src, errors, revealed, glow, portrait }: PixelFrame
     }
   }, [src])
 
-  // Un cran : l'image redessinée à la nouvelle taille de pixel, cadrée comme une couverture.
+  // Le cran reçu, dessiné à sa taille : le canevas l'agrandit sans lissage.
   useEffect(() => {
     const canvas = canvasRef.current
     const context = canvas?.getContext('2d')
-    if (!canvas || !context || !image || columns === null) return
-    const rows = Math.round(columns / RATIO)
-    canvas.width = columns
-    canvas.height = rows
-    // Lissage À LA RÉDUCTION : chaque pixel prend la couleur moyenne de sa zone.
-    context.imageSmoothingEnabled = true
-    context.imageSmoothingQuality = 'high'
-    const { naturalWidth: width, naturalHeight: height } = image
-    const wide = width / height > RATIO
-    const sw = wide ? height * RATIO : width
-    const sh = wide ? height : width / RATIO
-    const sx = (width - sw) / 2
-    const sy = wide || portrait ? 0 : (height - sh) / 2
-    // Fond opaque d'abord : un portrait détouré (PNG transparent) ne laisse jamais voir l'image nette dessous.
+    if (!canvas || !context || !image || sharp) return
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
     context.fillStyle = '#0b0b12'
-    context.fillRect(0, 0, columns, rows)
-    context.drawImage(image, sx, sy, sw, sh, 0, 0, columns, rows)
-  }, [image, columns, portrait])
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0)
+  }, [image, sharp])
 
   useGSAP(
     () => {
       if (!image) return
-      const duration = first.current ? 0 : revealed ? 0.9 : 0.35
+      const duration = first.current ? 0 : sharp ? 0.9 : 0.35
       first.current = false
-      // Victoire (ou dernier cran) : les pixels s'effacent sur l'image nette.
-      gsap.to(canvasRef.current, { opacity: columns === null ? 0 : 1, duration, ease: 'power2.out' })
+      // Victoire : les pixels s'effacent sur l'image nette.
+      gsap.to(canvasRef.current, { opacity: sharp ? 0 : 1, duration, ease: 'power2.out' })
       if (duration === 0) return
-      if (revealed) gsap.fromTo(frameRef.current, { scale: 0.95 }, { scale: 1, duration: 0.9, ease: 'elastic.out(1, 0.5)' })
+      if (sharp) gsap.fromTo(frameRef.current, { scale: 0.95 }, { scale: 1, duration: 0.9, ease: 'elastic.out(1, 0.5)' })
       else gsap.fromTo(frameRef.current, { scale: 0.97 }, { scale: 1, duration: 0.45, ease: 'back.out(2)' })
     },
-    { dependencies: [image, columns, revealed] },
+    { dependencies: [image, sharp] },
   )
 
   const step = revealed ? PIXEL_STEPS.length : Math.min(errors, PIXEL_STEPS.length)
@@ -94,15 +85,9 @@ export function PixelFrame({ src, errors, revealed, glow, portrait }: PixelFrame
           style={{ borderColor: `${glow}88`, boxShadow: '0 0 0 4px rgba(11,9,24,1), 0 30px 60px -30px rgba(0,0,0,0.95)' }}
         >
           {!image && <div aria-hidden className="absolute inset-0 animate-pulse bg-white/[0.04]" />}
-          {/* L'image nette, dessous : invisible tant que les pixels sont là, elle apparaît quand ils s'effacent. */}
-          {image && (
-            <img
-              src={src}
-              alt={t.dle.modes.pixel.title}
-              draggable={false}
-              className={`h-full w-full object-cover transition-opacity duration-700 select-none ${portrait ? 'object-top' : ''}`}
-              style={{ opacity: columns === null ? 1 : 0 }}
-            />
+          {/* L'image nette (après la victoire seulement), dessous : elle apparaît quand les pixels s'effacent. */}
+          {sharp && (
+            <img src={src} alt={t.dle.modes.pixel.title} draggable={false} className={`h-full w-full object-cover select-none ${portrait ? 'object-top' : ''}`} />
           )}
           <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full will-change-[opacity]" style={{ imageRendering: 'pixelated' }} />
         </div>

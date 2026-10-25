@@ -110,7 +110,7 @@ export function DailyGame({ mode }: { mode: DleMode }) {
           <>
             {mode === 'pixel' && (
               <PixelFrame
-                src={dleApi.dailyImage(category, 'pixel', view.day)}
+                src={dleApi.dailyImage(category, 'pixel', view.day, view.solved ? 'done' : view.guesses.filter((guess) => !guess.correct).length)}
                 errors={view.guesses.filter((guess) => !guess.correct).length}
                 revealed={view.solved}
                 glow={CATEGORY_STYLE[category].accent}
@@ -131,8 +131,7 @@ export function DailyGame({ mode }: { mode: DleMode }) {
             )}
             {mode === 'zoom' && (
               <ZoomFrame
-                src={dleApi.dailyImage(category, 'zoom', view.day)}
-                focus={view.focus}
+                src={dleApi.dailyImage(category, 'zoom', view.day, view.solved ? 'done' : view.guesses.filter((guess) => !guess.correct).length)}
                 errors={view.guesses.filter((guess) => !guess.correct).length}
                 revealed={view.solved}
               />

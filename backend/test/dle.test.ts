@@ -514,16 +514,23 @@ describe('dle — Naruto', () => {
     const thumbnail = Buffer.from(await (await bastien.send('GET', `/dle/characters/naruto/${id}/image`)).arrayBuffer()).toString('latin1')
     assert.match(thumbnail, /characters\/1\//, 'la vignette : le portrait principal')
     // Les galeries se chargent en tâche de fond, après les portraits.
+    // L'image d'origine de l'énigme (le joueur, lui, n'en reçoit que le détail zoomé, cf. plus bas).
+    const { gameOf } = await import('../src/modules/dle/dle.games.js')
+    const daily = await import('../src/modules/dle/dle.daily.js')
+    const day = logic.parisDay(new Date())
+    const original = async () => (await gameOf('naruto').image(await daily.puzzleEntity(day, 'naruto', 'zoom'), daily.puzzleSeed(day, 'naruto', 'zoom'))).body.toString('latin1')
     let served = ''
     for (let attempt = 0; attempt < 40 && !/characters\/2\//.test(served); attempt += 1) {
       await new Promise((done) => setTimeout(done, 150))
-      served = Buffer.from(await (await bastien.send('GET', '/dle/daily/naruto/zoom/image')).arrayBuffer()).toString('latin1')
+      served = await original()
     }
     assert.match(served, /characters\/2\/\d+[ab]\.jpg/, 'une image de la galerie')
     assert.notEqual(served, thumbnail)
-    // Même graine, même image : tous les joueurs voient la même énigme.
-    const again = Buffer.from(await (await chloe.send('GET', '/dle/daily/naruto/zoom/image')).arrayBuffer()).toString('latin1')
-    assert.equal(again, served)
+    // Même graine, même image : tous les joueurs voient la même énigme (au même cran, les mêmes octets).
+    const [forBastien, forChloe] = await Promise.all([bastien, chloe].map(async (player) => Buffer.from(await (await player.send('GET', '/dle/daily/naruto/zoom/image')).arrayBuffer())))
+    const bastienErrors = (await bastien.request('GET', '/dle/daily/naruto/zoom')).body.guesses.length
+    const chloeErrors = (await chloe.request('GET', '/dle/daily/naruto/zoom')).body.guesses.length
+    if (bastienErrors === chloeErrors) assert.ok(forBastien.equals(forChloe))
     assert.ok((await narutoPortraits.charactersWithPuzzleImage()).has(id))
   })
 
@@ -800,12 +807,30 @@ describe('dle — Pixels', () => {
     }
     // Portrait (les couvertures MangaDex ne sont pas simulées par le banc d'essai).
     assert.equal((await chloe.send('GET', '/dle/daily/naruto/pixel/image')).status, 200)
+    // Anti-triche : le serveur n'envoie que les gros pixels du cran mérité — jamais l'image nette,
+    // quoi que demande l'adresse (`step=done` sans avoir trouvé ne change rien).
+    const pixelSize = async (query = '') => sharp(Buffer.from(await (await chloe.send('GET', `/dle/daily/naruto/pixel/image${query}`)).arrayBuffer())).metadata()
+    const start = await pixelSize('?step=done')
+    assert.deepEqual([start.width, start.height, start.format], [8, 11, 'png'])
+    const answerId = (await prisma.dlePuzzle.findUnique({ where: { day_category_mode: { day: logic.parisDay(new Date()), category: 'naruto', mode: 'pixel' } } }))!.cardId
+    const wrong = ['naruto', 'sasuke', 'neji', 'kankuro', 'killer-b'].find((id) => id !== answerId)!
+    assert.equal((await chloe.request('POST', '/dle/daily/naruto/pixel/guess', { cardId: wrong })).status, 200)
+    assert.equal((await pixelSize('?step=1')).width, 10, 'une erreur : un cran plus fin')
+    // Zoom : seulement le détail, à la taille du cadre.
+    const zoomed = await sharp(Buffer.from(await (await chloe.send('GET', '/dle/daily/naruto/zoom/image?step=done')).arrayBuffer())).metadata()
+    assert.deepEqual([zoomed.width, zoomed.height], [480, 640])
     assert.equal((await chloe.send('GET', '/dle/daily/manga/classic/image')).status, 400, 'le classique n’a pas d’image')
     const puzzle = await prisma.dlePuzzle.findUnique({ where: { day_category_mode: { day: logic.parisDay(new Date()), category: 'naruto', mode: 'pixel' } } })
     assert.ok(['naruto', 'sasuke', 'neji', 'kankuro', 'killer-b'].includes(puzzle!.cardId), 'seulement des personnages qui ont un portrait')
     const win = await chloe.request('POST', '/dle/daily/naruto/pixel/guess', { cardId: puzzle!.cardId })
     assert.ok(win.body.earned > 0)
     assert.equal((await chloe.request('GET', '/dle')).body.daily.naruto.pixel.solved, true)
+    // Trouvé : l'image nette.
+    const { gameOf } = await import('../src/modules/dle/dle.games.js')
+    const daily = await import('../src/modules/dle/dle.daily.js')
+    const day = logic.parisDay(new Date())
+    const original = await sharp((await gameOf('naruto').image(await daily.puzzleEntity(day, 'naruto', 'pixel'), daily.puzzleSeed(day, 'naruto', 'pixel'))).body).metadata()
+    assert.equal((await pixelSize('?step=done')).width, original.width, 'trouvée : l’image entière')
   })
 
   it('salons : les Pixels se jouent après Classique et Couverture, toujours dans cet ordre', async () => {

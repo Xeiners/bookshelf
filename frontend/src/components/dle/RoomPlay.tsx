@@ -192,7 +192,7 @@ export function RoomPlay({ room }: { room: RoomView }) {
           <div className="flex min-w-0 flex-col gap-5 lg:order-1">
             {room.mode === 'pixel' && (
               <PixelFrame
-                src={dleApi.roomImage(room.code, room.round)}
+                src={dleApi.roomImage(room.code, room.round, solved || room.mine.done ? 'done' : wrong)}
                 errors={wrong}
                 revealed={solved}
                 glow={CATEGORY_STYLE[room.category].accent}
@@ -214,7 +214,7 @@ export function RoomPlay({ room }: { room: RoomView }) {
               />
             )}
             {room.mode === 'zoom' && (
-              <ZoomFrame src={dleApi.roomImage(room.code, room.round)} focus={room.mine.focus} errors={wrong} revealed={solved} />
+              <ZoomFrame src={dleApi.roomImage(room.code, room.round, solved || room.mine.done ? 'done' : wrong)} errors={wrong} revealed={solved} />
             )}
 
             {spectating ? (

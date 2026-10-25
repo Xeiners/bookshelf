@@ -6,10 +6,11 @@ import { currentUserId, optionalAuth, requireAuth } from '../../core/http/auth.j
 import { rateLimit } from '../../core/http/rateLimit.js'
 import type { CachedImage } from '../manga/manga.routes.js'
 import { priceOf } from '../promotions/promotions.service.js'
-import { SWEEP_BATCH, dailySolved, dailyView, dleOverview, emptyOverview, guessDaily, puzzleEntity, puzzleSeed, revealDaily } from './dle.daily.js'
+import { SWEEP_BATCH, dailyFocus, dailyProgress, dailySolved, dailyView, dleOverview, emptyOverview, guessDaily, puzzleEntity, puzzleSeed, revealDaily } from './dle.daily.js'
 import { characterOf, gameOf } from './dle.games.js'
 import { currentPlayer, issueGuest, readGuest, requirePlayer } from './dle.guests.js'
 import { DLE_CATEGORIES, DLE_MODES, ROOM_CODE, isImageMode, normalizeRoomCode, parisDay } from './dle.logic.js'
+import { puzzleImageAt } from './dle.degrade.js'
 import {
   createRoom,
   currentRoomOf,
@@ -105,7 +106,16 @@ dleRouter.get('/daily/:category/:mode/image', requireAuth, async (req, res) => {
   // Chiffon : l'image entière seulement une fois trouvée (avant, c'est tuile par tuile).
   if (mode === 'sweep' && !(await dailySolved(currentUserId(req), day, category, mode))) throw new HttpError(403, 'sweep_locked', 'Nettoie l’écran pour voir l’image.')
   const entity = await puzzleEntity(day, category, mode)
-  sendImage(res, await gameOf(category).image(entity, puzzleSeed(day, category, mode)), 'private, max-age=3600')
+  const seed = puzzleSeed(day, category, mode)
+  const load = () => gameOf(category).image(entity, seed)
+  if (mode === 'sweep') {
+    sendImage(res, await load(), 'private, max-age=3600')
+    return
+  }
+  // Pixels, Zoom : l'image au cran mérité (erreurs relues côté serveur), nette après la victoire.
+  const { errors, solved } = await dailyProgress(currentUserId(req), day, category, mode, entity.id)
+  const image = solved ? await load() : await puzzleImageAt(`daily:${seed}`, load, mode, errors, { portrait: category !== 'manga', focus: dailyFocus(day, category, mode) })
+  sendImage(res, image, 'private, max-age=600')
 })
 
 dleRouter.get('/daily/:category/:mode', requireAuth, async (req, res) => {
@@ -169,8 +179,14 @@ dleRouter.get('/rooms/:code', async (req, res) => {
 })
 
 dleRouter.get('/rooms/:code/image', async (req, res) => {
-  const { category, entity, seed } = roomZoomTarget(currentPlayer(req).id, Code.parse(req.params.code))
-  sendImage(res, await gameOf(category).image(entity, seed), 'private, max-age=600')
+  const target = roomZoomTarget(currentPlayer(req).id, Code.parse(req.params.code))
+  const load = () => gameOf(target.category).image(target.entity, target.seed)
+  // Pixels, Zoom : au cran de ce joueur ; l'image nette seulement une fois sa manche finie.
+  const image =
+    target.revealed || (target.mode !== 'pixel' && target.mode !== 'zoom')
+      ? await load()
+      : await puzzleImageAt(`room:${target.seed}`, load, target.mode, target.errors, { portrait: target.category !== 'manga', focus: target.focus })
+  sendImage(res, image, 'private, max-age=600')
 })
 
 dleRouter.post('/rooms/:code/join', roomLimiter, async (req, res) => {

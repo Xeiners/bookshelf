@@ -951,14 +951,27 @@ export async function waitRoom(userId: string, code: string, since: number | nul
 }
 
 /** Ce qu'on cherche dans un salon à image (zoom, pixels), pour en servir l'image sans la nommer. */
-export function roomZoomTarget(userId: string, code: string): { category: DleCategory; entity: DleEntity; seed: string } {
+export function roomZoomTarget(
+  userId: string,
+  code: string,
+): { category: DleCategory; mode: DleMode; entity: DleEntity; seed: string; errors: number; revealed: boolean; focus: { x: number; y: number } | null } {
   const room = roomOf(code)
   const player = memberOf(room, userId)
   if (!isImageMode(room.mode) || !room.answer || room.phase === 'lobby') throw notFound('Pas d’image à montrer.')
   // Chiffon : l'image entière seulement pour qui a fini sa manche (sinon, tuile par tuile).
   if (room.mode === 'sweep' && room.phase !== 'results' && !isDone(room, player)) throw new HttpError(403, 'sweep_locked', 'Nettoie l’écran pour voir l’image.')
-  // Image d'énigme propre à la manche : la même pour tous les joueurs du salon.
-  return { category: room.category, entity: room.answer, seed: `${room.code}:${room.round}` }
+  // Image d'énigme propre à la manche : la même pour tous les joueurs du salon. Pixels et Zoom :
+  // au cran de CE joueur (ses erreurs, ou celles de l'équipe en coop), nette une fois sa manche finie.
+  const played: PlayedGuess[] = room.kind === 'coop' ? room.shared : player.guesses
+  return {
+    category: room.category,
+    mode: room.mode,
+    entity: room.answer,
+    seed: `${room.code}:${room.round}`,
+    errors: played.filter((guess) => !guess.correct).length,
+    revealed: room.phase === 'results' || isDone(room, player) || played.some((guess) => guess.correct),
+    focus: room.focus,
+  }
 }
 
 /** Le salon où se trouve ce compte, s'il y en a un (reprise après un rechargement). */

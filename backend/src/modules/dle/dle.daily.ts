@@ -128,7 +128,7 @@ async function viewOf(day: string, category: DleCategory, mode: DleMode, row: Da
     guesses,
     solved,
     reward: row?.reward ?? 0,
-    focus: mode === 'zoom' ? zoomFocus(seededRandom(secretDigest(day, category, mode, 'focus').toString('hex'))) : null,
+    focus: mode === 'zoom' ? dailyFocus(day, category, mode) : null,
     sweep: mode === 'sweep' ? sweepStateOf(row, guesses.length, solved) : null,
     answer: solved ? game.summary(answer) : null,
   }
@@ -265,6 +265,15 @@ export async function revealDaily(userId: string, category: DleCategory, wanted:
 }
 
 /** Le Chiffon ne montre l'image entière qu'une fois l'énigme résolue. */
+/** Point de la couverture sur lequel zoome l'énigme du jour (le même pour tout le monde). */
+export const dailyFocus = (day: string, category: DleCategory, mode: DleMode) => zoomFocus(seededRandom(secretDigest(day, category, mode, 'focus').toString('hex')))
+
+/** Où en est un compte sur une énigme du jour : ses erreurs, et s'il l'a résolue. */
+export async function dailyProgress(userId: string, day: string, category: DleCategory, mode: DleMode, answerId: string): Promise<{ errors: number; solved: boolean }> {
+  const row = await prisma.dleDaily.findUnique({ where: { userId_day_category_mode: { userId, day, category, mode } }, select: { guesses: true, solvedAt: true } })
+  return { errors: parseGuesses(row?.guesses ?? '[]').filter((id) => id !== answerId).length, solved: row?.solvedAt != null }
+}
+
 export async function dailySolved(userId: string, day: string, category: DleCategory, mode: DleMode): Promise<boolean> {
   const row = await prisma.dleDaily.findUnique({ where: { userId_day_category_mode: { userId, day, category, mode } }, select: { solvedAt: true } })
   return row?.solvedAt != null

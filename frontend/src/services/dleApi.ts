@@ -279,8 +279,13 @@ export const dleApi = {
   daily: (category: DleCategory, mode: DleMode, signal?: AbortSignal) => api<DailyView>(`/dle/daily/${category}/${mode}`, { signal }),
   guessDaily: (category: DleCategory, mode: DleMode, cardId: string) =>
     api<DailyGuessResult>(`/dle/daily/${category}/${mode}/guess`, { method: 'POST', body: { cardId } }),
-  /** Image de l'énigme du jour d'un format à image (zoom, pixels) : une adresse qui ne la nomme pas. */
-  dailyImage: (category: DleCategory, mode: DleMode, day: string) => `${API_BASE}/dle/daily/${category}/${mode}/image?day=${encodeURIComponent(day)}`,
+  /**
+   * Image de l'énigme du jour d'un format à image : une adresse qui ne la nomme pas. Pixels et
+   * Zoom : le serveur l'envoie au cran mérité (`step` : erreurs, ou `done` une fois trouvée) —
+   * le cran n'est là que pour renouveler l'adresse, le serveur relit lui-même les erreurs.
+   */
+  dailyImage: (category: DleCategory, mode: DleMode, day: string, step: number | 'done' = 0) =>
+    `${API_BASE}/dle/daily/${category}/${mode}/image?day=${encodeURIComponent(day)}&step=${step}`,
 
   /** Chiffon : frotter des tuiles de l'énigme du jour (chacune compte une fois). */
   dailyReveal: (category: DleCategory, tiles: number[]) => api<SweepReveal>(`/dle/daily/${category}/sweep/reveal`, { method: 'POST', body: { tiles } }),
@@ -304,7 +309,8 @@ export const dleApi = {
   /** Attente longue : répond dès que le salon dépasse la version `since` (25 s au plus). */
   watch: (code: string, since: number | null, signal?: AbortSignal) =>
     api<RoomView>(`${room(code)}${since === null ? '' : `?v=${since}`}`, { signal }),
-  roomImage: (code: string, round: number) => `${API_BASE}${room(code)}/image?round=${round}`,
+  /** Image de la manche ; Pixels et Zoom : au cran du joueur (`step`, cf. `dailyImage`). */
+  roomImage: (code: string, round: number, step: number | 'done' = 0) => `${API_BASE}${room(code)}/image?round=${round}&step=${step}`,
 }
 
 export const stardustApi = {
