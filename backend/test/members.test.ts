@@ -1,6 +1,6 @@
 /**
  * Membres : sans texte, TOUS les membres par pages ; recherche dès la première lettre.
- * « Informer tout le monde » : tous les autres membres prévenus, une fois par jour.
+ * « Informer tout le monde » : tous les autres membres prévenus, pour une Légendaire ou une Mythique.
  */
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
@@ -30,7 +30,8 @@ before(async () => {
     data: Array.from({ length: MEMBER_PAGE + 7 }, (_, index) => ({ email: `m${index}@example.com`, passwordHash: 'x', displayName: `Membre ${index}` })),
   })
   await prisma.card.create({ data: { id: 'share-card', number: 9001, series: 3, title: 'Œuvre', name: 'Perso', imageUrl: '/api/cards/art/x', rarity: 'EPIC', mangaId: 'mal-character-9001' } })
-  await prisma.userCard.create({ data: { userId: sender.userId, cardId: 'share-card' } })
+  await prisma.card.create({ data: { id: 'share-legend', number: 9002, series: 3, title: 'Œuvre', name: 'Légende', imageUrl: '/api/cards/art/y', rarity: 'LEGENDARY', mangaId: 'mal-character-9002' } })
+  await prisma.userCard.createMany({ data: [{ userId: sender.userId, cardId: 'share-card' }, { userId: sender.userId, cardId: 'share-legend' }] })
 })
 
 describe('membres et « Informer tout le monde »', () => {
@@ -60,16 +61,19 @@ describe('membres et « Informer tout le monde »', () => {
     assert.equal(found.body.next, null)
   })
 
-  it('informer tout le monde : chaque autre membre prévenu, puis une fois par jour seulement', async () => {
+  it('informer tout le monde : Légendaires et Mythiques seulement, chaque autre membre prévenu, sans limite', async () => {
     await prisma.user.updateMany({ where: { email: 'm0@example.com' }, data: { suspendedAt: new Date() } })
-    const sent = await sender.request('POST', '/cards/share', { cardIds: ['share-card'], everyone: true, message: 'Regardez !' })
+    // Une Épique (même avec une Légendaire) : pas pour tout le monde.
+    const refused = await sender.request('POST', '/cards/share', { cardIds: ['share-legend', 'share-card'], everyone: true })
+    assert.equal(refused.status, 400)
+    assert.equal(refused.body.error.code, 'share_everyone_rarity')
+    const sent = await sender.request('POST', '/cards/share', { cardIds: ['share-legend'], everyone: true, message: 'Regardez !' })
     assert.equal(sent.status, 200, JSON.stringify(sent.body))
     const others = await prisma.user.count({ where: { id: { not: sender.userId }, suspendedAt: null } })
     assert.equal(sent.body.notified, others)
     assert.equal(await prisma.notification.count({ where: { type: 'card_share' } }), others)
-    const again = await sender.request('POST', '/cards/share', { cardIds: ['share-card'], everyone: true })
-    assert.equal(again.status, 429)
-    assert.equal(again.body.error.code, 'share_everyone_cooldown')
+    // Pas de limite : une autre Légendaire, un autre jour ou le même, se montre aussi.
+    assert.equal((await sender.request('POST', '/cards/share', { cardIds: ['share-legend'], everyone: true })).status, 200)
     // Prévenir quelques membres choisis reste possible.
     const chosen = (await prisma.user.findFirstOrThrow({ where: { email: 'm1@example.com' } })).id
     assert.equal((await sender.request('POST', '/cards/share', { cardIds: ['share-card'], toUserIds: [chosen] })).body.notified, 1)

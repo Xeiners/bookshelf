@@ -416,6 +416,8 @@ export function BoosterPackModal() {
       {pickingMembers && sharing && (
         <ShareCardsSheet
           cardIds={[...new Set([...sharing].sort((a, b) => a - b).map((index) => cards[index]!.card.id))]}
+          // « Tout le monde » : seulement pour des Légendaires et des Mythiques.
+          everyoneAllowed={[...sharing].every((index) => ['LEGENDARY', 'MYTHIC'].includes(cards[index]!.card.rarity))}
           onClose={() => setPickingMembers(false)}
           onSent={() => setSharing(null)}
         />

@@ -236,9 +236,9 @@ export const en: Dictionary = {
       sent: (count: number) => `Sent! ${count} ${plural(count, 'player', 'players')} will see your pull.`,
       selected: 'Selected',
       everyone: 'Everyone',
-      everyoneHint: 'Every member will see your pull (once a day).',
+      everyoneHint: 'Every member will see your Legendary or Mythic.',
+      everyoneLocked: 'Only for Legendaries and Mythics.',
       sendEveryone: 'Tell everyone',
-      everyoneCooldown: (time: string | null) => (time ? `You already told everyone today: possible again at ${time}.` : 'You already told everyone today.'),
     },
     done: 'Add to album',
     errors: {

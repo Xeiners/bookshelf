@@ -245,10 +245,9 @@ export const fr = {
       sent: (count: number) => `C’est envoyé ! ${count} joueur${plural(count, '', 's')} ${count > 1 ? 'verront' : 'verra'} ton tirage.`,
       selected: 'Sélectionnée',
       everyone: 'Tout le monde',
-      everyoneHint: 'Tous les membres verront ton tirage (une fois par jour).',
+      everyoneHint: 'Tous les membres verront ta Légendaire ou ta Mythique.',
+      everyoneLocked: 'Réservé aux Légendaires et aux Mythiques.',
       sendEveryone: 'Informer tout le monde',
-      everyoneCooldown: (time: string | null) =>
-        time ? `Tu as déjà informé tout le monde aujourd’hui : de nouveau possible à ${time}.` : 'Tu as déjà informé tout le monde aujourd’hui.',
     },
     done: 'Ranger dans l’album',
     errors: {

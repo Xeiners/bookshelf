@@ -6,7 +6,6 @@ import { toCardDto, type CardDto } from '../cards/cards.service.js'
 import { createNotification, notifyTradeMatch } from '../notifications/notifications.service.js'
 import { parseFeatured } from '../users/profile.service.js'
 import { RETIRED_SERIES, seriesRetired } from '../cards/series.js'
-import { isAdminEmail } from '../admin/admin.access.js'
 
 /*
  * Marché d'échange de doublons. Un compte propose un doublon contre une carte
@@ -330,8 +329,8 @@ export const GIFT_MESSAGE_MAX = 140
 
 export const SHARE_MAX_CARDS = 8
 export const SHARE_MAX_RECIPIENTS = 20
-/** « Informer tout le monde » : une fois par jour et par membre (les administrateurs, sans limite). */
-export const BROADCAST_COOLDOWN_MS = 24 * 60 * 60 * 1000
+/** « Informer tout le monde » : réservé aux Légendaires et aux Mythiques. */
+export const BROADCAST_RARITIES: readonly string[] = ['LEGENDARY', 'MYTHIC']
 /** Notifications écrites par lot (une communauté entière d'un coup). */
 const BROADCAST_BATCH = 500
 
@@ -354,17 +353,11 @@ export async function shareCards(
   if (!everyone && recipients.length === 0) throw badRequest('Choisis au moins un membre.', 'share_no_member')
   const owned = await prisma.userCard.findMany({ where: { userId: senderId, cardId: { in: cards } }, include: { card: true } })
   if (owned.length !== cards.length) throw badRequest('Tu ne peux montrer que des cartes que tu possèdes.', 'card_not_owned')
-  const sender = await prisma.user.findUnique({ where: { id: senderId }, select: { id: true, displayName: true, email: true } })
-  if (everyone && sender && !isAdminEmail(sender.email)) {
-    // Une fois par jour : la place est prise d'un coup (deux envois simultanés, un seul passe).
-    const since = new Date(now.getTime() - BROADCAST_COOLDOWN_MS)
-    const { count } = await prisma.user.updateMany({ where: { id: senderId, OR: [{ lastBroadcastAt: null }, { lastBroadcastAt: { lt: since } }] }, data: { lastBroadcastAt: now } })
-    if (count !== 1) {
-      const last = await prisma.user.findUnique({ where: { id: senderId }, select: { lastBroadcastAt: true } })
-      const retryAt = new Date((last?.lastBroadcastAt?.getTime() ?? now.getTime()) + BROADCAST_COOLDOWN_MS)
-      throw new HttpError(429, 'share_everyone_cooldown', 'Tu as déjà informé tout le monde aujourd’hui.', { retryAt: retryAt.toISOString() })
-    }
+  // Tout le monde : seulement pour montrer des Légendaires ou des Mythiques.
+  if (everyone && owned.some((row) => !BROADCAST_RARITIES.includes(row.card.rarity))) {
+    throw badRequest('« Tout le monde » est réservé aux Légendaires et aux Mythiques.', 'share_everyone_rarity')
   }
+  const sender = await prisma.user.findUnique({ where: { id: senderId }, select: { id: true, displayName: true } })
   const members = await prisma.user.findMany({
     where: everyone ? { id: { not: senderId }, suspendedAt: null } : { id: { in: recipients }, suspendedAt: null },
     select: { id: true },

@@ -123,7 +123,7 @@ const ShareBody = z
   .object({
     cardIds: z.array(z.string().min(1).max(40)).min(1).max(SHARE_MAX_CARDS),
     toUserIds: z.array(z.string().min(1).max(40)).max(SHARE_MAX_RECIPIENTS).default([]),
-    /** « Informer tout le monde » : tous les membres (une fois par jour). */
+    /** « Informer tout le monde » : tous les membres (Légendaires et Mythiques seulement). */
     everyone: z.boolean().default(false),
     message: z.string().max(GIFT_MESSAGE_MAX * 2).nullish(),
   })

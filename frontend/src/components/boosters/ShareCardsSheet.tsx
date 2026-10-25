@@ -4,7 +4,6 @@ import { useMembers } from '../../hooks/useMembers'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
 import { cardsApi } from '../../services/cardsApi'
-import { ApiError } from '../../services/api'
 import type { MemberSummary } from '../../services/profileApi'
 import { useUiStore } from '../../store/useUiStore'
 import { Sheet } from '../ui/Sheet'
@@ -14,6 +13,8 @@ const MAX_RECIPIENTS = 20
 
 interface ShareCardsSheetProps {
   cardIds: string[]
+  /** « Tout le monde » possible : les cartes choisies sont toutes Légendaires ou Mythiques. */
+  everyoneAllowed: boolean
   onClose: () => void
   /** Envoyé : le tirage quitte le mode « Informer ». */
   onSent: () => void
@@ -21,16 +22,17 @@ interface ShareCardsSheetProps {
 
 /**
  * « Informer » : on coche les membres à prévenir (tous listés, page après page), ou
- * « Tout le monde » (une fois par jour), et on joint un mot si l'on veut. Chacun
+ * « Tout le monde » (pour une Légendaire ou une Mythique), et on joint un mot si l'on veut. Chacun
  * découvre les cartes à sa prochaine visite ; elles ne quittent pas l'album.
  */
-export function ShareCardsSheet({ cardIds, onClose, onSent }: ShareCardsSheetProps) {
+export function ShareCardsSheet({ cardIds, everyoneAllowed, onClose, onSent }: ShareCardsSheetProps) {
   const t = useT()
   const notify = useUiStore((state) => state.notify)
   const [query, setQuery] = useState('')
   const { members, next, loadingMore, loadMore } = useMembers(query, { withoutSelf: true })
   /** « Tout le monde » : tous les membres, sans en cocher un seul. */
-  const [everyone, setEveryone] = useState(false)
+  const [everyoneWanted, setEveryone] = useState(false)
+  const everyone = everyoneAllowed && everyoneWanted
   /** Gardés même s'ils sortent des résultats de la recherche. */
   const [chosen, setChosen] = useState<ReadonlyMap<string, MemberSummary>>(() => new Map())
   const [message, setMessage] = useState('')
@@ -57,11 +59,7 @@ export function ShareCardsSheet({ cardIds, onClose, onSent }: ShareCardsSheetPro
       onSent()
       dismiss()
     } catch (error) {
-      // Déjà fait aujourd'hui : on dit quand ce sera de nouveau possible.
-      if (error instanceof ApiError && error.code === 'share_everyone_cooldown') {
-        const retryAt = typeof error.details?.retryAt === 'string' ? new Date(error.details.retryAt) : null
-        notify(t.boosters.share.everyoneCooldown(retryAt ? retryAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null), 'nope')
-      } else notify(error instanceof Error ? error.message : String(error), 'nope')
+      notify(error instanceof Error ? error.message : String(error), 'nope')
     } finally {
       setSending(false)
     }
@@ -89,23 +87,24 @@ export function ShareCardsSheet({ cardIds, onClose, onSent }: ShareCardsSheetPro
       )}
     >
       <div className="flex flex-col gap-3">
-        {/* Tout le monde : tous les membres d'un coup (une fois par jour). */}
+        {/* Tout le monde : tous les membres d'un coup — pour une Légendaire ou une Mythique. */}
         <button
           type="button"
           role="switch"
           aria-checked={everyone}
+          disabled={!everyoneAllowed}
           onClick={() => {
             vibrate(8)
             setEveryone((value) => !value)
           }}
-          className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors ${everyone ? 'border-glow/70 bg-glow/20' : 'border-white/10 bg-white/[0.04]'}`}
+          className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors disabled:opacity-50 ${everyone ? 'border-glow/70 bg-glow/20' : 'border-white/10 bg-white/[0.04]'}`}
         >
           <span className={`grid size-9 shrink-0 place-items-center rounded-full ${everyone ? 'bg-glow text-void' : 'bg-white/10 text-cream/80'}`}>
             <Globe2 size={18} aria-hidden />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-cream">{t.boosters.share.everyone}</span>
-            <span className="block text-xs text-mist">{t.boosters.share.everyoneHint}</span>
+            <span className="block text-xs text-mist">{everyoneAllowed ? t.boosters.share.everyoneHint : t.boosters.share.everyoneLocked}</span>
           </span>
           <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${everyone ? 'bg-glow' : 'bg-white/15'}`}>
             <span className={`absolute top-0.5 size-5 rounded-full bg-cream transition-transform ${everyone ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
