@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Check, Loader2, Megaphone, Search } from 'lucide-react'
+import { useState } from 'react'
+import { Check, Globe2, Loader2, Megaphone, Search } from 'lucide-react'
+import { useMembers } from '../../hooks/useMembers'
 import { useT } from '../../i18n'
 import { vibrate } from '../../lib/haptics'
 import { cardsApi } from '../../services/cardsApi'
-import { profileApi, type MemberSummary } from '../../services/profileApi'
+import { ApiError } from '../../services/api'
+import type { MemberSummary } from '../../services/profileApi'
 import { useUiStore } from '../../store/useUiStore'
 import { Sheet } from '../ui/Sheet'
 
@@ -18,35 +20,21 @@ interface ShareCardsSheetProps {
 }
 
 /**
- * « Informer » : on coche les membres à prévenir, on joint un mot si l'on veut. Chacun
+ * « Informer » : on coche les membres à prévenir (tous listés, page après page), ou
+ * « Tout le monde » (une fois par jour), et on joint un mot si l'on veut. Chacun
  * découvre les cartes à sa prochaine visite ; elles ne quittent pas l'album.
  */
 export function ShareCardsSheet({ cardIds, onClose, onSent }: ShareCardsSheetProps) {
   const t = useT()
   const notify = useUiStore((state) => state.notify)
   const [query, setQuery] = useState('')
-  const [members, setMembers] = useState<MemberSummary[] | null>(null)
+  const { members, next, loadingMore, loadMore } = useMembers(query, { withoutSelf: true })
+  /** « Tout le monde » : tous les membres, sans en cocher un seul. */
+  const [everyone, setEveryone] = useState(false)
   /** Gardés même s'ils sortent des résultats de la recherche. */
   const [chosen, setChosen] = useState<ReadonlyMap<string, MemberSummary>>(() => new Map())
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
-
-  // Recherche au fil de la frappe (les derniers inscrits sans texte), un peu différée.
-  useEffect(() => {
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => {
-      profileApi
-        .searchMembers(query, controller.signal)
-        .then((found) => setMembers(found.filter((member) => !member.isSelf)))
-        .catch(() => {
-          if (!controller.signal.aborted) setMembers([])
-        })
-    }, 220)
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [query])
 
   const toggle = (member: MemberSummary) => {
     vibrate(8)
@@ -58,17 +46,22 @@ export function ShareCardsSheet({ cardIds, onClose, onSent }: ShareCardsSheetPro
     })
   }
 
+  const ready = everyone || chosen.size > 0
   const send = async (dismiss: () => void) => {
-    if (chosen.size === 0 || sending) return
+    if (!ready || sending) return
     setSending(true)
     try {
-      const { notified } = await cardsApi.share(cardIds, [...chosen.keys()], message.trim() || null)
+      const { notified } = await cardsApi.share(cardIds, everyone ? [] : [...chosen.keys()], message.trim() || null, everyone)
       vibrate([10, 40, 18])
       notify(t.boosters.share.sent(notified), 'like')
       onSent()
       dismiss()
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'nope')
+      // Déjà fait aujourd'hui : on dit quand ce sera de nouveau possible.
+      if (error instanceof ApiError && error.code === 'share_everyone_cooldown') {
+        const retryAt = typeof error.details?.retryAt === 'string' ? new Date(error.details.retryAt) : null
+        notify(t.boosters.share.everyoneCooldown(retryAt ? retryAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null), 'nope')
+      } else notify(error instanceof Error ? error.message : String(error), 'nope')
     } finally {
       setSending(false)
     }
@@ -86,16 +79,41 @@ export function ShareCardsSheet({ cardIds, onClose, onSent }: ShareCardsSheetPro
       footer={(dismiss) => (
         <button
           type="button"
-          disabled={chosen.size === 0 || sending}
+          disabled={!ready || sending}
           onClick={() => void send(dismiss)}
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-cream text-sm font-semibold text-void transition-transform active:scale-[0.98] disabled:opacity-40"
         >
           {sending ? <Loader2 size={17} className="animate-spin" aria-hidden /> : <Megaphone size={17} aria-hidden />}
-          {t.boosters.share.send(chosen.size)}
+          {everyone ? t.boosters.share.sendEveryone : t.boosters.share.send(chosen.size)}
         </button>
       )}
     >
       <div className="flex flex-col gap-3">
+        {/* Tout le monde : tous les membres d'un coup (une fois par jour). */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={everyone}
+          onClick={() => {
+            vibrate(8)
+            setEveryone((value) => !value)
+          }}
+          className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors ${everyone ? 'border-glow/70 bg-glow/20' : 'border-white/10 bg-white/[0.04]'}`}
+        >
+          <span className={`grid size-9 shrink-0 place-items-center rounded-full ${everyone ? 'bg-glow text-void' : 'bg-white/10 text-cream/80'}`}>
+            <Globe2 size={18} aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-cream">{t.boosters.share.everyone}</span>
+            <span className="block text-xs text-mist">{t.boosters.share.everyoneHint}</span>
+          </span>
+          <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${everyone ? 'bg-glow' : 'bg-white/15'}`}>
+            <span className={`absolute top-0.5 size-5 rounded-full bg-cream transition-transform ${everyone ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
+          </span>
+        </button>
+
+        {!everyone && (
+        <>
         <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 focus-within:border-glow/60">
           <Search size={16} className="shrink-0 text-mist" aria-hidden />
           <input
@@ -143,7 +161,18 @@ export function ShareCardsSheet({ cardIds, onClose, onSent }: ShareCardsSheetPro
               )
             })
           )}
+          {next && listed && listed.length > 0 && (
+            <li>
+              <button type="button" onClick={loadMore} disabled={loadingMore} className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-glow hover:bg-white/[0.05] disabled:opacity-60">
+                {loadingMore && <Loader2 size={14} className="animate-spin" aria-hidden />}
+                {t.search.members.more}
+              </button>
+            </li>
+          )}
         </ul>
+
+        </>
+        )}
 
         <textarea
           value={message}

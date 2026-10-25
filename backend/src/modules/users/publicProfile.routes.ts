@@ -9,16 +9,16 @@ import { getMemberCollection, getPublicProfile, searchMembers, userNotFound } fr
 /** Identifiant de compte (cuid) : tout autre format est un profil introuvable, sans requête en base. */
 const UserId = z.string().regex(/^[a-z0-9]{8,40}$/i)
 const PublicProfileQuery = z.object({ lang: LangQuerySchema })
-const MemberSearchQuery = z.object({ q: z.string().max(40).default('') })
+const MemberSearchQuery = z.object({ q: z.string().max(40).default(''), cursor: z.string().regex(/^[a-z0-9]{8,40}$/i).optional() })
 
 /** Monté sous `/api/users`. Ouvert aux invités : un profil public se partage par lien. */
 export const publicProfileRouter = Router()
 
-/** Recherche de membres par pseudo ; sans texte, les derniers inscrits. */
-publicProfileRouter.get('/', rateLimit({ windowMs: 60_000, max: 60 }), optionalAuth, async (req, res) => {
-  const { q } = MemberSearchQuery.parse(req.query)
+/** Recherche de membres par pseudo ; sans texte, tous les membres, par pages (`cursor` : `next`). */
+publicProfileRouter.get('/', rateLimit({ windowMs: 60_000, max: 90 }), optionalAuth, async (req, res) => {
+  const { q, cursor } = MemberSearchQuery.parse(req.query)
   res.set('Cache-Control', 'private, no-cache')
-  res.json({ members: await searchMembers(q, req.userId ?? null) })
+  res.json(await searchMembers(q, req.userId ?? null, cursor ?? null))
 })
 
 publicProfileRouter.get('/:id', rateLimit({ windowMs: 60_000, max: 60 }), optionalAuth, async (req, res) => {

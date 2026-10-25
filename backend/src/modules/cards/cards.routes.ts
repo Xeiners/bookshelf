@@ -119,16 +119,20 @@ cardsRouter.post('/retirement/seen', async (req, res) => {
 const FavoriteBody = z.object({ isFavorite: z.boolean() })
 const giftLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 20 })
 
-const ShareBody = z.object({
-  cardIds: z.array(z.string().min(1).max(40)).min(1).max(SHARE_MAX_CARDS),
-  toUserIds: z.array(z.string().min(1).max(40)).min(1).max(SHARE_MAX_RECIPIENTS),
-  message: z.string().max(GIFT_MESSAGE_MAX * 2).nullish(),
-})
+const ShareBody = z
+  .object({
+    cardIds: z.array(z.string().min(1).max(40)).min(1).max(SHARE_MAX_CARDS),
+    toUserIds: z.array(z.string().min(1).max(40)).max(SHARE_MAX_RECIPIENTS).default([]),
+    /** « Informer tout le monde » : tous les membres (une fois par jour). */
+    everyone: z.boolean().default(false),
+    message: z.string().max(GIFT_MESSAGE_MAX * 2).nullish(),
+  })
+  .refine((body) => body.everyone || body.toUserIds.length > 0, { message: 'Choisis au moins un membre.' })
 
 /** « Informer » : montrer des cartes possédées à des membres (rien ne change de main). */
 cardsRouter.post('/share', giftLimiter, async (req, res) => {
-  const { cardIds, toUserIds, message } = ShareBody.parse(req.body)
-  res.json({ notified: await shareCards(currentUserId(req), cardIds, toUserIds, message ?? null) })
+  const { cardIds, toUserIds, everyone, message } = ShareBody.parse(req.body)
+  res.json({ notified: await shareCards(currentUserId(req), cardIds, everyone ? 'everyone' : toUserIds, message ?? null) })
 })
 
 const ConvertBody = z.union([

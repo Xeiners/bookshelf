@@ -244,6 +244,11 @@ export const fr = {
       send: (count: number) => (count > 0 ? `Informer ${count} joueur${plural(count, '', 's')}` : 'Choisis au moins un joueur'),
       sent: (count: number) => `C’est envoyé ! ${count} joueur${plural(count, '', 's')} ${count > 1 ? 'verront' : 'verra'} ton tirage.`,
       selected: 'Sélectionnée',
+      everyone: 'Tout le monde',
+      everyoneHint: 'Tous les membres verront ton tirage (une fois par jour).',
+      sendEveryone: 'Informer tout le monde',
+      everyoneCooldown: (time: string | null) =>
+        time ? `Tu as déjà informé tout le monde aujourd’hui : de nouveau possible à ${time}.` : 'Tu as déjà informé tout le monde aujourd’hui.',
     },
     done: 'Ranger dans l’album',
     errors: {
@@ -1454,7 +1459,7 @@ export const fr = {
     members: {
       placeholder: 'Chercher un membre par pseudo',
       clear: 'Effacer la recherche',
-      recent: 'Nouveaux membres',
+      recent: 'Tous les membres',
       results: 'Membres trouvés',
       searching: 'Recherche…',
       empty: 'Aucun membre ne porte ce pseudo.',
@@ -1466,6 +1471,7 @@ export const fr = {
       cards: (count: number) => `${count} ${plural(count, 'carte', 'cartes')}`,
       reads: (count: number) => `${count} ${plural(count, 'lecture', 'lectures')}`,
       open: (name: string) => `Voir le profil de ${name}`,
+      more: 'Voir plus de membres',
     },
     novels: {
       placeholder: 'Un hiver pour te résister, Colleen Hoover…',

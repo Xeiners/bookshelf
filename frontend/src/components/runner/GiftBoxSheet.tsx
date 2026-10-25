@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Check, Gift, Loader2, Search } from 'lucide-react'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
 import { vibrate } from '../../lib/haptics'
-import { profileApi, type MemberSummary } from '../../services/profileApi'
+import { useMembers } from '../../hooks/useMembers'
+import type { MemberSummary } from '../../services/profileApi'
 import { runnerApi } from '../../services/runnerApi'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -19,28 +20,12 @@ export function GiftBoxSheet({ onClose }: { onClose: () => void }) {
   const view = useRunnerWardrobe((state) => state.view)
   const receive = useRunnerWardrobe((state) => state.receive)
   const [query, setQuery] = useState('')
-  const [members, setMembers] = useState<MemberSummary[] | null>(null)
+  const { members, next, loadingMore, loadMore } = useMembers(query, { withoutSelf: true })
   const [chosen, setChosen] = useState<MemberSummary | null>(null)
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const price = view?.price ?? 0
 
-  // Recherche au fil de la frappe (les derniers inscrits sans texte), un peu différée.
-  useEffect(() => {
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => {
-      profileApi
-        .searchMembers(query, controller.signal)
-        .then((found) => setMembers(found.filter((member) => !member.isSelf)))
-        .catch(() => {
-          if (!controller.signal.aborted) setMembers([])
-        })
-    }, 220)
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [query])
 
   const send = async (dismiss: () => void) => {
     if (!chosen || sending) return
@@ -120,6 +105,14 @@ export function GiftBoxSheet({ onClose }: { onClose: () => void }) {
                 </li>
               )
             })
+          )}
+          {next && members && members.length > 0 && (
+            <li>
+              <button type="button" onClick={loadMore} disabled={loadingMore} className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-glow hover:bg-white/[0.05] disabled:opacity-60">
+                {loadingMore && <Loader2 size={14} className="animate-spin" aria-hidden />}
+                {t.search.members.more}
+              </button>
+            </li>
           )}
         </ul>
 

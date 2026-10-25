@@ -257,9 +257,9 @@ export interface MemberSummary {
 
 /** Comptes parcourus par une recherche (les plus récents) : largement assez pour une instance perso. */
 const SEARCH_POOL = 5000
-const SEARCH_LIMIT = 20
-/** Sans texte : les derniers inscrits. */
-const RECENT_LIMIT = 12
+const SEARCH_LIMIT = 60
+/** Sans texte : tous les membres, par pages (les plus récents d'abord). */
+export const MEMBER_PAGE = 30
 
 /** Pseudo comparable : sans accents ni majuscules (« Élodie » ≈ « elodie »). */
 export const normalizeName = (value: string) =>
@@ -292,21 +292,32 @@ export function rankMembers<T extends { displayName: string }>(rows: readonly T[
 
 /**
  * Membres dont le pseudo contient `query` (sans pseudo, un compte n'est pas
- * trouvable : l'e-mail ne sert jamais à chercher). Moins de deux lettres : les
- * derniers inscrits. Profils privés compris : on les trouve, on n'en voit que
- * la vitrine.
+ * trouvable : l'e-mail ne sert jamais à chercher), dès la première lettre. Sans
+ * texte : TOUS les membres, les plus récents d'abord, par pages de `MEMBER_PAGE`
+ * (`cursor` : `next` de la page précédente). Profils privés compris : on les
+ * trouve, on n'en voit que la vitrine.
  */
-export async function searchMembers(query: string, viewerId: string | null): Promise<MemberSummary[]> {
+export async function searchMembers(query: string, viewerId: string | null, cursor: string | null = null): Promise<{ members: MemberSummary[]; next: string | null }> {
   const term = query.trim()
-  const pool = await prisma.user.findMany({
-    where: { displayName: { not: null } },
-    orderBy: { createdAt: 'desc' },
-    take: term.length < 2 ? RECENT_LIMIT : SEARCH_POOL,
-    select: { id: true, displayName: true, avatarCardId: true, avatarUrl: true, activeTitle: true, isProfilePublic: true },
-  })
-  const members = pool.flatMap((row) => (row.displayName ? [{ ...row, displayName: row.displayName }] : []))
-  const rows = term.length < 2 ? members : rankMembers(members, term).slice(0, SEARCH_LIMIT)
-  if (rows.length === 0) return []
+  const select = { id: true, displayName: true, avatarCardId: true, avatarUrl: true, activeTitle: true, isProfilePublic: true } as const
+  let rows: { id: string; displayName: string; avatarCardId: string | null; avatarUrl: string | null; activeTitle: string | null; isProfilePublic: boolean }[]
+  let next: string | null = null
+  if (term.length === 0) {
+    const page = await prisma.user.findMany({
+      where: { displayName: { not: null } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: MEMBER_PAGE + 1,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      select,
+    })
+    if (page.length > MEMBER_PAGE) next = page[MEMBER_PAGE - 1]!.id
+    rows = page.slice(0, MEMBER_PAGE).flatMap((row) => (row.displayName ? [{ ...row, displayName: row.displayName }] : []))
+  } else {
+    const pool = await prisma.user.findMany({ where: { displayName: { not: null } }, orderBy: { createdAt: 'desc' }, take: SEARCH_POOL, select })
+    const members = pool.flatMap((row) => (row.displayName ? [{ ...row, displayName: row.displayName }] : []))
+    rows = rankMembers(members, term).slice(0, SEARCH_LIMIT)
+  }
+  if (rows.length === 0) return { members: [], next: null }
 
   const withAvatar = rows.flatMap((row) => (row.avatarCardId ? [{ userId: row.id, cardId: row.avatarCardId }] : []))
   const publicIds = rows.filter((row) => row.isProfilePublic).map((row) => row.id)
@@ -329,7 +340,7 @@ export async function searchMembers(query: string, viewerId: string | null): Pro
   const cardsOf = new Map(cardCounts.map((group) => [group.userId, group._count._all]))
   const readsOf = new Map(readCounts.map((group) => [group.userId, group._count._all]))
 
-  return rows.map((row) => ({
+  const members = rows.map((row) => ({
     id: row.id,
     displayName: row.displayName,
     activeTitle: isTitleId(row.activeTitle) ? row.activeTitle : null,
@@ -340,4 +351,5 @@ export async function searchMembers(query: string, viewerId: string | null): Pro
     readsCount: row.isProfilePublic ? (readsOf.get(row.id) ?? 0) : null,
     isSelf: row.id === viewerId,
   }))
+  return { members, next }
 }

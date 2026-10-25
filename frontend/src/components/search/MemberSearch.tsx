@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { ChevronRight, Crown, Lock, Search as SearchIcon, UserRoundSearch, X } from 'lucide-react'
+import { useRef } from 'react'
+import { ChevronRight, Crown, Loader2, Lock, Search as SearchIcon, UserRoundSearch, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
-import { profileApi, type MemberSummary } from '../../services/profileApi'
+import { useMembers } from '../../hooks/useMembers'
+import type { MemberSummary } from '../../services/profileApi'
 import { useSearchStore } from '../../store/useSearchStore'
 import { useUiStore } from '../../store/useUiStore'
 import { CardAvatar } from '../profile/CardAvatar'
@@ -14,41 +15,20 @@ const DEBOUNCE_MS = 300
 type Phase = { state: 'loading' } | { state: 'error' } | { state: 'ready'; members: MemberSummary[] }
 
 /**
- * Recherche de membres par pseudo. Sans texte : les derniers inscrits. Un
- * profil privé se trouve aussi, mais n'affiche que sa vitrine une fois ouvert.
+ * Recherche de membres par pseudo, dès la première lettre. Sans texte : tous les
+ * membres, les plus récents d'abord, page après page. Un profil privé se trouve
+ * aussi, mais n'affiche que sa vitrine une fois ouvert.
  */
 export function MemberSearch() {
   const t = useT()
   const copy = t.search.members
   const query = useSearchStore((state) => state.memberQuery)
   const setQuery = useSearchStore((state) => state.setMemberQuery)
-  const [phase, setPhase] = useState<Phase>({ state: 'loading' })
-  const [attempt, setAttempt] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  // Une seule lettre : pas encore une recherche, on garde les derniers inscrits.
-  const term = query.trim().length < 2 ? '' : query.trim()
-
-  useEffect(() => {
-    const controller = new AbortController()
-    const timer = window.setTimeout(
-      () => {
-        setPhase({ state: 'loading' })
-        profileApi
-          .searchMembers(term, controller.signal)
-          .then((members) => setPhase({ state: 'ready', members }))
-          .catch(() => {
-            if (!controller.signal.aborted) setPhase({ state: 'error' })
-          })
-      },
-      term ? DEBOUNCE_MS : 0,
-    )
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [term, attempt])
-
+  const term = query.trim()
+  const list = useMembers(query, { debounceMs: DEBOUNCE_MS })
+  const phase: Phase = list.error ? { state: 'error' } : list.members === null ? { state: 'loading' } : { state: 'ready', members: list.members }
   const members = phase.state === 'ready' ? phase.members : []
   useGSAP(
     () => {
@@ -117,7 +97,7 @@ export function MemberSearch() {
             <p className="text-xs text-mist">{copy.error}</p>
             <button
               type="button"
-              onClick={() => setAttempt((value) => value + 1)}
+              onClick={list.retry}
               className="rounded-full bg-cream px-5 py-2.5 text-xs font-medium text-void"
             >
               {copy.retry}
@@ -138,6 +118,18 @@ export function MemberSearch() {
               <MemberRow key={member.id} member={member} />
             ))}
           </ul>
+        )}
+        {/* Sans recherche : tous les membres, page après page. */}
+        {phase.state === 'ready' && list.next && (
+          <button
+            type="button"
+            onClick={list.loadMore}
+            disabled={list.loadingMore}
+            className="mx-auto mt-3 flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.05] px-5 py-2.5 text-xs font-semibold text-cream/85 disabled:opacity-60"
+          >
+            {list.loadingMore && <Loader2 size={14} className="animate-spin" aria-hidden />}
+            {copy.more}
+          </button>
         )}
       </div>
     </>

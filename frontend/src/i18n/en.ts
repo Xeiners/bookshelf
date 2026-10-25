@@ -235,6 +235,10 @@ export const en: Dictionary = {
       send: (count: number) => (count > 0 ? `Notify ${count} ${plural(count, 'player', 'players')}` : 'Pick at least one player'),
       sent: (count: number) => `Sent! ${count} ${plural(count, 'player', 'players')} will see your pull.`,
       selected: 'Selected',
+      everyone: 'Everyone',
+      everyoneHint: 'Every member will see your pull (once a day).',
+      sendEveryone: 'Tell everyone',
+      everyoneCooldown: (time: string | null) => (time ? `You already told everyone today: possible again at ${time}.` : 'You already told everyone today.'),
     },
     done: 'Add to album',
     errors: {
@@ -1440,7 +1444,7 @@ export const en: Dictionary = {
     members: {
       placeholder: 'Find a member by username',
       clear: 'Clear search',
-      recent: 'New members',
+      recent: 'All members',
       results: 'Members found',
       searching: 'Searching…',
       empty: 'No member goes by that name.',
@@ -1452,6 +1456,7 @@ export const en: Dictionary = {
       cards: (count: number) => `${count} ${plural(count, 'card', 'cards')}`,
       reads: (count: number) => `${count} ${plural(count, 'read', 'reads')}`,
       open: (name: string) => `View ${name}’s profile`,
+      more: 'Show more members',
     },
     novels: {
       placeholder: 'It Ends with Us, Colleen Hoover…',

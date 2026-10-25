@@ -167,11 +167,12 @@ export const profileApi = {
   /** Album d'un membre (profil public, ou le sien) ; 403 `profile_private` sinon. */
   memberCollection: (userId: string, signal?: AbortSignal) =>
     api<MemberCollection>(`/users/${encodeURIComponent(userId)}/collection`, { signal }),
-  /** Membres par pseudo ; sans texte, les derniers inscrits. */
-  searchMembers: (query: string, signal?: AbortSignal) =>
-    api<{ members: MemberSummary[] }>(`/users?${new URLSearchParams({ q: query }).toString()}`, { signal }).then(
-      (response) => response.members,
-    ),
+  /**
+   * Membres par pseudo (dès la première lettre) ; sans texte, TOUS les membres, par pages :
+   * `next` à repasser en `cursor` pour la suivante (`null` : c'était la dernière).
+   */
+  searchMembers: (query: string, signal?: AbortSignal, cursor?: string) =>
+    api<{ members: MemberSummary[]; next: string | null }>(`/users?${new URLSearchParams({ q: query, ...(cursor && { cursor }) }).toString()}`, { signal }),
   /** 400 `card_not_owned` si une carte citée n'est pas possédée, `title_locked` si le titre n'est pas débloqué. */
   update: (patch: ProfilePatch) => api<ProfileData>('/profile', { method: 'PATCH', body: patch }),
   avatarOptions: (kind: 'library' | 'book' | 'catalog', workId: string, signal?: AbortSignal) =>

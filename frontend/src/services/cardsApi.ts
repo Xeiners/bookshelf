@@ -88,8 +88,9 @@ export const cardsApi = {
   /** Convertit des doublons : une carte, ou tous ceux des raretés choisies (favoris exceptés). */
   convert: (request: { cardId: string; copies: number } | { items: { cardId: string; copies: number }[] } | { rarities: Exclude<Rarity, 'MYTHIC'>[] }) => api<ConversionResult>('/cards/convert', { method: 'POST', body: request }),
   /** « Informer » : montre des cartes possédées à des membres, prévenus à leur prochaine visite. */
-  share: (cardIds: string[], toUserIds: string[], message: string | null) =>
-    api<{ notified: number }>('/cards/share', { method: 'POST', body: { cardIds, toUserIds, message } }),
+  /** « Informer » : des membres choisis, ou `everyone` (tous les membres, une fois par jour : 429 sinon). */
+  share: (cardIds: string[], toUserIds: string[], message: string | null, everyone = false) =>
+    api<{ notified: number }>('/cards/share', { method: 'POST', body: { cardIds, toUserIds, message, everyone } }),
   /** Booster d'essai : cartes tirées et leur reçu signé. 409 une fois l'essai épuisé. */
   guestOpen: (receipts: string[], series: SeriesChoice) =>
     api<{ cards: PulledCard[]; receipt: string; remaining: number; series: CardSeries }>('/boosters/guest/open', { method: 'POST', body: { receipts, series } }),

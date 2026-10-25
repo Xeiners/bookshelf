@@ -59,6 +59,8 @@ model User {
   /// Contrôleur d'images : accès à la seule revue des images d'énigme du BookshelfDLE (donné par un administrateur).
   imageReviewer   Boolean   @default(false)
   suspendedAt     DateTime?
+  /// Dernier « Informer tout le monde » (cartes montrées à tous les membres) : une fois par jour.
+  lastBroadcastAt DateTime?
   /// Motif de la suspension, montré au titulaire à la connexion.
   suspendedReason String?
   /// Version des sessions : l'incrémenter invalide tous les jetons déjà émis (suspension).
