@@ -20,6 +20,48 @@ const CUT_SPAN = 0.8
 /** Relâché au-delà, la découpe se termine seule ; en deçà, la bande se recolle. */
 const CUT_COMMIT = 0.75
 
+/** Ligne de déchirure, en % de la hauteur du paquet : juste sous la bande sertie, qui part entière. */
+const TEAR_Y = 13.7
+/** Haut des cartes rangées dans le paquet : sous le bord déchiré, invisibles avant de monter. */
+const CARDS_TOP = (TEAR_Y + 3.5) / 100
+
+/** Un bord de papier déchiré, irrégulier mais toujours le même : `[x, y]` en %. */
+const tearLine = (base: number, phase: number, from = 0, to = 100) =>
+  Array.from({ length: 37 }, (_, index) => {
+    const x = from + ((to - from) * index) / 36
+    const y = base + 0.6 * Math.sin(index * 2.3 + phase) + 0.3 * Math.sin(index * 5.1 + 1 + phase)
+    return [Number(x.toFixed(2)), Number(y.toFixed(2))] as const
+  })
+
+/** Bord avant du paquet (celui qu'on déchire), et bord du panneau de dos, un peu plus haut. */
+const TEAR = tearLine(TEAR_Y, 0)
+const BACK_TEAR = tearLine(TEAR_Y - 2.4, 1.7, 2, 98)
+
+/** Abscisse du point de coupe, suivant le doigt (variable CSS `--cut`, 0 → 1). */
+const CUT_X = 'calc(var(--cut, 0) * 100%)'
+const at = ([x, y]: readonly [number, number]) => `${x}% ${y}%`
+
+/** Le haut du paquet (au-dessus de la déchirure), lueurs comprises. */
+const CAP_CLIP = `polygon(-60% -60%, 160% -60%, 160% ${TEAR.at(-1)![1]}%, ${[...TEAR].reverse().map(at).join(', ')}, -60% ${TEAR[0]![1]}%)`
+/**
+ * Le reste du paquet : tout, sauf le haut déjà découpé (à gauche du point de coupe). Les points
+ * au-delà de la coupe se replient sur elle ; ce qui reste du haut appartient encore à la pièce du dessus.
+ */
+const LOWER_CLIP = `polygon(-60% 160%, -60% ${TEAR[0]![1]}%, ${TEAR.map(([x, y]) => `min(${x}%, ${CUT_X}) ${y}%`).join(', ')}, ${CUT_X} -60%, 160% -60%, 160% 160%)`
+/** L'intérieur du paquet : le panneau de dos, déchiré un peu plus haut que la face. */
+const MOUTH_CLIP = `polygon(${BACK_TEAR.map(at).join(', ')}, 98% 30%, 2% 30%)`
+
+/** Le bord déchiré : fibres claires du papier, le long de la ligne de déchirure. */
+function TornEdge({ points }: { points: readonly (readonly [number, number])[] }) {
+  const line = points.map(([x, y]) => `${x},${y}`).join(' ')
+  return (
+    <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
+      <polyline points={line} fill="none" stroke="#fff6dc" strokeOpacity={0.35} strokeWidth={4} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <polyline points={line} fill="none" stroke="#fffaf0" strokeWidth={1.4} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  )
+}
+
 interface BoosterOpeningAnimationProps {
   width: number
   /** Lueur-appât du booster (souvent sa meilleure carte, parfois un bluff) : colore le halo. */
@@ -94,18 +136,17 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
     () => {
       if (!torn) return
       gsap.killTweensOf(['[data-pack-float]', '[data-pack-shadow]'])
-      const strip = rootRef.current?.querySelector('[data-pack-strip]')
-      // Le paquet se redresse et frissonne, la bande s'arrache dans une colonne de
-      // lumière, puis les cartes montent une à une hors du booster ouvert, en éventail ; le
-      // paquet s'efface vers le bas en les laissant suspendues — le paquet de révélation
-      // repart exactement de là (`onTorn(origins)`).
+      // Le paquet se redresse et frissonne, son haut s'arrache le long de la déchirure dans une
+      // colonne de lumière, puis les cartes montent une à une de l'intérieur, en éventail. Elles
+      // restent DERRIÈRE la face du paquet : il descend et s'efface sous elles, les découvrant
+      // sans jamais passer devant — le paquet de révélation repart de là (`onTorn(origins)`).
       const emerged = gsap.utils.toArray<HTMLElement>('[data-emerge-card]', rootRef.current)
-      // Hauteur de sortie : 82 % de la carte, sans que l'éventail ne passe sous la barre du haut
-      // (petits écrans) ; puis un dernier élan quand le booster s'efface.
+      // Hauteur de sortie : la carte presque entière, sans que l'éventail ne passe sous la barre du
+      // haut (petits écrans) ; puis un dernier élan quand le paquet s'efface.
       const packTop = rootRef.current?.getBoundingClientRect().top ?? 0
-      const room = Math.max(cardHeight * 0.4, packTop + height * 0.05 - TOP_MARGIN)
-      const rise = Math.min(cardHeight * 0.82, room)
-      const lift = Math.max(0, Math.min(cardHeight * 0.12, room - rise))
+      const room = Math.max(cardHeight * 0.4, packTop + height * CARDS_TOP - TOP_MARGIN)
+      const rise = Math.min(cardHeight * 0.9, room)
+      const lift = Math.max(0, Math.min(cardHeight * 0.14, room - rise))
       gsap
         .timeline({
           onComplete: () =>
@@ -119,15 +160,20 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
         .to('[data-pack-float]', { y: 0, rotationX: 0, rotationY: 0, duration: 0.25, ease: 'sine.out' })
         .to('[data-pack-float]', { x: 3, rotation: 0.6, duration: 0.045, repeat: 5, yoyo: true, ease: 'none' }, '<')
         .add(() => {
-          const box = strip?.getBoundingClientRect()
-          if (box) onSparks(box.left + box.width / 2, box.bottom, 80)
+          const box = rootRef.current?.querySelector('[data-pack-float]')?.getBoundingClientRect()
+          if (box) onSparks(box.left + box.width / 2, box.top + (box.height * TEAR_Y) / 100, 80)
         })
-        .to('[data-pack-strip]', { transformOrigin: '100% 100%', x: 170, y: -210, rotation: 50, autoAlpha: 0, duration: 0.6, ease: 'power2.in' }, '<')
+        // Le haut arraché s'envole en tournoyant, pivotant depuis le bout de la déchirure.
+        .to(
+          '[data-pack-cap]',
+          { transformOrigin: `100% ${TEAR_Y}%`, x: width * 0.5, y: -height * 0.42, rotation: 42, autoAlpha: 0, duration: 0.7, ease: 'power2.in' },
+          '<',
+        )
         .fromTo('[data-pack-beam]', { scaleY: 0, autoAlpha: 0 }, { scaleY: 1, autoAlpha: 1, duration: 0.4, ease: 'power3.out' }, '<0.1')
         .fromTo('[data-pack-flash]', { scale: 0.2, autoAlpha: 0 }, { scale: 1.7, autoAlpha: 1, duration: 0.26, ease: 'power2.out' }, '<')
         .to('[data-pack-flash]', { autoAlpha: 0, duration: 0.5, ease: 'power1.in' })
         .to('[data-pack-beam]', { autoAlpha: 0, duration: 0.6, ease: 'sine.inOut' }, '<')
-        // Les cartes sortent, de celle du fond à celle du dessus.
+        // Les cartes sortent par l'ouverture, de celle du fond à celle du dessus.
         .addLabel('rise', '-=0.35')
         .add(() => playDeal(0), 'rise')
         .fromTo(
@@ -136,12 +182,11 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
           { y: -rise, rotation: (index: number) => fanOf(emerged.length - 1 - index), duration: 0.9, ease: 'power2.out', stagger: 0.18 },
           'rise',
         )
-        // Le paquet s'efface ; les cartes, libres, achèvent de sortir. Elles passent devant lui :
-        // il glisse et pâlit SOUS elles, sans jamais les laisser voir à travers.
-        .addLabel('drop', '+=0.25')
-        .set('[data-emerge]', { zIndex: 3 }, 'drop')
-        .to(emerged, { y: -rise - lift, duration: 0.7, ease: 'sine.out' }, 'drop')
-        .to('[data-pack-float]', { y: 260, autoAlpha: 0, duration: 0.7, ease: 'power2.in' }, 'drop')
+        // Le paquet descend et s'efface sous les cartes, qui achèvent de sortir.
+        .addLabel('drop', '+=0.2')
+        .to(emerged, { y: -rise - lift, duration: 0.8, ease: 'sine.out' }, 'drop')
+        .to('[data-pack-drop]', { y: height * 1.15, duration: 0.85, ease: 'power2.in' }, 'drop')
+        .to('[data-pack-drop]', { autoAlpha: 0, duration: 0.3, ease: 'power1.in' }, 'drop+=0.55')
         .to('[data-pack-shadow]', { scale: 0.2, autoAlpha: 0, duration: 0.5 }, 'drop')
     },
     { scope: rootRef, dependencies: [torn] },
@@ -189,11 +234,11 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
     setCut(progress)
 
     const now = performance.now()
-    const strip = rootRef.current?.querySelector('[data-pack-strip]')?.getBoundingClientRect()
+    const pack = rootRef.current?.querySelector('[data-pack-float]')?.getBoundingClientRect()
     // Étincelles au point de coupe, tant que le doigt avance.
-    if (strip && progress > 0.02 && now - state.lastSpark > 70) {
+    if (pack && progress > 0.02 && now - state.lastSpark > 70) {
       state.lastSpark = now
-      onSparks(strip.left + strip.width * (0.03 + progress * 0.94), strip.bottom - strip.height * 0.26, 10)
+      onSparks(pack.left + pack.width * progress, pack.top + (pack.height * TEAR_Y) / 100, 10)
       playCutTick(progress)
     }
     if (now - state.lastBuzz > 90 && progress > 0.02) {
@@ -228,23 +273,8 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
   }
 
   return (
-    <div ref={rootRef} className="relative flex flex-col items-center">
-      {torn && count > 0 && (
-        // Les cartes, rangées DERRIÈRE la face du booster (rendues avant lui) : en montant, elles
-        // apparaissent par son ouverture, là où la bande a été arrachée, sans ligne de coupe.
-        <div data-emerge aria-hidden className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2" style={{ width, height }}>
-          {Array.from({ length: count }, (_, index) => (
-            <div
-              key={index}
-              data-emerge-card
-              className="absolute left-1/2"
-              style={{ top: height * 0.05, width: cardWidth, height: cardHeight, marginLeft: -cardWidth / 2, zIndex: count - index, transformOrigin: '50% 100%', willChange: 'transform' }}
-            >
-              <CardBack width={cardWidth} animated={false} />
-            </div>
-          ))}
-        </div>
-      )}
+    // Au-dessus de la légende qui suit : le paquet qui s'efface vers le bas passe devant elle.
+    <div ref={rootRef} className="relative z-[1] flex flex-col items-center">
       <button
         type="button"
         aria-label={t.boosters.tear}
@@ -259,8 +289,68 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
       >
         {/* Sous-arbre aplati (pas de `preserve-3d`) : un calque par élément animé, rien de plus. */}
         <div data-pack-body className="h-full w-full" style={{ willChange: 'transform' }}>
-          <div data-pack-float className="h-full w-full" style={{ willChange: 'transform' }}>
-            <BoosterPackArt width={width} halo={halo} lit={ready} series={series} />
+          <div data-pack-float className="relative h-full w-full" style={{ willChange: 'transform' }}>
+            {/*
+              De l'arrière vers l'avant : l'aura, l'intérieur du paquet, les cartes rangées dedans, la
+              face du paquet, puis son haut — la pièce qu'on déchire. Le haut et la face sont le même
+              dessin, coupé le long d'un bord de papier irrégulier : à mesure que le doigt avance
+              (\`--cut\`), le haut se décolle et se soulève depuis le point de coupe.
+            */}
+            <div data-pack-drop className="absolute inset-0">
+              <BoosterPackArt width={width} halo={halo} lit={ready} series={series} layer="aura" />
+            </div>
+            <div
+              data-pack-drop
+              aria-hidden
+              className="absolute inset-0"
+              style={{ clipPath: MOUTH_CLIP, background: 'linear-gradient(180deg, #3a2240 0%, #120a1c 10%, #05030a 22%)' }}
+            >
+              <TornEdge points={BACK_TEAR} />
+            </div>
+            {torn &&
+              Array.from({ length: count }, (_, index) => (
+                <div
+                  key={index}
+                  data-emerge-card
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2"
+                  style={{ top: height * CARDS_TOP, width: cardWidth, height: cardHeight, marginLeft: -cardWidth / 2, transformOrigin: '50% 100%', willChange: 'transform' }}
+                >
+                  <CardBack width={cardWidth} animated={false} />
+                </div>
+              ))}
+            <div data-pack-drop className="absolute inset-0" style={{ clipPath: LOWER_CLIP }}>
+              <BoosterPackArt width={width} lit={ready} series={series} layer="pack" />
+            </div>
+            <div data-pack-drop className="absolute inset-0" style={{ clipPath: `inset(-10% calc(100% - ${CUT_X}) -10% -10%)` }}>
+              <TornEdge points={TEAR} />
+            </div>
+            <div data-pack-cap className="pointer-events-none absolute inset-0">
+              <div
+                className="absolute inset-0"
+                style={{
+                  clipPath: `inset(-60% calc(100% - ${CUT_X}) -60% -60%)`,
+                  transformOrigin: `${CUT_X} ${TEAR_Y}%`,
+                  transform: 'rotate(calc(var(--cut, 0) * 16deg)) translateY(calc(var(--cut, 0) * -5px))',
+                }}
+              >
+                <div className="absolute inset-0" style={{ clipPath: CAP_CLIP }}>
+                  <BoosterPackArt width={width} lit={ready} series={series} layer="pack" />
+                </div>
+                <TornEdge points={TEAR} />
+              </div>
+            </div>
+            {/* Point de coupe : une étincelle suit le doigt le long de la déchirure. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                top: `${TEAR_Y}%`,
+                left: CUT_X,
+                opacity: 'var(--cutting, 0)',
+                background: 'radial-gradient(circle, #ffffff 0%, #fff4c8 30%, rgba(255,196,107,0.6) 55%, transparent 72%)',
+              }}
+            />
           </div>
         </div>
       </button>
