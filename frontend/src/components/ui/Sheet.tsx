@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
+import { SeasonalCorner } from '../layout/SeasonalDecor'
 
 type Slot = ReactNode | ((dismiss: () => void) => ReactNode)
 
@@ -70,6 +71,8 @@ export function Sheet({ label, title, subtitle, onClose, children, footer }: She
         data-sheet-panel
         className="glass-strong absolute inset-x-0 bottom-0 mx-auto flex max-h-[90svh] flex-col rounded-t-[2.25rem] pb-safe will-change-transform md:bottom-6 md:max-w-xl md:rounded-[2.25rem]"
       >
+        {/* Thème saisonnier : une toile dans le coin, sous le contenu. */}
+        <SeasonalCorner corner="left" size={84} behind />
         <div className="flex shrink-0 items-start gap-3 px-6 pt-6 pb-4">
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-[1.75rem] leading-none text-cream">{title}</h2>

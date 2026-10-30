@@ -4,7 +4,7 @@ import { HttpError } from '../../core/http/errors.js'
 import { boosterStatus, type BoosterStatus } from '../cards/cards.service.js'
 import { GUEST_CLAIM_CAP, readReceipt } from '../dle/dle.guests.js'
 import { priceOf } from '../promotions/promotions.service.js'
-import { BOOSTER_PRICE } from './prices.js'
+import { BOOSTER_PRICE, LEGENDARY_PACK_PRICE } from './prices.js'
 
 /*
  * Poussières d'Étoile : la monnaie du BookshelfDLE. Gagnées en résolvant les
@@ -14,7 +14,7 @@ import { BOOSTER_PRICE } from './prices.js'
 
 export { BOOSTER_PRICE }
 
-export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'runner_revive' | 'runner_box' | 'runner_gift' | 'runner_refund' | 'canvas_like' | 'canvas_season' | 'canvas_brush' | 'booster_purchase' | 'guest_claim' | 'daily_reward' | 'page_stack' | 'card_convert' | 'series_retirement'
+export type StardustReason = 'dle_daily' | 'dle_room' | 'higher_lower' | 'bomb_party' | 'manga_runner' | 'runner_revive' | 'runner_box' | 'runner_gift' | 'runner_refund' | 'canvas_like' | 'canvas_season' | 'canvas_brush' | 'booster_purchase' | 'guest_claim' | 'daily_reward' | 'page_stack' | 'card_convert' | 'series_retirement' | 'team_event' | 'legendary_pack_purchase'
 
 /** Crédite (ou débite, `amount` < 0) un compte et inscrit le mouvement, dans la transaction donnée. */
 export async function creditStardust(
@@ -51,6 +51,8 @@ export interface StardustWallet {
   /** Prix du moment (promotion comprise), et prix habituel. */
   boosterPrice: number
   boosterRegular: number
+  /** Booster Légendaire de la boutique. */
+  legendaryPackPrice: number
   /** Derniers mouvements, du plus récent au plus ancien. */
   history: StardustEntryDto[]
 }
@@ -65,6 +67,7 @@ export async function walletOf(userId: string): Promise<StardustWallet> {
     balance: user?.stardust ?? 0,
     boosterPrice: price,
     boosterRegular: BOOSTER_PRICE,
+    legendaryPackPrice: LEGENDARY_PACK_PRICE,
     history: entries.map((entry) => ({
       id: entry.id,
       amount: entry.amount,

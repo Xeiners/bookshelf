@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { addToTally, emptyTally, type BoosterStatus, type DropTally } from '../lib/boosters'
 import { isNetworkError } from '../services/api'
 import { cardsApi, type CardSeries, type PulledCard, type SeriesChoice, type SeriesShowcase } from '../services/cardsApi'
+import { useDleStore } from './useDleStore'
 import { useGuestCardsStore } from './useGuestCardsStore'
 
 /**
@@ -30,6 +31,8 @@ interface BoosterState {
   open: (as: 'account' | 'guest', series: SeriesChoice, packs?: number) => Promise<{ cards: PulledCard[]; series: CardSeries }>
   /** Ouvre un pack Légendaire offert (compte seulement). */
   openLegendary: () => Promise<{ cards: PulledCard[]; series: CardSeries }>
+  /** Achète et ouvre un Booster Légendaire de la boutique (le solde de Poussières suit). */
+  buyLegendary: () => Promise<{ cards: PulledCard[]; series: CardSeries }>
   /** Couvertures de chaque série (illustration des paquets) ; `null` tant qu'elles ne sont pas chargées. */
   showcase: SeriesShowcase[] | null
   loadShowcase: () => Promise<void>
@@ -105,6 +108,18 @@ export const useBoosterStore = create<BoosterState>((set) => ({
 
   openLegendary: async () => {
     const { cards, status, series } = await cardsApi.openLegendary()
+    set((state) => ({
+      status,
+      syncedAt: performance.now(),
+      offline: false,
+      collectionVersion: state.collectionVersion + 1,
+    }))
+    return { cards, series }
+  },
+
+  buyLegendary: async () => {
+    const { cards, status, series, balance } = await cardsApi.buyLegendary()
+    useDleStore.getState().setStardust(balance)
     set((state) => ({
       status,
       syncedAt: performance.now(),

@@ -49,7 +49,7 @@ export function BossHud({ view, timerRef }: { view: BossView; timerRef: RefObjec
           {t.runner.boss.tag}
           <Skull size={14} aria-hidden />
         </span>
-        <span className="font-display text-2xl leading-none text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]">{names.name}</span>
+        <span className="font-display text-2xl leading-none text-white">{names.name}</span>
         <div className="mt-0.5 flex w-full max-w-xs gap-1 rounded-full bg-black/50 p-1 shadow-[0_0_18px_rgba(0,0,0,0.5)]" role="meter" aria-valuemin={0} aria-valuemax={BOSS_HP} aria-valuenow={view.hp} aria-label={t.runner.boss.hp}>
           {Array.from({ length: BOSS_HP }, (_, index) => (
             <span
@@ -95,7 +95,7 @@ export function BossHud({ view, timerRef }: { view: BossView; timerRef: RefObjec
           <div className="h-2 w-64 max-w-full overflow-hidden rounded-full bg-white/15">
             <div ref={timerRef} className="h-full origin-left rounded-full bg-gradient-to-r from-[#ff3b3b] via-gold to-[#5dff9b]" />
           </div>
-          <span className="text-[11px] font-semibold tracking-wide text-white/85 drop-shadow">{t.runner.boss.hint}</span>
+          <span className="text-[11px] font-semibold tracking-wide text-white/85">{t.runner.boss.hint}</span>
         </div>
       )}
 

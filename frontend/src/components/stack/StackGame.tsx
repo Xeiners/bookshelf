@@ -134,10 +134,10 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
     >
       <canvas ref={canvasRef} className="absolute inset-0 size-full" />
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-center px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <p ref={scoreRef} className="font-display text-6xl leading-none text-white tabular-nums drop-shadow-[0_3px_14px_rgba(30,10,70,0.7)]">
+        <p ref={scoreRef} className="font-display text-6xl leading-none text-white tabular-nums">
           {hud.score.toLocaleString()}
         </p>
-        <p className="mt-1.5 flex items-center gap-2 text-xs font-semibold text-white/80 drop-shadow">
+        <p className="mt-1.5 flex items-center gap-2 text-xs font-semibold text-white/80">
           <span>{t.stack.game.pages(hud.pages)}</span>
           {hud.combo >= 2 && (
             <span className="inline-flex items-center gap-1 rounded-full bg-[#ff9b3d]/90 px-2 py-0.5 text-[11px] font-bold text-[#3a1a00]">
@@ -151,15 +151,15 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
         data-stack-ui
         onClick={quit}
         aria-label={t.stack.game.quit}
-        className="absolute top-[max(1rem,env(safe-area-inset-top))] left-4 grid size-10 place-items-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur-sm"
+        className="absolute top-[max(1rem,env(safe-area-inset-top))] left-4 grid size-10 place-items-center rounded-full border border-white/20 bg-black/30 text-white"
       >
         <X size={18} />
       </button>
-      <span data-stack-ui className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 grid size-10 place-items-center rounded-full border border-white/20 bg-black/30 backdrop-blur-sm">
+      <span data-stack-ui className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 grid size-10 place-items-center rounded-full border border-white/20 bg-black/30">
         <SfxVolume />
       </span>
       {hint && (
-        <p className="pointer-events-none absolute inset-x-0 bottom-[12%] animate-pulse text-center text-sm font-semibold tracking-wide text-white/90 drop-shadow-[0_2px_8px_rgba(30,10,70,0.8)]">
+        <p className="pointer-events-none absolute inset-x-0 bottom-[12%] animate-pulse text-center text-sm font-semibold tracking-wide text-white/90">
           {t.stack.game.hint}
         </p>
       )}

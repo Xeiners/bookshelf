@@ -13,12 +13,14 @@ import { AdminAudit } from './AdminAudit'
 import { AdminCanvas } from './AdminCanvas'
 import { AdminDleImages } from './AdminDleImages'
 import { AdminPromotions } from './AdminPromotions'
+import { AdminEvents } from './AdminEvents'
+import { AdminTheme } from './AdminTheme'
 import { AdminUserPanel } from './AdminUserPanel'
 
 /** Au-delà de cette largeur : la liste à gauche, la fiche à droite. En dessous, la fiche passe par-dessus. */
 const WIDE = 900
 
-type Tab = 'users' | 'audit' | 'promos' | 'canvas' | 'images'
+type Tab = 'users' | 'audit' | 'promos' | 'theme' | 'canvas' | 'images'
 
 /**
  * Administration, en plein écran (comptes de `ADMIN_EMAILS`) : chiffres clés,
@@ -88,6 +90,13 @@ export function AdminView() {
           <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <AdminPromotions />
           </div>
+        ) : tab === 'theme' ? (
+          <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="flex flex-col gap-5">
+              <AdminTheme />
+              <AdminEvents />
+            </div>
+          </div>
         ) : tab === 'canvas' ? (
           <div className="no-scrollbar h-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <AdminCanvas />
@@ -139,7 +148,7 @@ export function AdminView() {
 function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
-  const tabs: Tab[] = ['users', 'promos', 'canvas', 'images', 'audit']
+  const tabs: Tab[] = ['users', 'promos', 'theme', 'canvas', 'images', 'audit']
   useGSAP(
     () => {
       gsap.to('[data-tab-thumb]', { xPercent: tabs.indexOf(tab) * 100, duration: 0.35, ease: 'power3.out' })
@@ -147,8 +156,8 @@ function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }
     { scope: ref, dependencies: [tab] },
   )
   return (
-    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative order-last grid w-full shrink-0 grid-cols-5 rounded-full p-1 md:order-none md:w-auto">
-      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/5)] rounded-full bg-cream will-change-transform" />
+    <div ref={ref} role="tablist" aria-label={t.admin.tabs.label} className="glass relative order-last grid w-full shrink-0 grid-cols-6 rounded-full p-1 md:order-none md:w-auto">
+      <span data-tab-thumb aria-hidden className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/6)] rounded-full bg-cream will-change-transform" />
       {tabs.map((value) => (
         <button
           key={value}

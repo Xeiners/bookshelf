@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Activity, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { EASE, gsap, useGSAP } from './lib/gsap'
 import { BookSheet } from './components/book/BookSheet'
 import { DiscoverView } from './components/discover/DiscoverView'
@@ -9,6 +9,8 @@ import { ActivitiesView } from './components/activities/ActivitiesView'
 import { BoosterPackModal } from './components/boosters/BoosterPackModal'
 import { MusicSheet } from './components/ambient/MusicSheet'
 import { AmbientBackdrop } from './components/layout/AmbientBackdrop'
+import { SeasonalDecor } from './components/layout/SeasonalDecor'
+import { useThemeStore } from './store/useThemeStore'
 import { AppHeader } from './components/layout/AppHeader'
 import { BottomNav } from './components/layout/BottomNav'
 import { NavRail } from './components/layout/NavRail'
@@ -25,7 +27,7 @@ import { useLibraryLocalization } from './hooks/useLibraryLocalization'
 import { useLanguage, useT } from './i18n'
 import { useAuthStore } from './store/useAuthStore'
 import { useProfileStore } from './store/useProfileStore'
-import { useUiStore } from './store/useUiStore'
+import { useUiStore, type ViewId } from './store/useUiStore'
 import { LocalFilesSheet } from './components/reader/LocalFilesSheet'
 import { EpubMatchModal } from './components/novels/EpubMatchModal'
 import { usePendingNovelProgress } from './hooks/useNovels'
@@ -45,6 +47,7 @@ import { NotificationBanner } from './components/notifications/NotificationBanne
 import { NotificationCenter } from './components/notifications/NotificationCenter'
 import { DailyRewardModal } from './components/daily/DailyRewardModal'
 import { RecordRewardModal } from './components/rewards/RecordRewardModal'
+import { EventRewardModal } from './components/events/EventRewardModal'
 import { GiftReveal } from './components/cards/GiftReveal'
 import { NewsPage } from './components/news/NewsPage'
 import { NewsPopup } from './components/news/NewsPopup'
@@ -71,6 +74,15 @@ const EditsFeed = lazy(() => import('./components/edits/EditsFeed').then((module
 const AdminView = lazy(() => import('./components/admin/AdminView').then((module) => ({ default: module.AdminView })))
 
 const NovelsSheet = lazy(() => import('./components/novels/NovelsSheet').then((module) => ({ default: module.NovelsSheet })))
+
+/** Les pages de la navigation, dans l'ordre : chacune est montée à sa première visite, puis gardée. */
+const VIEWS: readonly { id: ViewId; render: () => ReactNode }[] = [
+  { id: 'discover', render: () => <DiscoverView /> },
+  { id: 'activities', render: () => <ActivitiesView /> },
+  { id: 'search', render: () => <SearchView /> },
+  { id: 'library', render: () => <LibraryView /> },
+  { id: 'profile', render: () => <ProfileView /> },
+]
 
 const SPLASH_KEY = 'bookshelf:splash-seen'
 /** Retour au premier plan : la bibliothèque du compte est reprise si elle date d'au moins… */
@@ -126,6 +138,23 @@ export default function App() {
       window.removeEventListener('online', refresh)
     }
   }, [])
+
+  // Thème saisonnier (Halloween…), choisi par l'administration : relu au démarrage et au retour
+  // au premier plan ; le dernier connu s'affiche aussitôt (gardé sur l'appareil).
+  const siteTheme = useThemeStore((state) => state.theme)
+  useEffect(() => {
+    const load = useThemeStore.getState().load
+    void load(true)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+  useEffect(() => {
+    if (siteTheme === 'none') delete document.documentElement.dataset.theme
+    else document.documentElement.dataset.theme = siteTheme
+  }, [siteTheme])
 
   // Lien de profil partagé (`?u=<id>`) : ouvert une fois, puis retiré de l'adresse.
   useEffect(() => {
@@ -209,6 +238,13 @@ export default function App() {
 
   /** Vue réellement montée : elle ne suit `view` qu'après l'animation de sortie. */
   const [rendered, setRendered] = useState(view)
+  /*
+   * Pages déjà ouvertes : gardées en vie, masquées (`<Activity>`), au lieu d'être démontées.
+   * Y revenir ne reconstruit plus rien (le gel au changement d'onglet venait de là) ; masquées,
+   * leurs effets sont suspendus (boucles d'animation, minuteurs) et leur état est gardé.
+   */
+  const [visited, setVisited] = useState<ReadonlySet<ViewId>>(() => new Set([view]))
+  if (!visited.has(rendered)) setVisited(new Set(visited).add(rendered))
   const [showSplash, setShowSplash] = useState(readSplashFlag)
 
   const stageRef = useRef<HTMLElement>(null)
@@ -219,9 +255,8 @@ export default function App() {
       if (view === rendered) return
       gsap.timeline({ onComplete: () => setRendered(view) }).to(stageRef.current, {
         autoAlpha: 0,
-        y: -6,
-        duration: 0.2,
-        ease: 'power2.in',
+        duration: 0.12,
+        ease: 'power1.in',
         overwrite: 'auto',
       })
     },
@@ -232,8 +267,8 @@ export default function App() {
     () => {
       gsap.fromTo(
         stageRef.current,
-        { autoAlpha: 0, y: 10 },
-        { autoAlpha: 1, y: 0, duration: 0.5, ease: EASE.glide, overwrite: 'auto' },
+        { autoAlpha: 0, y: 6 },
+        { autoAlpha: 1, y: 0, duration: 0.28, ease: EASE.glide, overwrite: 'auto', clearProps: 'transform' },
       )
     },
     { dependencies: [rendered] },
@@ -251,6 +286,7 @@ export default function App() {
   return (
     <>
       <AmbientBackdrop />
+      <SeasonalDecor />
 
       <div className="flex h-full w-full flex-col">
         {showBanner && <GuestBanner />}
@@ -280,11 +316,11 @@ export default function App() {
                 ref={stageRef}
                 className="relative flex min-h-0 flex-1 flex-col overflow-hidden pb-nav md:pb-6"
               >
-                {rendered === 'discover' && <DiscoverView />}
-                {rendered === 'activities' && <ActivitiesView />}
-                {rendered === 'search' && <SearchView />}
-                {rendered === 'library' && <LibraryView />}
-                {rendered === 'profile' && <ProfileView />}
+                {VIEWS.filter(({ id }) => visited.has(id)).map(({ id, render }) => (
+                  <Activity key={id} mode={id === rendered ? 'visible' : 'hidden'}>
+                    {render()}
+                  </Activity>
+                ))}
               </main>
             </div>
           </div>
@@ -319,6 +355,7 @@ export default function App() {
       <SeriesRetirementGate />
       {newsPage && <NewsPage />}
       <RecordRewardModal />
+      <EventRewardModal />
       <NotificationBanner />
       {/* Carte offerte : la surprise, face cachée, à la visite suivante. */}
       <GiftReveal />

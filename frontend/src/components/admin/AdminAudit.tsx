@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BadgePercent, Ban, Brush, Eraser, Gift, ImageOff, ImageUp, Loader2, PackageOpen, RotateCcw, ShieldCheck, Sparkles, UserCheck, UserMinus } from 'lucide-react'
+import { BadgePercent, Ban, Brush, Eraser, Gift, ImageOff, ImageUp, Loader2, PackageOpen, Palette, PartyPopper, RotateCcw, ShieldCheck, Sparkles, UserCheck, UserMinus } from 'lucide-react'
 import { useT } from '../../i18n'
 import { describeAction } from '../../lib/admin'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
@@ -23,6 +23,9 @@ const ICON: Record<AdminActionType, typeof Gift> = {
   dle_image_restore: ImageUp,
   reviewer_grant: UserCheck,
   reviewer_revoke: UserMinus,
+  theme: Palette,
+  event: PartyPopper,
+  event_end: PartyPopper,
 }
 
 const TINT: Record<AdminActionType, string> = {
@@ -42,6 +45,9 @@ const TINT: Record<AdminActionType, string> = {
   dle_image_restore: 'text-like bg-like/12', // i18n-ignore : classes CSS
   reviewer_grant: 'text-like bg-like/12', // i18n-ignore : classes CSS
   reviewer_revoke: 'text-cream/60 bg-white/10', // i18n-ignore : classes CSS
+  theme: 'text-[#ff7a1a] bg-[#ff7a1a]/15', // i18n-ignore : classes CSS
+  event: 'text-[#ffc46b] bg-[#ffc46b]/15', // i18n-ignore : classes CSS
+  event_end: 'text-cream/60 bg-white/10', // i18n-ignore : classes CSS
 }
 
 /** Une ligne du journal : qui, quoi, sur quel compte (cliquable), quand. */

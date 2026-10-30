@@ -78,7 +78,7 @@ function RewardChoiceDialog() {
 
   return (
     <div ref={ref} className="fixed inset-0 z-[130] grid place-items-center px-5" role="dialog" aria-modal="true" aria-label={t.recordReward.title}>
-      <div data-reward-backdrop className="absolute inset-0 bg-[#0b0618]/90 backdrop-blur-sm" onClick={close} />
+      <div data-reward-backdrop className="absolute inset-0 bg-[#0b0618]/90" onClick={close} />
       <div className="relative flex w-full max-w-sm flex-col items-center gap-4 text-center">
         <button type="button" onClick={close} aria-label={t.recordReward.later} className="absolute -top-2 right-0 grid size-10 place-items-center rounded-full border border-white/15 bg-white/[0.06] text-cream">
           <X size={18} />
@@ -134,7 +134,7 @@ function RewardChoiceDialog() {
               <span className="absolute inset-0 rounded-2xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: '0 0 22px -2px #b05cff, inset 0 0 0 3px #ffc93c' }} />
               <span className="absolute inset-y-0 left-1/2 w-3 -translate-x-1/2 bg-[#ffc93c]" />
               <span className="absolute inset-x-0 top-[38%] h-3 bg-[#ffc93c]" />
-              <span className="relative font-display text-3xl text-[#ffe9a8] drop-shadow-[0_0_6px_#ffb300]">?</span>
+              <span className="relative font-display text-3xl text-[#ffe9a8]">?</span>
             </span>
             <span className="text-sm font-bold text-cream">{t.recordReward.box}</span>
             <span className="text-[11px] leading-snug text-cream/55">{t.recordReward.boxHint}</span>

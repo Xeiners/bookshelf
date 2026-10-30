@@ -37,7 +37,7 @@ export function Seat({ player, active, out, winner, me, maxLives, name }: SeatPr
             aria-hidden
             data-bomb-fx
             className="absolute -inset-[5px] rounded-full"
-            style={{ background: 'conic-gradient(from 0deg, var(--heat, #ffd23f), transparent 35%, var(--heat, #ffd23f) 55%, transparent 85%)', animation: 'seal-spin 1.4s linear infinite', filter: 'drop-shadow(0 0 8px var(--heat, #ffd23f))' }}
+            style={{ background: 'conic-gradient(from 0deg, var(--heat, #ffd23f), transparent 35%, var(--heat, #ffd23f) 55%, transparent 85%)', animation: 'seal-spin 1.4s linear infinite' }}
           />
         )}
         <span
@@ -59,7 +59,7 @@ export function Seat({ player, active, out, winner, me, maxLives, name }: SeatPr
         {!player.connected && <span className="absolute -top-0.5 -left-0.5 size-3 rounded-full border-2 border-[#0d0b18] bg-mist" title={t.bomb.room.away} />}
       </span>
       <span
-        className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] backdrop-blur ${me ? 'border-white/25 bg-white/15 font-semibold text-cream' : 'border-white/10 bg-black/55 text-cream/85'}`}
+        className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px]  ${me ? 'border-white/25 bg-white/15 font-semibold text-cream' : 'border-white/10 bg-black/55 text-cream/85'}`}
       >
         {name}
       </span>
@@ -69,7 +69,7 @@ export function Seat({ player, active, out, winner, me, maxLives, name }: SeatPr
             key={index}
             size={11}
             aria-hidden
-            className={index < player.lives ? 'fill-[#ff5e9c] text-[#ff5e9c] drop-shadow-[0_0_4px_rgba(255,94,156,0.7)]' : 'text-white/20'}
+            className={index < player.lives ? 'fill-[#ff5e9c] text-[#ff5e9c] ' : 'text-white/20'}
           />
         ))}
       </span>

@@ -239,7 +239,7 @@ function Results({ room, meId }: { room: StackRoom; meId: string }) {
   )
 
   return (
-    <div ref={ref} className="fixed inset-0 z-[90] grid place-items-center bg-black/55 px-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t.stack.room.results}>
+    <div ref={ref} className="fixed inset-0 z-[90] grid place-items-center bg-black/55 px-5" role="dialog" aria-modal="true" aria-label={t.stack.room.results}>
       <div data-res-card className="relative w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-[#ff9a5c]/30 bg-[#140a2e] p-5 text-center opacity-0">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(100% 60% at 50% 0%, rgba(255,154,92,0.3), transparent 70%)' }} />
         <p className="relative text-[11px] font-semibold tracking-[0.24em] text-[#ffb98a] uppercase">{coop ? t.stack.room.team : won ? `🏆 ${t.stack.room.victory}` : t.stack.room.results}</p>

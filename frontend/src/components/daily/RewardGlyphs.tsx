@@ -8,7 +8,7 @@ import type { DailyBundle } from '../../services/dailyApi'
  */
 
 export function DustGlyph({ size }: { size: number }) {
-  return <Sparkle size={size} strokeWidth={2.2} className="fill-[#ffd36a] text-[#ffb300] drop-shadow-[0_0_6px_rgba(255,196,107,0.8)]" aria-hidden />
+  return <Sparkle size={size} strokeWidth={2.2} className="fill-[#ffd36a] text-[#ffb300]" aria-hidden />
 }
 
 export function BoosterGlyph({ size }: { size: number }) {

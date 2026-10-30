@@ -16,7 +16,6 @@ import { useRecordRewards } from '../../store/useRecordRewards'
 import { useStackRoom } from '../../store/useStackRoom'
 import { parseRoomCode } from '../../lib/dle'
 import { useUiStore } from '../../store/useUiStore'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { StackEmblem } from './StackEmblem'
@@ -187,7 +186,7 @@ function StackHome({ overview, starting, onStart, onCreate, onJoin }: { overview
           </div>
           <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-[#140a2e] via-transparent to-transparent" />
           <div className="absolute inset-x-0 top-0 p-4">
-            <h2 className="font-display text-[1.7rem] leading-none text-white drop-shadow-[0_2px_10px_rgba(40,0,80,0.6)]">{t.stack.title}</h2>
+            <h2 className="font-display text-[1.7rem] leading-none text-white">{t.stack.title}</h2>
             <p className="mt-1 max-w-[16rem] text-[11px] leading-snug text-white/85">{t.stack.home.tagline}</p>
           </div>
         </div>
@@ -315,7 +314,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 function GameOver({ settled, replaying, onReplay, onHome }: { settled: Settled; replaying: boolean; onReplay: () => void; onHome: () => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
-  const [burst, setBurst] = useState<Burst | null>(null)
   const { outcome, result, error, saving } = settled
   const record = result?.record ?? false
 
@@ -327,14 +325,6 @@ function GameOver({ settled, replaying, onReplay, onHome }: { settled: Settled; 
     { scope: ref },
   )
 
-  useEffect(() => {
-    if (!record) return
-    const timer = window.setTimeout(
-      () => setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.32, colors: ['#ffd35c', '#ff9a5c', '#ff6fb5', '#ffffff'], count: 160, spread: Math.PI * 2, kind: 'confetti' }),
-      250,
-    )
-    return () => window.clearTimeout(timer)
-  }, [record])
 
   const rows: [string, string][] = [
     [t.stack.over.pages, String(result?.pages ?? outcome.pages)],
@@ -343,8 +333,7 @@ function GameOver({ settled, replaying, onReplay, onHome }: { settled: Settled; 
   ]
 
   return (
-    <div ref={ref} className="fixed inset-0 z-[90] grid place-items-center bg-black/55 px-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t.stack.over.title}>
-      <ParticleBurst burst={burst} />
+    <div ref={ref} className="fixed inset-0 z-[90] grid place-items-center bg-black/55 px-5" role="dialog" aria-modal="true" aria-label={t.stack.over.title}>
       <div data-over-card className="relative w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-[#ff9a5c]/30 bg-[#140a2e] p-5 text-center">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(100% 60% at 50% 0%, rgba(255,154,92,0.3), transparent 70%)' }} />
         <p className="relative text-[11px] font-semibold tracking-[0.24em] text-[#ffb98a] uppercase">{record ? `🏆 ${t.stack.over.record}` : t.stack.over.title}</p>

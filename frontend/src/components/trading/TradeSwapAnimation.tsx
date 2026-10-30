@@ -6,7 +6,6 @@ import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playFlip, playReveal } from '../../lib/sfx'
 import type { TradeCard } from '../../services/tradesApi'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { CollectibleCard } from '../cards/CollectibleCard'
 
 interface TradeSwapAnimationProps {
@@ -32,22 +31,12 @@ export function TradeSwapAnimation({ given, received, onDone }: TradeSwapAnimati
   const rootRef = useRef<HTMLDivElement>(null)
   const [width] = useState(() => Math.round(Math.min(180, Math.max(120, window.innerWidth * 0.32))))
   const [closing, setClosing] = useState(false)
-  const [burst, setBurst] = useState<Burst | null>(null)
   const color = RARITY_STYLE[received.rarity].color
 
-  /** La carte reçue arrive au centre : carillon de sa rareté, étincelles à sa couleur. */
+  /** La carte reçue arrive au centre : carillon de sa rareté. */
   const reveal = () => {
     playReveal(received.rarity)
     vibrate([14, 30, 20])
-    setBurst({
-      id: performance.now(),
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2 - 30,
-      colors: [color, '#fff4c8', '#ffffff', '#ffc46b'],
-      count: received.rarity === 'MYTHIC' || received.rarity === 'LEGENDARY' ? 140 : 70,
-      kind: 'sparks',
-      spread: Math.PI * 2,
-    })
   }
 
   useGSAP(
@@ -99,7 +88,6 @@ export function TradeSwapAnimation({ given, received, onDone }: TradeSwapAnimati
   return createPortal(
     <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.trades.swap.title} className="fixed inset-0 z-[95] flex flex-col items-center justify-center px-6">
       <div data-swap-backdrop aria-hidden className="absolute inset-0 bg-[#050507]/[0.97]" onClick={() => setClosing(true)} />
-      <ParticleBurst burst={burst} />
       {/* Au-dessus du canevas des étincelles (z-[3]) : elles jaillissent derrière les cartes. */}
       <div className="pointer-events-none relative z-[4] flex items-center justify-center" style={{ width: width * 3, height: Math.round(width * 1.6) }}>
         <div

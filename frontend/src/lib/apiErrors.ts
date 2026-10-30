@@ -33,6 +33,10 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.notSuspended
     case 'daily_claimed':
       return t.daily.alreadyClaimed
+    case 'event_claimed':
+      return t.events.alreadyClaimed
+    case 'event_empty':
+      return t.admin.events.empty
     case 'email_taken':
       return t.errors.emailTaken
     case 'rate_limited':

@@ -1,51 +1,21 @@
-import { useRef } from 'react'
-import { gsap, useGSAP } from '../../lib/gsap'
 import { useUiStore } from '../../store/useUiStore'
 
 /**
- * Halos en dérive lente + grain filmique.
- *
- * Les halos sont des dégradés radiaux, sans filtre CSS. Leur dérive n'anime que
- * `transform`, ce qui permet au compositeur de les déplacer sans les recalculer.
+ * Halos de couleur + grain filmique, IMMOBILES. Ils dérivaient en boucle (pilotés en
+ * JavaScript, image par image) sous tous les écrans : le téléphone recomposait tout l'écran en
+ * permanence, même à l'arrêt — de quoi faire chauffer et ralentir les GPU modestes (Galaxy S22
+ * à puce Exynos). Peints une fois, ils ne coûtent plus rien.
  */
 export function AmbientBackdrop() {
-  const rootRef = useRef<HTMLDivElement>(null)
-  // L'onglet Activités pose son propre fond, opaque : celui-ci, caché dessous, se met en pause.
+  // L'onglet Activités pose son propre fond, opaque : celui-ci, caché dessous, n'est pas dessiné.
   const covered = useUiStore((state) => state.view === 'activities')
 
-  useGSAP(
-    () => {
-      if (covered) return
-      gsap.to('[data-blob]', {
-        xPercent: () => gsap.utils.random(-16, 16),
-        yPercent: () => gsap.utils.random(-14, 14),
-        duration: () => gsap.utils.random(11, 18),
-        ease: 'sine.inOut',
-        repeat: -1,
-        yoyo: true,
-        repeatRefresh: true,
-        stagger: 0.6,
-      })
-
-    },
-    { scope: rootRef, dependencies: [covered], revertOnUpdate: true },
-  )
-
   return (
-    <div ref={rootRef} aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-void" style={covered ? { visibility: 'hidden' } : undefined}>
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-void" style={covered ? { visibility: 'hidden' } : undefined}>
       <div className="absolute inset-0 overflow-hidden">
-        <div
-          data-blob
-          className="absolute -top-36 -left-32 size-[28rem] rounded-full bg-[radial-gradient(circle,rgb(124_92_255/0.3)_0%,rgb(124_92_255/0.12)_34%,transparent_70%)] will-change-transform"
-        />
-        <div
-          data-blob
-          className="absolute top-1/4 -right-40 size-[30rem] rounded-full bg-[radial-gradient(circle,rgb(29_92_255/0.22)_0%,rgb(29_92_255/0.08)_36%,transparent_70%)] will-change-transform"
-        />
-        <div
-          data-blob
-          className="absolute -bottom-40 left-[8%] size-[30rem] rounded-full bg-[radial-gradient(circle,rgb(63_224_160/0.12)_0%,rgb(63_224_160/0.04)_38%,transparent_72%)] will-change-transform"
-        />
+        <div className="absolute -top-36 -left-32 size-[28rem] rounded-full bg-[radial-gradient(circle,rgb(124_92_255/0.3)_0%,rgb(124_92_255/0.12)_34%,transparent_70%)]" />
+        <div className="absolute top-1/4 -right-40 size-[30rem] rounded-full bg-[radial-gradient(circle,rgb(29_92_255/0.22)_0%,rgb(29_92_255/0.08)_36%,transparent_70%)]" />
+        <div className="absolute -bottom-40 left-[8%] size-[30rem] rounded-full bg-[radial-gradient(circle,rgb(63_224_160/0.12)_0%,rgb(63_224_160/0.04)_38%,transparent_72%)]" />
       </div>
 
       {/* Casse le banding des dégradés */}

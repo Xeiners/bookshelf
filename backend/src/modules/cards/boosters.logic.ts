@@ -70,6 +70,15 @@ const LEGENDARY_PITY_RATES: Record<Rarity, number> = {
   MYTHIC: MYTHIC_RATE / (LEGENDARY_RATE + MYTHIC_RATE),
 }
 
+/** Dernier slot d'un Booster Légendaire acheté (`LEGENDARY_PACK_PRICE`) : Légendaire, ou Mythique une fois sur cent. */
+export const BOUGHT_LEGENDARY_RATES: Record<Rarity, number> = {
+  COMMON: 0,
+  RARE: 0,
+  EPIC: 0,
+  LEGENDARY: 0.99,
+  MYTHIC: 0.01,
+}
+
 const MYTHIC_ONLY_RATES: Record<Rarity, number> = {
   COMMON: 0,
   RARE: 0,
@@ -180,7 +189,7 @@ export function slotRates(slot: number, size: number, forceMythic = false, force
 export function drawPack<C extends { id: string; rarity: string }>(
   cards: readonly C[],
   random: () => number,
-  options: { size?: number; forceMythic?: boolean; forceLegendary?: boolean } = {},
+  options: { size?: number; forceMythic?: boolean; forceLegendary?: boolean; /** Table du dernier slot, à la place de la sienne (Booster Légendaire acheté). */ lastSlotRates?: Record<Rarity, number> } = {},
 ): C[] {
   const size = options.size ?? CARDS_PER_PACK
   const byRarity = new Map<Rarity, C[]>(RARITIES.map((rarity) => [rarity, []]))
@@ -189,7 +198,8 @@ export function drawPack<C extends { id: string; rarity: string }>(
   const picked: C[] = []
   const used = new Set<string>()
   for (let slot = 0; slot < size; slot += 1) {
-    const wanted = drawRarity(random, slotRates(slot, size, options.forceMythic, options.forceLegendary))
+    const rates = slot === size - 1 && options.lastSlotRates ? options.lastSlotRates : slotRates(slot, size, options.forceMythic, options.forceLegendary)
+    const wanted = drawRarity(random, rates)
     const fresh = (rarity: Rarity) => byRarity.get(rarity)!.some((card) => !used.has(card.id))
     const any = (rarity: Rarity) => byRarity.get(rarity)!.length > 0
     const rarity = nearestAvailable(wanted, fresh) ?? nearestAvailable(wanted, any)

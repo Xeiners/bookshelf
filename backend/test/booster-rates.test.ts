@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { seededRandom } from '../src/core/util/seeded.js'
 import {
+  BOUGHT_LEGENDARY_RATES,
   CARDS_PER_PACK,
   HARD_PITY_PACKS,
   LEGENDARY_PITY_PACKS,
@@ -109,5 +110,20 @@ describe('boosters — pool partagé Séries 1 et 2', () => {
       opened = nextLegendaryPityCount(opened)
     }
     assert.equal(guaranteed, Math.floor(40_000 / LEGENDARY_PITY_PACKS))
+  })
+})
+
+describe('boosters — Booster Légendaire acheté', () => {
+  it('dernière carte : toujours Légendaire ou Mythique, Mythique ~1 % ; les autres slots inchangés', () => {
+    const random = seededRandom('bought-legendary-20k')
+    const packs = 20_000
+    let mythic = 0
+    for (let pack = 0; pack < packs; pack += 1) {
+      const cards = drawPack(SET, random, { forceLegendary: true, lastSlotRates: BOUGHT_LEGENDARY_RATES })
+      const last = cards[cards.length - 1]!.rarity
+      assert.ok(last === 'LEGENDARY' || last === 'MYTHIC', `dernière carte : ${last}`)
+      if (last === 'MYTHIC') mythic += 1
+    }
+    assert.ok(Math.abs(mythic / packs - 0.01) < 0.004, `Mythique : ${mythic / packs}`)
   })
 })

@@ -143,7 +143,7 @@ export function Bomb({ syllable, endsAt, totalMs, variant = 'orb', audible = fal
         <div aria-hidden className="absolute transition-transform duration-500 ease-out" style={{ inset: '14% 4% 0 4%', transform: `rotate(${pointTo}deg)` }}>
           <span
             className="absolute top-1/2 right-[-6px] h-0 w-0 -translate-y-1/2 border-y-[10px] border-l-[16px] border-y-transparent"
-            style={{ borderLeftColor: 'var(--heat)', filter: 'drop-shadow(0 0 8px var(--heat))' }}
+            style={{ borderLeftColor: 'var(--heat)' }}
           />
         </div>
       )}
@@ -169,13 +169,6 @@ export function Bomb({ syllable, endsAt, totalMs, variant = 'orb', audible = fal
             <stop offset="0%" stopColor="#fbf0d4" />
             <stop offset="100%" stopColor="#e3cc98" />
           </linearGradient>
-          <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
 
         {variant === 'orb' && (
@@ -202,7 +195,7 @@ export function Bomb({ syllable, endsAt, totalMs, variant = 'orb', audible = fal
         {variant === 'orb' && (
           <>
             {/* Orbe vernie, cœur d'énergie, runes qui tournent. */}
-            <circle cx="100" cy="128" r="70" fill={`url(#${id}-orb)`} strokeOpacity="0.55" strokeWidth="2" filter={`url(#${id}-glow)`} style={{ stroke: 'var(--heat)' }} />
+            <circle cx="100" cy="128" r="70" fill={`url(#${id}-orb)`} strokeOpacity="0.55" strokeWidth="2" style={{ stroke: 'var(--heat)' }} />
             <circle cx="100" cy="128" r="54" fill={`url(#${id}-core)`} />
             <g data-bomb-fx style={{ transformOrigin: '100px 128px', animation: 'seal-spin 18s linear infinite' }}>
               <circle cx="100" cy="128" r="60" fill="none" strokeOpacity="0.35" strokeWidth="1" strokeDasharray="6 4 1 4" style={{ stroke: 'var(--heat)' }} />
@@ -215,7 +208,7 @@ export function Bomb({ syllable, endsAt, totalMs, variant = 'orb', audible = fal
         {variant === 'chibi' && <ChibiBody id={id} stage={stage} blink={blink} />}
 
         {variant === 'talisman' && (
-          <g style={{ filter: 'drop-shadow(0 0 9px var(--heat))' }}>
+          <g>
             <g transform="rotate(-6 100 130)">
               <rect x="56" y="60" width="88" height="142" rx="5" fill={`url(#${id}-paper)`} stroke="#8a5a2b" strokeWidth="1.5" />
               <rect x="63" y="67" width="74" height="128" rx="3" fill="none" stroke="#b3261e" strokeOpacity="0.55" strokeWidth="1.2" />
@@ -235,25 +228,12 @@ export function Bomb({ syllable, endsAt, totalMs, variant = 'orb', audible = fal
           </g>
         )}
 
-        {/* Étincelle au bout de la mèche, et ses braises. */}
+        {/* Flamme au bout de la mèche (sans braises : plus aucune particule dans l'app). */}
         <g ref={sparkRef} style={{ opacity: 0, transition: 'opacity 200ms' }}>
           <circle r="9" fillOpacity="0.35" style={{ fill: 'var(--heat)' }} />
           <g data-bomb-fx style={{ animation: 'bomb-flicker 0.18s linear infinite' }}>
             <path d="M0 -9 L2 -2 L9 0 L2 2 L0 9 L-2 2 L-9 0 L-2 -2 Z" fill="#fff6c8" />
           </g>
-          {[0, 1, 2, 3].map((index) => (
-            <circle
-              key={index}
-              data-bomb-fx
-              r="1.6"
-              fill="#ffd36b"
-              style={{
-                animation: `bomb-ember ${0.5 + index * 0.13}s ease-out ${index * 0.11}s infinite`,
-                ['--ember-x' as string]: `${[10, -8, 14, -12][index]}px`,
-                ['--ember-y' as string]: `${[-14, -10, -4, -16][index]}px`,
-              }}
-            />
-          ))}
         </g>
       </svg>
 
@@ -289,7 +269,7 @@ function ChibiBody({ id, stage, blink }: { id: string; stage: HeatStage; blink: 
     )
   return (
     <g>
-      <circle cx="100" cy="128" r="68" fill={`url(#${id}-chibi)`} strokeWidth="2.5" style={{ stroke: 'var(--heat)', filter: 'drop-shadow(0 0 10px var(--glow))' }} />
+      <circle cx="100" cy="128" r="68" fill={`url(#${id}-chibi)`} strokeWidth="2.5" style={{ stroke: 'var(--heat)' }} />
       <ellipse cx="72" cy="96" rx="18" ry="10" fill="#ffffff" fillOpacity="0.22" transform="rotate(-30 72 96)" />
       <circle data-bomb-fx cx="100" cy="128" r="68" style={blink} />
       {/* Sourcils inquiets, puis froncés. */}
@@ -309,7 +289,7 @@ function ChibiBody({ id, stage, blink }: { id: string; stage: HeatStage; blink: 
       {stage !== 'calm' && <path d="M150 92 q6 10 0 14 q-6 -4 0 -14z" fill="#9be8ff" fillOpacity="0.9" />}
       {stage === 'critical' && <path d="M48 100 q5 8 0 11 q-5 -3 0 -11z" fill="#9be8ff" fillOpacity="0.9" />}
       {/* L'étiquette de la syllabe. */}
-      <rect x="50" y="148" width="100" height="38" rx="19" fill="#fff6e2" stroke="#140c26" strokeOpacity="0.55" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 0 6px var(--glow))' }} />
+      <rect x="50" y="148" width="100" height="38" rx="19" fill="#fff6e2" stroke="#140c26" strokeOpacity="0.55" strokeWidth="2.5" />
     </g>
   )
 }

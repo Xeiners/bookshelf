@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { CalendarCheck, Check, Newspaper, ChevronRight, FlaskConical, Gamepad2, Gift, Handshake, Layers, MoonStar, Sparkle, Sparkles, TrendingUp, WifiOff, Zap } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { CalendarCheck, Check, Newspaper, ChevronRight, FlaskConical, Gift, Handshake, MoonStar, Sparkle, TrendingUp, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
 import { useCollection } from '../../hooks/useCollection'
@@ -17,7 +17,7 @@ import { useTradeStore } from '../../store/useTradeStore'
 import { CYCLE_DAYS } from '../../services/dailyApi'
 import { useDailyStore } from '../../store/useDailyStore'
 import { useNews } from '../../store/useNews'
-import { useUiStore, type ActivityTab } from '../../store/useUiStore'
+import { useUiStore } from '../../store/useUiStore'
 import { StackEmblem } from '../stack/StackEmblem'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
@@ -26,69 +26,55 @@ import { STARDUST_GRADIENT } from '../dle/dleStyle'
 import { StardustBadge } from '../dle/StardustBadge'
 import { HL_DOWN, HL_GRADIENT, HL_UP } from '../higherlower/hlStyle'
 import { Bomb } from '../bomb/Bomb'
-import { BOMB_GRADIENT } from '../../lib/bomb'
 import { EnergyRing } from './EnergyRing'
 import { ShopBanners } from './ShopBanners'
 import { inkText } from '../../lib/ink'
 import { canvasApi } from '../../services/canvasApi'
+import { SeasonalCorner, SeasonalHubBanner } from '../layout/SeasonalDecor'
 
 /** Texte néon : lueur de la couleur donnée. */
 const neon = (color: string): CSSProperties => ({ color, textShadow: `0 0 6px ${color}, 0 0 18px ${color}` })
 
 /**
- * Hub « Activités ». L'ouverture des boosters est la vedette : elle ouvre la page, toujours
- * visible au-dessus des rubriques. Au-dessus d'elle, seulement l'essentiel : la récompense
- * du jour et le stock de boosters. Puis trois rubriques en onglets collants — Cartes (boutique,
- * album, Marché), Jeux (grille de tuiles), Univers (Toile, Oracle) — dont seule celle affichée
- * est montée (et animée). La rubrique est gardée dans le store : au retour d'un jeu, on retombe
- * au même endroit.
+ * Hub « Activités », en vitrine (façon App Store) :
+ * 1. la barre d'état (série de la récompense, boosters, Poussières, actus), le bandeau de fête ;
+ * 2. une grande bannière qui défile de côté — ouvrir un booster, la boutique (côte à côte sur
+ *    ordinateur) ;
+ * 3. « À faire aujourd'hui » : ce qui attend vraiment, un toucher mène au bon endroit ;
+ * 4. des rangées de grandes cartes illustrées — Jeux, Cartes, Créer & explorer — qui défilent de
+ *    côté sur téléphone (la carte suivante dépasse) et passent en grille sur grand écran.
+ * Au retour d'un module, la page se replace sur sa rangée (`hubReturnTo`).
  */
 export function ActivitiesHub() {
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
-  // Le hub n'affiche que le stock : le décompte à la seconde reste dans l'autel.
+  // Le hub n'affiche que le stock : le décompte à la seconde reste dans la bannière.
   const boosters = useBoosters({ tick: false })
   // Ouverture de booster en plein écran : le hub, recouvert, cesse de s'animer.
   const covered = useUiStore((state) => state.boosterOpen)
-  const tab = useUiStore((state) => state.activityTab)
-  const setTab = useUiStore((state) => state.setActivityTab)
+  const returnTo = useUiStore((state) => state.hubReturnTo)
   const signedIn = useAuthStore((state) => state.user !== null)
   const loadDle = useDleStore((state) => state.loadOverview)
   const stardust = useDleStore((state) => state.overview?.stardust ?? null)
+  const sections = t.activities.hub.sections
 
-  // Énigmes du jour : de quoi allumer la tuile du DLE.
+  // Énigmes du jour : de quoi allumer la carte du DLE et la rangée « À faire ».
   useEffect(() => {
     if (signedIn) void loadDle()
   }, [signedIn, loadDle])
 
-  // Changement de rubrique : l'ancienne sort d'un côté pendant que la nouvelle entre de l'autre
-  // (vers la gauche si l'on va à droite, et inversement). La vedette, au-dessus, ne bouge pas.
-  const [leaving, setLeaving] = useState<{ tab: ActivityTab; direction: 1 | -1 } | null>(null)
-  useGSAP(
-    () => {
-      if (!leaving) return
-      const done = () => setLeaving(null)
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return done()
-      const shift = leaving.direction * 100
-      gsap.fromTo('[data-panel="out"]', { xPercent: 0, autoAlpha: 1 }, { xPercent: -shift, autoAlpha: 0.4, duration: 0.42, ease: 'power3.inOut' })
-      gsap.fromTo('[data-panel="in"]', { xPercent: shift }, { xPercent: 0, duration: 0.42, ease: 'power3.inOut', onComplete: done })
-    },
-    { scope: rootRef, dependencies: [leaving] },
-  )
-
-  const choose = (id: ActivityTab) => {
-    if (id === tab) return
-    vibrate(6)
-    setLeaving({ tab, direction: TAB_ORDER.indexOf(id) > TAB_ORDER.indexOf(tab) ? 1 : -1 })
-    setTab(id)
-    // La rubrique commence sous les onglets : on la montre depuis son début.
-    const tabs = document.getElementById('hub-tabs')
-    if (rootRef.current && tabs && rootRef.current.scrollTop > tabs.offsetTop) rootRef.current.scrollTo({ top: tabs.offsetTop, behavior: 'smooth' })
-  }
+  // Retour d'un jeu ou d'un module : la page reprend à sa rangée, sans animation.
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!returnTo || !root) return
+    const section = root.querySelector<HTMLElement>(`[data-hub-section="${returnTo}"]`)
+    if (section) root.scrollTop = section.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop - 8
+    useUiStore.getState().clearHubReturn()
+  }, [returnTo])
 
   return (
-    <div ref={rootRef} data-paused={covered || undefined} className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-10">
-      <div className="flex shrink-0 flex-col gap-4 px-5">
+    <div ref={rootRef} data-paused={covered || undefined} className="no-scrollbar flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto overscroll-contain px-5 pb-10">
+      <div className="flex shrink-0 flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <DailyChip />
           <span
@@ -105,7 +91,7 @@ export function ActivitiesHub() {
               </span>
             )}
           </span>
-          {/* Les Poussières ✦, juste à côté des boosters : ce qu'on peut dépenser à la boutique, juste dessous. */}
+          {/* Les Poussières ✦, juste à côté des boosters : ce qu'on peut dépenser à la boutique. */}
           {signedIn && stardust !== null && <StardustBadge balance={stardust} />}
           {/* Les actus : la pastille rouge tant qu'une nouveauté n'a pas été vue. */}
           <NewsChip />
@@ -118,6 +104,8 @@ export function ActivitiesHub() {
               {t.activities.sandbox}
             </span>
           )}
+          {/* Développement : boosters d'aperçu pour voir une Légendaire ou une Mythique à coup sûr (absents du build). */}
+          {import.meta.env.DEV && signedIn && <PreviewPacks />}
           {boosters.offline && (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-gold" title={t.activities.offline}>
               <WifiOff size={13} aria-hidden />
@@ -126,85 +114,218 @@ export function ActivitiesHub() {
           )}
         </div>
 
+        {/* Thème saisonnier : un bandeau de fête en tête du hub (rien hors thème). */}
+        <SeasonalHubBanner />
         {boosters.signedIn && boosters.legendaryPacks > 0 && <LegendaryPackBanner count={boosters.legendaryPacks} />}
-        <BoosterHero />
       </div>
 
-      {/* Onglets collants : on sait toujours où l'on est. */}
-      <div id="hub-tabs" className="sticky top-0 z-10 mt-4 shrink-0 px-5 pt-2 pb-3">
-        <div role="tablist" aria-label={t.activities.hub.tabsLabel} className="relative grid grid-cols-3 rounded-full border border-white/10 bg-[#101017]/90 p-1 backdrop-blur">
-          {/* Le sélecteur glisse d'une rubrique à l'autre. */}
-          <span
-            aria-hidden
-            className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-full bg-cream shadow-[0_6px_18px_-8px_rgba(247,245,240,0.6)] transition-transform duration-[420ms] ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none"
-            style={{ transform: `translateX(${TAB_ORDER.indexOf(tab) * 100}%)` }}
-          />
-          {HUB_TABS.map(({ id, icon: Icon }) => {
-            const selected = tab === id
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                id={`hub-tab-${id}`}
-                aria-selected={selected}
-                aria-controls="hub-panel"
-                onClick={() => choose(id)}
-                className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors duration-300 ${
-                  selected ? 'text-void' : 'text-cream/70 hover:text-cream'
-                }`}
-              >
-                <Icon size={15} aria-hidden className="shrink-0" />
-                <span className="truncate">{t.activities.hub.tabs[id]}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      <HeroCarousel
+        label={sections.boosters.title}
+        slides={[
+          { id: 'open', node: <BoosterHero part="open" /> },
+          { id: 'shop', node: <BoosterHero part="shop" /> },
+        ]}
+      />
 
-      {/* Les deux rubriques partagent la même case pendant la transition ; le débord est masqué. */}
-      <div id="hub-panel" role="tabpanel" aria-labelledby={`hub-tab-${tab}`} className="grid shrink-0 overflow-x-clip">
-        {(leaving ? [leaving.tab, tab] : [tab]).map((id) => (
-          <div
-            key={id}
-            data-panel={leaving ? (id === tab ? 'in' : 'out') : undefined}
-            aria-hidden={id !== tab || undefined}
-            inert={id !== tab || undefined}
-            className="col-start-1 row-start-1 flex min-w-0 flex-col gap-4 self-start px-5"
-          >
-            <HubPanel tab={id} />
+      <TodayRow />
+
+      <ShelfRow id="cards" title={sections.cards.title} subtitle={sections.cards.subtitle} grid="md:grid-cols-2">
+        <CollectionArtefact />
+        <MarketArtefact />
+      </ShelfRow>
+
+      <ShelfRow id="games" title={sections.games.title} subtitle={sections.games.subtitle} grid="md:grid-cols-3 xl:grid-cols-5">
+        <GamesCards />
+      </ShelfRow>
+
+      <ShelfRow id="more" title={sections.more.title} subtitle={sections.more.subtitle} grid="md:grid-cols-2">
+        <CanvasArtefact />
+        <OracleArtefact />
+      </ShelfRow>
+    </div>
+  )
+}
+
+/** Titre d'une rangée : sobre, un titre et une ligne pour dire à quoi elle sert. */
+function SectionTitle({ id, title, subtitle }: { id: string; title: string; subtitle: string }) {
+  return (
+    <div className="min-w-0">
+      <h2 id={id} className="font-display text-[1.4rem] leading-tight text-cream">
+        {title}
+      </h2>
+      <p className="mt-0.5 text-xs text-mist">{subtitle}</p>
+    </div>
+  )
+}
+
+/**
+ * Une rangée de la vitrine : elle défile de côté sur téléphone (la carte suivante dépasse, pour
+ * inviter à faire glisser) et passe en grille sur grand écran (`grid` : ses colonnes). `id` sert
+ * aussi à y revenir au retour d'un module (cf. `hubReturnTo`).
+ */
+function ShelfRow({ id, title, subtitle, grid, children }: { id: string; title: string; subtitle: string; grid: string; children: ReactNode }) {
+  return (
+    <section data-hub-section={id} aria-labelledby={`hub-${id}`} className="flex shrink-0 flex-col gap-3">
+      <SectionTitle id={`hub-${id}`} title={title} subtitle={subtitle} />
+      <div className={`no-scrollbar -mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-1 md:mx-0 md:grid md:overflow-visible md:px-0 ${grid}`}>{children}</div>
+    </section>
+  )
+}
+
+/**
+ * La bannière du haut : des diapositives que l'on fait défiler de côté, avec des points de
+ * pagination (touchables) ; sur ordinateur, elles s'affichent côte à côte, sans points.
+ */
+function HeroCarousel({ label, slides }: { label: string; slides: { id: string; node: ReactNode }[] }) {
+  const t = useT()
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState(0)
+
+  /** Largeur d'un pas : une diapositive et l'écart qui la suit. */
+  const step = () => {
+    const track = trackRef.current
+    const first = track?.firstElementChild as HTMLElement | null
+    if (!track || !first) return 0
+    return first.offsetWidth + Number.parseFloat(getComputedStyle(track).columnGap || '0')
+  }
+  const onScroll = () => {
+    const width = step()
+    if (width > 0 && trackRef.current) setActive(Math.min(slides.length - 1, Math.round(trackRef.current.scrollLeft / width)))
+  }
+  const goTo = (index: number) => {
+    vibrate(5)
+    trackRef.current?.scrollTo({ left: index * step(), behavior: 'smooth' })
+  }
+
+  return (
+    <section data-hub-section="boosters" aria-label={label} aria-roledescription="carousel" className="flex shrink-0 flex-col gap-3">
+      <div
+        ref={trackRef}
+        onScroll={onScroll}
+        className="no-scrollbar -mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 lg:mx-0 lg:grid lg:grid-cols-2 lg:overflow-visible lg:px-0"
+      >
+        {slides.map((slide, index) => (
+          <div key={slide.id} aria-roledescription="slide" aria-label={t.activities.hub.slide(index + 1, slides.length)} className="w-full shrink-0 snap-center lg:w-auto">
+            {slide.node}
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-/** Le contenu d'une rubrique. */
-function HubPanel({ tab }: { tab: ActivityTab }) {
-  if (tab === 'games') return <GamesGrid />
-  if (tab === 'cards')
-    return (
-      <div className="grid shrink-0 gap-4 md:grid-cols-2">
-        <CollectionArtefact />
-        <MarketArtefact />
+      <div className="flex justify-center gap-1.5 lg:hidden">
+        {slides.map((slide, index) => (
+          <button
+            key={slide.id}
+            type="button"
+            aria-label={t.activities.hub.slide(index + 1, slides.length)}
+            aria-current={index === active || undefined}
+            onClick={() => goTo(index)}
+            className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${index === active ? 'w-5 bg-cream' : 'w-1.5 bg-white/25'}`}
+          />
+        ))}
       </div>
-    )
-  return (
-    <div className="grid shrink-0 gap-4 md:grid-cols-2">
-      <CanvasArtefact />
-      <OracleArtefact />
-    </div>
+    </section>
   )
 }
 
-const TAB_ORDER: readonly ActivityTab[] = ['cards', 'games', 'more']
+interface TodayItem {
+  id: string
+  icon: typeof Zap
+  tint: string
+  title: string
+  hint: string
+  onClick: () => void
+}
 
-const HUB_TABS: { id: ActivityTab; icon: typeof Layers }[] = [
-  { id: 'cards', icon: Layers },
-  { id: 'games', icon: Gamepad2 },
-  { id: 'more', icon: Sparkles },
-]
+/**
+ * « À faire aujourd'hui » : une rangée de raccourcis, seulement pour ce qui attend vraiment
+ * (récompense du jour, booster prêt, énigmes du jour, tirage de l'Oracle, nouveauté au Marché).
+ * Rien en attente : une ligne le dit, et la rangée disparaît.
+ */
+function TodayRow() {
+  const t = useT()
+  const copy = t.activities.hub.today
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const boosters = useBoosters({ tick: false })
+  const daily = useDailyStore((state) => state.status)
+  const showDaily = useDailyStore((state) => state.show)
+  const overview = useDleStore((state) => state.overview)
+  const oracle = useOracleStatus()
+  const unread = useUnreadTrades()
+  const openActivity = useUiStore((state) => state.openActivity)
+  const openBooster = useUiStore((state) => state.openBooster)
+
+  const items: TodayItem[] = []
+  if (signedIn && daily?.claimable) items.push({ id: 'daily', icon: CalendarCheck, tint: TINT.booster, title: copy.daily, hint: copy.dailyHint, onClick: showDaily })
+  if (boosters.ready && boosters.canOpen) {
+    items.push({ id: 'booster', icon: Zap, tint: TINT.booster, title: copy.booster(boosters.unlimited ? null : boosters.available), hint: copy.boosterHint, onClick: () => openBooster() })
+  }
+  const toPlay = dailyToPlay(overview)
+  if (signedIn && toPlay > 0) items.push({ id: 'dle', icon: Sparkle, tint: TINT.dle, title: copy.dle(toPlay), hint: copy.dleHint, onClick: () => openActivity('dle') })
+  if (oracle.available) items.push({ id: 'oracle', icon: MoonStar, tint: TINT.oracle, title: copy.oracle, hint: copy.oracleHint, onClick: () => openActivity('oracle') })
+  if (unread > 0) items.push({ id: 'market', icon: Handshake, tint: TINT.market, title: copy.market(unread), hint: copy.marketHint, onClick: () => openActivity('market') })
+
+  return (
+    <section aria-labelledby="hub-today" className="flex shrink-0 flex-col gap-3">
+      <SectionTitle id="hub-today" title={copy.title} subtitle={items.length > 0 ? copy.subtitle : copy.allDone} />
+      {items.length > 0 && (
+        // Défile de côté sur téléphone (les cartes s'alignent), en grille au-delà.
+        <div className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-1 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0">
+          {items.map(({ id, icon: Icon, tint, title, hint, onClick }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                vibrate(8)
+                onClick()
+              }}
+              className="group flex w-[15.5rem] shrink-0 snap-start items-center gap-3 rounded-2xl border border-white/[0.07] p-3 text-left transition-[transform,border-color] duration-200 hover:border-white/[0.16] active:scale-[0.98] md:w-auto"
+              style={{ background: CARD_SURFACE }}
+            >
+              <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `${tint}17`, color: tint }}>
+                <Icon size={20} />
+                <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-[#13131b]" style={{ backgroundColor: tint }} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-cream">{title}</span>
+                <span className="block truncate text-[11px] text-mist">{hint}</span>
+              </span>
+              <ChevronRight size={18} className="shrink-0 text-cream/25 transition-colors duration-200 group-hover:text-cream/60" aria-hidden />
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** Développement seulement : ouvre un booster d'aperçu avec une Légendaire ou une Mythique. */
+function PreviewPacks() {
+  const t = useT()
+  const open = useUiStore((state) => state.openPreviewPack)
+  const packs = [
+    { rarity: 'LEGENDARY', label: t.activities.preview.legendary, style: { background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)', color: '#2a1a02' } },
+    { rarity: 'MYTHIC', label: t.activities.preview.mythic, style: { background: 'linear-gradient(100deg, #ff5ec4, #ffc46b 30%, #3fe0a0 55%, #4cc9f0 80%, #b46cff)', color: '#0b0b12' } },
+  ] as const
+  return (
+    <>
+      {packs.map((pack) => (
+        <button
+          key={pack.rarity}
+          type="button"
+          title={t.activities.preview.hint}
+          onClick={() => {
+            vibrate(10)
+            open(pack.rarity)
+          }}
+          className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition-transform active:scale-95"
+          style={pack.style}
+        >
+          <FlaskConical size={13} aria-hidden />
+          {pack.label}
+        </button>
+      ))}
+    </>
+  )
+}
 
 function NewsChip() {
   const t = useT()
@@ -231,45 +352,29 @@ const dailyToPlay = (overview: ReturnType<typeof useDleStore.getState>['overview
   overview ? Object.values(overview.daily).flatMap((modes) => Object.values(modes)).filter((daily) => !daily.solved).length : 0
 
 /**
- * La récompense du jour, en pastille : dorée avec un point quand elle attend, sinon le jour
- * de la série (un toucher rouvre le calendrier). Rien en invité.
+ * La série de la récompense du jour, en pastille (un toucher rouvre le calendrier). À récupérer :
+ * c'est la rangée « À faire aujourd'hui » qui le propose, la pastille s'efface. Rien en invité.
  */
 function DailyChip() {
   const t = useT()
   const signedIn = useAuthStore((state) => state.user !== null)
   const status = useDailyStore((state) => state.status)
   const show = useDailyStore((state) => state.show)
-  if (!signedIn || !status) return null
-  const ready = status.claimable
+  if (!signedIn || !status || status.claimable) return null
   return (
     <button
       type="button"
       onClick={show}
-      className="relative inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-transform active:scale-95"
-      style={
-        ready
-          ? { background: 'linear-gradient(150deg, #fff6c8, #ffc23a 55%, #ff8a3d)', borderColor: 'transparent', color: '#3a2200' }
-          : { backgroundColor: 'rgba(0,0,0,0.4)', borderColor: 'rgba(255,227,154,0.25)', color: 'rgba(247,245,240,0.75)' }
-      }
+      className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#ffe39a]/25 bg-black/40 px-3 text-xs font-semibold text-cream/75 transition-transform active:scale-95"
     >
       <CalendarCheck size={14} aria-hidden />
-      {ready ? t.activities.hub.daily.claim : t.activities.hub.daily.streak(Math.min(status.streak, CYCLE_DAYS), CYCLE_DAYS)}
-      {ready && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2.5 animate-pulse rounded-full bg-[#ff4d6d] ring-2 ring-[#050507]" />}
+      {t.activities.hub.daily.streak(Math.min(status.streak, CYCLE_DAYS), CYCLE_DAYS)}
     </button>
   )
 }
 
-/* ---- Cadre d'artefact ---------------------------------------------------------- */
-
-/** Surface d'un artefact : une carte sombre et unie ; seul le liseré prend la couleur de l'activité. */
-const surface = (tint: string): CSSProperties => ({
-  backgroundColor: '#101017',
-  borderColor: `${tint}38`,
-})
-
+/** Couleur de chaque mode : couverture de sa carte, pastille d'état, raccourci « À faire ». */
 const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff', stack: '#ff9a5c' } as const
-
-const ARTEFACT_CLASS = 'relative isolate shrink-0 rounded-[1.75rem] border text-left'
 
 /* ---- Vedette : l'ouverture des boosters ------------------------------------------------------------- */
 
@@ -292,7 +397,6 @@ function LegendaryPackBanner({ count }: { count: number }) {
       className="relative mb-3 flex w-full shrink-0 items-center gap-3 overflow-hidden rounded-[1.5rem] border border-[#ffd27a]/60 p-3.5 text-left shadow-[0_0_40px_-14px_#ffc46b] transition-transform active:scale-[0.99] sm:gap-4 sm:p-4"
       style={{ background: 'radial-gradient(120% 120% at 0% 0%, rgba(255,214,130,0.35), transparent 55%), linear-gradient(110deg, #3a2408, #24120a 55%, #2a0f22)' }}
     >
-      <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-10 w-16 -skew-x-12 bg-white/15 blur-sm motion-safe:animate-[shine_3.2s_ease-in-out_infinite]" />
       <span className="relative -my-2 shrink-0" style={{ transform: 'rotate(-8deg)' }}>
         <BoosterPackArt width={46} series={3} lit halo="LEGENDARY" />
       </span>
@@ -301,14 +405,18 @@ function LegendaryPackBanner({ count }: { count: number }) {
         <span className="block font-display text-lg leading-tight text-cream sm:text-xl">{t.activities.legendaryPack.title(count)}</span>
         <span className="block text-xs text-cream/65">{t.activities.legendaryPack.body}</span>
       </span>
-      <span className="relative shrink-0 rounded-full px-4 py-2 text-sm font-bold text-[#2a1a02]" style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' }}>
+      <span className="btn-cta relative shrink-0 rounded-full px-4 py-2 text-sm font-bold">
         {t.activities.legendaryPack.open}
       </span>
     </button>
   )
 }
 
-function BoosterHero() {
+/**
+ * La vedette des boosters, en deux diapositives de la bannière du haut : `open` (le paquet, le
+ * titre, la jauge et « Ouvrir ») et `shop` (la boutique : un booster ou une boîte mystère contre des ✦).
+ */
+function BoosterHero({ part }: { part: 'open' | 'shop' }) {
   const t = useT()
   const ref = useRef<HTMLElement>(null)
   const boosters = useBoosters()
@@ -356,16 +464,18 @@ function BoosterHero() {
   return (
     <section
       ref={ref}
-      aria-label={t.activities.booster.title}
-      className="relative isolate grid shrink-0 overflow-hidden rounded-[2rem] border lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
+      aria-label={part === 'open' ? t.activities.booster.title : t.activities.shop.buyTitle}
+      className="relative isolate flex h-full shrink-0 flex-col overflow-hidden rounded-[2rem] border"
       style={{
         borderColor: lit ? 'rgba(255,214,130,0.6)' : 'rgba(255,196,107,0.22)',
         background: lit
-          ? 'radial-gradient(120% 90% at 20% 20%, rgba(255,196,107,0.22), transparent 60%), radial-gradient(90% 80% at 90% 100%, rgba(255,94,196,0.18), transparent 60%), #101017'
-          : 'radial-gradient(120% 90% at 20% 20%, rgba(124,92,255,0.16), transparent 60%), #101017',
+          ? 'radial-gradient(120% 90% at 20% 20%, rgba(255,196,107,0.12), transparent 60%), radial-gradient(90% 80% at 90% 100%, rgba(255,94,196,0.07), transparent 60%), #0e0e14'
+          : 'radial-gradient(120% 90% at 20% 20%, rgba(124,92,255,0.09), transparent 60%), #0e0e14',
       }}
     >
-      <div className="flex min-w-0 flex-col justify-center">
+      {part === 'open' && <SeasonalCorner size={84} />}
+      {part === 'open' && (
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
       <div className="flex items-center gap-3 p-5 pb-4 md:gap-8 md:p-7 md:pb-5">
         {/* Les trois séries en éventail ; la nouvelle (3) devant. */}
         <div aria-hidden className="relative grid h-[9.5rem] w-[9.25rem] shrink-0 place-items-center md:h-[12rem] md:w-[12rem]">
@@ -428,10 +538,13 @@ function BoosterHero() {
         </p>
       )}
       </div>
-      {/* La boutique à côté (PC) ou dessous (téléphone) : un booster ou une boîte mystère contre des ✦. */}
-      <div className="flex min-w-0 flex-col justify-center border-t border-white/8 p-3 sm:p-4 md:p-5 lg:border-t-0 lg:border-l lg:p-6">
-        <ShopBanners />
-      </div>
+      )}
+      {/* La boutique : un booster ou une boîte mystère contre des ✦. */}
+      {part === 'shop' && (
+        <div className="flex min-w-0 flex-1 flex-col justify-center p-3 sm:p-4 md:p-5">
+          <ShopBanners />
+        </div>
+      )}
     </section>
   )
 }
@@ -442,16 +555,9 @@ function GoldButton({ onClick, icon, label, disabled = false, wide = false }: { 
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`relative inline-flex h-13 max-w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full px-5 text-[15px] font-semibold transition-transform active:scale-95 disabled:cursor-not-allowed sm:px-6 ${wide ? 'flex-1' : ''}`}
-      style={
-        disabled
-          ? { background: 'rgba(247,245,240,0.08)', color: 'rgba(247,245,240,0.45)' }
-          : {
-              background: 'linear-gradient(180deg, #ffdf8a, #f2b83a)',
-              color: '#2a1a02',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55), 0 10px 26px -10px rgba(242,184,58,0.9)',
-            }
-      }
+      // Bouton d'action principal : son habit vient du thème (`.btn-cta`, cf. index.css).
+      className={`relative inline-flex h-13 max-w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full px-5 text-[15px] font-semibold transition-transform active:scale-95 disabled:cursor-not-allowed sm:px-6 ${wide ? 'flex-1' : ''} ${disabled ? '' : 'btn-cta'}`}
+      style={disabled ? { background: 'rgba(247,245,240,0.08)', color: 'rgba(247,245,240,0.45)' } : undefined}
     >
       {/* Libellé long (autre langue, écran étroit) : points de suspension, jamais de texte coupé net. */}
       <span className="relative flex min-w-0 items-center gap-2">
@@ -462,61 +568,109 @@ function GoldButton({ onClick, icon, label, disabled = false, wide = false }: { 
   )
 }
 
-/* ---- Oracle ------------------------------------------------------------------------------- */
+/* ---- Carte d'un mode ------------------------------------------------------------------------ */
 
-function OracleArtefact() {
-  const t = useT()
-  const ref = useRef<HTMLButtonElement>(null)
-  const oracle = useOracleStatus()
-  const { streak } = useActivitiesStatus()
-  const openActivity = useUiStore((state) => state.openActivity)
-  const covered = useUiStore((state) => state.boosterOpen)
+/** État d'une carte, en pastille : quelque chose attend, c'est fait, ou une simple info. */
+interface CardStatus {
+  label: string
+  tone: 'attention' | 'done' | 'info'
+}
 
-  useGSAP(
-    () => {
-      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.to('[data-tarot]', { y: -6, rotation: -4, duration: 2.4, ease: 'sine.inOut', repeat: -1, yoyo: true })
-    },
-    { scope: ref, dependencies: [covered], revertOnUpdate: true },
-  )
+interface HubCardProps {
+  title: string
+  description: string
+  /** Couleur du mode : teinte de la couverture et de la pastille. */
+  tint: string
+  status?: CardStatus | null
+  /** Barre de progression (0 → 1) en bas de la carte. */
+  progress?: number | null
+  /** Scène illustrée qui remplit toute la couverture (Runner, Toile, Page Stack). */
+  scene?: ReactNode
+  /** Sinon : l'emblème (64 px), en grand au centre, sur la couleur du mode. */
+  emblem?: ReactNode
+  onClick: () => void
+}
 
+/**
+ * Carte d'un mode du hub — la même pour les jeux, l'album, le Marché, la Toile et l'Oracle :
+ * une couverture teintée de la couleur du mode avec son emblème (et l'état en pastille), puis le
+ * titre, une description courte, une ligne d'info, et une barre de progression s'il y a lieu.
+ * Aucune animation en boucle : rien ne bouge tant qu'on ne la touche pas.
+ */
+function HubCard({ title, description, tint, status = null, progress = null, scene = null, emblem = null, onClick }: HubCardProps) {
+  const attention = status?.tone === 'attention'
   return (
-    <button ref={ref} type="button" data-artefact onClick={() => openActivity('oracle')} className={`${ARTEFACT_CLASS} w-full`} style={surface(TINT.oracle)}>
-      <span className="flex items-center gap-5 p-5">
-        {/* Lame de tarot flottante. */}
-        <span
-          data-tarot
-          aria-hidden
-          className="grid h-28 w-[4.6rem] shrink-0 -rotate-[8deg] place-items-center rounded-xl border border-[#ffe39a]/60"
-          style={{
-            willChange: 'transform',
-            background: 'radial-gradient(circle at 50% 40%, rgba(180,108,255,0.55), transparent 65%), linear-gradient(160deg, #22154a, #0b0918)',
-            boxShadow: '0 0 24px rgba(124,92,255,0.45), inset 0 0 0 3px rgba(11,9,24,1), inset 0 0 0 4px rgba(255,228,160,0.35)',
-          }}
-        >
-          <MoonStar size={30} className="text-[#fff4c8]" />
+    <button
+      type="button"
+      data-artefact
+      onClick={() => {
+        vibrate(6)
+        onClick()
+      }}
+      // Dans une rangée : la carte suivante dépasse sur téléphone ; en grille au-delà.
+      className="group relative isolate flex w-[min(15rem,64vw)] shrink-0 snap-start flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07] text-left transition-[transform,border-color] duration-200 hover:border-white/[0.16] active:scale-[0.98] md:w-auto md:min-w-0"
+      style={{ background: CARD_SURFACE }}
+    >
+      {/* Couverture illustrée, en pleine largeur : la scène du mode, ou son emblème en grand sur sa couleur. */}
+      <span aria-hidden className="relative block h-40 shrink-0 overflow-hidden">
+        {scene ? (
+          <span className="absolute inset-0 transition-transform duration-500 group-hover:scale-[1.04]">{scene}</span>
+        ) : (
+          <>
+            <span className="absolute inset-0" style={{ background: `radial-gradient(85% 95% at 50% 38%, ${tint}55, transparent 72%), linear-gradient(160deg, ${tint}2a, #0c0c12 80%)` }} />
+            <span className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1.4px)', backgroundSize: '14px 14px' }} />
+            <span className="absolute inset-0 grid place-items-center pb-5">
+              <span className="grid size-16 scale-[1.5] place-items-center transition-transform duration-500 group-hover:scale-[1.58]">{emblem}</span>
+            </span>
+          </>
+        )}
+        {/* Le bas de l'illustration se fond dans la carte, sous le titre. */}
+        <span className="absolute inset-x-0 bottom-0 h-3/5" style={{ background: 'linear-gradient(to top, #0e0e14 8%, rgba(14,14,20,0.72) 45%, transparent)' }} />
+        {/* Liseré lumineux en haut, à la couleur du mode : plus vif quand quelque chose attend. */}
+        <span className="absolute inset-x-6 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${tint}${attention ? 'ee' : '80'}, transparent)` }} />
+      </span>
+      {status && <StatusPill status={status} tint={tint} />}
+
+      <span className="relative -mt-9 flex min-w-0 flex-1 flex-col gap-1 px-4 pb-4">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="min-w-0 truncate font-display text-lg leading-tight text-cream">{title}</span>
+          <ChevronRight size={16} aria-hidden className="ml-auto shrink-0 text-cream/30 transition-[transform,color] duration-200 group-hover:translate-x-0.5 group-hover:text-cream/70" />
         </span>
-        <span className="block min-w-0 flex-1">
-          <span className="block font-display text-2xl text-cream">{t.activities.oracle.title}</span>
-          <span className="mt-1 block text-sm text-cream/60">{t.activities.oracle.body}</span>
-          <span className={`mt-3 inline-flex flex-wrap items-center gap-1.5 text-xs ${oracle.available ? 'text-gold' : 'text-mist'}`}>
-            {oracle.available && <span aria-hidden className="size-1.5 rounded-full bg-gold shadow-[0_0_8px_var(--color-gold)]" />}
-            {oracle.available ? t.activities.oracle.ready : t.activities.oracle.done}
-            {streak > 0 && <span className="text-mist">· {t.oracle.streak(streak)}</span>}
+        <span className="truncate text-xs text-mist">{description}</span>
+        {progress !== null && (
+          <span aria-hidden className="mt-2.5 block h-[3px] overflow-hidden rounded-full bg-white/[0.07]">
+            <span className="block h-full rounded-full" style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%`, background: tint }} />
           </span>
-        </span>
+        )}
       </span>
     </button>
   )
 }
 
-/* ---- Collection ------------------------------------------------------------------------------ */
+/** Surface des cartes du hub : presque noire, à peine plus claire en haut. */
+const CARD_SURFACE = 'linear-gradient(180deg, #13131b 0%, #0c0c12 100%)'
 
+/** Pastille d'état, sobre : fond sombre, texte clair ; un point de couleur si quelque chose attend, une coche si c'est fait. */
+function StatusPill({ status, tint }: { status: CardStatus; tint: string }) {
+  return (
+    <span className="absolute top-3 right-3 inline-flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-2 py-0.5 text-[10px] leading-tight font-semibold text-cream/85">
+      {status.tone === 'done' ? (
+        <Check size={11} aria-hidden className="shrink-0 text-like" />
+      ) : status.tone === 'attention' ? (
+        <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full" style={{ background: tint }} />
+      ) : null}
+      <span className="truncate">{status.label}</span>
+    </span>
+  )
+}
+
+/* ---- Cartes, Créer & explorer ----------------------------------------------------------------- */
+
+/** L'album : les trois cartes les plus rares en éventail (sinon trois dos), et la progression. */
 function CollectionArtefact() {
   const t = useT()
   const { signedIn, data } = useCollection()
   const openActivity = useUiStore((state) => state.openActivity)
-  // Éventail : les trois plus rares de l'album, sinon trois dos de carte.
   const best = (data?.cards ?? [])
     .filter((card) => card.owned)
     .sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || a.number - b.number)
@@ -525,119 +679,187 @@ function CollectionArtefact() {
   const fan = best.length > 0 ? best : [null, null, null]
 
   return (
-    <button
-      type="button"
-      data-artefact
+    <HubCard
+      title={t.activities.collection.title}
+      description={signedIn ? t.activities.collection.body : t.activities.guest.collectionBody}
+      tint={TINT.collection}
+      status={data ? { label: `${percent} %`, tone: percent === 100 ? 'done' : 'info' } : null}
+      progress={data ? percent / 100 : null}
       onClick={() => openActivity('collection')}
-      className={`${ARTEFACT_CLASS} w-full`}
-      style={surface(TINT.collection)}
-    >
-      <span className="flex items-center gap-5 p-5">
-        <span aria-hidden className="relative block h-28 w-[5.4rem] shrink-0">
+      emblem={
+        <span className="relative block h-16 w-14">
           {fan.map((card, index) => (
             <span
               key={card?.id ?? index}
-              className="absolute top-2 left-3 block origin-bottom overflow-hidden rounded-md shadow-[0_10px_20px_-8px_rgba(0,0,0,0.9)]"
+              className="absolute top-1 left-[0.6rem] block origin-bottom overflow-hidden rounded-[5px] shadow-[0_8px_16px_-8px_rgba(0,0,0,0.9)]"
               style={{ transform: `rotate(${(index - (fan.length - 1) / 2) * 14}deg)`, zIndex: index === 1 ? 2 : 1 }}
             >
               {card ? (
-                <span className="block h-[5.4rem] w-[3.9rem] p-[3px]" style={{ background: CARD_FRAMES[card.rarity].metal }}>
+                <span className="block h-[3.5rem] w-[2.5rem] p-[2px]" style={{ background: CARD_FRAMES[card.rarity].metal }}>
                   <img src={card.imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full rounded-[3px] object-cover" />
                 </span>
               ) : (
-                <CardBack width={62} animated={false} />
+                <CardBack width={40} animated={false} />
               )}
             </span>
           ))}
         </span>
-        <span className="block min-w-0 flex-1">
-          <span className="block font-display text-2xl text-cream">{t.activities.collection.title}</span>
-          <span className="mt-1 block text-sm text-cream/60">{signedIn ? t.activities.collection.body : t.activities.guest.collectionBody}</span>
-          {data && <span className="mt-3 block text-xs text-[#fff4c8]/85 tabular-nums">{t.cards.progress(data.owned, data.total)}</span>}
-        </span>
-        {data && (
-          <EnergyRing progress={percent / 100} size={58} charged={percent === 100} label={t.cards.progress(data.owned, data.total)}>
-            <span className="text-[11px] font-semibold tabular-nums" style={neon('#fff4c8')}>
-              {percent} %
-            </span>
-          </EnergyRing>
-        )}
-      </span>
-    </button>
+      }
+    />
   )
 }
 
-/* ---- Marché d'échange -------------------------------------------------------------------------- */
-
-/**
- * Le Marché : échanger ses doublons avec les autres collectionneurs (comptes seulement).
- * Une nouveauté (échange conclu, offre qui manque à l'album) allume l'artefact : pastille
- * qui bat, poignée de main qui s'agite.
- */
+/** Le Marché : échanger ses doublons avec les autres collectionneurs ; une nouveauté l'allume. */
 function MarketArtefact() {
   const t = useT()
   const openActivity = useUiStore((state) => state.openActivity)
   const unread = useUnreadTrades()
   const mine = useTradeStore((state) => state.mine)
   const openOffers = mine?.filter((offer) => offer.mine && offer.status === 'OPEN').length ?? null
-  const rootRef = useRef<HTMLButtonElement>(null)
-
-  useGSAP(
-    () => {
-      if (unread === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.fromTo('[data-market-ping]', { scale: 1, autoAlpha: 0.8 }, { scale: 2.4, autoAlpha: 0, duration: 1.4, ease: 'power1.out', repeat: -1 })
-      gsap.to('[data-market-icon]', { keyframes: { rotation: [0, -14, 12, -8, 0] }, duration: 0.9, ease: 'power1.inOut', repeat: -1, repeatDelay: 2.2 })
-    },
-    { scope: rootRef, dependencies: [unread > 0], revertOnUpdate: true },
-  )
 
   return (
-    <button
-      ref={rootRef}
-      type="button"
-      data-artefact
+    <HubCard
+      title={t.trades.title}
+      description={t.trades.body}
+      tint={TINT.market}
+      status={unread > 0 ? { label: t.trades.hubNew(unread), tone: 'attention' } : openOffers ? { label: t.trades.hubOpen(openOffers), tone: 'info' } : null}
       onClick={() => openActivity('market')}
-      className={`${ARTEFACT_CLASS} w-full`}
-      style={unread > 0 ? { ...surface(TINT.market), borderColor: `${TINT.market}80` } : surface(TINT.market)}
-    >
-      <span className="flex items-center gap-5 p-5">
-        <span
-          aria-hidden
-          className="relative grid size-14 shrink-0 place-items-center rounded-2xl border border-[#ffe39a]/35 bg-black/40 text-gold shadow-[inset_0_0_18px_rgba(255,196,107,0.18)]"
-        >
-          <span data-market-icon className="grid will-change-transform">
-            <Handshake size={26} />
-          </span>
-          {unread > 0 && (
-            <span className="absolute -top-1 -right-1 grid size-3.5 place-items-center">
-              <span data-market-ping className="absolute inset-0 rounded-full bg-like will-change-transform" />
-              <span className="relative size-3 rounded-full bg-like shadow-[0_0_0_2px_#050507]" />
-            </span>
-          )}
+      emblem={
+        <span className="grid size-14 place-items-center rounded-2xl border border-[#3fe0a0]/35 bg-black/40 text-[#3fe0a0]">
+          <Handshake size={26} />
         </span>
-        <span className="block min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-display text-2xl text-cream">{t.trades.title}</span>
-            {unread > 0 && (
-              <span className="rounded-full bg-like/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-like uppercase">{t.trades.hubNew(unread)}</span>
-            )}
-          </span>
-          <span className="mt-1 block text-sm text-cream/60">{t.trades.body}</span>
-          {openOffers !== null && <span className="mt-1.5 block text-[11px] text-gold/80">{t.trades.hubOpen(openOffers)}</span>}
-        </span>
-        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
-      </span>
-    </button>
+      }
+    />
   )
 }
+
+/** La Toile : un tableau presque infini où tout le monde dessine ; sans compte, mène à l'inscription. */
+function CanvasArtefact() {
+  const t = useT()
+  const openActivity = useUiStore((state) => state.openActivity)
+  const openAuth = useUiStore((state) => state.openAuth)
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const [online, setOnline] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!signedIn) return
+    let alive = true
+    canvasApi
+      .home()
+      .then((home) => alive && setOnline(home.online))
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [signedIn])
+
+  return (
+    <HubCard
+      title={t.canvas.title}
+      description={t.canvas.hub.body}
+      tint={TINT.canvas}
+      status={online !== null && online > 0 ? { label: t.canvas.hub.online(online), tone: 'info' } : null}
+      onClick={() => (signedIn ? openActivity('canvas') : openAuth())}
+      scene={<CanvasEmblem cover />}
+    />
+  )
+}
+
+/** L'Oracle : le tirage du jour, et la série. */
+function OracleArtefact() {
+  const t = useT()
+  const oracle = useOracleStatus()
+  const { streak } = useActivitiesStatus()
+  const openActivity = useUiStore((state) => state.openActivity)
+
+  return (
+    <HubCard
+      title={t.activities.oracle.title}
+      description={t.activities.oracle.body}
+      tint={TINT.oracle}
+      status={oracle.available ? { label: t.activities.oracle.ready, tone: 'attention' } : { label: streak > 0 ? t.oracle.streak(streak) : t.activities.oracle.done, tone: 'done' }}
+      onClick={() => openActivity('oracle')}
+      emblem={
+        <span
+          className="grid h-16 w-11 -rotate-[8deg] place-items-center rounded-lg border border-[#ffe39a]/60"
+          style={{
+            background: 'radial-gradient(circle at 50% 40%, rgba(180,108,255,0.55), transparent 65%), linear-gradient(160deg, #22154a, #0b0918)',
+            boxShadow: 'inset 0 0 0 2px rgba(11,9,24,1), inset 0 0 0 3px rgba(255,228,160,0.35)',
+          }}
+        >
+          <MoonStar size={20} className="text-[#fff4c8]" />
+        </span>
+      }
+    />
+  )
+}
+
+/* ---- Jeux -------------------------------------------------------------------------------------- */
+
+/** Mèche de la bombe de la carte : immobile, seule sa silhouette sert d'emblème. */
+const HUB_FUSE_MS = 9000
+
+/** Les cartes des jeux, posées dans leur rangée de la vitrine. */
+function GamesCards() {
+  const t = useT()
+  const openActivity = useUiStore((state) => state.openActivity)
+  const signedIn = useAuthStore((state) => state.user !== null)
+  const overview = useDleStore((state) => state.overview)
+  const hl = useHigherLowerStore((state) => state.overview?.me ?? null)
+  const loadHl = useHigherLowerStore((state) => state.loadOverview)
+  const g = t.activities.hub.games
+  const toPlay = dailyToPlay(overview)
+
+  useEffect(() => {
+    if (signedIn) void loadHl()
+  }, [signedIn, loadHl])
+
+  const dleStatus: CardStatus | null = !signedIn || !overview ? null : toPlay > 0 ? { label: g.toPlay(toPlay), tone: 'attention' } : { label: g.done, tone: 'done' }
+  const hlStatus: CardStatus | null = signedIn && hl ? (hl.games === 0 ? { label: g.new, tone: 'info' } : hl.best > 0 ? { label: g.record(hl.best), tone: 'info' } : null) : null
+
+  return (
+    <>
+      <HubCard title={t.dle.title} description={g.dle} tint={TINT.dle} status={dleStatus} onClick={() => openActivity('dle')} emblem={<DleEmblem />} />
+      <HubCard title={t.hl.title} description={g.hl} tint={TINT.hl} status={hlStatus} onClick={() => openActivity('higherlower')} emblem={<HlEmblem />} />
+      <HubCard
+        title={t.stack.title}
+        description={g.stack}
+        tint={TINT.stack}
+        onClick={() => openActivity('stack')}
+        scene={<StackEmblem wide className="block size-full" />}
+      />
+      <HubCard
+        title={t.bomb.title}
+        description={g.bomb}
+        tint={TINT.bomb}
+        onClick={() => openActivity('bomb')}
+        emblem={
+          <span className="block translate-y-1">
+            <Bomb syllable="爆" endsAt={null} totalMs={HUB_FUSE_MS} size={64} />
+          </span>
+        }
+      />
+      <HubCard
+        title={t.runner.title}
+        description={g.runner}
+        tint={TINT.runner}
+        onClick={() => openActivity('runner')}
+        scene={<RunnerEmblem cover />}
+      />
+    </>
+  )
+}
+
+/** Cadrage d'un dessin carré : remplir le cadre (rogné) ou s'y loger entier. */
+const svgFit = (cover: boolean) => (cover ? 'xMidYMid slice' : 'xMidYMid meet') // i18n-ignore : attributs SVG
 
 /**
  * L'emblème du Runner : un soir de sakura sur la voie. Ciel dégradé, soleil, montagnes et
  * torii à l'horizon, trois couloirs qui filent vers le spectateur, le coureur au premier plan.
  */
-function RunnerEmblem() {
+function RunnerEmblem({ cover = false }: { /** Remplit tout le cadre (rogné), au lieu de s'y loger. */ cover?: boolean }) {
   return (
-    <svg viewBox="0 0 72 72" className="block size-full">
+    <svg viewBox="0 0 72 72" preserveAspectRatio={svgFit(cover)} className="block size-full">
       <defs>
         <linearGradient id="runner-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#5b3aa8" />
@@ -687,76 +909,10 @@ function RunnerEmblem() {
   )
 }
 
-const CANVAS_GRADIENT = 'linear-gradient(135deg, #2bc3ff, #7c5cff 55%, #ff5cb4)'
-
-/**
- * La Toile : un tableau presque infini où tout le monde dessine en même temps. L'emblème montre
- * la grille, un trait qui se trace et trois curseurs d'artistes qui flottent ; sous le titre, combien
- * d'artistes sont en ligne. Sans compte, le clic mène à l'inscription.
- */
-function CanvasArtefact() {
-  const t = useT()
-  const ref = useRef<HTMLButtonElement>(null)
-  const openActivity = useUiStore((state) => state.openActivity)
-  const openAuth = useUiStore((state) => state.openAuth)
-  const covered = useUiStore((state) => state.boosterOpen)
-  const signedIn = useAuthStore((state) => state.user !== null)
-  const [online, setOnline] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (!signedIn) return
-    let alive = true
-    canvasApi
-      .home()
-      .then((home) => alive && setOnline(home.online))
-      .catch(() => undefined)
-    return () => {
-      alive = false
-    }
-  }, [signedIn])
-
-  useGSAP(
-    () => {
-      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.to('[data-canvas-c1]', { x: 5, y: -4, duration: 1.7, ease: 'sine.inOut', repeat: -1, yoyo: true })
-      gsap.to('[data-canvas-c2]', { x: -4, y: 5, duration: 2.1, ease: 'sine.inOut', repeat: -1, yoyo: true })
-      gsap.to('[data-canvas-c3]', { x: 3, y: 4, duration: 1.4, ease: 'sine.inOut', repeat: -1, yoyo: true })
-      gsap.fromTo('[data-canvas-stroke]', { strokeDashoffset: 60 }, { strokeDashoffset: 0, duration: 2.4, ease: 'power1.inOut', repeat: -1, repeatDelay: 0.8 })
-    },
-    { scope: ref, dependencies: [covered], revertOnUpdate: true },
-  )
-
-  return (
-    <button ref={ref} type="button" data-artefact onClick={() => (signedIn ? openActivity('canvas') : openAuth())} className={`${ARTEFACT_CLASS} w-full overflow-hidden`} style={surface(TINT.canvas)}>
-      <span className="flex items-center gap-5 p-5">
-        <span aria-hidden className="relative block size-[4.5rem] shrink-0 overflow-hidden rounded-[1.4rem]" style={{ boxShadow: '0 0 28px -6px rgba(43,195,255,0.8), inset 0 0 0 2px rgba(124,92,255,0.55)' }}>
-          <CanvasEmblem />
-        </span>
-        <span className="block min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-display text-2xl" style={inkText(CANVAS_GRADIENT)}>
-              {t.canvas.title}
-            </span>
-            <span className="rounded-full bg-[#2bc3ff]/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#7fd9ff] uppercase">{t.canvas.hub.eyebrow}</span>
-            {online !== null && online > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-like/15 px-2 py-0.5 text-[10px] font-semibold text-like">
-                <span className="size-1.5 rounded-full bg-like" aria-hidden />
-                {t.canvas.hub.online(online)}
-              </span>
-            )}
-          </span>
-          <span className="mt-1.5 block text-xs leading-relaxed text-cream/65">{t.canvas.hub.body}</span>
-        </span>
-        <ChevronRight size={20} className="shrink-0 text-cream/40" aria-hidden />
-      </span>
-    </button>
-  )
-}
-
 /** L'emblème de la Toile : grille de points, trait de pinceau, trois curseurs. */
-function CanvasEmblem() {
+function CanvasEmblem({ cover = false }: { /** Remplit tout le cadre (rogné), au lieu de s'y loger. */ cover?: boolean }) {
   return (
-    <svg viewBox="0 0 72 72" className="block size-full">
+    <svg viewBox="0 0 72 72" preserveAspectRatio={svgFit(cover)} className="block size-full">
       <defs>
         <linearGradient id="canvas-bg" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#1b1450" />
@@ -806,121 +962,6 @@ function DleEmblem() {
       <Sparkle data-dle-spark size={9} className="absolute -bottom-1 -left-1 fill-[#ff9ad8] text-[#ff9ad8]" />
       <Sparkle data-dle-spark size={7} className="absolute top-1 -left-2 fill-[#b46cff] text-[#b46cff]" />
     </span>
-  )
-}
-
-/* ---- Jeux -------------------------------------------------------------------------------------- */
-
-const RUNNER_GRADIENT = 'linear-gradient(135deg, #ffd35c, #ff6fb5 55%, #c58bff)'
-const STACK_GRADIENT = 'linear-gradient(135deg, #ffd35c, #ff9a5c 55%, #ff5ec4)'
-/** Mèche de la bombe de la tuile : immobile, seule sa silhouette sert d'emblème. */
-const HUB_FUSE_MS = 9000
-
-/**
- * Les jeux, en tuiles égales : emblème, nom, une ligne pour dire de quoi il s'agit, les modes,
- * et un état quand il y en a un (énigmes à jouer, record). Deux colonnes sur téléphone, trois
- * au-delà : tout tient en un coup d'œil, sans long défilement.
- */
-function GamesGrid() {
-  const t = useT()
-  const openActivity = useUiStore((state) => state.openActivity)
-  const signedIn = useAuthStore((state) => state.user !== null)
-  const overview = useDleStore((state) => state.overview)
-  const hl = useHigherLowerStore((state) => state.overview?.me ?? null)
-  const loadHl = useHigherLowerStore((state) => state.loadOverview)
-  const g = t.activities.hub.games
-  const toPlay = dailyToPlay(overview)
-
-  useEffect(() => {
-    if (signedIn) void loadHl()
-  }, [signedIn, loadHl])
-
-  const dleStatus: TileStatus | null =
-    !signedIn || !overview ? null : toPlay > 0 ? { label: g.toPlay(toPlay), tint: TINT.dle, pulse: true } : { label: g.done, tint: '#3fe0a0', done: true }
-  const hlStatus: TileStatus | null =
-    signedIn && hl ? (hl.games === 0 ? { label: g.new, tint: '#5ef2c2' } : hl.best > 0 ? { label: g.record(hl.best), tint: '#ffb36b' } : null) : null
-
-  return (
-    <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3">
-      <GameTile title={t.dle.title} gradient={STARDUST_GRADIENT} tagline={g.dle} modes={g.modes.dle} tint={TINT.dle} status={dleStatus} onClick={() => openActivity('dle')}>
-        <DleEmblem />
-      </GameTile>
-      <GameTile title={t.hl.title} gradient={HL_GRADIENT} tagline={g.hl} modes={g.modes.hl} tint={TINT.hl} status={hlStatus} onClick={() => openActivity('higherlower')}>
-        <HlEmblem />
-      </GameTile>
-      <GameTile title={t.stack.title} gradient={STACK_GRADIENT} tagline={g.stack} modes={g.modes.stack} tint={TINT.stack} onClick={() => openActivity('stack')}>
-        <span className="block size-16 overflow-hidden rounded-[1.25rem]" style={{ boxShadow: '0 0 22px -6px rgba(255,154,92,0.8), inset 0 0 0 2px rgba(255,211,92,0.55)' }}>
-          <StackEmblem />
-        </span>
-      </GameTile>
-      <GameTile title={t.bomb.title} gradient={BOMB_GRADIENT} tagline={g.bomb} modes={g.modes.bomb} tint={TINT.bomb} onClick={() => openActivity('bomb')}>
-        <span className="block translate-y-1">
-          <Bomb syllable="爆" endsAt={null} totalMs={HUB_FUSE_MS} size={64} />
-        </span>
-      </GameTile>
-      <GameTile title={t.runner.title} gradient={RUNNER_GRADIENT} tagline={g.runner} modes={g.modes.runner} tint={TINT.runner} onClick={() => openActivity('runner')}>
-        <span className="block size-16 overflow-hidden rounded-[1.25rem]" style={{ boxShadow: '0 0 22px -6px rgba(255,111,181,0.8), inset 0 0 0 2px rgba(255,211,92,0.55)' }}>
-          <RunnerEmblem />
-        </span>
-      </GameTile>
-    </div>
-  )
-}
-
-interface TileStatus {
-  label: string
-  tint: string
-  /** Quelque chose attend : la tuile s'allume, un point bat. */
-  pulse?: boolean
-  done?: boolean
-}
-
-interface GameTileProps {
-  title: string
-  gradient: string
-  tagline: string
-  modes: string
-  tint: string
-  status?: TileStatus | null
-  onClick: () => void
-  /** L'emblème du jeu. */
-  children: ReactNode
-}
-
-function GameTile({ title, gradient, tagline, modes, tint, status = null, onClick, children }: GameTileProps) {
-  const lit = status?.pulse === true
-  return (
-    <button
-      type="button"
-      data-artefact
-      onClick={onClick}
-      className="relative isolate flex min-h-[12.5rem] w-full flex-col items-start gap-3 overflow-hidden rounded-[1.5rem] border p-4 text-left transition-transform active:scale-[0.98]"
-      style={{ backgroundColor: '#101017', borderColor: lit ? `${tint}99` : `${tint}38` }}
-    >
-      <span aria-hidden className="pointer-events-none absolute -top-12 -right-12 -z-10 size-32 rounded-full opacity-20 blur-2xl" style={{ background: tint }} />
-      <span className="flex w-full items-start justify-between gap-2">
-        <span aria-hidden className="grid size-16 shrink-0 place-items-center">
-          {children}
-        </span>
-        {status && (
-          <span className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] leading-tight font-semibold" style={{ backgroundColor: `${status.tint}22`, color: status.tint }}>
-            {status.done ? (
-              <Check size={11} aria-hidden className="shrink-0" />
-            ) : status.pulse ? (
-              <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full" style={{ background: status.tint }} />
-            ) : null}
-            <span className="truncate">{status.label}</span>
-          </span>
-        )}
-      </span>
-      <span className="mt-auto flex w-full min-w-0 flex-col gap-1">
-        <span className="font-display text-xl leading-tight" style={inkText(gradient)}>
-          {title}
-        </span>
-        <span className="text-xs leading-snug text-cream/70">{tagline}</span>
-        <span className="text-[10px] font-semibold tracking-[0.12em] text-cream/40 uppercase">{modes}</span>
-      </span>
-    </button>
   )
 }
 

@@ -314,6 +314,15 @@ export function playRiser(seconds: number): void {
   oscillator.stop(at + seconds + 0.25)
 }
 
+/** Battement de cœur (suspense de la Mythique) : deux coups sourds, le second plus faible. */
+export function playHeartbeat(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 95, 38, 0.32, 0.5)
+  boom(e, at + 0.24, 85, 34, 0.28, 0.32)
+}
+
 /** Révélation d'une carte, selon sa rareté : de la note de verre au carillon céleste. */
 export function playReveal(rarity: Rarity): void {
   const e = start()

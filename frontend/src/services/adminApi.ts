@@ -31,7 +31,7 @@ export interface AdminUserRow {
   boostersOpened: number
 }
 
-export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end' | 'canvas_remove' | 'canvas_restore' | 'canvas_purge' | 'canvas_ban' | 'canvas_unban' | 'dle_image_ban' | 'dle_image_restore' | 'reviewer_grant' | 'reviewer_revoke'
+export type AdminActionType = 'gift_boosters' | 'gift_card' | 'suspend' | 'unsuspend' | 'moderate' | 'promotion' | 'promotion_end' | 'canvas_remove' | 'canvas_restore' | 'canvas_purge' | 'canvas_ban' | 'canvas_unban' | 'dle_image_ban' | 'dle_image_restore' | 'reviewer_grant' | 'reviewer_revoke' | 'theme' | 'event' | 'event_end'
 
 /** Revue des images d'énigme du BookshelfDLE. */
 export interface DleUniverse {

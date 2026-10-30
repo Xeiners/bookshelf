@@ -215,7 +215,7 @@ export function EditsFeed() {
     <div role="dialog" aria-modal="true" aria-label={t.edits.title} className="fixed inset-0 z-[90] overflow-hidden bg-black text-cream">
       {/* Fond (ordinateur) : l'affiche de la vidéo en cours, floutée, autour de la colonne verticale. */}
       {current && (
-        <div aria-hidden className="absolute inset-0 scale-110 bg-cover bg-center opacity-40 blur-3xl" style={{ backgroundImage: `url(${thumbnail(current.id)})` }} />
+        <div aria-hidden className="absolute inset-0 scale-110 bg-cover bg-center opacity-40" style={{ backgroundImage: `url(${thumbnail(current.id)})` }} />
       )}
 
       <div className="relative mx-auto h-full w-full md:w-[min(100vw,calc(100dvh*9/16))] md:shadow-[0_0_80px_rgba(0,0,0,0.9)]">
@@ -282,7 +282,7 @@ export function EditsFeed() {
         {/* En-tête : retour, titre, son ; puis les univers. */}
         <header className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/75 via-black/35 to-transparent pt-[max(0.75rem,env(safe-area-inset-top))] pb-6">
           <div className="pointer-events-auto flex items-center gap-3 px-3">
-            <button type="button" onClick={close} aria-label={t.edits.close} className="grid size-10 place-items-center rounded-full bg-black/40 backdrop-blur active:scale-95">
+            <button type="button" onClick={close} aria-label={t.edits.close} className="grid size-10 place-items-center rounded-full bg-black/40 active:scale-95">
               <ArrowLeft size={19} />
             </button>
             <div className="min-w-0 flex-1">
@@ -296,7 +296,7 @@ export function EditsFeed() {
               onClick={toggleMuted}
               aria-label={muted ? t.edits.unmute : t.edits.mute}
               aria-pressed={!muted}
-              className="grid size-10 place-items-center rounded-full bg-black/40 backdrop-blur active:scale-95"
+              className="grid size-10 place-items-center rounded-full bg-black/40 active:scale-95"
             >
               {muted ? <VolumeX size={19} /> : <Volume2 size={19} />}
             </button>
@@ -314,7 +314,7 @@ export function EditsFeed() {
           <button
             type="button"
             onClick={toggleMuted}
-            className="absolute top-36 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-xs font-semibold backdrop-blur active:scale-95"
+            className="absolute top-36 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-xs font-semibold active:scale-95"
           >
             <VolumeX size={14} aria-hidden />
             {t.edits.soundHint}
@@ -337,7 +337,7 @@ function Chip({ selected, onClick, label }: { selected: boolean; onClick: () => 
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`h-8 shrink-0 rounded-full px-3.5 text-xs font-semibold whitespace-nowrap backdrop-blur transition-colors ${selected ? 'bg-cream text-void' : 'bg-black/45 text-cream/85 hover:bg-black/60'}`}
+      className={`h-8 shrink-0 rounded-full px-3.5 text-xs font-semibold whitespace-nowrap  transition-colors ${selected ? 'bg-cream text-void' : 'bg-black/45 text-cream/85 hover:bg-black/60'}`}
     >
       {label}
     </button>

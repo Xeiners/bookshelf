@@ -5,6 +5,7 @@
  */
 import type { Dictionary } from '../i18n/fr'
 import type { AdminAuditEntry } from '../services/adminApi'
+import { isSiteTheme } from '../services/themeApi'
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null)
 const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 1)
@@ -46,6 +47,12 @@ export function describeAction(entry: AdminAuditEntry, t: Dictionary): string {
       return copy.reviewerGrant
     case 'reviewer_revoke':
       return copy.reviewerRevoke
+    case 'theme':
+      return copy.theme(isSiteTheme(details.theme) ? t.admin.theme.names[details.theme] : '?')
+    case 'event':
+      return copy.event(text(details.title) ?? '?')
+    case 'event_end':
+      return copy.eventEnd(text(details.title) ?? '?')
     case 'dle_image_restore':
       return copy.dleImageRestore(text(details.character) ?? '?', text(details.category) ?? '?')
     case 'moderate': {

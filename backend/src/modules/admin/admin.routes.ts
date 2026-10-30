@@ -6,6 +6,8 @@ import { currentAdmin, requireAdmin } from './admin.access.js'
 import { adminOverview as canvasOverview, banUser, purgeUser, removeObject, restoreObject, unbanUser } from '../canvas/canvas.moderation.js'
 import { ensureCanvas } from '../canvas/canvas.boot.js'
 import { PROMOTION_MAX_HOURS, PROMOTION_MESSAGE_MAX, PROMOTION_TARGETS, createPromotion, endPromotion, listPromotions } from '../promotions/promotions.service.js'
+import { SITE_THEMES, setTheme } from '../theme/theme.service.js'
+import { EVENT_MAX, EVENT_MAX_HOURS, EVENT_MESSAGE_MAX, EVENT_TITLE_MAX, createEvent, endEvent, listEvents } from '../events/events.service.js'
 import {
   MAX_GIFT_BOOSTERS,
   MAX_GIFT_CARDS,
@@ -136,6 +138,38 @@ adminRouter.post('/promotions', async (req, res) => {
 
 adminRouter.post('/promotions/:id/end', async (req, res) => {
   res.json({ promotion: await endPromotion(currentAdmin(req), z.string().min(1).max(40).parse(req.params.id)) })
+})
+
+/* ---- Thème saisonnier ----------------------------------------------------------------- */
+
+/** Habille l'app pour tout le monde (Halloween…), ou la remet telle quelle (`none`). */
+adminRouter.post('/theme', async (req, res) => {
+  const { theme } = z.object({ theme: z.enum(SITE_THEMES) }).parse(req.body)
+  res.json({ theme: await setTheme(currentAdmin(req), theme) })
+})
+
+/* ---- Événements de l'équipe ---------------------------------------------------------- */
+
+const EventBody = z.object({
+  title: z.string().trim().min(1).max(EVENT_TITLE_MAX),
+  message: z.string().trim().min(1).max(EVENT_MESSAGE_MAX),
+  boosters: z.number().int().min(0).max(EVENT_MAX.boosters).default(0),
+  legendaryPacks: z.number().int().min(0).max(EVENT_MAX.legendaryPacks).default(0),
+  stardust: z.number().int().min(0).max(EVENT_MAX.stardust).default(0),
+  hours: z.number().int().min(1).max(EVENT_MAX_HOURS),
+})
+
+adminRouter.get('/events', async (_req, res) => {
+  res.json({ events: await listEvents() })
+})
+
+/** Lance un événement : chaque compte qui se connecte d'ici la fin récupère ses cadeaux. 400 `event_empty` s'il n'offre rien. */
+adminRouter.post('/events', async (req, res) => {
+  res.status(201).json({ event: await createEvent(currentAdmin(req), EventBody.parse(req.body)) })
+})
+
+adminRouter.post('/events/:id/end', async (req, res) => {
+  res.json({ event: await endEvent(currentAdmin(req), z.string().min(1).max(40).parse(req.params.id)) })
 })
 
 /* ---- Toile partagée ------------------------------------------------------------------- */

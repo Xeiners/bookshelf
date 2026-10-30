@@ -10,7 +10,6 @@ import { playChime, playReveal } from '../../lib/sfx'
 import type { RoomSettings, RoomView, Standing } from '../../services/dleApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { AnswerCard } from './AnswerCard'
 import { STARDUST_GRADIENT, modeLabel } from './dleStyle'
 import { PlayerAvatar } from './PlayerToken'
@@ -38,7 +37,6 @@ export function RoomResults({ room }: { room: RoomView }) {
   const notify = useUiStore((state) => state.notify)
   const rootRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
-  const [burst, setBurst] = useState<Burst | null>(null)
   const results = room.results
   const mine = standingOf(room, room.you)
   const isHost = room.hostId === room.you
@@ -72,10 +70,6 @@ export function RoomResults({ room }: { room: RoomView }) {
     if (winner) playReveal('LEGENDARY')
     else playChime(true)
     vibrate(winner ? [30, 50, 80] : 12)
-    const timer = window.setTimeout(() => {
-      setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.45, colors: ['#ffc46b', '#ff5ec4', '#7c5cff', '#3fe0a0', '#fff4c8'], count: winner ? 200 : 110, kind: 'confetti', spread: Math.PI * 2 })
-    }, 900)
-    return () => window.clearTimeout(timer)
   }, [room.round, ready, winner])
 
   if (!results) {
@@ -277,7 +271,6 @@ export function RoomResults({ room }: { room: RoomView }) {
           </section>
         ) : null}
       </div>
-      <ParticleBurst burst={burst} />
     </div>
   )
 }

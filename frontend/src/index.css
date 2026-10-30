@@ -285,15 +285,163 @@
   }
 }
 
-@keyframes card-twinkle {
+/* ==========================================================================
+   BOUTON D'ACTION PRINCIPAL (`.btn-cta`) — « Ouvrir » un booster, et ses pareils.
+   Son habit ne vient que de ces variables : un thème saisonnier les redéfinit (plus bas),
+   sans toucher aux composants. Par défaut : l'or de la boutique.
+   ========================================================================== */
+:root {
+  --cta-bg: linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c);
+  --cta-ink: #2a1a02;
+  --cta-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 10px 26px -10px rgba(242, 184, 58, 0.9);
+  /* Ornement posé PAR-DESSUS le fond, sous le texte (dégradés seulement) ; `none` : aucun. */
+  --cta-decor: none;
+  /* Variante « boutique » (achat contre des Poussières d'Étoile) : leur dégradé, par défaut. */
+  --cta-shop-bg: linear-gradient(135deg, #fff4c8, #ffc46b 35%, #ff5ec4 70%, #b46cff);
+  --cta-shop-ink: #1a0b1f;
+  --cta-shop-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 10px 26px -12px rgba(255, 94, 196, 0.7);
+}
+
+.btn-cta--shop {
+  --cta-bg: var(--cta-shop-bg);
+  --cta-ink: var(--cta-shop-ink);
+  --cta-shadow: var(--cta-shop-shadow);
+}
+
+.btn-cta {
+  position: relative;
+  isolation: isolate;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  box-shadow: var(--cta-shadow);
+}
+
+.btn-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--cta-decor);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   THÈMES SAISONNIERS — choisis par l'administration (`<html data-theme>`)
+   Pour un nouveau thème : l'ajouter côté serveur (`SITE_THEMES`) et côté app (`themeApi`), lui
+   donner ici son bloc `[data-theme='…']` (accent `--color-glow`, bouton `--cta-*`), et son décor
+   dans `SeasonalDecor.tsx`.
+   Le décor vit dans `components/layout/SeasonalDecor.tsx`. Ici : les couleurs, et les
+   quelques mouvements du décor (transform seulement, coupés si l'appareil le demande).
+   ========================================================================== */
+[data-theme='halloween'] {
+  /* L'accent de l'app passe du violet à l'orange citrouille. */
+  --color-glow: #ff7a1a;
+
+  /* Bouton « Ouvrir » : une citrouille (dégradé orange, reflet brillant en haut, côtes discrètes),
+     encre violette, liseré violet nuit, et deux toiles d'araignée qui pendent du bord du haut (la
+     seconde avec son araignée). Toiles en SVG dans le CSS : aucun composant à toucher. */
+  --cta-bg: linear-gradient(180deg, #ffb64d 0%, #ff7a1a 52%, #c2410c 100%);
+  --cta-ink: #1c0a2b;
+  --cta-shadow: inset 0 1px 0 rgba(255, 236, 200, 0.6), inset 0 -2px 0 rgba(90, 20, 0, 0.35), 0 0 0 1.5px #2a1240,
+    0 10px 26px -10px rgba(255, 122, 26, 0.9);
+  --cta-decor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 24'%3E%3Cpath d='M30 0L53.0 0.0M30 0L49.9 11.5M30 0L41.5 19.9M30 0L30.0 23.0M30 0L18.5 19.9M30 0L10.1 11.5M30 0L7.0 0.0M36.0 0.0Q34.9 1.3 35.2 3.0Q33.6 3.6 33.0 5.2Q31.3 4.9 30.0 6.0Q28.7 4.9 27.0 5.2Q26.4 3.6 24.8 3.0Q25.1 1.3 24.0 0.0M41.5 0.0Q39.3 2.5 40.0 5.7Q36.8 6.8 35.8 10.0Q32.5 9.3 30.0 11.5Q27.5 9.3 24.3 10.0Q23.2 6.8 20.0 5.7Q20.7 2.5 18.5 0.0M47.0 0.0Q43.8 3.7 44.7 8.5Q40.1 10.1 38.5 14.7Q33.7 13.8 30.0 17.0Q26.3 13.8 21.5 14.7Q19.9 10.1 15.3 8.5Q16.2 3.7 13.0 0.0M52.0 0.0Q47.9 4.8 49.1 11.0Q43.1 13.1 41.0 19.1Q34.8 17.9 30.0 22.0Q25.2 17.9 19.0 19.1Q16.9 13.1 10.9 11.0Q12.1 4.8 8.0 0.0' fill='none' stroke='%23fff6e8' stroke-opacity='0.75' stroke-width='0.7' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 22% 0 / auto 72%,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 34'%3E%3Cpath d='M30 0L53.0 0.0M30 0L49.9 11.5M30 0L41.5 19.9M30 0L30.0 23.0M30 0L18.5 19.9M30 0L10.1 11.5M30 0L7.0 0.0M36.0 0.0Q34.9 1.3 35.2 3.0Q33.6 3.6 33.0 5.2Q31.3 4.9 30.0 6.0Q28.7 4.9 27.0 5.2Q26.4 3.6 24.8 3.0Q25.1 1.3 24.0 0.0M41.5 0.0Q39.3 2.5 40.0 5.7Q36.8 6.8 35.8 10.0Q32.5 9.3 30.0 11.5Q27.5 9.3 24.3 10.0Q23.2 6.8 20.0 5.7Q20.7 2.5 18.5 0.0M47.0 0.0Q43.8 3.7 44.7 8.5Q40.1 10.1 38.5 14.7Q33.7 13.8 30.0 17.0Q26.3 13.8 21.5 14.7Q19.9 10.1 15.3 8.5Q16.2 3.7 13.0 0.0M52.0 0.0Q47.9 4.8 49.1 11.0Q43.1 13.1 41.0 19.1Q34.8 17.9 30.0 22.0Q25.2 17.9 19.0 19.1Q16.9 13.1 10.9 11.0Q12.1 4.8 8.0 0.0' fill='none' stroke='%23fff6e8' stroke-opacity='0.75' stroke-width='0.7' stroke-linecap='round'/%3E%3Cpath d='M44 4V27' stroke='%23fff6e8' stroke-opacity='0.7' stroke-width='0.6'/%3E%3Cg stroke='%231c0a2b' stroke-width='0.8' stroke-linecap='round' fill='none'%3E%3Cpath d='M42.2 28.5l-2.6-2M42 30l-2.8 0.4M42.4 31.4l-2.2 2M45.8 28.5l2.6-2M46 30l2.8 0.4M45.6 31.4l2.2 2'/%3E%3C/g%3E%3Cellipse cx='44' cy='30' rx='2.2' ry='2.6' fill='%231c0a2b'/%3E%3Ccircle cx='44' cy='27.2' r='1.4' fill='%231c0a2b'/%3E%3C/svg%3E") no-repeat 78% 0 / auto 86%,
+    linear-gradient(180deg, rgba(255, 240, 210, 0.38), rgba(255, 240, 210, 0) 48%),
+    repeating-linear-gradient(90deg, rgba(110, 35, 0, 0.1) 0 1.5px, transparent 1.5px 36px);
+  /* La boutique suit le même habit de citrouille. */
+  --cta-shop-bg: var(--cta-bg);
+  --cta-shop-ink: var(--cta-ink);
+  --cta-shop-shadow: var(--cta-shadow);
+}
+
+/* Partout : les surfaces sombres prennent un liseré citrouille. */
+[data-theme='halloween'] .glass,
+[data-theme='halloween'] .glass-strong,
+[data-theme='halloween'] .glass-flat {
+  border-color: rgb(255 122 26 / 0.26);
+}
+
+/* Navigation (barre basse, rail, barre latérale) : la capsule active devient citrouille. */
+[data-theme='halloween'] [data-pill],
+[data-theme='halloween'] [data-indicator],
+[data-theme='halloween'] [data-sidebar-indicator] {
+  background-color: #ff8a2a;
+}
+
+@keyframes bat-cross {
+  from {
+    transform: translateX(-20vw);
+  }
+  to {
+    transform: translateX(120vw);
+  }
+}
+
+@keyframes bat-wave {
   0%,
   100% {
-    opacity: 0;
-    transform: scale(0.3) rotate(0deg);
+    transform: translateY(0);
   }
   50% {
+    transform: translateY(-18px);
+  }
+}
+
+@keyframes bat-flap {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0.4);
+  }
+}
+
+/* La lune qui ricane se balance, comme suspendue par le haut. */
+@keyframes moon-sway {
+  0%,
+  100% {
+    transform: rotate(-7deg) translateY(0);
+  }
+  50% {
+    transform: rotate(7deg) translateY(6px);
+  }
+}
+
+@keyframes spider-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-seasonal-motion] {
+    animation: none !important;
+  }
+}
+
+/* Légendaire et Mythique : un reflet balaie la carte, puis une longue pause. */
+@keyframes card-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(0) skewX(-16deg);
+  }
+  6% {
     opacity: 1;
-    transform: scale(1) rotate(45deg);
+  }
+  34% {
+    opacity: 1;
+    transform: translateX(360%) skewX(-16deg);
+  }
+  36%,
+  100% {
+    opacity: 0;
+    transform: translateX(360%) skewX(-16deg);
   }
 }
 
@@ -369,52 +517,6 @@
   75% {
     opacity: 0.8;
     transform: scale(0.9) rotate(40deg);
-  }
-}
-
-@keyframes bomb-ember {
-  0% {
-    opacity: 1;
-    transform: translate(0, 0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--ember-x, 8px), var(--ember-y, -14px)) scale(0.2);
-  }
-}
-
-/* Lueurs du fond des Activités : une lente dérive, transform seulement. */
-@keyframes sanctum-drift-a {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(22vw, 14vh, 0) scale(1.12);
-  }
-  100% {
-    transform: translate3d(8vw, 32vh, 0) scale(0.94);
-  }
-}
-
-@keyframes sanctum-drift-b {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(-24vw, -18vh, 0) scale(1.1);
-  }
-  100% {
-    transform: translate3d(-10vw, -36vh, 0) scale(0.96);
-  }
-}
-
-.sanctum-orb {
-  will-change: transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sanctum-orb {
-    animation: none !important;
   }
 }
 
@@ -651,17 +753,16 @@
   }
 }
 
-/* Bouton de tir : grisé pendant la recharge, rose et lumineux quand il est prêt. */
+/* Bouton de tir : grisé pendant la recharge, rose quand il est prêt (sans lueur floue : `drop-shadow` coûte cher sur téléphone). */
 .runner-shot {
   color: rgb(255 255 255 / 0.45);
   touch-action: none;
 }
 .runner-shot[data-ready='true'] {
-  color: #fff;
-  filter: drop-shadow(0 0 14px #ff4fd8);
+  color: #ff9ae8;
 }
 .runner-double[data-ready='true'] {
-  filter: drop-shadow(0 0 14px #4fc3ff);
+  color: #9fdcff;
 }
 .runner-shot[data-ready='true'] .runner-shot-icon {
   animation: runner-shot-ready 1.2s ease-in-out infinite;
@@ -687,14 +788,11 @@
   0% {
     opacity: 0;
     transform: translateY(14px);
-    letter-spacing: 0.02em;
-    filter: blur(6px);
   }
   18%,
   78% {
     opacity: 1;
     transform: translateY(0);
-    filter: blur(0);
   }
   100% {
     opacity: 0;

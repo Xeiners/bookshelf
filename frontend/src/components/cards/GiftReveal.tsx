@@ -13,7 +13,6 @@ import { useBoosterStore } from '../../store/useBoosterStore'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import { useShowcaseStore } from '../../store/useShowcaseStore'
 import { useUiStore } from '../../store/useUiStore'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { CardBack } from './CardBack'
 import { CARD_RATIO, CollectibleCard } from './CollectibleCard'
 
@@ -67,7 +66,6 @@ function Reveal({ gift, left, onDone }: { gift: GiftNotification; left: number; 
   const rootRef = useRef<HTMLDivElement>(null)
   const flipRef = useRef<HTMLDivElement>(null)
   const [revealed, setRevealed] = useState(false)
-  const [burst, setBurst] = useState<Burst | null>(null)
   const openActivity = useUiStore((state) => state.openActivity)
   const collectionChanged = useBoosterStore((state) => state.collectionChanged)
   const { card, from, message } = gift.data
@@ -101,8 +99,6 @@ function Reveal({ gift, left, onDone }: { gift: GiftNotification; left: number; 
       .add(() => {
         flipRef.current?.setAttribute('data-face', 'front')
         playReveal(card.rarity)
-        const box = flipRef.current?.getBoundingClientRect()
-        if (box) setBurst({ id: Date.now(), x: box.left + box.width / 2, y: box.top + box.height / 2, colors: [color, '#fff4c8', '#ffffff'], count: 90, spread: Math.PI * 2 })
       })
       .to(flipRef.current, { rotationY: 0, scale: 1, duration: 0.5, ease: EASE.snap })
     gsap.fromTo('[data-gift-after]', { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, delay: 0.7, ease: EASE.glide, stagger: 0.08 })
@@ -113,7 +109,6 @@ function Reveal({ gift, left, onDone }: { gift: GiftNotification; left: number; 
   return (
     <div ref={rootRef} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[96] flex flex-col items-center justify-center gap-7 overflow-y-auto px-6 py-10 text-center">
       <div data-gift-backdrop aria-hidden className="fixed inset-0 bg-void/95" style={{ backgroundImage: `radial-gradient(closest-side at 50% 45%, ${color}40, transparent 70%)` }} />
-      <ParticleBurst burst={burst} />
 
       <header data-gift-title className="relative flex flex-col items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/15 px-3 py-1 text-[10px] font-semibold tracking-[0.24em] text-gold uppercase">
@@ -129,7 +124,7 @@ function Reveal({ gift, left, onDone }: { gift: GiftNotification; left: number; 
             {revealed ? (
               <CollectibleCard card={card} width={width} interactive gyro lazy={false} />
             ) : (
-              <span className="block" style={{ filter: `drop-shadow(0 0 28px ${color}aa)` }}>
+              <span className="block">
                 <CardBack width={width} />
               </span>
             )}
@@ -172,7 +167,6 @@ function ShareReveal({ share, left, onDone }: { share: ShareNotification; left: 
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const [flipped, setFlipped] = useState<ReadonlySet<number>>(() => new Set())
-  const [burst, setBurst] = useState<Burst | null>(null)
   const { cards, by, message } = share.data
   const best = cards.reduce((top, card) => (rarityRank(card.rarity) > rarityRank(top.rarity) ? card : top), cards[0]!)
   const color = RARITY_STYLE[best.rarity].color
@@ -208,9 +202,6 @@ function ShareReveal({ share, left, onDone }: { share: ShareNotification; left: 
       .add(() => {
         node.setAttribute('data-face', 'front')
         playReveal(card.rarity)
-        const box = node.getBoundingClientRect()
-        const tier = rarityRank(card.rarity)
-        if (tier >= 1) setBurst({ id: Date.now() + index, x: box.left + box.width / 2, y: box.top + box.height / 2, colors: [RARITY_STYLE[card.rarity].color, '#fff4c8', '#ffffff'], count: 30 + tier * 25, spread: Math.PI * 2 })
       })
       .to(node, { rotationY: 0, scale: 1, duration: 0.45, ease: EASE.snap })
     // Les boutons de fin n'existent qu'au rendu suivant : on les anime juste après.
@@ -227,7 +218,6 @@ function ShareReveal({ share, left, onDone }: { share: ShareNotification; left: 
   return (
     <div ref={rootRef} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[96] flex flex-col items-center justify-center gap-7 overflow-y-auto px-6 py-10 text-center">
       <div data-gift-backdrop aria-hidden className="fixed inset-0 bg-void/95" style={{ backgroundImage: `radial-gradient(closest-side at 50% 45%, ${color}38, transparent 70%)` }} />
-      <ParticleBurst burst={burst} />
 
       <header data-gift-title className="relative flex flex-col items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-glow/15 px-3 py-1 text-[10px] font-semibold tracking-[0.24em] text-glow uppercase">
@@ -254,7 +244,7 @@ function ShareReveal({ share, left, onDone }: { share: ShareNotification; left: 
                   {shown ? (
                     <CollectibleCard card={card} width={width} interactive gyro={cards.length === 1} lazy={false} />
                   ) : (
-                    <span className="block" style={{ filter: `drop-shadow(0 0 18px ${RARITY_STYLE[card.rarity].color}88)` }}>
+                    <span className="block">
                       <CardBack width={width} />
                     </span>
                   )}

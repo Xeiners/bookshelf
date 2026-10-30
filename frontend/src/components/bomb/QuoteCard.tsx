@@ -35,10 +35,10 @@ export function QuoteCard({ delay = 0.4 }: { delay?: number }) {
           { opacity: 0, y: 40, scale: 0.82, rotationX: 28, transformPerspective: 700, boxShadow: `0 0 0 0px ${quote.tint}00` },
           { opacity: 1, y: 0, scale: 1, rotationX: 0, boxShadow: glow, duration: 0.75, ease: EASE.snap },
         )
-        .fromTo('[data-quote-portrait]', { scale: 2.4, opacity: 0, rotation: -25, filter: 'blur(6px)' }, { scale: 1, opacity: 1, rotation: 0, filter: 'blur(0px)', duration: 0.7, ease: EASE.spring }, '-=0.45')
+        .fromTo('[data-quote-portrait]', { scale: 2.4, opacity: 0, rotation: -25 }, { scale: 1, opacity: 1, rotation: 0, duration: 0.7, ease: EASE.spring }, '-=0.45')
         .fromTo('[data-quote-ring]', { scale: 0.9, opacity: 0.9 }, { scale: 2.6, opacity: 0, duration: 0.9, ease: 'power2.out', stagger: 0.18 }, '-=0.45')
         .fromTo('[data-quote-shine]', { xPercent: -110, opacity: 1 }, { xPercent: 320, duration: 1.2, ease: 'power2.inOut' }, '<')
-        .fromTo('[data-quote-word]', { opacity: 0, y: 14, filter: 'blur(4px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.45, stagger: 0.045, ease: 'power3.out' }, '-=1.0')
+        .fromTo('[data-quote-word]', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.045, ease: 'power3.out' }, '-=1.0')
         .fromTo('[data-quote-by]', { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.5 }, '-=0.2')
         .to(rootRef.current, { boxShadow: `0 0 0 1px ${quote.tint}33, 0 12px 36px -14px ${quote.tint}66`, duration: 1.2, ease: 'sine.out' })
     },

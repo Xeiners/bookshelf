@@ -31,9 +31,8 @@ export function PackCountPicker({ value, max, onChange, label }: PackCountPicker
               onChange(count)
             }}
             className={`grid size-11 place-items-center rounded-full border text-base font-bold tabular-nums transition-[transform,background-color,border-color,box-shadow] active:scale-95 disabled:opacity-30 disabled:active:scale-100 ${
-              selected ? 'border-transparent text-[#2a1a02] shadow-[0_0_22px_rgba(255,196,107,0.55)]' : 'border-[#ffe39a]/25 bg-black/30 text-[#fff4c8]'
+              selected ? 'btn-cta border-transparent' : 'border-[#ffe39a]/25 bg-black/30 text-[#fff4c8]'
             }`}
-            style={selected ? { background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' } : undefined}
           >
             {count}
           </button>

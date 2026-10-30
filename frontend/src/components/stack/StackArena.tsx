@@ -328,13 +328,13 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
         data-stack-ui
         onClick={onLeave}
         aria-label={t.stack.arena.leave}
-        className="absolute top-[max(0.5rem,env(safe-area-inset-top))] right-2 z-10 grid size-9 place-items-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-sm"
+        className="absolute top-[max(0.5rem,env(safe-area-inset-top))] right-2 z-10 grid size-9 place-items-center rounded-full border border-white/25 bg-black/45 text-white"
       >
         <X size={16} />
       </button>
       {count && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/25">
-          <p ref={bump} className="font-display text-[7rem] leading-none text-white drop-shadow-[0_4px_24px_rgba(255,160,90,0.7)]">
+          <p ref={bump} className="font-display text-[7rem] leading-none text-white">
             {count}
           </p>
         </div>

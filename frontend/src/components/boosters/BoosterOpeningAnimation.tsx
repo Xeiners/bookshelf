@@ -9,8 +9,11 @@ import { CardBack } from '../cards/CardBack'
 import { CARD_RATIO } from '../cards/CollectibleCard'
 import { BoosterPackArt } from './BoosterPackArt'
 
-/** Dos de carte qui sortent du paquet, au plus (plusieurs boosters ouverts d'un coup : les autres suivent, cachés). */
-const MAX_EMERGED = 5
+/**
+ * Dos de carte qui sortent du paquet, au plus : autant que le paquet de révélation en montre
+ * (`DECK_DEPTH` de `CardReveal`), pour que chacun y retrouve sa place, sans carte qui s'évanouit.
+ */
+const MAX_EMERGED = 4
 
 /** Espace gardé libre en haut de l'écran (barre des boosters, bouton fermer) quand les cartes sortent. */
 const TOP_MARGIN = 72
@@ -44,13 +47,32 @@ const BACK_TEAR = tearLine(TEAR_Y - 2.4, 1.7, 2, 98)
 const CUT_X = 'calc(var(--cut, 0) * 100%)'
 const at = ([x, y]: readonly [number, number]) => `${x}% ${y}%`
 
-/** Le haut du paquet (au-dessus de la déchirure), lueurs comprises. */
-const CAP_CLIP = `polygon(-60% -60%, 160% -60%, 160% ${TEAR.at(-1)![1]}%, ${[...TEAR].reverse().map(at).join(', ')}, -60% ${TEAR[0]![1]}%)`
-/**
- * Le reste du paquet : tout, sauf le haut déjà découpé (à gauche du point de coupe). Les points
- * au-delà de la coupe se replient sur elle ; ce qui reste du haut appartient encore à la pièce du dessus.
+/*
+ * Découpe à faible coût. Seule une bande du haut (`BAND` % de la hauteur) dépend du doigt :
+ * changer la découpe d'un élément le fait redessiner ENTIER à chaque image. Découper deux
+ * paquets complets (12 couvertures, masques, dégradés) à chaque mouvement faisait ramer les
+ * téléphones. Le corps, sous la déchirure, est découpé une fois pour toutes ; la bande, petite,
+ * est la seule redessinée.
  */
-const LOWER_CLIP = `polygon(-60% 160%, -60% ${TEAR[0]![1]}%, ${TEAR.map(([x, y]) => `min(${x}%, ${CUT_X}) ${y}%`).join(', ')}, ${CUT_X} -60%, 160% -60%, 160% 160%)`
+/** Hauteur de la bande du haut, en % du paquet (la déchirure passe à ~14 %). */
+const BAND = 20
+/** La déchirure dans le repère de la bande. */
+const TEAR_IN_BAND = TEAR.map(([x, y]) => [x, Number(((y * 100) / BAND).toFixed(2))] as const)
+/** Recouvrement (en % de la bande) sous la déchirure : aucun liseré clair entre la bande et le corps. */
+const SEAM = 2
+
+/** Le corps du paquet, sous la déchirure : découpe fixe, jamais redessinée pendant le geste. */
+const BODY_CLIP = `polygon(-60% 160%, -60% ${TEAR[0]![1]}%, ${TEAR.map(at).join(', ')}, 160% ${TEAR.at(-1)![1]}%, 160% 160%)`
+/**
+ * Dans la bande : le haut encore attaché, à droite du point de coupe (les points de la déchirure
+ * à gauche de la coupe se replient sur elle).
+ */
+const ATTACHED_CLIP = `polygon(${CUT_X} -10%, 110% -10%, 110% ${TEAR_IN_BAND.at(-1)![1] + SEAM}%, ${[...TEAR_IN_BAND]
+  .reverse()
+  .map(([x, y]) => `max(${x}%, ${CUT_X}) ${y + SEAM}%`)
+  .join(', ')})`
+/** Dans la bande : le haut découpé (gardé à gauche du point de coupe par son conteneur). */
+const CAP_CLIP = `polygon(-10% -10%, 110% -10%, 110% ${TEAR_IN_BAND.at(-1)![1]}%, ${[...TEAR_IN_BAND].reverse().map(at).join(', ')}, -10% ${TEAR_IN_BAND[0]![1]}%)`
 /** L'intérieur du paquet : le panneau de dos, déchiré un peu plus haut que la face. */
 const MOUTH_CLIP = `polygon(${BACK_TEAR.map(at).join(', ')}, 98% 30%, 2% 30%)`
 
@@ -74,8 +96,6 @@ interface BoosterOpeningAnimationProps {
   /** Le booster est déchiré : l'animation de sortie se joue. */
   torn: boolean
   onTear: () => void
-  /** Étincelles à cette position (pixels de la fenêtre) : pendant la découpe, et à l'arrachement. */
-  onSparks: (x: number, y: number, count: number) => void
   /**
    * Fin de l'animation de déchirure, avec la place de chaque carte sortie du booster (dans
    * l'ordre du tirage) : le paquet de révélation part de là.
@@ -95,20 +115,29 @@ interface BoosterOpeningAnimationProps {
  * (ou relâchée aux trois quarts), la bande s'arrache, une gerbe d'étincelles
  * jaillit, le paquet s'enfonce hors champ ; relâchée trop tôt, elle se recolle.
  */
-export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSparks, onTorn, series = null, count = 0 }: BoosterOpeningAnimationProps) {
+export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onTorn, series = null, count = 0 }: BoosterOpeningAnimationProps) {
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   /** Découpe en cours : point de départ, avancement (0 → 1), dernières étincelles et vibrations. */
-  const cut = useRef({ active: false, startX: 0, progress: 0, moved: false, lastSpark: 0, lastBuzz: 0, done: false })
+  const cut = useRef({ active: false, startX: 0, progress: 0, moved: false, lastSpark: 0, lastBuzz: 0, done: false, left: 0, top: 0, packWidth: 0, packHeight: 0 })
   const height = Math.round(width * 1.55)
   /** Dos des cartes qui sortent du booster, un peu plus étroits que lui. */
   const cardWidth = Math.round(width * 0.78)
   const cardHeight = Math.round(cardWidth * CARD_RATIO)
 
+  /** Flottaison du paquet (et de son ombre au sol), en boucle. */
+  const floatLoops = (delay: number) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const float = rootRef.current?.querySelector('[data-pack-float]') ?? null
+    const shadow = rootRef.current?.querySelector('[data-pack-shadow]') ?? null
+    gsap.to(float, { y: -16, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay })
+    gsap.to(shadow, { scale: 0.78, autoAlpha: 0.38, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay })
+    gsap.to(float, { rotationY: 11, rotationX: 4, transformPerspective: 1100, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
+  }
+
   // Arrivée vers l'écran, puis flottaison ; l'ombre au sol suit la hauteur du paquet.
-  useGSAP(
+  const { contextSafe } = useGSAP(
     () => {
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const arrival = 1.15
       gsap.fromTo(
         '[data-pack-body]',
@@ -116,14 +145,33 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
         { scale: 1, y: 0, rotationX: 0, autoAlpha: 1, duration: arrival, ease: 'power3.out' },
       )
       gsap.fromTo('[data-pack-shadow]', { scale: 0.3, autoAlpha: 0 }, { scale: 1, autoAlpha: 0.7, duration: arrival, ease: 'power3.out' })
-      if (reduced) return
-      gsap.to('[data-pack-float]', { y: -16, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: arrival - 0.05 })
-      gsap.to('[data-pack-shadow]', { scale: 0.78, autoAlpha: 0.38, duration: 1.8, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: arrival - 0.05 })
-      gsap.to('[data-pack-float]', { rotationY: 11, rotationX: 4, transformPerspective: 1100, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
-      gsap.fromTo('[data-pack-shine]', { xPercent: -170 }, { xPercent: 260, duration: 2.2, ease: 'power1.inOut', repeat: -1, repeatDelay: 1.3 })
+      floatLoops(arrival - 0.05)
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        gsap.fromTo('[data-pack-shine]', { xPercent: -170 }, { xPercent: 260, duration: 2.2, ease: 'power1.inOut', repeat: -1, repeatDelay: 1.3 })
+      }
     },
     { scope: rootRef },
   )
+
+  /**
+   * Le doigt se pose : le paquet cesse de flotter et de pivoter (il se pose à plat en un instant),
+   * et sa place est mesurée une fois — plus aucune lecture de mise en page pendant le geste.
+   */
+  const holdStill = () =>
+    contextSafe(() => {
+      const float = rootRef.current?.querySelector<HTMLElement>('[data-pack-float]')
+      if (!float) return
+      const state = cut.current
+      const box = float.getBoundingClientRect()
+      // Place au repos : sans le décalage vertical de la flottaison en cours.
+      const offset = Number(gsap.getProperty(float, 'y')) || 0
+      Object.assign(state, { left: box.left, top: box.top - offset, packWidth: box.width, packHeight: box.height })
+      gsap.to(float, { y: 0, rotationX: 0, rotationY: 0, duration: 0.2, ease: 'sine.out', overwrite: true })
+      gsap.to('[data-pack-shadow]', { scale: 1, autoAlpha: 0.7, duration: 0.2, ease: 'sine.out', overwrite: true })
+    })()
+
+  /** Découpe abandonnée : le paquet se remet à flotter. */
+  const floatAgain = () => contextSafe(() => floatLoops(0))()
 
   // Le halo s'allume quand le contenu est connu.
   useGSAP(
@@ -162,14 +210,12 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
         })
         .to('[data-pack-float]', { y: 0, rotationX: 0, rotationY: 0, duration: 0.25, ease: 'sine.out' })
         .to('[data-pack-float]', { x: 3, rotation: 0.6, duration: 0.045, repeat: 5, yoyo: true, ease: 'none' }, '<')
-        .add(() => {
-          const box = rootRef.current?.querySelector('[data-pack-float]')?.getBoundingClientRect()
-          if (box) onSparks(box.left + box.width / 2, box.top + (box.height * TEAR_Y) / 100, 80)
-        })
+        // Le liseré lumineux suit le contour du paquet entier : il s'efface quand le haut part.
+        .to('[data-pack-outline]', { autoAlpha: 0, duration: 0.25, ease: 'power1.out' }, '<')
         // Le haut arraché s'envole en tournoyant, pivotant depuis le bout de la déchirure.
         .to(
           '[data-pack-cap]',
-          { transformOrigin: `100% ${TEAR_Y}%`, x: width * 0.5, y: -height * 0.42, rotation: 42, autoAlpha: 0, duration: 0.7, ease: 'power2.in' },
+          { transformOrigin: `100% ${(TEAR_Y * 100) / BAND}%`, x: width * 0.5, y: -height * 0.42, rotation: 42, autoAlpha: 0, duration: 0.7, ease: 'power2.in' },
           '<',
         )
         .fromTo('[data-pack-beam]', { scaleY: 0, autoAlpha: 0 }, { scaleY: 1, autoAlpha: 1, duration: 0.4, ease: 'power3.out' }, '<0.1')
@@ -197,7 +243,6 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
 
   /** Avancement de la découpe, écrit directement sur l'élément : aucun rendu React pendant le geste. */
   const setCut = (value: number) => rootRef.current?.style.setProperty('--cut', value.toFixed(3))
-  const setCutting = (on: boolean) => rootRef.current?.style.setProperty('--cutting', on ? '1' : '0')
 
   /** Fin de la découpe : la bande se détache jusqu'au bout, puis s'arrache (animation de déchirure). */
   const finish = () => {
@@ -211,10 +256,7 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
       '--cut': 1,
       duration: 0.14,
       ease: 'power1.out',
-      onComplete: () => {
-        setCutting(false)
-        onTear()
-      },
+      onComplete: onTear,
     })
   }
 
@@ -223,8 +265,8 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
     event.currentTarget.setPointerCapture(event.pointerId)
     if (rootRef.current) gsap.killTweensOf(rootRef.current)
     Object.assign(cut.current, { active: true, startX: event.clientX, progress: 0, moved: false })
+    holdStill()
     setCut(0)
-    setCutting(true)
   }
 
   const onPointerMove = (event: ReactPointerEvent) => {
@@ -237,14 +279,12 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
     setCut(progress)
 
     const now = performance.now()
-    const pack = rootRef.current?.querySelector('[data-pack-float]')?.getBoundingClientRect()
-    // Étincelles au point de coupe, tant que le doigt avance.
-    if (pack && progress > 0.02 && now - state.lastSpark > 70) {
+    // Étincelles au point de coupe, tant que le doigt avance (place du paquet mesurée au toucher).
+    if (state.packWidth > 0 && progress > 0.02 && now - state.lastSpark > 70) {
       state.lastSpark = now
-      onSparks(pack.left + pack.width * progress, pack.top + (pack.height * TEAR_Y) / 100, 10)
       playCutTick(progress)
     }
-    if (now - state.lastBuzz > 90 && progress > 0.02) {
+    if (now - state.lastBuzz > 140 && progress > 0.02) {
       state.lastBuzz = now
       vibrate(4)
     }
@@ -261,13 +301,14 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
     }
     const root = rootRef.current
     if (!root) return
+    const release = floatAgain
     if (!state.moved) {
       // Simple toucher : la bande s'entrouvre puis se referme — le geste, montré.
-      gsap.fromTo(root, { '--cut': 0 }, { '--cut': 0.14, duration: 0.22, ease: 'power2.out', yoyo: true, repeat: 1, onComplete: () => setCutting(false) })
+      gsap.fromTo(root, { '--cut': 0 }, { '--cut': 0.14, duration: 0.22, ease: 'power2.out', yoyo: true, repeat: 1, onComplete: release })
       return
     }
     // Découpe abandonnée : la bande se recolle.
-    gsap.to(root, { '--cut': 0, duration: 0.45, ease: 'back.out(2)', onComplete: () => setCutting(false) })
+    gsap.to(root, { '--cut': 0, duration: 0.45, ease: 'back.out(2)', onComplete: release })
   }
 
   /** Clavier (Entrée, Espace) : pas de geste possible, la découpe se fait d'un coup. */
@@ -310,64 +351,68 @@ export function BoosterOpeningAnimation({ width, halo, ready, torn, onTear, onSp
             >
               <TornEdge points={BACK_TEAR} />
             </div>
-            {torn &&
-              Array.from({ length: Math.min(count, MAX_EMERGED) }, (_, index) => (
-                <div
-                  key={index}
-                  data-emerge-card
-                  aria-hidden
-                  className="pointer-events-none absolute left-1/2"
-                  style={{ top: height * CARDS_TOP, width: cardWidth, height: cardHeight, marginLeft: -cardWidth / 2, transformOrigin: '50% 100%', willChange: 'transform' }}
-                >
-                  <CardBack width={cardWidth} animated={false} />
-                </div>
-              ))}
-            <div data-pack-drop className="absolute inset-0" style={{ clipPath: LOWER_CLIP }}>
+            {torn && (
+              // Groupe isolé : les dos s'ordonnent entre eux sans passer devant la face du paquet.
+              <div aria-hidden className="pointer-events-none absolute inset-0 isolate">
+                {Array.from({ length: Math.min(count, MAX_EMERGED) }, (_, index) => (
+                  <div
+                    key={index}
+                    data-emerge-card
+                    className="absolute left-1/2"
+                    // La première (droite) est le dessus du paquet : elle passe devant, comme dans le paquet de révélation.
+                    style={{ top: height * CARDS_TOP, width: cardWidth, height: cardHeight, marginLeft: -cardWidth / 2, transformOrigin: '50% 100%', willChange: 'transform', zIndex: MAX_EMERGED - index }}
+                  >
+                    <CardBack width={cardWidth} animated={false} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Corps, sous la déchirure : découpe fixe. */}
+            <div data-pack-drop className="absolute inset-0" style={{ clipPath: BODY_CLIP }}>
               <BoosterPackArt width={width} lit={ready} series={series} layer="pack" />
             </div>
-            <div data-pack-drop className="absolute inset-0" style={{ clipPath: `inset(-10% calc(100% - ${CUT_X}) -10% -10%)` }}>
-              <TornEdge points={TEAR} />
+            {/* Bande du haut encore attachée (à droite du point de coupe) : seule à suivre le doigt. */}
+            <div data-pack-drop className="absolute inset-x-0 top-0 overflow-hidden" style={{ height: `${BAND}%`, clipPath: ATTACHED_CLIP }}>
+              <BoosterPackArt width={width} lit={ready} series={series} layer="pack" />
             </div>
-            <div data-pack-cap className="pointer-events-none absolute inset-0">
+            {/* Fibres du papier, le long de la partie déjà découpée. */}
+            <div data-pack-drop className="absolute inset-x-0 top-0" style={{ height: `${BAND}%`, clipPath: `inset(-10% calc(100% - ${CUT_X}) -10% -10%)` }}>
+              <TornEdge points={TEAR_IN_BAND} />
+            </div>
+            {/* Le haut découpé : il se soulève depuis le point de coupe, puis s'envole à l'arrachement. */}
+            <div data-pack-cap className="pointer-events-none absolute inset-x-0 top-0" style={{ height: `${BAND}%` }}>
               <div
                 className="absolute inset-0"
                 style={{
                   clipPath: `inset(-60% calc(100% - ${CUT_X}) -60% -60%)`,
-                  transformOrigin: `${CUT_X} ${TEAR_Y}%`,
+                  transformOrigin: `${CUT_X} ${(TEAR_Y * 100) / BAND}%`,
                   transform: 'rotate(calc(var(--cut, 0) * 16deg)) translateY(calc(var(--cut, 0) * -5px))',
                 }}
               >
-                <div className="absolute inset-0" style={{ clipPath: CAP_CLIP }}>
+                <div className="absolute inset-0 overflow-hidden" style={{ clipPath: CAP_CLIP }}>
                   <BoosterPackArt width={width} lit={ready} series={series} layer="pack" />
                 </div>
-                <TornEdge points={TEAR} />
+                <TornEdge points={TEAR_IN_BAND} />
               </div>
             </div>
-            {/* Point de coupe : une étincelle suit le doigt le long de la déchirure. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full"
-              style={{
-                top: `${TEAR_Y}%`,
-                left: CUT_X,
-                opacity: 'var(--cutting, 0)',
-                background: 'radial-gradient(circle, #ffffff 0%, #fff4c8 30%, rgba(255,196,107,0.6) 55%, transparent 72%)',
-              }}
-            />
           </div>
         </div>
       </button>
-      {/* Colonne de lumière qui jaillit du haut du paquet à l'arrachement (couleur du halo). */}
+      {/*
+        Colonne de lumière qui jaillit du haut du paquet à l'arrachement (couleur du halo). Bords
+        adoucis par le masque (pas de flou ni de mode de fusion : recalculés à chaque image), et
+        assez courte pour s'éteindre avant la barre du haut.
+      */}
       <div
         data-pack-beam
         aria-hidden
-        className="pointer-events-none absolute bottom-[88%] left-1/2 h-[140%] origin-bottom -translate-x-1/2 opacity-0 blur-[2px]"
+        className="pointer-events-none absolute bottom-[86%] left-1/2 h-[75%] origin-bottom -translate-x-1/2 opacity-0"
         style={{
           width: width * 0.62,
-          background: `linear-gradient(to top, #ffffff, ${halo ? RARITY_STYLE[halo].color : '#ffc46b'} 30%, transparent)`,
-          maskImage: 'linear-gradient(to right, transparent, #000 30%, #000 70%, transparent)',
-          WebkitMaskImage: 'linear-gradient(to right, transparent, #000 30%, #000 70%, transparent)',
-          mixBlendMode: 'screen',
+          background: `linear-gradient(to top, rgba(255,255,255,0.95), ${halo ? RARITY_STYLE[halo].color : '#ffc46b'} 35%, transparent)`,
+          maskImage: 'radial-gradient(50% 100% at 50% 100%, #000 45%, transparent)',
+          WebkitMaskImage: 'radial-gradient(50% 100% at 50% 100%, #000 45%, transparent)',
+          willChange: 'transform, opacity',
         }}
       />
       {/* Ombre portée au sol. */}

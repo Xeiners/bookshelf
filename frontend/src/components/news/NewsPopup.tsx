@@ -40,14 +40,14 @@ export function NewsPopup() {
   const close = () => useNews.getState().closePopup()
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={copy.title} className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-6" onClick={close}>
+    <div role="dialog" aria-modal="true" aria-label={copy.title} className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 sm:items-center sm:p-6" onClick={close}>
       <article
         onClick={(event) => event.stopPropagation()}
         className="relative w-full max-w-md overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#0e0d14] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] motion-safe:animate-[news-in_0.45s_cubic-bezier(0.2,0.9,0.3,1)_both] sm:rounded-[2rem]"
       >
         <div className="relative aspect-[4/3] w-full">
           <NewsVisual id={latest.id} />
-          <button type="button" onClick={close} aria-label={t.news.close} className="absolute top-3 right-3 grid size-9 place-items-center rounded-full bg-black/45 text-cream backdrop-blur active:scale-95">
+          <button type="button" onClick={close} aria-label={t.news.close} className="absolute top-3 right-3 grid size-9 place-items-center rounded-full bg-black/45 text-cream active:scale-95">
             <X size={17} />
           </button>
         </div>

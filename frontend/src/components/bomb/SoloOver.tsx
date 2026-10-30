@@ -45,7 +45,7 @@ export function SoloOver({ over, restarting, onHome, onReplay }: SoloOverProps) 
     <div ref={rootRef} role="dialog" aria-modal aria-label={t.bomb.over.title} className="fixed inset-0 z-[120] grid place-items-center px-6">
       <div
         data-over-veil
-        className="absolute inset-0 backdrop-blur-md"
+        className="absolute inset-0"
         style={{ background: 'radial-gradient(circle at 50% 42%, rgba(124,92,255,0.28), rgba(255,94,156,0.08) 35%, rgba(5,4,10,0.88) 70%)' }}
       />
       <div

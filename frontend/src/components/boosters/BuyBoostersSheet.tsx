@@ -7,7 +7,6 @@ import { vibrate } from '../../lib/haptics'
 import { LIVE_SERIES } from '../../services/cardsApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
-import { STARDUST_GRADIENT } from '../dle/dleStyle'
 import { Sheet } from '../ui/Sheet'
 import { PackCountPicker } from './PackCountPicker'
 import { PackStack } from './PackStack'
@@ -58,8 +57,7 @@ export function BuyBoostersSheet({ price, balance, onClose }: BuyBoostersSheetPr
           type="button"
           disabled={busy || total > balance}
           onClick={() => void buy(dismiss)}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-bold text-[#1a0b1f] transition-transform active:scale-[0.98] disabled:opacity-40"
-          style={{ background: STARDUST_GRADIENT }}
+          className="btn-cta btn-cta--shop inline-flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-bold transition-transform active:scale-[0.98] disabled:opacity-40"
         >
           {busy ? <Loader2 size={17} className="animate-spin" aria-hidden /> : <Sparkles size={17} aria-hidden />}
           {t.activities.shop.buy(quantity, total)}

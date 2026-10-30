@@ -25,7 +25,7 @@ export function NewsPage() {
 
   return (
     <div role="dialog" aria-modal="true" aria-label={t.news.title} className="fixed inset-0 z-[88] overflow-y-auto overscroll-contain bg-void text-cream">
-      <header className="sticky top-0 z-10 border-b border-white/5 bg-void/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-white/5 bg-void/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <button type="button" onClick={close} aria-label={t.news.back} className="grid size-10 place-items-center rounded-full bg-white/[0.06] active:scale-95">
             <ArrowLeft size={19} />

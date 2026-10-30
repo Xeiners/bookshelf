@@ -16,7 +16,7 @@ import { RETIRED_SERIES, liveCardFilter, seriesRetired } from '../cards/series.j
  * au journal (`AdminAction`) et chaque cadeau prévient le compte (notification).
  */
 
-export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end', 'canvas_remove', 'canvas_restore', 'canvas_purge', 'canvas_ban', 'canvas_unban', 'dle_image_ban', 'dle_image_restore', 'reviewer_grant', 'reviewer_revoke'] as const
+export const ADMIN_ACTIONS = ['gift_boosters', 'gift_card', 'suspend', 'unsuspend', 'moderate', 'promotion', 'promotion_end', 'canvas_remove', 'canvas_restore', 'canvas_purge', 'canvas_ban', 'canvas_unban', 'dle_image_ban', 'dle_image_restore', 'reviewer_grant', 'reviewer_revoke', 'theme', 'event', 'event_end'] as const
 export type AdminActionType = (typeof ADMIN_ACTIONS)[number]
 
 export interface Admin {

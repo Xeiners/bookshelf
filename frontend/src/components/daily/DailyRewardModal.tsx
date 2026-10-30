@@ -111,7 +111,7 @@ function DailyDialog({ status }: { status: DailyStatus }) {
 
   return (
     <div ref={ref} className="fixed inset-0 z-[120] grid place-items-center px-3 py-4" role="dialog" aria-modal="true" aria-label={t.daily.title}>
-      <div data-daily-backdrop className="absolute inset-0 bg-[#07040f]/92 backdrop-blur-sm" onClick={close} />
+      <div data-daily-backdrop className="absolute inset-0 bg-[#07040f]/92" onClick={close} />
       <div
         data-daily-panel
         className="no-scrollbar relative flex max-h-[94dvh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-[2rem] border border-[#ffc46b]/25 p-5 text-cream"

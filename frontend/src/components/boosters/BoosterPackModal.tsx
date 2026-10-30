@@ -3,12 +3,13 @@ import { Dices, FlaskConical, Gift, Megaphone, Users, X, Zap } from 'lucide-reac
 import { useBoosters } from '../../hooks/useBoosters'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
-import { MAX_PACKS_AT_ONCE, RARITIES, RARITY_STYLE, baitRarity, type CardOrigin, bestRarity, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
+import { MAX_PACKS_AT_ONCE, RARITIES, RARITY_STYLE, baitRarity, type CardOrigin, bestRarity, deckCardWidth, observedRate, revealLayout, type Rarity, type Viewport } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { playChime, playHlTick, playTear } from '../../lib/sfx'
+import { apiErrorMessage } from '../../lib/apiErrors'
 import { ApiError, isNetworkError } from '../../services/api'
-import { LIVE_SERIES, type CardSeries, type PulledCard, type SeriesChoice } from '../../services/cardsApi'
+import { LIVE_SERIES, cardsApi, type CardSeries, type PulledCard, type SeriesChoice } from '../../services/cardsApi'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useBoosterStore } from '../../store/useBoosterStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -17,11 +18,11 @@ import { CardZoom } from '../cards/CardZoom'
 import { BoosterOpeningAnimation } from './BoosterOpeningAnimation'
 import { BoosterPackArt } from './BoosterPackArt'
 import { CardReveal } from './CardReveal'
-import { ParticleBurst, type Burst } from './ParticleBurst'
 import { SfxVolume } from '../ui/SfxVolume'
 import { ShareCardsSheet } from './ShareCardsSheet'
 import { PackCountPicker } from './PackCountPicker'
 import { PackStack } from './PackStack'
+import { SeasonalOverlay } from '../layout/SeasonalDecor'
 
 /**
  * `choose` : Série 1, Série 2 ou la roulette ; `count` : combien de boosters ouvrir d'un coup ;
@@ -36,6 +37,20 @@ const SOLE_SERIES: CardSeries | null = LIVE_SERIES.length === 1 ? LIVE_SERIES[0]
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight })
 
 const packWidthFor = (viewport: number) => Math.min(250, Math.round(viewport * 0.56))
+
+/**
+ * Développement : booster d'aperçu, composé de cartes de l'album (trois petites, puis la
+ * Légendaire ou la Mythique demandée). Rien n'est tiré par le serveur ni ajouté à l'album.
+ */
+async function previewPack(rarity: 'LEGENDARY' | 'MYTHIC'): Promise<{ cards: PulledCard[]; series: CardSeries }> {
+  const { cards } = await cardsApi.collection()
+  const pick = <T,>(list: readonly T[]): T | undefined => list[Math.floor(Math.random() * list.length)]
+  const big = pick(cards.filter((card) => card.rarity === rarity))
+  const small = cards.filter((card) => card.rarity !== 'LEGENDARY' && card.rarity !== 'MYTHIC')
+  if (!big || small.length === 0) throw new Error('preview_empty')
+  const pack = [pick(small)!, pick(small)!, pick(small)!, big].map((card): PulledCard => ({ card, isNew: false, count: 1 }))
+  return { cards: pack, series: big.series }
+}
 
 /** Après la série : on demande combien en ouvrir, ou on ouvre aussitôt. */
 const stageAfter = (choice: SeriesChoice, packs: number | null): Stage => (packs === null ? 'count' : choice === 'random' ? 'roulette' : 'summoning')
@@ -59,12 +74,16 @@ export function BoosterPackModal() {
   const openBooster = useBoosterStore((state) => state.open)
   /** Pack Légendaire offert : même mise en scène, dernière carte Légendaire ou mieux. */
   const [legendary, setLegendary] = useState(() => useUiStore.getState().boosterLegendary)
+  /** Booster Légendaire acheté dans la boutique : débité et tiré à l'ouverture de la fenêtre. */
+  const [purchase, setPurchase] = useState(() => useUiStore.getState().boosterPurchase)
+  /** Développement : booster d'aperçu (cf. `previewPack`). */
+  const [preview, setPreview] = useState(() => useUiStore.getState().boosterPreview)
   const tally = useBoosterStore((state) => state.tally)
   const boosters = useBoosters()
-  // Une seule série en jeu : elle s'ouvre d'office (ni choix, ni roulette).
-  const preset = useUiStore((state) => SOLE_SERIES ?? state.boosterSeries)
-  /** Ouvrir plusieurs boosters d'un coup : un compte, au moins deux en stock, hors pack Légendaire. */
-  const countable = (legendaryPack: boolean) => !legendaryPack && boosters.signedIn && (boosters.unlimited || boosters.available >= 2)
+  // Une seule série en jeu : elle s'ouvre d'office (ni choix, ni roulette). Aperçu : la dernière série.
+  const preset = useUiStore((state) => SOLE_SERIES ?? (state.boosterPreview ? LIVE_SERIES[LIVE_SERIES.length - 1]! : state.boosterSeries))
+  /** Ouvrir plusieurs boosters d'un coup : un compte, au moins deux en stock, hors pack Légendaire (et hors aperçu). */
+  const countable = (legendaryPack: boolean) => !legendaryPack && !preview && boosters.signedIn && (boosters.unlimited || boosters.available >= 2)
   /** Au plus : le stock (6 au plus). */
   const maxPacks = boosters.unlimited ? MAX_PACKS_AT_ONCE : Math.max(1, Math.min(MAX_PACKS_AT_ONCE, boosters.available))
   /** Boosters ouverts d'un coup ; `null` : à choisir. */
@@ -84,7 +103,6 @@ export function BoosterPackModal() {
   /** Où chaque carte est sortie du booster ; le paquet de révélation en part. */
   const [origins, setOrigins] = useState<CardOrigin[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [burst, setBurst] = useState<Burst | null>(null)
   /** Carte révélée affichée en grand, avec son résumé. */
   const [inspected, setInspected] = useState<PulledCard | null>(null)
   const [viewport, setViewport] = useState(readViewport)
@@ -119,6 +137,7 @@ export function BoosterPackModal() {
   const messageFor = useCallback(
     (reason: unknown) => {
       if (isNetworkError(reason)) return t.boosters.errors.offline
+      if (reason instanceof ApiError && reason.code === 'not_enough_stardust') return apiErrorMessage(reason, t)
       if (reason instanceof ApiError && reason.status === 409) return useAuthStore.getState().user ? t.boosters.errors.empty : t.activities.guest.limit
       if (reason instanceof ApiError && reason.status === 503) return t.boosters.errors.notReady
       return t.boosters.errors.generic
@@ -140,12 +159,19 @@ export function BoosterPackModal() {
     requested.current = round
     const current = round
     // Invité : booster d'essai, tiré aussi par le serveur (reçu signé gardé sur l'appareil).
-    const draw = legendary ? useBoosterStore.getState().openLegendary() : openBooster(useAuthStore.getState().user ? 'account' : 'guest', choice, packs)
+    const draw = preview
+      ? previewPack(preview)
+      : legendary
+        ? purchase
+          ? useBoosterStore.getState().buyLegendary()
+          : useBoosterStore.getState().openLegendary()
+        : openBooster(useAuthStore.getState().user ? 'account' : 'guest', choice, packs)
     draw
       .then((pulled) => {
         if (requested.current !== current) return
         setCards(pulled.cards)
-        setBait(baitRarity(bestRarity(pulled.cards.map((card) => card.card.rarity))))
+        // Aperçu : le halo annonce franchement la couleur (aucun bluff).
+        setBait(preview ?? baitRarity(bestRarity(pulled.cards.map((card) => card.card.rarity))))
         setSeries(pulled.series)
         // La roulette s'arrête d'elle-même sur la série tirée, puis passe la main.
         if (choice !== 'random') setStage('intro')
@@ -155,7 +181,7 @@ export function BoosterPackModal() {
         setError(messageFor(reason))
         setStage('error')
       })
-  }, [round, choice, packs, legendary, openBooster, messageFor])
+  }, [round, choice, packs, legendary, purchase, preview, openBooster, messageFor])
 
   const pick = (next: SeriesChoice) => {
     vibrate(10)
@@ -171,33 +197,12 @@ export function BoosterPackModal() {
     if (choice !== null) setStage(stageAfter(choice, count))
   }
 
-  const { contextSafe } = useGSAP(
+  useGSAP(
     () => {
       gsap.fromTo('[data-booster-backdrop]', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, ease: 'power1.out' })
     },
     { scope: rootRef },
   )
-
-  /** Tremblement d'écran : quelques secousses décroissantes, en `transform` seulement. */
-  const shake = (intensity: number) =>
-    contextSafe(() => {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      const steps = 9
-      gsap.to('[data-shake]', {
-        keyframes: [
-          ...Array.from({ length: steps }, (_, index) => {
-            const amplitude = intensity * (1 - index / steps)
-            return {
-              x: gsap.utils.random(-amplitude, amplitude),
-              y: gsap.utils.random(-amplitude, amplitude),
-              duration: 0.035,
-            }
-          }),
-          { x: 0, y: 0, duration: 0.06 },
-        ],
-        ease: 'none',
-      })
-    })()
 
   const tear = () => {
     if (stage !== 'intro') return
@@ -207,31 +212,20 @@ export function BoosterPackModal() {
     requestTiltPermission()
   }
 
-  /** Étincelles : petites gerbes au point de coupe, grande gerbe à l'arrachement. */
-  const sparks = (x: number, y: number, count: number) =>
-    setBurst({
-      id: performance.now(),
-      x,
-      y,
-      colors: ['#fff4c8', '#ffc46b', '#ffffff', '#ff9f43'],
-      count,
-      kind: 'sparks',
-      spread: count < 20 ? Math.PI * 0.55 : Math.PI * 0.9,
-    })
-
   // Booster suivant : on rechoisit sa série (ou la roulette) et combien en ouvrir. Les packs
   // Légendaire offerts passent d'abord.
   const again = () => {
     const legendaryNext = boosters.legendaryPacks > 0
-    const nextPacks = countable(legendaryNext) ? null : 1
+    const nextPacks = !legendaryNext && boosters.signedIn && (boosters.unlimited || boosters.available >= 2) ? null : 1
+    setPreview(null)
     setLegendary(legendaryNext)
+    setPurchase(false)
     setPacks(nextPacks)
     setSharing(null)
     setCards([])
     setBait(null)
     setOrigins(null)
     setError(null)
-    setBurst(null)
     setChoice(SOLE_SERIES)
     setSeries(SOLE_SERIES)
     setStage(SOLE_SERIES === null ? 'choose' : stageAfter(SOLE_SERIES, nextPacks))
@@ -278,12 +272,9 @@ export function BoosterPackModal() {
     >
       {/* Fond presque opaque (aucun flou : trop coûteux), lueur (appât, puis meilleure carte), vignette très sombre. */}
       <div data-booster-backdrop aria-hidden className="absolute inset-0 bg-[#050507]/95">
-        <div
-          className="absolute inset-0 transition-[background] duration-700"
-          style={{
-            background: `radial-gradient(closest-side at 50% 48%, color-mix(in oklab, ${tone} 32%, transparent), transparent 75%)`,
-          }}
-        />
+        <ToneGlow tone={tone} />
+        {/* Thème saisonnier : ce plein écran recouvre le décor de l’app, il porte le sien. */}
+        <SeasonalOverlay />
         <div
           className="absolute inset-0"
           style={{
@@ -291,7 +282,6 @@ export function BoosterPackModal() {
           }}
         />
       </div>
-      <ParticleBurst burst={burst} />
 
       <div className="relative z-[2] flex items-center justify-between gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <span className="inline-flex items-center gap-2">
@@ -307,7 +297,7 @@ export function BoosterPackModal() {
           {boosters.unlimited && <SandboxChip />}
           {legendary && (
             <span className="rounded-full border border-[#ffd27a]/50 bg-[#ffc46b]/15 px-2.5 py-1.5 text-[10px] font-semibold tracking-[0.14em] whitespace-nowrap text-[#ffd27a] uppercase">
-              {t.boosters.legendaryPack}
+              {purchase ? t.boosters.boughtLegendaryPack : t.boosters.legendaryPack}
             </span>
           )}
           <SfxVolume />
@@ -326,7 +316,6 @@ export function BoosterPackModal() {
 
       {/* Pendant le suspens et la déchirure, rien ne doit rogner la bande qui s'envole ni l'éclair : pas de défilement. */}
       <div
-        data-shake
         className={`relative z-[2] flex min-h-0 flex-1 flex-col items-center justify-center-safe gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${stage === 'reveal' || stage === 'done' || stage === 'error' ? 'overflow-x-hidden overflow-y-auto' : 'overflow-visible'}`}
       >
         {stage === 'choose' && <SeriesPicker width={Math.min(150, Math.round((viewport.width - 32) / LIVE_SERIES.length) - 14)} onPick={pick} />}
@@ -360,7 +349,6 @@ export function BoosterPackModal() {
               ready={stage !== 'summoning'}
               torn={stage === 'tearing'}
               onTear={tear}
-              onSparks={sparks}
               onTorn={(emerged) => {
                 setOrigins(emerged)
                 setStage('reveal')
@@ -378,9 +366,8 @@ export function BoosterPackModal() {
             key={round}
             cards={cards}
             layout={revealLayout(viewport, cards.length, CARD_RATIO)}
+            deckWidth={deckCardWidth(viewport, CARD_RATIO)}
             onAllRevealed={() => setStage('done')}
-            onBurst={setBurst}
-            onShake={shake}
             onInspect={setInspected}
             selection={sharing && { picked: sharing, toggle: toggleShared }}
             origins={origins}
@@ -449,6 +436,31 @@ export function BoosterPackModal() {
   )
 }
 
+/**
+ * Lueur du fond, à la couleur de l'appât puis de la meilleure carte. Une nouvelle teinte se
+ * fond sur l'ancienne, en opacité : animer le `background` d'un calque plein écran le
+ * repeignait à chaque image pendant 0,7 s.
+ */
+function ToneGlow({ tone }: { tone: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [tones, setTones] = useState<{ current: string; previous: string | null }>({ current: tone, previous: null })
+  if (tones.current !== tone) setTones({ current: tone, previous: tones.current })
+  useGSAP(
+    () => {
+      if (tones.previous === null) return
+      gsap.fromTo('[data-tone-current]', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.7, ease: 'sine.inOut' })
+    },
+    { scope: ref, dependencies: [tones.current] },
+  )
+  const glow = (color: string) => `radial-gradient(closest-side at 50% 48%, color-mix(in oklab, ${color} 32%, transparent), transparent 75%)`
+  return (
+    <div ref={ref} className="absolute inset-0">
+      {tones.previous !== null && <div className="absolute inset-0" style={{ background: glow(tones.previous) }} />}
+      <div key={tones.current} data-tone-current className="absolute inset-0" style={{ background: glow(tones.current), willChange: 'opacity' }} />
+    </div>
+  )
+}
+
 /** Choix du booster : les deux séries, chacune dans son paquet, et la roulette. */
 function SeriesPicker({ width, onPick }: { width: number; onPick: (choice: SeriesChoice) => void }) {
   const t = useT()
@@ -501,8 +513,7 @@ function SeriesPicker({ width, onPick }: { width: number; onPick: (choice: Serie
         type="button"
         data-pick-roulette
         onClick={() => onPick('random')}
-        className="inline-flex items-center gap-2.5 rounded-full px-6 py-3 text-sm font-bold text-[#2a1a02] shadow-[0_0_28px_rgba(255,196,107,0.45)] transition-transform active:scale-95"
-        style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' }}
+        className="btn-cta inline-flex items-center gap-2.5 rounded-full px-6 py-3 text-sm font-bold transition-transform active:scale-95"
       >
         <Dices size={18} aria-hidden />
         <span className="flex flex-col items-start leading-tight">
@@ -621,10 +632,9 @@ function PackCount({ max, available, series, width, onPick }: { max: number; ava
         type="button"
         data-count-item
         onClick={() => onPick(count)}
-        className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-[#2a1a02] shadow-[0_0_28px_rgba(255,196,107,0.55)] transition-transform active:scale-95"
-        style={{ background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)' }}
+        className="btn-cta inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold transition-transform active:scale-95"
       >
-        <Zap size={15} className="fill-[#2a1a02]" aria-hidden />
+        <Zap size={15} className="fill-current" aria-hidden />
         {t.boosters.count.open(count)}
       </button>
     </div>
@@ -704,10 +714,7 @@ function DoneActions({
         <button
           type="button"
           onClick={onSignUp}
-          className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-[#2a1a02] shadow-[0_0_28px_rgba(255,196,107,0.55)]"
-          style={{
-            background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)',
-          }}
+          className="btn-cta inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold"
         >
           <Gift size={15} />
           {t.activities.guest.cta}
@@ -717,12 +724,9 @@ function DoneActions({
         <button
           type="button"
           onClick={onAgain}
-          className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-[#2a1a02] shadow-[0_0_28px_rgba(255,196,107,0.55)]"
-          style={{
-            background: 'linear-gradient(135deg, #fff0b0, #e0a82e 55%, #c8901c)',
-          }}
+          className="btn-cta inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold"
         >
-          <Zap size={15} className="fill-[#2a1a02]" />
+          <Zap size={15} className="fill-current" />
           {t.boosters.again}
         </button>
       )}

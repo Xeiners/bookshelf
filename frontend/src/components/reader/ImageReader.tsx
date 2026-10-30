@@ -200,7 +200,7 @@ export function ImageReader(props: ImageReaderProps) {
         // Sous la barre du haut quand elle est affichée, jamais dessous.
         <span
           style={{ top: ui.controls ? 'calc(env(safe-area-inset-top) + 4.75rem)' : 'max(0.75rem, env(safe-area-inset-top))' }}
-          className="pointer-events-none absolute right-3 z-30 inline-flex transition-[top] duration-200 ease-out items-center gap-1.5 rounded-full border border-white/10 bg-black/60 px-2.5 py-1 text-[10px] font-medium tracking-wide text-cream/80 backdrop-blur"
+          className="pointer-events-none absolute right-3 z-30 inline-flex transition-[top] duration-200 ease-out items-center gap-1.5 rounded-full border border-white/10 bg-black/60 px-2.5 py-1 text-[10px] font-medium tracking-wide text-cream/80"
         >
           <CloudOff size={11} aria-hidden />
           {badge}

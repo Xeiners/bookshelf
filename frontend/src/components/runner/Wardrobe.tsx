@@ -157,7 +157,7 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
           <div aria-hidden className="absolute inset-x-0 bottom-0 h-20" style={{ background: 'radial-gradient(60% 100% at 50% 100%, rgba(255,255,255,0.35), transparent 70%)' }} />
           {!box && assets && <HeroPreview look="adventurer" assets={assets} outfit={shown} close className="absolute inset-0" />}
           {/* Progression de la collection. */}
-          <div className="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 backdrop-blur-sm">
+          <div className="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5">
             <span className="relative h-1.5 w-20 overflow-hidden rounded-full bg-white/15">
               <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(ownedCount / WARDROBE_ITEMS.length) * 100}%`, background: 'linear-gradient(90deg, #ffd35c, #ff6fb5)' }} />
             </span>
@@ -169,7 +169,7 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
             <button
               type="button"
               onClick={() => setTrying(null)}
-              className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs font-semibold text-cream backdrop-blur-sm"
+              className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs font-semibold text-cream"
             >
               <Lock size={13} aria-hidden />
               {t.runner.wardrobe.lockedHint}
@@ -185,9 +185,9 @@ export function Wardrobe({ assets, onClose, openBox = false }: { assets: RunnerA
               <span className="absolute inset-1 rounded-2xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: `0 0 26px -2px ${freeReady ? '#ffd35c' : '#b05cff'}, inset 0 0 0 2px #ffc93c` }} />
               <span className="absolute inset-y-1 left-1/2 w-2.5 -translate-x-1/2 bg-[#ffc93c]" />
               <span className="absolute inset-x-1 top-[38%] h-2.5 bg-[#ffc93c]" />
-              <span className="relative font-display text-2xl text-[#ffe9a8] drop-shadow-[0_0_6px_#ffb300]">?</span>
+              <span className="relative font-display text-2xl text-[#ffe9a8]">?</span>
               <span className="absolute inset-1 overflow-hidden rounded-2xl">
-                <span data-box-shine className="absolute inset-y-0 w-1/3 -skew-x-12 bg-white/35 blur-[2px]" />
+                <span data-box-shine className="absolute inset-y-0 w-1/3 -skew-x-12 bg-white/35" />
               </span>
               {freeReady && <span className="absolute -top-1 -right-1 size-3.5 animate-ping rounded-full bg-like" />}
             </span>

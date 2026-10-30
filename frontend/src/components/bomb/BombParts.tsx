@@ -69,7 +69,7 @@ export const WordInput = forwardRef<HTMLInputElement, WordInputProps>(function W
   }
   return (
     <div
-      className={`flex w-full items-center gap-2 rounded-2xl border bg-black/50 px-4 py-2 backdrop-blur transition-colors ${
+      className={`flex w-full items-center gap-2 rounded-2xl border bg-black/50 px-4 py-2  transition-colors ${
         error ? 'border-nope/70' : 'border-white/15 focus-within:border-glow/70'
       } ${disabled ? 'opacity-60' : ''}`}
     >

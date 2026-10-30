@@ -9,9 +9,8 @@ import { playChime, playDleMiss, playReveal } from '../../lib/sfx'
 import { dleApi, type DleMode, type SweepState } from '../../services/dleApi'
 import { dailyKey, useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from './DleBar'
-import { CATEGORY_STYLE, accentOf, modeLabel } from './dleStyle'
+import { CATEGORY_STYLE, modeLabel } from './dleStyle'
 import { ClassicBoard, VerdictLegend, WrongGuesses } from './GuessBoard'
 import { GuessInput } from './GuessInput'
 import { StardustBadge } from './StardustBadge'
@@ -39,7 +38,6 @@ export function DailyGame({ mode }: { mode: DleMode }) {
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [victory, setVictory] = useState<{ streak: number } | null>(null)
-  const [burst, setBurst] = useState<Burst | null>(null)
   /** Chiffon : la vitre telle que les derniers coups de chiffon l'ont laissée (en avance sur la vue). */
   const [sweepLocal, setSweepLocal] = useState<{ day: string; state: SweepState } | null>(null)
 
@@ -61,8 +59,6 @@ export function DailyGame({ mode }: { mode: DleMode }) {
         gsap.delayedCall(after, () => {
           vibrate([20, 40, 60])
           playReveal(answer.rarity ?? 'LEGENDARY')
-          const colors = [accentOf(answer), '#3fe0a0', '#ffc46b', '#ff5ec4', '#fff4c8']
-          setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.35, colors, count: 140, kind: 'confetti', spread: Math.PI * 2 })
         })
       } else if (last) {
         vibrate(8)
@@ -164,7 +160,6 @@ export function DailyGame({ mode }: { mode: DleMode }) {
         )}
       </div>
       </div>
-      <ParticleBurst burst={burst} />
     </div>
   )
 }

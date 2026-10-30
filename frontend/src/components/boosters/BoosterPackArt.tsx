@@ -102,6 +102,16 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
   const [hero, ...mosaic] = covers
   // Douze tuiles pour la mosaïque : les couvertures, répétées s'il en manque.
   const tiles = mosaic.length > 0 ? Array.from({ length: 12 }, (_, index) => mosaic[index % mosaic.length] as string) : []
+  /** Liseré, lueur et ombre portée autour du paquet (débordent de son cadre). */
+  const outerShadow = lit
+    ? `0 0 0 1px ${gild}d9, 0 0 22px ${style?.glow ?? 'rgba(255,196,107,0.55)'}, 0 30px 60px -22px rgba(0,0,0,0.9)`
+    : '0 0 0 1px rgba(255,255,255,0.18), 0 30px 60px -22px rgba(0,0,0,0.9)'
+  /*
+   * Paquet découpé en morceaux (ouverture) : la lueur extérieure part dans le calque `aura`,
+   * jamais rogné. Dessinée sur chaque morceau, elle était tranchée net par la découpe :
+   * une fine ligne lumineuse restait visible le long du bord droit.
+   */
+  const split = layer !== 'full'
 
   return (
     <div className="relative" style={{ width, height }}>
@@ -131,6 +141,7 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
           }}
         />
       )}
+      {aura && split && <div data-pack-outline aria-hidden className="pointer-events-none absolute inset-0 rounded-[14px]" style={{ boxShadow: outerShadow }} />}
 
       {/* Corps : feuille d'aluminium holographique. */}
       {pack && (
@@ -139,9 +150,7 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
             className="absolute inset-0 overflow-hidden rounded-[14px]"
             style={{
               background: style?.foil ?? GENERIC_FOIL,
-              boxShadow: lit
-                ? `0 0 0 1px ${gild}d9, 0 0 22px ${style?.glow ?? 'rgba(255,196,107,0.55)'}, 0 30px 60px -22px rgba(0,0,0,0.9)`
-                : '0 0 0 1px rgba(255,255,255,0.18), 0 30px 60px -22px rgba(0,0,0,0.9)',
+              boxShadow: split ? undefined : outerShadow,
               filter: dim ? 'grayscale(0.85) brightness(0.55)' : undefined,
             } as CSSProperties}
           >

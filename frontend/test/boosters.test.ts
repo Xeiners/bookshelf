@@ -16,6 +16,8 @@ import {
   type CollectionCard,
   type Rarity,
   revealLayout,
+  deckCardWidth,
+  deckOrder,
 } from '../src/lib/boosters'
 
 describe('boosters — minuteur synchronisé sur le serveur', () => {
@@ -205,5 +207,32 @@ describe('révélation — disposition des 4 cartes', () => {
     // Ordinateur : les 24 cartes tiennent dans la hauteur de l'écran.
     const desk = revealLayout({ width: 1280, height: 800 }, 24, RATIO)
     assert.ok(Math.ceil(24 / desk.columns) * (desk.width * RATIO + desk.gap) <= 800 - 300)
+  })
+})
+
+describe('boosters — paquet de révélation', () => {
+  const RATIO = 88 / 63
+
+  it('la carte du paquet ne rapetisse pas avec le nombre de boosters', () => {
+    const phone = deckCardWidth({ width: 390, height: 844 }, RATIO)
+    assert.ok(phone >= 260, `téléphone : ${phone}`)
+    assert.ok(phone <= 390 - 96)
+  })
+
+  it('tient dans la hauteur des petits écrans, et plafonne sur ordinateur', () => {
+    for (const viewport of [
+      { width: 360, height: 760 },
+      { width: 390, height: 844 },
+      { width: 1440, height: 900 },
+    ]) {
+      const width = deckCardWidth(viewport, RATIO)
+      assert.ok(width <= 300)
+      assert.ok(width * RATIO + 360 <= viewport.height + 1, `${viewport.width}×${viewport.height} : ${width}`)
+    }
+  })
+
+  it('les plus rares passent en dernier, à rareté égale dans l’ordre du tirage', () => {
+    assert.deepEqual(deckOrder(['LEGENDARY', 'COMMON', 'RARE', 'COMMON', 'MYTHIC', 'EPIC']), [1, 3, 2, 5, 0, 4])
+    assert.deepEqual(deckOrder([]), [])
   })
 })

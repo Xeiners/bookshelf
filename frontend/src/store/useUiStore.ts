@@ -51,6 +51,9 @@ interface UiState {
   activity: ActivityScreen
   /** Rubrique affichée dans le hub ; gardée au retour d'un jeu ou d'un module. */
   activityTab: ActivityTab
+  /** Retour au hub depuis un module : la section où le replacer (puis `null`). */
+  hubReturnTo: ActivityTab | null
+  clearHubReturn: () => void
   /** Ouverture de booster en plein écran. */
   boosterOpen: boolean
   /** Feuille « Paramètres » (ouverte depuis le Profil). */
@@ -96,8 +99,16 @@ interface UiState {
   openBooster: (series?: SeriesChoice) => void
   /** Ouvre un pack Légendaire offert (même mise en scène qu'un booster). */
   openLegendaryPack: () => void
+  /** Achète et ouvre un Booster Légendaire de la boutique : le débit et le tirage partent à l'ouverture de la fenêtre. */
+  buyLegendaryPack: () => void
+  /** Développement : booster d'aperçu avec une Légendaire ou une Mythique (rien n'est tiré ni ajouté). */
+  openPreviewPack: (rarity: 'LEGENDARY' | 'MYTHIC') => void
+  /** Booster d'aperçu demandé ; `null` : un vrai booster. */
+  boosterPreview: 'LEGENDARY' | 'MYTHIC' | null
   /** La fenêtre des boosters ouvre un pack Légendaire offert. */
   boosterLegendary: boolean
+  /** …acheté à l'instant dans la boutique (sinon : un pack offert). */
+  boosterPurchase: boolean
   /** Série demandée à l'ouverture de la fenêtre ; `null` : à choisir. */
   boosterSeries: SeriesChoice | null
   closeBooster: () => void
@@ -137,9 +148,12 @@ export const useUiStore = create<UiState>((set) => ({
   novelsOpen: false,
   activity: 'hub',
   activityTab: 'cards',
+  hubReturnTo: null,
   boosterOpen: false,
   boosterSeries: null,
   boosterLegendary: false,
+  boosterPurchase: false,
+  boosterPreview: null,
   settingsOpen: false,
   profileEditorOpen: false,
   musicOpen: false,
@@ -167,10 +181,20 @@ export const useUiStore = create<UiState>((set) => ({
   closeNovels: () => set({ novelsOpen: false }),
   // Ouvrir un module place aussi le hub sur sa rubrique : le retour y ramène.
   openActivity: (activity, tab) =>
-    set((state) => ({ view: 'activities', activity, chromeCollapsed: false, activityTab: tab ?? (activity === 'hub' ? state.activityTab : TAB_OF[activity]) })),
+    set((state) => ({
+      view: 'activities',
+      activity,
+      chromeCollapsed: false,
+      activityTab: tab ?? (activity === 'hub' ? state.activityTab : TAB_OF[activity]),
+      // Retour au hub depuis un module : le hub se replace sur la section de ce module.
+      hubReturnTo: activity === 'hub' && state.activity !== 'hub' ? TAB_OF[state.activity] : null,
+    })),
+  clearHubReturn: () => set({ hubReturnTo: null }),
   setActivityTab: (activityTab) => set({ activityTab }),
-  openBooster: (series) => set({ boosterOpen: true, boosterSeries: series ?? null, boosterLegendary: false, detail: null }),
-  openLegendaryPack: () => set({ boosterOpen: true, boosterSeries: null, boosterLegendary: true, detail: null }),
+  openBooster: (series) => set({ boosterOpen: true, boosterSeries: series ?? null, boosterLegendary: false, boosterPurchase: false, boosterPreview: null, detail: null }),
+  openLegendaryPack: () => set({ boosterOpen: true, boosterSeries: null, boosterLegendary: true, boosterPurchase: false, boosterPreview: null, detail: null }),
+  buyLegendaryPack: () => set({ boosterOpen: true, boosterSeries: null, boosterLegendary: true, boosterPurchase: true, boosterPreview: null, detail: null }),
+  openPreviewPack: (rarity) => set({ boosterOpen: true, boosterSeries: null, boosterLegendary: false, boosterPurchase: false, boosterPreview: rarity, detail: null }),
   closeBooster: () => set({ boosterOpen: false }),
   openSettings: () => set({ settingsOpen: true, profileEditorOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),

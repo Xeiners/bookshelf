@@ -9,11 +9,10 @@ import { playChime, playClockTick, playCountdown, playDleMiss, playReveal, playT
 import { dleApi, type GuessResult, type RoomGuess, type RoomPlayer, type RoomView, type SweepState } from '../../services/dleApi'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { ClassicBoard, VerdictLegend, WrongGuesses } from './GuessBoard'
 import { GuessInput } from './GuessInput'
 import { useNow } from '../../hooks/useNow'
-import { CATEGORY_STYLE, accentOf, modeLabel, playerName, verdictDot } from './dleStyle'
+import { CATEGORY_STYLE, modeLabel, playerName, verdictDot } from './dleStyle'
 import { PlayerAvatar } from './PlayerToken'
 import { PixelFrame } from './PixelFrame'
 import { SweepFrame } from './SweepFrame'
@@ -42,7 +41,6 @@ export function RoomPlay({ room }: { room: RoomView }) {
   const notify = useUiStore((state) => state.notify)
   const now = useNow(true, 200)
   const [armed, setArmed] = useState(false)
-  const [burst, setBurst] = useState<Burst | null>(null)
   /** Chiffon : la vitre telle que les derniers coups de chiffon l'ont laissée, pour cette manche. */
   const [sweepLocal, setSweepLocal] = useState<{ round: number; state: SweepState } | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
@@ -110,7 +108,6 @@ export function RoomPlay({ room }: { room: RoomView }) {
         gsap.delayedCall(after, () => {
           vibrate([20, 40, 60])
           playReveal(last.work.rarity ?? 'LEGENDARY')
-          setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.4, colors: [accentOf(last.work), '#3fe0a0', '#ffc46b', '#fff4c8'], count: 110, kind: 'sparks', spread: Math.PI * 2 })
         })
       } else {
         vibrate(8)
@@ -257,7 +254,6 @@ export function RoomPlay({ room }: { room: RoomView }) {
       </div>
 
       {rawStart > -900 && <CountdownOverlay msLeft={rawStart} />}
-      <ParticleBurst burst={burst} />
     </div>
   )
 }

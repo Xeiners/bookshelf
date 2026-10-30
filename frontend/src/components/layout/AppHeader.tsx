@@ -12,6 +12,7 @@ import { LibraryMenu } from './LibraryMenu'
 import { useCollapse } from '../../hooks/useCollapse'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { useAuthStore } from '../../store/useAuthStore'
+import { SeasonalTitleMark } from './SeasonalDecor'
 
 interface AppHeaderProps {
   view: ViewId
@@ -72,6 +73,7 @@ export function AppHeader({ view }: AppHeaderProps) {
             className="text-[10px] tracking-[0.3em] text-mist uppercase md:text-[11px]"
           >
             {copy.eyebrow}
+            <SeasonalTitleMark />
           </p>
           <h1
             data-header-line

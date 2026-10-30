@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, Gift, Send, Sparkles } from 'lucide-react'
 import { useT } from '../../i18n'
 import type { BoxKind } from '../../lib/runner/wardrobe'
@@ -12,11 +12,14 @@ import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
 import { useUiStore } from '../../store/useUiStore'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { BuyBoostersSheet } from '../boosters/BuyBoostersSheet'
+import { BuyLegendarySheet } from '../boosters/BuyLegendarySheet'
+import { LEGENDARY_PACK_PRICE } from '../../lib/boosters'
 
 /*
- * La boutique, sous l'autel des boosters : deux bannières pour dépenser ses Poussières sans
- * quitter les activités. La première achète de 1 à 6 boosters, rangés dans la réserve ; la seconde ouvre une boîte mystère de la garde-robe du Manga Runner — la
- * gratuite du jour, ou une payée — directement ici.
+ * La boutique, sous l'autel des boosters : dépenser ses Poussières sans quitter les activités.
+ * En vitrine, deux boosters côte à côte — le classique (de 1 à 6, rangés dans la réserve) et le
+ * Légendaire (acheté et ouvert d'un coup) — puis la boîte mystère de la garde-robe du Manga
+ * Runner : la gratuite du jour, ou une payée, ouverte directement ici.
  */
 
 /** L'ouverture en 3D (Three.js, modèles) : chargée seulement quand on ouvre une boîte. */
@@ -51,6 +54,81 @@ function countdown(ms: number): string {
   return `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`
 }
 
+/**
+ * Un article de la vitrine : une scène (le paquet sur un halo de sa couleur), son nom, ce qu'il
+ * contient, et le prix en bas, comme un bouton. `prestige` : liseré et halo dorés.
+ */
+function ProductCard({
+  name,
+  detail,
+  tag,
+  tint,
+  art,
+  price,
+  promo,
+  now,
+  onClick,
+  prestige = false,
+}: {
+  name: string
+  detail: string
+  tag: string
+  tint: string
+  art: ReactNode
+  price: number | null
+  promo: Promotion | null
+  now: number
+  onClick: () => void
+  prestige?: boolean
+}) {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-haspopup="dialog"
+      className="group relative isolate flex min-w-0 flex-col overflow-hidden rounded-[1.4rem] border text-left transition-transform duration-200 active:scale-[0.97]"
+      style={{
+        borderColor: prestige ? `${tint}80` : 'rgba(255,255,255,0.09)',
+        background: `linear-gradient(180deg, ${tint}${prestige ? '24' : '14'} 0%, #100d17 55%, #0b0a10 100%)`,
+        boxShadow: prestige ? `0 0 34px -16px ${tint}` : undefined,
+      }}
+    >
+      {/* Scène : le paquet qui flotte sur un halo. */}
+      <span aria-hidden className="relative grid h-[7.25rem] place-items-center">
+        <span className="absolute size-28 rounded-full" style={{ background: `radial-gradient(closest-side, ${tint}${prestige ? '55' : '3a'}, transparent)` }} />
+        <span data-shop-bob className="relative will-change-transform" style={{ transform: 'rotate(-7deg)' }}>
+          {art}
+        </span>
+        <span
+          className="absolute top-2.5 left-2.5 rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.16em] uppercase"
+          style={{ borderColor: `${tint}55`, background: 'rgba(0,0,0,0.45)', color: tint }}
+        >
+          {tag}
+        </span>
+        {promo && (
+          <span className="absolute top-2.5 right-2.5 rounded-full bg-[#ff4d6d] px-1.5 py-0.5 text-[9px] font-black text-white">
+            −{Math.round((1 - promo.price / promo.regular) * 100)} %
+          </span>
+        )}
+      </span>
+
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 pb-3">
+        <span className="truncate font-display text-[17px] leading-tight text-cream">{name}</span>
+        <span className="line-clamp-2 min-h-[2.4em] text-[11px] leading-[1.2] text-cream/55">{detail}</span>
+        <span
+          className="mt-2 flex h-10 items-center justify-center gap-1.5 rounded-full text-sm font-bold tabular-nums transition-[filter] group-hover:brightness-110"
+          style={prestige ? { background: 'linear-gradient(135deg, #fff0a8, #ffc23a 55%, #ff9a3d)', color: '#2a1404' } : { background: 'rgba(255,255,255,0.08)', color: '#f7f5f0' }}
+        >
+          {promo && <span className="text-[11px] font-semibold line-through opacity-55">{promo.regular}</span>}
+          {price === null ? '…' : price.toLocaleString()} ✦
+        </span>
+        {promo && <span className="mt-1 text-center text-[9px] font-semibold tracking-wide text-[#ff8fa3] tabular-nums">{t.activities.shop.promoEnds(countdown(Date.parse(promo.endsAt) - now))}</span>}
+      </span>
+    </button>
+  )
+}
+
 export function ShopBanners() {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
@@ -63,6 +141,8 @@ export function ShopBanners() {
   const [open, setOpen] = useState<'box' | null>(null)
   /** Feuille d'achat des boosters ouverte. */
   const [buying, setBuying] = useState(false)
+  /** Feuille du Booster Légendaire ouverte. */
+  const [buyingLegendary, setBuyingLegendary] = useState(false)
   const [box, setBox] = useState<{ kind: BoxKind; key: number } | null>(null)
   const [gifting, setGifting] = useState(false)
   const [now, setNow] = useState(() => Date.now())
@@ -82,7 +162,6 @@ export function ShopBanners() {
   useGSAP(
     () => {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.fromTo('[data-shop-shine]', { xPercent: -180 }, { xPercent: 320, duration: 1.8, ease: 'power2.inOut', repeat: -1, repeatDelay: 2.4, stagger: 1.1 })
       gsap.to('[data-shop-bob]', { y: -3, rotation: -4, duration: 0.9, ease: 'sine.inOut', repeat: -1, yoyo: true, stagger: 0.4 })
     },
     { scope: ref },
@@ -113,6 +192,19 @@ export function ShopBanners() {
     setBuying(true)
   }
 
+  const buyLegendary = () => {
+    vibrate(8)
+    if (!signedIn) {
+      openAuth()
+      return
+    }
+    if (balance < LEGENDARY_PACK_PRICE) {
+      notify(t.activities.shop.short(LEGENDARY_PACK_PRICE - balance), 'nope')
+      return
+    }
+    setBuyingLegendary(true)
+  }
+
   const toggle = (which: 'box') => {
     vibrate(8)
     if (!signedIn) {
@@ -134,37 +226,60 @@ export function ShopBanners() {
 
   return (
     <div ref={ref} className="flex shrink-0 flex-col gap-3">
-      {/* Booster contre des Poussières. */}
-      <section className="overflow-hidden rounded-[1.5rem] border border-[#ffc46b]/35" style={{ background: 'linear-gradient(110deg, #2a1a08 0%, #1a1020 55%, #2a0f22 100%)' }}>
-        <button type="button" onClick={buyBoosters} aria-haspopup="dialog" className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left sm:gap-4 sm:p-4">
-          <span data-shop-shine aria-hidden className="pointer-events-none absolute inset-y-0 w-16 -skew-x-12 bg-white/10 blur-sm" />
-          <span data-shop-bob className="relative -my-2 shrink-0 will-change-transform" style={{ transform: 'rotate(-8deg)' }}>
-            <BoosterPackArt width={46} series={3} lit />
+      {/* En-tête : la boutique et le solde, pour savoir d'un coup d'œil ce qu'on peut s'offrir. */}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h3 className="font-display text-xl leading-none text-cream">{t.activities.shop.title}</h3>
+        {signedIn && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-[#ffe39a]/25 bg-black/40 px-2.5 py-1 text-xs font-bold text-[#fff4c8] tabular-nums"
+            aria-label={t.activities.shop.balance(balance)}
+          >
+            {balance.toLocaleString()} <span className="text-gold">✦</span>
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[10px] font-semibold tracking-[0.2em] text-[#ffc46b]/80 uppercase">{t.activities.shop.eyebrow}</span>
-            <span className="block font-display text-lg leading-tight text-cream sm:text-xl">{t.activities.shop.boosterTitle}</span>
-            <span className="hidden text-xs text-cream/60 sm:block">{t.activities.shop.boosterBody}</span>
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            <PricePill price={boosterPrice} promo={boosterPromo} now={now} style={{ background: 'linear-gradient(135deg, #fff0a8, #ffc23a)' }} className="text-[#1a0b1f]" />
-          </span>
-        </button>
-        {buying && boosterPrice !== null && <BuyBoostersSheet price={boosterPrice} balance={balance} onClose={() => setBuying(false)} />}
-      </section>
+        )}
+      </div>
+
+      {/* Les boosters, en vitrine : le classique (de 1 à 6, dans la réserve) et le Légendaire (acheté et ouvert d'un coup). */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <ProductCard
+          name={t.activities.shop.boosterName}
+          detail={t.activities.shop.boosterShort}
+          tag={t.activities.shop.boosterTag}
+          tint="#9b8cff"
+          art={<BoosterPackArt width={54} series={3} lit />}
+          price={boosterPrice}
+          promo={boosterPromo}
+          now={now}
+          onClick={buyBoosters}
+        />
+        <ProductCard
+          name={t.activities.shop.legendaryTitle}
+          detail={t.activities.shop.legendaryShort}
+          tag={t.activities.shop.legendaryTag}
+          tint="#ffc46b"
+          art={<BoosterPackArt width={54} series={3} lit halo="LEGENDARY" />}
+          price={LEGENDARY_PACK_PRICE}
+          promo={null}
+          now={now}
+          onClick={buyLegendary}
+          prestige
+        />
+      </div>
+      {buying && boosterPrice !== null && <BuyBoostersSheet price={boosterPrice} balance={balance} onClose={() => setBuying(false)} />}
+      {buyingLegendary && <BuyLegendarySheet balance={balance} onClose={() => setBuyingLegendary(false)} />}
 
       {/* Boîte mystère de la garde-robe. */}
       <section
-        className="overflow-hidden rounded-[1.5rem] border"
-        style={{ borderColor: glowing ? '#ffd35c99' : '#b05cff55', background: 'linear-gradient(110deg, #2a1150 0%, #160a33 55%, #2d1238 100%)', boxShadow: glowing ? '0 0 30px -10px #ffc23a' : undefined }}
+        className="overflow-hidden rounded-[1.4rem] border"
+        // Même surface sombre que la vitrine des boosters, teintée du violet de la garde-robe.
+        style={{ borderColor: glowing ? '#ffd35c99' : 'rgba(255,255,255,0.09)', background: 'linear-gradient(110deg, #b05cff26 0%, #100d17 55%, #0b0a10 100%)', boxShadow: glowing ? '0 0 30px -12px #ffc23a' : undefined }}
       >
         <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left sm:gap-4 sm:p-4">
-          <span data-shop-shine aria-hidden className="pointer-events-none absolute inset-y-0 w-16 -skew-x-12 bg-white/10 blur-sm" />
           <span data-shop-bob aria-hidden className="relative grid size-12 shrink-0 place-items-center will-change-transform">
             <span className="absolute inset-0 rounded-xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: `0 0 18px -2px ${glowing ? '#ffd35c' : '#b05cff'}, inset 0 0 0 2px #ffc93c` }} />
             <span className="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 bg-[#ffc93c]" />
             <span className="absolute inset-x-0 top-[38%] h-2 bg-[#ffc93c]" />
-            <span className="relative font-display text-xl text-[#ffe9a8] drop-shadow-[0_0_6px_#ffb300]">?</span>
+            <span className="relative font-display text-xl text-[#ffe9a8]">?</span>
             {glowing && <span className="absolute -top-1 -right-1 size-3 animate-ping rounded-full bg-like" />}
           </span>
           <span className="min-w-0 flex-1">

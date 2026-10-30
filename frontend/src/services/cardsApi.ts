@@ -82,6 +82,8 @@ export const cardsApi = {
     api<{ cards: PulledCard[]; status: BoosterStatus; series: CardSeries; packs: number }>('/boosters/open', { method: 'POST', body: { series, packs } }),
   /** Ouvre un pack Légendaire offert. 409 `no_legendary_pack` s'il n'en reste pas. */
   openLegendary: () => api<{ cards: PulledCard[]; status: BoosterStatus; series: CardSeries }>('/boosters/legendary/open', { method: 'POST' }),
+  /** Achète et ouvre un Booster Légendaire (5000 ✦). 409 `not_enough_stardust` si le solde ne suffit pas. */
+  buyLegendary: () => api<{ cards: PulledCard[]; status: BoosterStatus; series: CardSeries; balance: number; price: number }>('/stardust/legendary-pack', { method: 'POST' }),
   /** Les séries et leurs couvertures (illustration des boosters). */
   series: () => api<{ series: SeriesShowcase[] }>('/boosters/series'),
   collection: (signal?: AbortSignal) => api<Collection>('/cards/collection', { signal }),

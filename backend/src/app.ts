@@ -28,6 +28,8 @@ import { higherLowerRouter } from './modules/higherlower/hl.routes.js'
 import { bombRouter, warmBombDictionary } from './modules/bomb/bomb.routes.js'
 import { runnerRouter } from './modules/runner/runner.routes.js'
 import { promotionsRouter } from './modules/promotions/promotions.routes.js'
+import { themeRouter } from './modules/theme/theme.routes.js'
+import { eventsRouter } from './modules/events/events.routes.js'
 import { dailyRouter } from './modules/daily/daily.routes.js'
 import { stackRouter } from './modules/stack/stack.routes.js'
 import { rewardsRouter } from './modules/rewards/rewards.routes.js'
@@ -78,6 +80,8 @@ export function createApp() {
   app.use('/api/dle', dleRouter)
   app.use('/api/stardust', stardustRouter)
   app.use('/api/promotions', promotionsRouter)
+  app.use('/api/theme', themeRouter)
+  app.use('/api/events', eventsRouter)
   app.use('/api/rewards', rewardsRouter)
   app.use('/api/daily', dailyRouter)
   app.use('/api/stack', stackRouter)

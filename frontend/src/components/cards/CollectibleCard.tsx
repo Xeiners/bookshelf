@@ -3,7 +3,8 @@ import { Lock } from 'lucide-react'
 import { useHoloTilt } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
 import { RARITY_STYLE, type Rarity } from '../../lib/boosters'
-import { CARD_FRAMES, IRIDESCENT, SPARKLES } from './cardFrames'
+import { CARD_FRAMES } from './cardFrames'
+import { LegendaryCard, MythicCard } from './PremiumCard'
 
 /** Format d'une carte à collectionner (63 × 88 mm). */
 export const CARD_RATIO = 88 / 63
@@ -20,12 +21,12 @@ export interface CardFace {
 }
 
 /**
- * Cartes de personnages : de la Commune au cadre classique à la Mythique pleine image.
+ * Cartes de personnages, de la Commune au cadre classique à l'Épique pleine image.
  * 1 : l'illustration remplit tout l'intérieur du cadre, le texte passe dessus.
- * 2 : pleine image bord à bord, foil gravé. 3 : liseré et nom dorés, étincelles.
- * 4 : foil arc-en-ciel mouvant sur toute l'illustration, liseré iridescent.
+ * 2 : pleine image bord à bord, foil gravé.
+ * Légendaire et Mythique ont leur propre carte, toutes séries confondues (cf. `PremiumCard`).
  */
-const FULL_ART_LEVEL: Record<Rarity, number> = { COMMON: 0, RARE: 1, EPIC: 2, LEGENDARY: 3, MYTHIC: 4 }
+const FULL_ART_LEVEL: Record<Rarity, number> = { COMMON: 0, RARE: 1, EPIC: 2, LEGENDARY: 0, MYTHIC: 0 }
 
 /** Foil gravé des pleines images : fines lignes qui s'allument à l'inclinaison. */
 const ETCHED_LAYER: CSSProperties = {
@@ -33,21 +34,10 @@ const ETCHED_LAYER: CSSProperties = {
   mixBlendMode: 'overlay',
 }
 
-/** Foil arc-en-ciel de la Mythique : toute l'illustration chatoie, plus fort sous le doigt. */
-const RAINBOW_FOIL: CSSProperties = {
-  background:
-    'linear-gradient(125deg, rgba(255,94,196,0.55), rgba(255,196,107,0.5) 20%, rgba(63,224,160,0.5) 40%, rgba(76,201,240,0.55) 60%, rgba(180,108,255,0.55) 80%, rgba(255,94,196,0.55))',
-  backgroundSize: '300% 300%',
-  backgroundPosition: 'var(--mx, 50%) var(--my, 50%)',
-  mixBlendMode: 'color',
-}
-
 /** Couleur du nom et du liseré, par niveau de pleine image. */
 const FULL_ART_ACCENT: Record<number, { ring: string; name: string; glow: string }> = {
   1: { ring: 'transparent', name: '#f7f5f0', glow: '0 2px 10px rgba(0,0,0,0.85)' },
   2: { ring: 'rgba(214,147,255,0.9)', name: '#f7f5f0', glow: '0 2px 10px rgba(0,0,0,0.85), 0 0 16px rgba(180,108,255,0.55)' },
-  3: { ring: '#ffe39a', name: '#ffe7a3', glow: '0 2px 10px rgba(0,0,0,0.9), 0 0 14px rgba(255,196,107,0.65)' },
-  4: { ring: '#ffffff', name: '#ffffff', glow: '0 2px 10px rgba(0,0,0,0.9), 0 0 14px rgba(255,94,196,0.7), 0 0 26px rgba(76,201,240,0.55)' },
 }
 
 interface CollectibleCardProps {
@@ -119,6 +109,8 @@ export function CollectibleCard({
   const compact = width < 150
   /** Pleine image (cartes de personnages possédées) : 0 = cadre classique. */
   const level = owned && card.characterName ? FULL_ART_LEVEL[card.rarity] : 0
+  /** Légendaire et Mythique possédées : leur propre carte (relique dorée, prisme céleste). */
+  const premium = owned && (card.rarity === 'LEGENDARY' || card.rarity === 'MYTHIC')
   const subtitle = card.characterName ? card.mangaTitle : undefined
   const pill = (
     <span
@@ -146,9 +138,9 @@ export function CollectibleCard({
         width,
         height,
         // Transform 3D (calque GPU) seulement si la carte s'incline : 300 calques pour rien faisaient ramer l'album.
+        // Pas de transition CSS : `useHoloTilt` lisse déjà le mouvement à chaque image (un second amortissement le rendait mou et en retard).
         ...(interactive && owned && {
           transform: 'perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))',
-          transition: 'transform 0.18s ease-out',
         }),
       }}
     >
@@ -162,8 +154,14 @@ export function CollectibleCard({
         />
       )}
 
-      {level > 0 ? (
-        <FullArt card={card} level={level} radius={radius} border={border} font={font} frame={frame} fx={fx} lazy={lazy} pill={pill} numberLabel={numberLabel} />
+      {premium ? (
+        card.rarity === 'MYTHIC' ? (
+          <MythicCard card={card} width={width} border={border} font={font} fx={fx} lazy={lazy} pill={pill} numberLabel={numberLabel} />
+        ) : (
+          <LegendaryCard card={card} width={width} border={border} font={font} fx={fx} lazy={lazy} pill={pill} numberLabel={numberLabel} />
+        )
+      ) : level > 0 ? (
+        <FullArt card={card} level={level} radius={radius} border={border} font={font} frame={frame} lazy={lazy} pill={pill} numberLabel={numberLabel} />
       ) : (
         <>
         {/* Cadre en métal, biseauté. */}
@@ -171,23 +169,10 @@ export function CollectibleCard({
           aria-hidden
           className={`absolute inset-0 overflow-hidden ${radius}`}
           style={{
-            background: owned ? (frame.iridescent ? '#1b1030' : frame.metal) : '#1c1b25',
+            background: owned ? frame.metal : '#1c1b25',
             boxShadow: owned ? `${BEVEL}, 0 14px 30px -14px rgba(0,0,0,0.9)` : BEVEL,
           }}
         >
-          {owned && frame.iridescent && (
-            <div
-              data-card-fx
-              className="absolute top-1/2 left-1/2 aspect-square w-[180%] -translate-x-1/2 -translate-y-1/2"
-              style={{ background: IRIDESCENT, animation: fx ? 'card-iridescent 6s linear infinite' : undefined }}
-            />
-          )}
-          {owned && frame.chiseled && (
-            <div
-              className="absolute inset-0 opacity-60 mix-blend-overlay"
-              style={{ background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0 1px, transparent 1px 4px)' }}
-            />
-          )}
           {owned && frame.gloss && (
             <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.6), transparent 38%)' }} />
           )}
@@ -245,31 +230,8 @@ export function CollectibleCard({
         </>
       )}
 
-      {/* Étincelles sur l'or (Légendaire), et sur la Mythique pleine image. */}
-      {fx &&
-        (frame.sparkles || level >= 4) &&
-        SPARKLES.map((sparkle) => (
-          <span
-            key={`${sparkle.left}-${sparkle.top}`}
-            aria-hidden
-            data-card-fx
-            className="pointer-events-none absolute"
-            style={{
-              left: `${sparkle.left}%`,
-              top: `${sparkle.top}%`,
-              width: Math.max(6, width * 0.06),
-              height: Math.max(6, width * 0.06),
-              marginLeft: -Math.max(3, width * 0.03),
-              background: 'radial-gradient(circle, #fff 0%, #ffe39a 30%, transparent 70%)',
-              clipPath: 'polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%)',
-              animation: `card-twinkle 2.4s ease-in-out ${sparkle.delay}s infinite`,
-              opacity: 0,
-            }}
-          />
-        ))}
-
-      {/* Reflets holographiques : discrets au repos, vifs sous le doigt ou à l'inclinaison. */}
-      {holo && (
+      {/* Reflets holographiques (Épique) : discrets au repos, vifs sous le doigt ou à l'inclinaison. Les grandes ont les leurs. */}
+      {holo && !premium && (
         <>
           <div aria-hidden className={`pointer-events-none absolute inset-0 ${radius}`} style={{ ...HOLO_LAYER, opacity: 'calc(0.12 + var(--holo, 0) * 0.36)' }} />
           <div aria-hidden className={`pointer-events-none absolute inset-0 ${radius}`} style={{ ...GLARE_LAYER, opacity: 'var(--holo, 0)' }} />
@@ -288,19 +250,17 @@ interface FullArtProps {
   border: number
   font: number
   frame: (typeof CARD_FRAMES)[Rarity]
-  fx: boolean
   lazy: boolean
   pill: ReactNode
   numberLabel: string
 }
 
 /**
- * Carte de personnage pleine image (Rare et au-delà) : l'illustration déborde du cadre
- * (Rare : tout l'intérieur ; Épique et plus : bord à bord), le nom et l'œuvre passent
- * dessus sur un voile sombre, et les finitions montent avec la rareté (foil gravé,
- * liseré doré, foil arc-en-ciel).
+ * Carte de personnage pleine image (Rare, Épique) : l'illustration déborde du cadre (Rare :
+ * tout l'intérieur ; Épique : bord à bord, foil gravé, liseré violet), le nom et l'œuvre
+ * passent dessus sur un voile sombre.
  */
-function FullArt({ card, level, radius, border, font, frame, fx, lazy, pill, numberLabel }: FullArtProps) {
+function FullArt({ card, level, radius, border, font, frame, lazy, pill, numberLabel }: FullArtProps) {
   const accent = FULL_ART_ACCENT[level] ?? FULL_ART_ACCENT[2]!
   const bleed = level >= 2
   const art = (
@@ -315,7 +275,7 @@ function FullArt({ card, level, radius, border, font, frame, fx, lazy, pill, num
   )
   const caption = (
     <div className="absolute inset-x-0 bottom-0 flex flex-col px-[8%] pt-[22%] pb-[7%]" style={{ fontSize: font, lineHeight: 1.1, background: 'linear-gradient(180deg, transparent, rgba(8,8,14,0.72) 38%, rgba(8,8,14,0.94))' }}>
-      <p className="line-clamp-2 font-display" style={{ fontSize: font * (level >= 3 ? 1.42 : 1.32), color: accent.name, textShadow: accent.glow, letterSpacing: '0.01em' }}>
+      <p className="line-clamp-2 font-display" style={{ fontSize: font * 1.32, color: accent.name, textShadow: accent.glow, letterSpacing: '0.01em' }}>
         {card.title}
       </p>
       {card.mangaTitle && (
@@ -350,24 +310,11 @@ function FullArt({ card, level, radius, border, font, frame, fx, lazy, pill, num
   return (
     <div className={`absolute inset-0 overflow-hidden bg-ink ${radius}`} style={{ boxShadow: `${BEVEL}, 0 14px 30px -14px rgba(0,0,0,0.9)` }}>
       {art}
-      {/* Mythique : foil arc-en-ciel sur toute l'illustration, qui suit le doigt. */}
-      {level >= 4 && (
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ ...RAINBOW_FOIL, opacity: 'calc(0.4 + var(--holo, 0) * 0.35)' }} />
-      )}
       {/* Foil gravé : s'allume à l'inclinaison. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0" style={{ ...ETCHED_LAYER, opacity: `calc(${level >= 3 ? 0.4 : 0.28} + var(--holo, 0) * 0.5)` }} />
-      {level === 3 && (
-        <div aria-hidden className="pointer-events-none absolute inset-0 mix-blend-soft-light" style={{ background: 'linear-gradient(160deg, rgba(255,214,120,0.45), transparent 45%, rgba(255,196,107,0.35))' }} />
-      )}
+      <div aria-hidden className="pointer-events-none absolute inset-0" style={{ ...ETCHED_LAYER, opacity: 'calc(0.28 + var(--holo, 0) * 0.5)' }} />
       {caption}
-      {/* Liseré intérieur : violet, or, ou iridescent qui tourne. */}
-      {level >= 4 ? (
-        <div aria-hidden className={`pointer-events-none absolute overflow-hidden ${radius}`} style={{ inset: Math.max(2, border * 0.45), padding: Math.max(1.5, border * 0.35), WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude' }}>
-          <div data-card-fx className="absolute top-1/2 left-1/2 aspect-square w-[180%] -translate-x-1/2 -translate-y-1/2" style={{ background: IRIDESCENT, animation: fx ? 'card-iridescent 6s linear infinite' : undefined }} />
-        </div>
-      ) : (
-        <div aria-hidden className={`pointer-events-none absolute ${radius}`} style={{ inset: Math.max(2, border * 0.45), boxShadow: `inset 0 0 0 ${Math.max(1.5, border * 0.35)}px ${accent.ring}, 0 0 10px ${accent.ring}` }} />
-      )}
+      {/* Liseré intérieur violet. */}
+      <div aria-hidden className={`pointer-events-none absolute ${radius}`} style={{ inset: Math.max(2, border * 0.45), boxShadow: `inset 0 0 0 ${Math.max(1.5, border * 0.35)}px ${accent.ring}, 0 0 10px ${accent.ring}` }} />
     </div>
   )
 }

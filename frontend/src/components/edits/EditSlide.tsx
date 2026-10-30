@@ -130,12 +130,12 @@ export function EditSlide({ item, index, active, playing, paused, failed, playba
       </button>
 
       {failed && (
-        <p className="absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 rounded-2xl bg-black/65 px-4 py-3 text-center text-sm text-cream/85 backdrop-blur">{t.edits.unavailable}</p>
+        <p className="absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 rounded-2xl bg-black/65 px-4 py-3 text-center text-sm text-cream/85">{t.edits.unavailable}</p>
       )}
 
       {/* Temps en grand pendant le glissé de la barre. */}
       {scrub && (
-        <p className="pointer-events-none absolute inset-x-0 bottom-44 z-30 text-center font-display text-3xl tabular-nums drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+        <p className="pointer-events-none absolute inset-x-0 bottom-44 z-30 text-center font-display text-3xl tabular-nums">
           {clock(scrub.ratio * scrub.duration)}
           <span className="text-cream/55"> / {clock(scrub.duration)}</span>
         </p>
@@ -148,11 +148,11 @@ export function EditSlide({ item, index, active, playing, paused, failed, playba
         <div className="flex items-end gap-3">
           <div className="min-w-0 flex-1">
             {item.universe && (
-              <span className="mb-2 inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase backdrop-blur">
+              <span className="mb-2 inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase">
                 {t.edits.universes[item.universe]}
               </span>
             )}
-            <p className="line-clamp-2 text-[15px] leading-snug font-semibold drop-shadow">{item.title}</p>
+            <p className="line-clamp-2 text-[15px] leading-snug font-semibold">{item.title}</p>
             {item.channel && <p className="mt-1 truncate text-xs text-cream/70">@{item.channel}</p>}
           </div>
           <a
@@ -161,7 +161,7 @@ export function EditSlide({ item, index, active, playing, paused, failed, playba
             rel="noopener noreferrer"
             aria-label={t.edits.youtube}
             title={t.edits.youtube}
-            className="pointer-events-auto grid size-11 shrink-0 place-items-center rounded-full bg-black/45 backdrop-blur active:scale-95"
+            className="pointer-events-auto grid size-11 shrink-0 place-items-center rounded-full bg-black/45 active:scale-95"
           >
             <ExternalLink size={18} />
           </a>

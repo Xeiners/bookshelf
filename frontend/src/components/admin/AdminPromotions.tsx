@@ -8,7 +8,7 @@ import { usePromotions } from '../../store/usePromotions'
 import { useUiStore } from '../../store/useUiStore'
 
 /** Prix habituels (cf. le serveur, qui fait foi) : pour proposer une baisse sensée. */
-const REGULAR: Record<PromotionTarget, number> = { booster: 340, box: 450 }
+const REGULAR: Record<PromotionTarget, number> = { booster: 150, box: 450 }
 const DURATIONS = [1, 6, 24, 48, 72, 168] as const
 
 /**

@@ -29,12 +29,12 @@ describe('Promotions', () => {
   it('un administrateur baisse le prix d’un booster : tout le monde est prévenu, l’achat débite le prix réduit', async () => {
     const chef = await account('Chef', 'promo-chef@example.com')
     const lea = await account('Lea')
-    assert.equal((await lea.request('POST', '/admin/promotions', { target: 'booster', price: 200, hours: 24 })).status, 404, 'réservé aux administrateurs')
+    assert.equal((await lea.request('POST', '/admin/promotions', { target: 'booster', price: 60, hours: 24 })).status, 404, 'réservé aux administrateurs')
     assert.equal((await chef.request('POST', '/admin/promotions', { target: 'booster', price: BOOSTER_PRICE, hours: 24 })).status, 400, 'pas une baisse')
 
-    const created = await chef.request('POST', '/admin/promotions', { target: 'booster', price: 200, hours: 24, message: '  Soldes d’automne !  ' })
+    const created = await chef.request('POST', '/admin/promotions', { target: 'booster', price: 60, hours: 24, message: '  Soldes d’automne !  ' })
     assert.equal(created.status, 201, JSON.stringify(created.body))
-    assert.equal(created.body.promotion.price, 200)
+    assert.equal(created.body.promotion.price, 60)
     assert.equal(created.body.promotion.regular, BOOSTER_PRICE)
     assert.equal(created.body.promotion.message, 'Soldes d’automne !')
     assert.ok(created.body.notified >= 2)
@@ -42,25 +42,25 @@ describe('Promotions', () => {
     const notifications = (await lea.request('GET', '/notifications')).body.notifications
     const promo = notifications.find((notification: { type: string }) => notification.type === 'promotion')
     assert.ok(promo, 'notification reçue')
-    assert.equal(promo.data.price, 200)
+    assert.equal(promo.data.price, 60)
     assert.equal(promo.active, true)
 
     assert.deepEqual(
       (await client().request('GET', '/promotions')).body.promotions.map((item: { target: string; price: number }) => [item.target, item.price]),
-      [['booster', 200]],
+      [['booster', 60]],
     )
-    assert.equal((await lea.request('GET', '/dle')).body.boosterPrice, 200)
+    assert.equal((await lea.request('GET', '/dle')).body.boosterPrice, 60)
     const wallet = (await lea.request('GET', '/stardust')).body
-    assert.deepEqual([wallet.boosterPrice, wallet.boosterRegular], [200, BOOSTER_PRICE])
+    assert.deepEqual([wallet.boosterPrice, wallet.boosterRegular], [60, BOOSTER_PRICE])
 
-    await prisma.user.update({ where: { id: lea.userId }, data: { stardust: 250 } })
+    await prisma.user.update({ where: { id: lea.userId }, data: { stardust: 110 } })
     const bought = await lea.request('POST', '/stardust/booster')
     assert.equal(bought.status, 200, JSON.stringify(bought.body))
     assert.equal(bought.body.balance, 50)
 
     // Une nouvelle promotion remplace l'ancienne ; arrêtée, le prix habituel revient.
-    const second = await chef.request('POST', '/admin/promotions', { target: 'booster', price: 150, hours: 2 })
-    assert.equal((await lea.request('GET', '/dle')).body.boosterPrice, 150)
+    const second = await chef.request('POST', '/admin/promotions', { target: 'booster', price: 45, hours: 2 })
+    assert.equal((await lea.request('GET', '/dle')).body.boosterPrice, 45)
     const listed = (await chef.request('GET', '/admin/promotions')).body.promotions
     assert.equal(listed.filter((item: { active: boolean }) => item.active).length, 1)
     const ended = await chef.request('POST', `/admin/promotions/${second.body.promotion.id}/end`)

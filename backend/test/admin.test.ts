@@ -184,3 +184,89 @@ describe('admin — suspension et modération', () => {
     assert.ok(forBastien.body.entries.every((entry: { targetUserId: string }) => entry.targetUserId === bastien.userId))
   })
 })
+
+describe('admin — thème saisonnier', () => {
+  it('sans réglage : aucun thème, lisible par tout le monde (invités compris)', async () => {
+    const response = await client().request('GET', '/theme')
+    assert.equal(response.status, 200)
+    assert.equal(response.body.theme, 'none')
+  })
+
+  it('seul un administrateur le change ; tout le monde le voit, et le journal le garde', async () => {
+    assert.equal((await client().request('POST', '/admin/theme', { theme: 'halloween' })).status, 401)
+    assert.equal((await alice.request('POST', '/admin/theme', { theme: 'halloween' })).status, 404)
+    assert.equal((await admin.request('POST', '/admin/theme', { theme: 'noel-inconnu' })).status, 400)
+
+    const set = await admin.request('POST', '/admin/theme', { theme: 'halloween' })
+    assert.equal(set.status, 200)
+    assert.equal(set.body.theme, 'halloween')
+    assert.equal((await alice.request('GET', '/theme')).body.theme, 'halloween')
+    assert.equal((await client().request('GET', '/theme')).body.theme, 'halloween')
+
+    const audit = await admin.request('GET', '/admin/audit')
+    const entry = audit.body.entries.find((row: { action: string }) => row.action === 'theme')
+    assert.ok(entry, 'action inscrite au journal')
+    assert.equal(entry.details.theme, 'halloween')
+
+    assert.equal((await admin.request('POST', '/admin/theme', { theme: 'none' })).body.theme, 'none')
+    assert.equal((await client().request('GET', '/theme')).body.theme, 'none')
+  })
+})
+
+describe('admin — événements de l’équipe', () => {
+  const halloween = {
+    title: 'Saison de Soul Eater',
+    message: 'L’équipe vous offre 1 booster Légendaire garanti et 2 boosters !',
+    boosters: 2,
+    legendaryPacks: 1,
+    stardust: 50,
+    hours: 48,
+  }
+
+  it('seul un administrateur en lance un ; il offre au moins un cadeau', async () => {
+    assert.equal((await client().request('GET', '/events/pending')).status, 401)
+    assert.equal((await alice.request('POST', '/admin/events', halloween)).status, 404)
+    const empty = await admin.request('POST', '/admin/events', { ...halloween, boosters: 0, legendaryPacks: 0, stardust: 0 })
+    assert.equal(empty.status, 400)
+    assert.equal(empty.body.error.code, 'event_empty')
+    assert.equal((await admin.request('POST', '/admin/events', { ...halloween, boosters: 99 })).status, 400)
+  })
+
+  it('chaque compte récupère ses cadeaux une seule fois ; l’admin voit combien l’ont fait ; arrêté, il disparaît', async () => {
+    const chloe = await account('chloe@example.com', 'Chloé')
+    const created = await admin.request('POST', '/admin/events', halloween)
+    assert.equal(created.status, 201, JSON.stringify(created.body))
+    const id = created.body.event.id as string
+    assert.equal(created.body.event.active, true)
+
+    const pending = await chloe.request('GET', '/events/pending')
+    assert.deepEqual(pending.body.events.map((event: { id: string }) => event.id), [id])
+    assert.equal(pending.body.events[0].message, halloween.message)
+
+    const before = (await prisma.user.findUniqueOrThrow({ where: { id: chloe.userId } })).stardust
+    const claimed = await chloe.request('POST', `/events/${id}/claim`)
+    assert.equal(claimed.status, 200, JSON.stringify(claimed.body))
+    assert.equal(claimed.body.boosters.gifted, 2)
+    assert.equal(claimed.body.boosters.legendaryPacks, 1)
+    assert.equal(claimed.body.stardust, before + 50)
+
+    // Deux fois : refusé, et rien de plus n'est crédité.
+    const again = await chloe.request('POST', `/events/${id}/claim`)
+    assert.equal(again.status, 409)
+    assert.equal(again.body.error.code, 'event_claimed')
+    assert.equal((await chloe.request('GET', '/boosters/status')).body.gifted, 2)
+    assert.deepEqual((await chloe.request('GET', '/events/pending')).body.events, [])
+
+    const listed = await admin.request('GET', '/admin/events')
+    assert.equal(listed.body.events.find((event: { id: string }) => event.id === id)?.claims, 1)
+
+    assert.ok((await alice.request('GET', '/events/pending')).body.events.some((event: { id: string }) => event.id === id))
+    const ended = await admin.request('POST', `/admin/events/${id}/end`)
+    assert.equal(ended.body.event.active, false)
+    assert.deepEqual((await alice.request('GET', '/events/pending')).body.events, [])
+    assert.equal((await alice.request('POST', `/events/${id}/claim`)).status, 404)
+
+    const actions = (await admin.request('GET', '/admin/audit')).body.entries.map((row: { action: string }) => row.action)
+    assert.ok(actions.includes('event') && actions.includes('event_end'))
+  })
+})

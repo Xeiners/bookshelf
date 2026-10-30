@@ -14,6 +14,9 @@ export type Rarity = (typeof RARITIES)[number]
 
 /** Boosters d'essai sans compte (miroir de `GUEST_BOOSTERS` côté serveur, qui fait foi). */
 export const GUEST_BOOSTERS = 2
+/** Booster Légendaire de la boutique (cf. `LEGENDARY_PACK_PRICE` côté serveur, qui fait foi) et chance de Mythique sur sa dernière carte. */
+export const LEGENDARY_PACK_PRICE = 4200
+export const LEGENDARY_PACK_MYTHIC_CHANCE = 0.01
 
 export interface BoosterStatus {
   /** Prêts à ouvrir : le stock qui se régénère, plus les boosters offerts. */
@@ -232,4 +235,25 @@ export function revealLayout(
   const byWidth = (viewport.width - 32 - gap * (columns - 1)) / (columns + tiltMargin)
   const byHeight = (viewport.height - RESERVED_HEIGHT - gap * (rows - 1)) / rows / ratio
   return { columns, gap, width: Math.floor(Math.max(MIN_REVEAL_WIDTH, Math.min(200, byWidth, byHeight))) }
+}
+
+/** Hauteur prise autour du paquet de révélation : en-tête, cartes qui dépassent derrière, titre, pastilles et boutons. */
+const DECK_RESERVED_HEIGHT = 360
+
+/**
+ * Largeur de la carte du paquet de révélation : la même pour 1 ou 6 boosters (elle ne dépend
+ * pas de la grille du récapitulatif), aussi grande que l'écran le permet, en largeur ET en hauteur.
+ */
+export function deckCardWidth(viewport: Viewport, ratio: number): number {
+  const byWidth = viewport.width - 96
+  const byHeight = (viewport.height - DECK_RESERVED_HEIGHT) / ratio
+  return Math.floor(Math.max(140, Math.min(300, byWidth, byHeight)))
+}
+
+/**
+ * Ordre de passage des cartes dans le paquet : de la plus commune à la plus rare (à rareté égale,
+ * l'ordre du tirage). Le suspense monte jusqu'à la dernière ; le récapitulatif garde l'ordre du tirage.
+ */
+export function deckOrder(rarities: readonly Rarity[]): number[] {
+  return rarities.map((rarity, index) => ({ rank: rarityRank(rarity), index })).sort((a, b) => a.rank - b.rank || a.index - b.index).map(({ index }) => index)
 }

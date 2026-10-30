@@ -229,7 +229,7 @@ function SettingsPanel({ room, host }: { room: BombRoomView; host: boolean }) {
               onClick={() => change({ lives: index + 1 })}
               className="grid size-8 place-items-center rounded-full transition-transform active:scale-90 disabled:cursor-default"
             >
-              <Heart size={20} className={index < settings.lives ? 'fill-[#ff5e9c] text-[#ff5e9c] drop-shadow-[0_0_6px_rgba(255,94,156,0.7)]' : 'text-white/20'} />
+              <Heart size={20} className={index < settings.lives ? 'fill-[#ff5e9c] text-[#ff5e9c] ' : 'text-white/20'} />
             </button>
           ))}
         </div>

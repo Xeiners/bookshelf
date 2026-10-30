@@ -17,7 +17,6 @@ import { useGuestStardustStore } from '../../store/useGuestStardustStore'
 import { useStardustBalance } from '../../store/useHigherLowerStore'
 import { useRecordRewards } from '../../store/useRecordRewards'
 import { useUiStore } from '../../store/useUiStore'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { loadRunnerAssets, type RunnerAssets } from './assets'
@@ -385,7 +384,7 @@ function RunnerHome({
           {/* Titre et choix du coureur. */}
           <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-4">
             <div className="min-w-0">
-              <h2 className="font-display text-[1.7rem] leading-none text-white drop-shadow-[0_2px_10px_rgba(40,0,80,0.6)]">{t.runner.title}</h2>
+              <h2 className="font-display text-[1.7rem] leading-none text-white">{t.runner.title}</h2>
               <p className="mt-1 max-w-[15rem] text-[11px] leading-snug text-white/80">{t.runner.home.tagline}</p>
             </div>
             <div className="flex shrink-0 flex-col gap-1.5" role="radiogroup" aria-label={t.runner.home.pick}>
@@ -398,7 +397,7 @@ function RunnerHome({
                     role="radio"
                     aria-checked={active}
                     onClick={() => prefs.set({ look: option })}
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold backdrop-blur-sm transition-colors ${active ? 'bg-white text-[#2a1150]' : 'bg-black/30 text-white/80'}`}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold  transition-colors ${active ? 'bg-white text-[#2a1150]' : 'bg-black/30 text-white/80'}`}
                   >
                     {t.runner.looks[option]}
                   </button>
@@ -413,7 +412,7 @@ function RunnerHome({
               <button
                 type="button"
                 onClick={() => openDressing(false)}
-                className="flex items-center gap-2 rounded-2xl border border-white/20 bg-black/40 py-1.5 pr-3 pl-1.5 text-left backdrop-blur-md"
+                className="flex items-center gap-2 rounded-2xl border border-white/20 bg-black/40 py-1.5 pr-3 pl-1.5 text-left"
               >
                 <span className="grid size-9 place-items-center rounded-xl text-white" style={{ background: 'linear-gradient(135deg, #ff6fb5, #b05cff)' }}>
                   <Shirt size={18} aria-hidden />
@@ -427,7 +426,7 @@ function RunnerHome({
                 <button
                   type="button"
                   onClick={() => openDressing(true)}
-                  className="flex items-center gap-2 rounded-2xl border bg-black/40 py-1.5 pr-3 pl-1.5 text-left backdrop-blur-md"
+                  className="flex items-center gap-2 rounded-2xl border bg-black/40 py-1.5 pr-3 pl-1.5 text-left"
                   style={{ borderColor: glowing ? '#ffd35c' : 'rgba(255,255,255,0.2)', boxShadow: glowing ? '0 0 22px -4px #ffc23a' : undefined }}
                 >
                   <span data-home-box className="relative grid size-9 place-items-center rounded-xl will-change-transform" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: 'inset 0 0 0 2px #ffc93c' }}>
@@ -570,7 +569,6 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint: strin
 function GameOver({ settled, replaying, onReplay, onHome }: { settled: Settled; replaying: boolean; onReplay: () => void; onHome: () => void }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
-  const [burst, setBurst] = useState<Burst | null>(null)
   const { outcome, result, error, saving } = settled
   const record = result?.record ?? false
 
@@ -582,14 +580,6 @@ function GameOver({ settled, replaying, onReplay, onHome }: { settled: Settled; 
     { scope: ref },
   )
 
-  useEffect(() => {
-    if (!record) return
-    const timer = window.setTimeout(
-      () => setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.32, colors: ['#ffd35c', '#ff6fb5', '#3fd0ff', '#ffffff'], count: 160, spread: Math.PI * 2, kind: 'confetti' }),
-      250,
-    )
-    return () => window.clearTimeout(timer)
-  }, [record])
 
   const rows: [string, string][] = [
     [t.runner.over.distance, `${Math.floor(result?.distance ?? outcome.distance).toLocaleString()} m`],
@@ -598,8 +588,7 @@ function GameOver({ settled, replaying, onReplay, onHome }: { settled: Settled; 
   ]
 
   return (
-    <div ref={ref} className="fixed inset-0 z-[90] grid place-items-center bg-black/55 px-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t.runner.over.title}>
-      <ParticleBurst burst={burst} />
+    <div ref={ref} className="fixed inset-0 z-[90] grid place-items-center bg-black/55 px-5" role="dialog" aria-modal="true" aria-label={t.runner.over.title}>
       <div data-over-card className="relative w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-[#ff6fb5]/30 bg-[#140a2e] p-5 text-center">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(100% 60% at 50% 0%, rgba(255,111,181,0.3), transparent 70%)' }} />
         <p className="relative text-[11px] font-semibold tracking-[0.24em] text-[#ff9ccf] uppercase">{record ? `🏆 ${t.runner.over.record}` : t.runner.over.title}</p>

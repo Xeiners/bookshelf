@@ -12,7 +12,6 @@ import { ITEM_INFO, RARITIES, RARITY_COLORS, isWardrobeItem, type BoxKind, type 
 import { playBoxBurst, playBoxDrop, playBoxKnock, playRiser } from '../../lib/sfx'
 import { runnerApi, type BoxOpening } from '../../services/runnerApi'
 import { useRunnerWardrobe } from '../../store/useRunnerWardrobeStore'
-import { ParticleBurst, type Burst } from '../boosters/ParticleBurst'
 import { loadRunnerAssets, type RunnerAssets } from './assets'
 import { itemIcon, loadItemIcons } from './wardrobeIcons'
 import { HeroModelPart, createHero } from './heroModel'
@@ -66,7 +65,6 @@ export function MysteryBox({
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>('charge')
   const [stage, setStage] = useState(0)
-  const [burst, setBurst] = useState<Burst | null>(null)
   const [equipped, setEquipped] = useState(false)
   // Le temps de la boîte, partagé avec la scène 3D (lu à chaque image).
   const [timeline] = useState(() => new BoxTimeline())
@@ -137,13 +135,11 @@ export function MysteryBox({
     return () => window.clearInterval(timer)
   }, [phase, result, timeline, knock])
 
-  // Explosion → révélation (et confettis pour l'épique et la légendaire).
+  // Explosion → révélation.
   useEffect(() => {
     if (phase !== 'burst') return
     const timer = window.setTimeout(() => {
       setPhase('reveal')
-      const colors = rarity >= 3 ? ['#ffd35c', '#fff0a8', '#ff9f1a', '#ffffff'] : rarity === 2 ? ['#b05cff', '#dcb2ff', '#ff6fb5', '#ffffff'] : [RARITY_COLORS[RARITIES[rarity]!].main, '#ffffff']
-      setBurst({ id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight * 0.38, colors, count: rarity >= 2 ? 200 : 70, spread: Math.PI * 2, kind: rarity >= 2 ? 'confetti' : 'sparks' })
     }, BURST_TIME * 1000)
     return () => window.clearTimeout(timer)
   }, [phase, rarity])
@@ -185,7 +181,6 @@ export function MysteryBox({
       aria-modal="true"
       aria-label={t.runner.wardrobe.box.title}
     >
-      <ParticleBurst burst={burst} />
       <Canvas dpr={[1, 1.75]} gl={{ antialias: true, alpha: true }} camera={{ fov: 38, position: [0, 1.6, 4.6] }} className="absolute inset-0">
         <hemisphereLight args={['#fff1f6', '#7d5aa8', 1.6]} />
         <directionalLight position={[3, 5, 6]} intensity={1.8} color="#ffe6cc" />
@@ -203,7 +198,7 @@ export function MysteryBox({
         onPointerDown={(event) => event.stopPropagation()}
         onClick={onClose}
         aria-label={t.runner.wardrobe.box.close}
-        className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 grid size-11 place-items-center rounded-full border border-white/15 bg-black/40 text-white backdrop-blur-sm"
+        className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 grid size-11 place-items-center rounded-full border border-white/15 bg-black/40 text-white"
       >
         <X size={20} aria-hidden />
       </button>
@@ -212,7 +207,7 @@ export function MysteryBox({
         <div className="pointer-events-none absolute inset-x-0 bottom-[max(2.5rem,env(safe-area-inset-bottom))] flex flex-col items-center gap-3">
           {result ? (
             <>
-              <p className="animate-pulse text-base font-bold tracking-[0.18em] text-white uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">{t.runner.wardrobe.box.tap}</p>
+              <p className="animate-pulse text-base font-bold tracking-[0.18em] text-white uppercase">{t.runner.wardrobe.box.tap}</p>
               <div className="flex gap-2">
                 {Array.from({ length: TAPS }, (_, index) => (
                   <span
@@ -246,7 +241,7 @@ export function MysteryBox({
           <p data-box-rarity className="text-sm font-black uppercase" style={{ color: colors.main, textShadow: `0 0 18px ${colors.main}, 0 2px 0 #000` }}>
             {result.guaranteed ? `${t.runner.wardrobe.rarity[result.item.rarity]} · ${t.runner.wardrobe.box.guaranteed}` : t.runner.wardrobe.rarity[result.item.rarity]}
           </p>
-          <div data-box-card className="relative w-full max-w-sm rounded-[1.75rem] border bg-[#12082a]/90 p-5 text-center backdrop-blur-md" style={{ borderColor: `${colors.main}88`, boxShadow: `0 0 50px -10px ${colors.main}` }}>
+          <div data-box-card className="relative w-full max-w-sm rounded-[1.75rem] border bg-[#12082a]/90 p-5 text-center" style={{ borderColor: `${colors.main}88`, boxShadow: `0 0 50px -10px ${colors.main}` }}>
             <span
               data-box-badge
               className="absolute -top-3 -right-2 rounded-full px-3 py-1 text-xs font-black tracking-wider uppercase shadow-lg"

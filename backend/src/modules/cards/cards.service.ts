@@ -7,6 +7,7 @@ import { getPool, loadDocuments, type CatalogItem } from '../catalog/catalog.ser
 import { normalizeManga } from '../manga/normalize.js'
 import {
   BOOSTER_INTERVAL_MS,
+  BOUGHT_LEGENDARY_RATES,
   CARD_SERIES,
   MAX_BOOSTERS,
   MAX_PACKS_AT_ONCE,
@@ -37,6 +38,7 @@ import { GUEST_BOOSTERS, readGuestPacks, signGuestPack, type GuestPack } from '.
 import { SERIES_2, seedSeries2 } from './seeds/series2.seed.js'
 import { liveCardFilter, seriesRetired } from './series.js'
 import { retireUser } from './retirement/retirement.service.js'
+import { LEGENDARY_PACK_PRICE } from '../stardust/prices.js'
 import { SERIES_3_SIZE, ensureSeries3 } from './seeds/series3.seed.js'
 
 /*
@@ -422,10 +424,10 @@ export async function grantLegendaryPack(
   tx: Prisma.TransactionClient,
   userId: string,
   pool: { id: string; rarity: string }[],
-  options: { now?: Date; random?: () => number } = {},
+  options: { now?: Date; random?: () => number; /** Table du dernier slot (Booster Légendaire acheté : 1 % de Mythique). */ lastSlotRates?: Record<Rarity, number> } = {},
 ): Promise<PulledCard[]> {
   const now = options.now ?? new Date()
-  const drawn = drawPack(pool, options.random ?? secureRandom, { forceLegendary: true })
+  const drawn = drawPack(pool, options.random ?? secureRandom, { forceLegendary: true, lastSlotRates: options.lastSlotRates })
   const cards = await grantCards(tx, userId, drawn, now)
   await tx.user.update({ where: { id: userId }, data: { boostersOpened: { increment: 1 } } })
   if (drawn.some((card) => card.rarity === 'MYTHIC')) {
@@ -507,6 +509,37 @@ export async function openLegendaryPack(
     const cards = await grantLegendaryPack(tx, userId, pool, { now, random })
     const row = await tx.userBooster.findUniqueOrThrow({ where: { userId } })
     return { cards, status: statusOf(toState(row), now, unlimited, row.giftedBoosters, row.boostersSinceLastLegendary, row.legendaryPacks), series }
+  })
+}
+
+/**
+ * Achète et ouvre un Booster Légendaire (`LEGENDARY_PACK_PRICE` ✦) : quatre cartes de la série
+ * en jeu, la dernière Légendaire, ou Mythique une fois sur cent. Il ne touche ni au stock ni
+ * aux garanties. Atomique : débit et tirage ensemble ; 409 `not_enough_stardust` si le solde
+ * ne suffit pas au moment de l'écriture (deux achats simultanés ne dépensent jamais deux fois).
+ */
+export async function buyLegendaryPack(
+  userId: string,
+  options: { now?: Date; random?: () => number; unlimited?: boolean } = {},
+): Promise<{ cards: PulledCard[]; status: BoosterStatus; series: number; balance: number; price: number }> {
+  const now = options.now ?? new Date()
+  const random = options.random ?? secureRandom
+  const unlimited = options.unlimited ?? config.cards.unlimited
+  const price = LEGENDARY_PACK_PRICE
+  // Les cartes d'abord : si la collection n'est pas prête, rien n'est débité.
+  const { series, cards: pool } = await rewardPackPool(random)
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.user.updateMany({ where: { id: userId, stardust: { gte: price } }, data: { stardust: { decrement: price } } })
+    if (count === 0) {
+      const user = await tx.user.findUnique({ where: { id: userId }, select: { stardust: true } })
+      throw new HttpError(409, 'not_enough_stardust', 'Pas assez de Poussières d’Étoile.', { balance: user?.stardust ?? 0, price })
+    }
+    await tx.stardustEntry.create({ data: { userId, amount: -price, reason: 'legendary_pack_purchase', data: '{}' } })
+    const cards = await grantLegendaryPack(tx, userId, pool, { now, random, lastSlotRates: BOUGHT_LEGENDARY_RATES })
+    const row = await tx.userBooster.findUnique({ where: { userId } })
+    const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { stardust: true } })
+    const status = statusOf(toState(row), now, unlimited, row?.giftedBoosters ?? 0, row?.boostersSinceLastLegendary ?? 0, row?.legendaryPacks ?? 0)
+    return { cards, status, series, balance: user.stardust, price }
   })
 }
 

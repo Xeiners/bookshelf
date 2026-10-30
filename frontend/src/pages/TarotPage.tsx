@@ -3,7 +3,6 @@ import { WifiOff } from 'lucide-react'
 import { SymbolFace, PepiteFace } from '../components/tarot/CardFaces'
 import { MOOD_SKINS, PACE_SKINS, isMoodId, isPaceId, type MoodId, type PaceId } from '../components/tarot/decks'
 import { IntroDeck } from '../components/tarot/IntroDeck'
-import { OracleParticles } from '../components/tarot/OracleParticles'
 import { ResultPanel } from '../components/tarot/ResultPanel'
 import { StreakBadge } from '../components/tarot/StreakBadge'
 import { TarotCard3D, type CardState } from '../components/tarot/TarotCard3D'
@@ -242,7 +241,6 @@ export function TarotPage() {
             'radial-gradient(closest-side at 50% 38%, color-mix(in oklab, var(--oracle-tone) 34%, transparent), transparent), radial-gradient(closest-side at 50% 100%, color-mix(in oklab, var(--oracle-tone) 14%, transparent), transparent)',
         }}
       />
-      <OracleParticles />
 
       {/*
         Bord haut en fondu : les halos des cartes débordent volontairement de

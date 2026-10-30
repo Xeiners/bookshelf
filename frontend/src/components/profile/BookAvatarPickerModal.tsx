@@ -244,7 +244,7 @@ export function BookAvatarPickerModal({ onClose, onPick }: BookAvatarPickerModal
                       <button key={item.key} type="button" onClick={() => void chooseWork(item)} className="avatar-picker-item group min-w-0 text-left">
                         <span className="relative block aspect-2/3 overflow-hidden rounded-xl bg-cream/5 ring-1 ring-white/10">
                           {item.cover ? <img src={item.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" /> : <span className="grid h-full place-items-center text-mist"><BookOpen size={24} /></span>}
-                          <span className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-1 rounded-full bg-void/85 px-2.5 py-1.5 text-[9px] font-medium text-cream backdrop-blur-sm">
+                          <span className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-1 rounded-full bg-void/85 px-2.5 py-1.5 text-[9px] font-medium text-cream">
                             <span className="truncate">{t.profile.editor.avatarLibrary.openCharacters}</span>
                             <ChevronRight size={12} className="shrink-0" />
                           </span>

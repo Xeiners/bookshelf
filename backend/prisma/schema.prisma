@@ -92,6 +92,7 @@ model User {
   runnerStats      RunnerStats?
   runnerItems      RunnerItem[]
   recordRewards    RecordReward[]
+  teamEventClaims  TeamEventClaim[]
   dailyReward      DailyReward?
   stackStats       StackStats?
 }
@@ -638,6 +639,39 @@ model Promotion {
   @@index([target, endsAt])
 }
 
+/// Événement de l'équipe (Halloween…) : un mot et des cadeaux, que chaque compte récupère une
+/// fois en se connectant pendant la fenêtre `startsAt` → `endsAt` (ou jusqu'à `endedAt`).
+model TeamEvent {
+  id             String    @id @default(cuid())
+  title          String
+  message        String
+  boosters       Int       @default(0)
+  legendaryPacks Int       @default(0)
+  stardust       Int       @default(0)
+  startsAt       DateTime  @default(now())
+  endsAt         DateTime
+  endedAt        DateTime?
+  createdBy      String
+  createdAt      DateTime  @default(now())
+
+  claims TeamEventClaim[]
+
+  @@index([endsAt])
+}
+
+/// Un compte a récupéré les cadeaux d'un événement (une seule fois).
+model TeamEventClaim {
+  eventId   String
+  userId    String
+  claimedAt DateTime @default(now())
+
+  event TeamEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([userId])
+}
+
 /// Record de tous les temps battu dans un mode de jeu : le joueur choisit sa récompense
 /// (un booster, ou une boîte mystère de la garde-robe), une seule fois.
 model RecordReward {
@@ -818,4 +852,14 @@ model DleImageReview {
 
   @@unique([category, characterId, imageKey])
   @@index([category, status])
+}
+
+/// Réglage global du site, piloté par un administrateur : une clé, une valeur (texte ou JSON).
+/// `theme` : le thème saisonnier affiché à tout le monde (`none`, `halloween`…).
+model SiteSetting {
+  key       String   @id
+  value     String
+  /// E-mail de l'administrateur qui l'a changé en dernier.
+  updatedBy String?
+  updatedAt DateTime @updatedAt
 }

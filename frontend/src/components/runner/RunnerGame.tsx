@@ -629,8 +629,8 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       {introRunning && introShown && (
         <>
           <div className="pointer-events-none absolute inset-x-0 top-[15vh] flex flex-col items-center gap-2 px-6 text-center">
-            <span className="animate-[runner-title_3.1s_ease-out_0.5s_both] text-[11px] font-semibold tracking-[0.5em] text-white/85 uppercase drop-shadow">{t.runner.intro.kicker}</span>
-            <span className="animate-[runner-title_3.1s_ease-out_0.75s_both] font-display text-5xl leading-none text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.45)]">
+            <span className="animate-[runner-title_3.1s_ease-out_0.5s_both] text-[11px] font-semibold tracking-[0.5em] text-white/85 uppercase">{t.runner.intro.kicker}</span>
+            <span className="animate-[runner-title_3.1s_ease-out_0.75s_both] font-display text-5xl leading-none text-white">
               {t.runner.title}
             </span>
             <span className="mt-1 h-0.5 w-24 origin-center animate-[runner-rule_3.1s_ease-out_0.9s_both] bg-gradient-to-r from-transparent via-[#ff6fb5] to-transparent" />
@@ -709,7 +709,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
         className={`pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500 ${introRunning ? 'opacity-0' : 'opacity-100'}`}
       >
         <div className="flex flex-col gap-1.5">
-          <span ref={distanceRef} className="font-display text-3xl leading-none text-white tabular-nums drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+          <span ref={distanceRef} className="font-display text-3xl leading-none text-white tabular-nums">
             0 m
           </span>
           <div className="flex flex-col gap-1">
@@ -719,7 +719,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
           </div>
         </div>
         <div className="flex items-start gap-2">
-          <div className="flex flex-col items-end gap-1 rounded-2xl bg-black/35 px-3 py-2 backdrop-blur-sm">
+          <div className="flex flex-col items-end gap-1 rounded-2xl bg-black/35 px-3 py-2">
             <span ref={scoreRef} className="text-lg leading-none font-bold text-white tabular-nums">
               0
             </span>
@@ -735,7 +735,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => pause(true)}
             aria-label={t.runner.hud.pause}
-            className="pointer-events-auto grid size-11 place-items-center rounded-full border border-white/15 bg-black/40 text-white backdrop-blur-sm"
+            className="pointer-events-auto grid size-11 place-items-center rounded-full border border-white/15 bg-black/40 text-white"
           >
             <Pause size={18} />
           </button>
@@ -745,7 +745,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       {/* Quiz : la question en haut, les trois réponses à toucher, en bas. */}
       {quiz && (
         <div className="pointer-events-none absolute inset-x-0 top-[28%] flex flex-col items-center gap-3 px-4">
-          <div className="flex max-w-md items-center gap-3 rounded-2xl border border-gold/40 bg-[#1d0f40]/85 px-4 py-3 shadow-[0_0_24px_rgba(255,196,107,0.35)] backdrop-blur">
+          <div className="flex max-w-md items-center gap-3 rounded-2xl border border-gold/40 bg-[#1d0f40]/85 px-4 py-3 shadow-[0_0_24px_rgba(255,196,107,0.35)]">
             {quiz.question.image && <img src={quiz.question.image} alt="" className="size-12 shrink-0 rounded-xl object-cover object-top" />}
             <div className="flex min-w-0 flex-col gap-1.5">
               <p className="text-base leading-snug font-bold text-white">{quiz.question.prompt}</p>
@@ -773,7 +773,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
               data-active={index === 1 ? 'true' : 'false'}
               aria-label={`${[t.runner.hud.left, t.runner.hud.middle, t.runner.hud.right][index]} : ${option.label}`}
               onClick={() => answer(index as 0 | 1 | 2)}
-              className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border border-white/25 bg-black/50 px-2 py-2 text-center backdrop-blur-sm transition-all duration-150 active:scale-95 data-[active=true]:-translate-y-1.5 data-[active=true]:border-gold data-[active=true]:bg-gold/30 data-[active=true]:shadow-[0_0_22px_rgba(255,196,107,0.6)]"
+              className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border border-white/25 bg-black/50 px-2 py-2 text-center transition-all duration-150 active:scale-95 data-[active=true]:-translate-y-1.5 data-[active=true]:border-gold data-[active=true]:bg-gold/30 data-[active=true]:shadow-[0_0_22px_rgba(255,196,107,0.6)]"
             >
               {option.image && <img src={option.image} alt="" className="size-9 rounded-lg object-cover object-top" />}
               <span className="line-clamp-2 text-xs leading-tight font-bold text-white">{option.label}</span>
@@ -848,7 +848,7 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
       )}
 
       {offer && (
-        <div className="absolute inset-0 grid place-items-center bg-black/60 px-6 backdrop-blur-sm" onPointerDown={(event) => event.stopPropagation()}>
+        <div className="absolute inset-0 grid place-items-center bg-black/60 px-6" onPointerDown={(event) => event.stopPropagation()}>
           <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
             <div className="relative grid size-24 place-items-center">
               <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
@@ -890,14 +890,14 @@ export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOve
 
       {countdown !== null && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <span key={countdown} className="animate-[runner-count_0.6s_ease-out] font-display text-8xl text-white drop-shadow-[0_0_30px_rgba(255,111,181,0.9)]">
+          <span key={countdown} className="animate-[runner-count_0.6s_ease-out] font-display text-8xl text-white">
             {countdown > 0 ? countdown : t.runner.hud.go}
           </span>
         </div>
       )}
 
       {pausedView && (
-        <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-sm" onPointerDown={(event) => event.stopPropagation()}>
+        <div className="absolute inset-0 grid place-items-center bg-black/55" onPointerDown={(event) => event.stopPropagation()}>
           <div className="flex w-64 flex-col items-center gap-3">
             <p className="font-display text-4xl text-white">{t.runner.hud.paused}</p>
             <button type="button" onClick={() => pause(false)} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-cream text-sm font-semibold text-void">
@@ -994,7 +994,7 @@ function TouchButton({ label, onPress, icon }: { label: string; onPress: () => v
         event.preventDefault()
         onPress()
       }}
-      className="grid size-16 place-items-center rounded-2xl border border-white/20 bg-black/40 text-white backdrop-blur-sm active:scale-95 active:bg-white/20"
+      className="grid size-16 place-items-center rounded-2xl border border-white/20 bg-black/40 text-white active:scale-95 active:bg-white/20"
     >
       {icon}
     </button>

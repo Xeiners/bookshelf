@@ -16,13 +16,9 @@ export interface CardFrame {
   rule: string
   /** Reflet brillant sur le cadre (Rare). */
   gloss?: boolean
-  /** Gravure fine sur le métal (Légendaire). */
-  chiseled?: boolean
   /** Aura pulsante autour de la carte. */
   aura?: string
-  /** Étincelles sur le cadre (Légendaire). */
-  sparkles?: boolean
-  /** Cadre iridescent tournant (Mythique). */
+  /** Cadre iridescent (Mythique : avatar de profil). */
   iridescent?: boolean
 }
 
@@ -55,8 +51,6 @@ export const CARD_FRAMES: Record<Rarity, CardFrame> = {
     badge: 'linear-gradient(135deg, #fff0b0, #c8901c)',
     badgeText: '#2a1a02',
     rule: 'linear-gradient(90deg, transparent, #ffe39a, transparent)',
-    chiseled: true,
-    sparkles: true,
     aura: 'radial-gradient(closest-side, rgba(255, 196, 107, 0.7), rgba(255, 196, 107, 0.15) 60%, transparent)',
   },
   MYTHIC: {
@@ -68,12 +62,3 @@ export const CARD_FRAMES: Record<Rarity, CardFrame> = {
     aura: 'radial-gradient(closest-side, rgba(255, 94, 196, 0.55), rgba(76, 201, 240, 0.2) 60%, transparent)',
   },
 }
-
-/** Étincelles du cadre Légendaire : position (% de la carte) et décalage de départ (s). */
-export const SPARKLES = [
-  { left: 6, top: 5, delay: 0 },
-  { left: 91, top: 12, delay: 0.8 },
-  { left: 94, top: 70, delay: 1.5 },
-  { left: 4, top: 58, delay: 2.1 },
-  { left: 50, top: 2, delay: 1.1 },
-]

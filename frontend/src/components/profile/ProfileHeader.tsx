@@ -4,6 +4,7 @@ import { vibrate } from '../../lib/haptics'
 import type { ProfileCard, TitleId } from '../../services/profileApi'
 import { Pressable } from '../ui/Pressable'
 import { CardAvatar } from './CardAvatar'
+import { SeasonalCorner } from '../layout/SeasonalDecor'
 
 interface ProfileHeaderProps {
   name: string
@@ -24,7 +25,8 @@ export function ProfileHeader({ name, avatar, avatarUrl, title, bio, memberSince
   const t = useT()
 
   return (
-    <section data-anim className="glass rounded-4xl p-5">
+    <section data-anim className="glass relative rounded-4xl p-5">
+      <SeasonalCorner size={72} />
       <div className="flex items-center gap-4">
         {signedIn ? (
           <CardAvatar card={avatar} avatarUrl={avatarUrl} initial={name.charAt(0).toUpperCase()} size={76} />

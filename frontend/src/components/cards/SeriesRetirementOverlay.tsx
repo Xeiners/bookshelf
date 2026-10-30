@@ -143,7 +143,7 @@ function SeriesRetirementOverlay({ retirement }: { retirement: SeriesRetirement 
           if (rank >= 3) vibrate(18)
         }, at)
           .to(card, { scale: 1.12, filter: 'brightness(1.9) saturate(1.4)', duration: 0.18, ease: 'sine.out' }, at)
-          .to(card, { scale: 0.2, autoAlpha: 0, filter: 'brightness(3) blur(6px)', rotation: (Math.random() - 0.5) * 30, duration: 0.45, ease: 'power2.in' }, at + 0.18)
+          .to(card, { scale: 0.2, autoAlpha: 0, rotation: (Math.random() - 0.5) * 30, duration: 0.45, ease: 'power2.in' }, at + 0.18)
           .to('[data-orb]', { scale: 1.06 + Math.min(0.12, rank * 0.03), duration: 0.12, yoyo: true, repeat: 1, ease: 'sine.inOut' }, at + 0.85)
       })
       tl.add(() => {
@@ -207,7 +207,7 @@ function SeriesRetirementOverlay({ retirement }: { retirement: SeriesRetirement 
         <div className="relative flex flex-col items-center gap-3 pt-2">
           <div data-orb className="relative grid size-28 place-items-center rounded-full sm:size-32" style={{ background: STARDUST_GRADIENT, boxShadow: '0 0 60px -6px #ff5ec4, 0 0 120px -30px #ffc46b, inset 0 0 30px rgba(255,255,255,0.45)' }}>
             <span data-orb-ring aria-hidden className="absolute inset-0 rounded-full border-2 border-[#fff4c8] opacity-0" />
-            <Sparkles size={34} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.9)]" aria-hidden />
+            <Sparkles size={34} className="text-white" aria-hidden />
           </div>
           <p className="flex items-baseline gap-1.5 font-display text-4xl tabular-nums sm:text-5xl" aria-live="polite">
             <span ref={counterRef} />
