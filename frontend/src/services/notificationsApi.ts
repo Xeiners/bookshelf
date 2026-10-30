@@ -83,7 +83,7 @@ export interface CanvasRewardNotification extends NotificationBase {
   data: { kind: 'podium' | 'brush'; season?: string; rank?: number; stardust?: number; brush?: string; title?: string }
 }
 
-export type RecordGame = 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower' | 'stack'
+export type RecordGame = 'runner' | 'bomb_classic' | 'bomb_manga' | 'higher_lower' | 'stack' | 'jump'
 
 export type AppNotification =
   | TradeAcceptedNotification

@@ -30,6 +30,7 @@ import { runnerRouter } from './modules/runner/runner.routes.js'
 import { promotionsRouter } from './modules/promotions/promotions.routes.js'
 import { themeRouter } from './modules/theme/theme.routes.js'
 import { eventsRouter } from './modules/events/events.routes.js'
+import { jumpRouter } from './modules/jump/jump.routes.js'
 import { dailyRouter } from './modules/daily/daily.routes.js'
 import { stackRouter } from './modules/stack/stack.routes.js'
 import { rewardsRouter } from './modules/rewards/rewards.routes.js'
@@ -85,6 +86,7 @@ export function createApp() {
   app.use('/api/rewards', rewardsRouter)
   app.use('/api/daily', dailyRouter)
   app.use('/api/stack', stackRouter)
+  app.use('/api/jump', jumpRouter)
   app.use('/api/canvas', canvasRouter)
   app.use('/api/edits', editsRouter)
   app.use('/api/higher-lower', higherLowerRouter)

@@ -6,7 +6,7 @@ import { WELCOME_GIFT_BOXES } from '../runner/runner.wardrobe.js'
 
 /*
  * Records de tous les temps. Quand un joueur bat le meilleur score jamais fait dans un mode
- * (Manga Runner, Bomb Party solo classique ou manga, Plus ou Moins, Page Stack), il gagne une
+ * (Manga Runner, Bomb Party solo classique ou manga, Plus ou Moins, Page Stack, Page Jump), il gagne une
  * récompense à choisir : un booster de cartes, ou une boîte mystère de la garde-robe (à
  * ouvrir quand il veut). Le premier score d'un mode ne bat aucun record : il en faut un.
  */
@@ -57,6 +57,7 @@ export const recordOf = {
   bomb_manga: async (tx: Prisma.TransactionClient) => (await tx.bombStats.aggregate({ _max: { bestManga: true } }))._max.bestManga ?? 0,
   higher_lower: async (tx: Prisma.TransactionClient) => (await tx.higherLowerStats.aggregate({ _max: { best: true } }))._max.best ?? 0,
   stack: async (tx: Prisma.TransactionClient) => (await tx.stackStats.aggregate({ _max: { best: true } }))._max.best ?? 0,
+  jump: async (tx: Prisma.TransactionClient) => (await tx.jumpStats.aggregate({ _max: { best: true } }))._max.best ?? 0,
 } satisfies Record<RecordGame, (tx: Prisma.TransactionClient) => Promise<number>>
 
 /** Récompenses encore à choisir. */

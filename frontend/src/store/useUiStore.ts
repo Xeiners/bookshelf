@@ -8,7 +8,7 @@ export type ViewId = 'discover' | 'activities' | 'search' | 'library' | 'profile
 /** Rubrique du hub des Activités. */
 export type ActivityTab = 'cards' | 'games' | 'more'
 
-export type ActivityScreen = 'hub' | 'oracle' | 'collection' | 'market' | 'dle' | 'higherlower' | 'bomb' | 'runner' | 'canvas' | 'stack'
+export type ActivityScreen = 'hub' | 'oracle' | 'collection' | 'market' | 'dle' | 'higherlower' | 'bomb' | 'runner' | 'canvas' | 'stack' | 'jump'
 /** Rubrique du hub qui contient chaque module. */
 const TAB_OF: Record<Exclude<ActivityScreen, 'hub'>, ActivityTab> = {
   collection: 'cards',
@@ -18,6 +18,7 @@ const TAB_OF: Record<Exclude<ActivityScreen, 'hub'>, ActivityTab> = {
   bomb: 'games',
   runner: 'games',
   stack: 'games',
+  jump: 'games',
   oracle: 'more',
   canvas: 'more',
 }

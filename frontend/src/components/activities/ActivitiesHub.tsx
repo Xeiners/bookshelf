@@ -19,6 +19,7 @@ import { useDailyStore } from '../../store/useDailyStore'
 import { useNews } from '../../store/useNews'
 import { useUiStore } from '../../store/useUiStore'
 import { StackEmblem } from '../stack/StackEmblem'
+import { JumpEmblem } from '../jump/JumpEmblem'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
 import { CARD_FRAMES } from '../cards/cardFrames'
@@ -374,7 +375,7 @@ function DailyChip() {
 }
 
 /** Couleur de chaque mode : couverture de sa carte, pastille d'état, raccourci « À faire ». */
-const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff', stack: '#ff9a5c' } as const
+const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff', stack: '#ff9a5c', jump: '#ff8a6b' } as const
 
 /* ---- Vedette : l'ouverture des boosters ------------------------------------------------------------- */
 
@@ -821,6 +822,14 @@ function GamesCards() {
     <>
       <HubCard title={t.dle.title} description={g.dle} tint={TINT.dle} status={dleStatus} onClick={() => openActivity('dle')} emblem={<DleEmblem />} />
       <HubCard title={t.hl.title} description={g.hl} tint={TINT.hl} status={hlStatus} onClick={() => openActivity('higherlower')} emblem={<HlEmblem />} />
+      <HubCard
+        title={t.jump.title}
+        description={g.jump}
+        tint={TINT.jump}
+        status={{ label: g.new, tone: 'attention' }}
+        onClick={() => openActivity('jump')}
+        scene={<JumpEmblem wide className="block size-full" />}
+      />
       <HubCard
         title={t.stack.title}
         description={g.stack}

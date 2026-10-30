@@ -93,6 +93,8 @@ model User {
   runnerItems      RunnerItem[]
   recordRewards    RecordReward[]
   teamEventClaims  TeamEventClaim[]
+  jumpStats        JumpStats?
+  jumpCharacters   JumpCharacter[]
   dailyReward      DailyReward?
   stackStats       StackStats?
 }
@@ -818,6 +820,39 @@ model DailyReward {
 }
 
 /// Page Stack (arcade) : meilleur score, meilleure tour, parties jouées, Poussières gagnées aujourd'hui.
+/// Page Jump : records et Poussières du jour de chaque joueur (cf. `modules/jump`).
+model JumpStats {
+  userId     String    @id
+  best       Int       @default(0)
+  /// Plus haute altitude atteinte (unités du jeu).
+  bestHeight Int       @default(0)
+  bestAt     DateTime?
+  games      Int       @default(0)
+  stars      Int       @default(0)
+  stomps     Int       @default(0)
+  /// Personnage choisi (cf. le catalogue) ; la Lune par défaut.
+  character  String    @default("moon")
+  /// Jour (heure de Paris) auquel se rapporte `dayEarned`.
+  day        String?
+  dayEarned  Int       @default(0)
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([best])
+}
+
+/// Page Jump : un personnage acheté par un compte (cf. `modules/jump/jump.characters.ts`).
+model JumpCharacter {
+  userId      String
+  characterId String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, characterId])
+}
+
 model StackStats {
   userId     String    @id
   best       Int       @default(0)

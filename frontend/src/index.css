@@ -46,6 +46,14 @@
 }
 
 /* Actus : illustrations animées. */
+/* Page Jump : le nom d'un nouvel univers apparaît, puis s'efface. */
+@keyframes jump-world {
+  0% { opacity: 0; transform: translateY(10px) scale(0.96); }
+  15% { opacity: 1; transform: translateY(0) scale(1); }
+  75% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-8px) scale(1); }
+}
+
 @keyframes news-float {
   0%,
   100% {

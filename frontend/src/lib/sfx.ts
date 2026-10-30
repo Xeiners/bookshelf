@@ -936,3 +936,72 @@ export function playRunnerWrong(): void {
   blip(e, 392, at, 0.16, 0.05, 'triangle')
   blip(e, 311, at + 0.14, 0.24, 0.05, 'triangle')
 }
+
+/* ---- Page Jump ------------------------------------------------------------------------ */
+
+/** Rebond sur un tome : un « pop » de papier, un peu plus aigu à mesure qu'on grimpe. */
+export function playJumpBounce(height: number): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  const lift = 1 + Math.min(0.5, height / 40000)
+  blip(e, 440 * lift, at, 0.07, 0.04, 'triangle')
+  blip(e, 660 * lift, at + 0.03, 0.08, 0.025, 'sine')
+}
+
+/** Ressort : un « boïng » qui monte. */
+export function playJumpSpring(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[330, 440, 587, 784].forEach((frequency, index) => blip(e, frequency, at + index * 0.035, 0.09, 0.04, 'triangle'))
+}
+
+/** Tome fragile : il craque. */
+export function playJumpBreak(): void {
+  const e = start()
+  if (!e) return
+  noiseBurst(e, { at: e.ctx.currentTime, duration: 0.18, from: 2600, to: 600, q: 1.2, gain: 0.08, grain: 50, send: 0.08 })
+}
+
+/** Bonus ramassé (envol, bulle) : un arpège lumineux. */
+export function playJumpPower(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[784, 988, 1175, 1568].forEach((frequency, index) => bell(e, frequency, at + index * 0.05, 0.45, 0.045, index % 2 ? 0.3 : -0.3))
+}
+
+/** Éclat ✦ : une goutte de verre. */
+export function playJumpStar(): void {
+  const e = start()
+  if (!e) return
+  blip(e, 1567.98, e.ctx.currentTime, 0.1, 0.03, 'sine', 0, 0.25)
+}
+
+/** Oni écrasé : un choc mou et une note qui saute. */
+export function playJumpStomp(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 220, 90, 0.16, 0.3)
+  blip(e, 880, at + 0.04, 0.1, 0.04, 'triangle')
+}
+
+/** Touché par un oni : un choc sourd. */
+export function playJumpHit(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 160, 50, 0.4, 0.4)
+  noiseBurst(e, { at, duration: 0.2, from: 3000, to: 700, q: 1, gain: 0.12, send: 0.1 })
+}
+
+/** Chute : un souffle qui descend, trois notes qui retombent. */
+export function playJumpOver(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.5, from: 2400, to: 300, q: 0.9, gain: 0.06, send: 0.2 })
+  ;[392, 329.63, 261.63].forEach((frequency, index) => bell(e, frequency, at + 0.1 + index * 0.12, 1.2, 0.035, index * 0.3 - 0.3))
+}
