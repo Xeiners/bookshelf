@@ -948,7 +948,9 @@ export const fr = {
       height: (meters: number) => `${meters.toLocaleString()} m`,
       world: (number: number) => `Monde ${number}`,
       hintTouch: 'Touche à gauche ou à droite pour diriger',
-      hintTilt: 'Incline ton téléphone pour diriger',
+      hintTilt: 'Incline ton téléphone pour diriger (ou touche à gauche / à droite)',
+      tiltMissing: 'Ton téléphone ne donne pas son inclinaison : touche à gauche ou à droite pour diriger.',
+      tiltInsecure: 'L’inclinaison ne marche qu’en HTTPS (le site en ligne) : touche à gauche ou à droite pour diriger.',
       hintKeys: '← → (ou A / D) pour diriger',
       useTilt: 'Diriger en inclinant le téléphone',
       powers: {
@@ -961,6 +963,9 @@ export const fr = {
       },
       useTouch: 'Diriger en touchant l’écran',
       quit: 'Quitter la partie',
+      pause: 'Mettre en pause',
+      paused: 'Pause',
+      resume: 'Reprendre',
     },
     characters: {
       title: 'Personnages',
@@ -1623,7 +1628,7 @@ export const fr = {
 
   library: {
     kinds: { label: 'Livres / cartes', books: 'Livres', cards: 'Cartes' },
-    cardTabs: { owned: 'Possédées', favorites: 'Favoris', emptyOwned: 'Aucune carte possédée pour l’instant : ouvre un booster !', emptyFavorites: 'Aucune carte favorite : touche le cœur sur une carte pour la retrouver ici.' },
+    cardTabs: { collection: 'Collection', owned: 'Possédées', favorites: 'Favoris', emptyOwned: 'Aucune carte possédée pour l’instant : ouvre un booster !', emptyFavorites: 'Aucune carte favorite : touche le cœur sur une carte pour la retrouver ici.' },
     showGrid: 'Afficher en grille',
     showShelf: 'Afficher en vitrine',
     featured: 'À la une',

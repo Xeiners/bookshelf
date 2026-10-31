@@ -15,6 +15,7 @@ import { useGuestStardustStore } from '../../store/useGuestStardustStore'
 import { useStardustBalance } from '../../store/useHigherLowerStore'
 import { useRecordRewards } from '../../store/useRecordRewards'
 import { useUiStore } from '../../store/useUiStore'
+import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { DleBar } from '../dle/DleBar'
 import { StardustBadge } from '../dle/StardustBadge'
 import { CharacterShop } from './CharacterShop'
@@ -79,6 +80,7 @@ export function JumpView() {
 
   const start = useCallback(async () => {
     if (starting) return
+    requestTiltPermission()
     setStarting(true)
     setSettled(null)
     vibrate(10)

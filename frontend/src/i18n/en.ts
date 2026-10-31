@@ -935,7 +935,9 @@ export const en: Dictionary = {
       height: (meters: number) => `${meters.toLocaleString()} m`,
       world: (number: number) => `World ${number}`,
       hintTouch: 'Touch left or right to steer',
-      hintTilt: 'Tilt your phone to steer',
+      hintTilt: 'Tilt your phone to steer (or touch left / right)',
+      tiltMissing: 'Your phone isn’t sharing its tilt: touch left or right to steer.',
+      tiltInsecure: 'Tilt only works over HTTPS (the live site): touch left or right to steer.',
       hintKeys: '← → (or A / D) to steer',
       useTilt: 'Steer by tilting the phone',
       powers: {
@@ -948,6 +950,9 @@ export const en: Dictionary = {
       },
       useTouch: 'Steer by touching the screen',
       quit: 'Quit the game',
+      pause: 'Pause',
+      paused: 'Paused',
+      resume: 'Resume',
     },
     characters: {
       title: 'Characters',
@@ -1608,7 +1613,7 @@ export const en: Dictionary = {
 
   library: {
     kinds: { label: 'Books / cards', books: 'Books', cards: 'Cards' },
-    cardTabs: { owned: 'Owned', favorites: 'Favorites', emptyOwned: 'No cards owned yet: open a booster!', emptyFavorites: 'No favorite cards yet: tap the heart on a card to find it here.' },
+    cardTabs: { collection: 'Collection', owned: 'Owned', favorites: 'Favorites', emptyOwned: 'No cards owned yet: open a booster!', emptyFavorites: 'No favorite cards yet: tap the heart on a card to find it here.' },
     showGrid: 'Show as grid',
     showShelf: 'Show as showcase',
     featured: 'Featured',

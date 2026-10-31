@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Hand, Smartphone, X } from 'lucide-react'
+import { Hand, LogOut, Pause, Play, Smartphone } from 'lucide-react'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
 import { useT } from '../../i18n'
 import moonUrl from '../../assets/moon-soul-eater.svg'
 import { WORLD_WIDTH } from '../../lib/jump/constants'
 import { SKINS, worldOf, type Skin } from '../../lib/jump/worlds'
+import { useNotificationStore } from '../../store/useNotificationStore'
 import { useThemeStore } from '../../store/useThemeStore'
 import type { JumpCharacterId } from '../../lib/jump/characters'
 import type { JumpOutcome } from '../../lib/jump/engine'
@@ -26,12 +27,30 @@ const CONTROLS_KEY = 'bookshelf:jump:controls'
 
 type Controls = 'touch' | 'tilt'
 
+/** Le choix retenu sur l'appareil ; sans choix, l'inclinaison (le toucher marche aussi). */
 function savedControls(): Controls {
   try {
-    return localStorage.getItem(CONTROLS_KEY) === 'tilt' ? 'tilt' : 'touch'
+    return localStorage.getItem(CONTROLS_KEY) === 'touch' ? 'touch' : 'tilt'
   } catch {
-    return 'touch'
+    return 'tilt'
   }
+}
+
+/** iPhone et iPad donnent l'accélération avec le signe inverse d'Android. */
+const IOS = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+
+/**
+ * Inclinaison gauche-droite (degrés) d'après la pesanteur mesurée par l'accéléromètre : le secours
+ * quand l'orientation ne répond pas (certains Android). Positif : penché vers la droite.
+ */
+function gravityTilt(event: DeviceMotionEvent): number | null {
+  const g = event.accelerationIncludingGravity
+  if (!g || g.x === null || g.y === null) return null
+  const angle = (screen.orientation?.angle ?? 0) % 360
+  // L'axe « gauche-droite » de l'écran, dans le repère de l'appareil.
+  const side = angle === 90 ? g.y : angle === 270 || angle === -90 ? -g.y : angle === 180 ? g.x : -g.x
+  const signed = (IOS ? -side : side) / 9.81
+  return (Math.asin(Math.max(-1, Math.min(1, signed))) * 180) / Math.PI
 }
 
 /** Inclinaison gauche-droite de l'appareil (degrés), selon l'orientation de l'écran. */
@@ -92,6 +111,38 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
 
   const [controls, setControls] = useState<Controls>(savedControls)
   const [hint, setHint] = useState(true)
+  /**
+   * Pause : la partie se fige (rien ne bouge, on ne peut pas tomber) jusqu'à « Reprendre ». Elle se
+   * met d'elle-même quand une notification arrive, quand on quitte l'app ou la fenêtre.
+   */
+  const [paused, setPaused] = useState(false)
+  const pausedRef = useRef(false)
+  useEffect(() => {
+    pausedRef.current = paused
+    // En pause, les doigts et touches posés ne comptent plus : on repart à l'arrêt.
+    if (paused) {
+      keys.current = { left: false, right: false }
+      pointers.current.clear()
+    }
+  }, [paused])
+  const notified = useNotificationStore((state) => state.banners.length > 0)
+  useEffect(() => {
+    if (notified && boardRef.current?.overFor === null) setPaused(true)
+  }, [notified])
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden' && boardRef.current?.overFor === null) setPaused(true)
+    }
+    const onBlur = () => {
+      if (boardRef.current?.overFor === null) setPaused(true)
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
   /** Univers qu'on vient d'atteindre : son nom s'affiche un instant. */
   const [world, setWorld] = useState<{ index: number; name: string } | null>(null)
   /** Bonus qu'on vient de prendre pour la première fois de la partie : à quoi il sert. */
@@ -167,12 +218,12 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       let input = 0
-      if (controlsRef.current === 'tilt' && touchDevice) input = tilt.current
-      else {
-        for (const side of pointers.current.values()) input += side
-        input += (keys.current.right ? 1 : 0) - (keys.current.left ? 1 : 0)
-      }
-      if (width > 0) board.update(dt, Math.max(-1, Math.min(1, input)), (height * WORLD_WIDTH) / width)
+      // Un doigt posé ou une touche l'emportent ; sinon, l'inclinaison (dans ce mode).
+      for (const side of pointers.current.values()) input += side
+      input += (keys.current.right ? 1 : 0) - (keys.current.left ? 1 : 0)
+      if (input === 0 && controlsRef.current === 'tilt' && touchDevice) input = tilt.current
+      // En pause : l'image reste figée, la simulation ne repart qu'à la reprise.
+      if (width > 0 && !pausedRef.current) board.update(dt, Math.max(-1, Math.min(1, input)), (height * WORLD_WIDTH) / width)
       board.draw(ctx, width, height)
       if (board.overFor !== null && !settled && board.overFor >= OVER_DELAY) {
         settled = true
@@ -227,19 +278,39 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
     }
   }, [])
 
-  // Inclinaison : écoutée seulement dans ce mode.
+  // Inclinaison : écoutée seulement dans ce mode, sur deux capteurs. L'orientation d'abord ; si
+  // elle se tait (certains Android), la pesanteur de l'accéléromètre prend le relais. Si aucun ne
+  // répond (autorisation refusée, page non sécurisée), on le dit, et le toucher reste là.
+  const [tiltMissing, setTiltMissing] = useState(false)
   useEffect(() => {
-    if (controls !== 'tilt') return
-    const onOrientation = (event: DeviceOrientationEvent) => {
-      const degrees = sideTilt(event)
+    if (controls !== 'tilt' || !touchDevice) return
+    let lastOrientation = 0
+    let heard = false
+    const apply = (degrees: number) => {
+      heard = true
       tilt.current = Math.abs(degrees) < TILT_DEAD ? 0 : Math.max(-1, Math.min(1, degrees / TILT_FULL))
     }
+    const onOrientation = (event: DeviceOrientationEvent) => {
+      if (event.gamma === null || event.beta === null) return
+      lastOrientation = performance.now()
+      apply(sideTilt(event))
+    }
+    const onMotion = (event: DeviceMotionEvent) => {
+      if (performance.now() - lastOrientation < 500) return
+      const degrees = gravityTilt(event)
+      if (degrees !== null) apply(degrees)
+    }
     window.addEventListener('deviceorientation', onOrientation)
+    window.addEventListener('devicemotion', onMotion)
+    const check = window.setTimeout(() => setTiltMissing(!heard), 1500)
     return () => {
       window.removeEventListener('deviceorientation', onOrientation)
+      window.removeEventListener('devicemotion', onMotion)
+      window.clearTimeout(check)
+      setTiltMissing(false)
       tilt.current = 0
     }
-  }, [controls])
+  }, [controls, touchDevice])
 
   // L'astuce s'efface d'elle-même.
   useEffect(() => {
@@ -273,6 +344,7 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
   const release = (event: ReactPointerEvent<HTMLDivElement>) => pointers.current.delete(event.pointerId)
 
   const hintText = touchDevice ? (controls === 'tilt' ? t.jump.game.hintTilt : t.jump.game.hintTouch) : t.jump.game.hintKeys
+  const tiltWarning = !window.isSecureContext ? t.jump.game.tiltInsecure : t.jump.game.tiltMissing
 
   return (
     <div className="fixed inset-0 z-[80] touch-none overflow-hidden bg-[#07040c] select-none" style={sidesStyle(skin, worldIndex)} role="application" aria-label={t.jump.game.aria}>
@@ -299,11 +371,11 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
         <button
           type="button"
           data-jump-ui
-          onClick={quit}
-          aria-label={t.jump.game.quit}
+          onClick={() => setPaused(true)}
+          aria-label={t.jump.game.pause}
           className="absolute top-[max(1rem,env(safe-area-inset-top))] left-4 grid size-10 place-items-center rounded-full border border-white/25 bg-black/30 text-white"
         >
-          <X size={18} />
+          <Pause size={18} className="fill-white" />
         </button>
         <div data-jump-ui className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 flex flex-col items-center gap-2">
           <span className="grid size-10 place-items-center rounded-full border border-white/25 bg-black/30">
@@ -333,6 +405,31 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
               <span className="block text-xs leading-snug font-semibold text-[#140c22]/75">{t.jump.game.powers[tip].text}</span>
             </p>
           </div>
+        )}
+        {paused && (
+          <div data-jump-ui className="absolute inset-0 z-10 grid place-items-center bg-[#07040c]/70 px-8" role="dialog" aria-modal="true" aria-label={t.jump.game.paused}>
+            <div className="flex w-full max-w-xs flex-col items-center gap-3 rounded-[1.75rem] border-[3px] border-[#140c22] bg-[#fff6dc] p-5 text-center text-[#140c22]">
+              <p className="font-display text-3xl leading-none">{t.jump.game.paused}</p>
+              <button
+                type="button"
+                onClick={() => setPaused(false)}
+                autoFocus
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border-[3px] border-[#140c22] bg-[#ffd35c] text-base font-bold"
+              >
+                <Play size={18} className="fill-[#140c22]" aria-hidden />
+                {t.jump.game.resume}
+              </button>
+              <button type="button" onClick={quit} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm font-semibold text-[#140c22]/75">
+                <LogOut size={16} aria-hidden />
+                {t.jump.game.quit}
+              </button>
+            </div>
+          </div>
+        )}
+        {tiltMissing && (
+          <p className="pointer-events-none absolute inset-x-6 bottom-[6%] rounded-2xl border-2 border-[#140c22] bg-[#fff6dc] px-3 py-2 text-center text-xs font-semibold text-[#140c22]">
+            {tiltWarning}
+          </p>
         )}
         {hint && (
           <p className="pointer-events-none absolute inset-x-0 bottom-[14%] px-6 text-center text-sm font-semibold tracking-wide text-white [text-shadow:0_1px_0_#1a1030] motion-safe:animate-pulse">
