@@ -600,6 +600,8 @@ export const en: Dictionary = {
       reasons: {
         drop_incident:
           'Our apologies for the Legendary drop incident: the guarantee was triggered by mistake for many of you. It is fixed. To make it up to you: a pack with a guaranteed Legendary and 5 boosters, waiting in Activities. Thanks for your patience!',
+        server_outage:
+          'The server was down for a day and your reward calendars started over: our apologies. We’ve put you back on day 25, and to make it up to you: a pack with a guaranteed Legendary and 5 boosters, waiting in Activities. Thanks for your patience!',
       },
     },
     boosterGift: {
@@ -618,6 +620,15 @@ export const en: Dictionary = {
     cardShare: {
       title: (who: string, count: number) => (count > 1 ? `${who} is showing you ${count} cards!` : `${who} is showing you a card!`),
       body: (cards: string[], message: string | null) => message ?? cards.join(' · '),
+    },
+    surpriseRecap: {
+      skip: (count: number) => (count > 1 ? `Skip all (${count})` : 'Skip'),
+      eyebrow: 'Recap',
+      title: (count: number) => `${count} card${plural(count, '', 's')} received`,
+      from: (who: string) => `from ${who}`,
+      fromTeam: 'from the team',
+      more: (count: number) => `Show more (${count})`,
+      close: 'Close',
     },
     shareReveal: {
       eyebrow: 'Check out this pull',

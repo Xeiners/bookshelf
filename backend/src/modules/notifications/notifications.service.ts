@@ -52,7 +52,7 @@ export interface BoosterGiftData {
 export interface TeamGiftData {
   boosters: number
   legendaryPacks: number
-  reason: 'drop_incident'
+  reason: 'drop_incident' | 'server_outage'
 }
 
 /** Carte offerte par l'équipe (administration), ou par un autre membre (`from`). */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Gift, Megaphone } from 'lucide-react'
+import { FastForward, Gift, Megaphone } from 'lucide-react'
 import { useT } from '../../i18n'
 import { RARITY_STYLE, rarityRank } from '../../lib/boosters'
 import { EASE, gsap, useGSAP } from '../../lib/gsap'
@@ -25,7 +25,8 @@ type Surprise = GiftNotification | ShareNotification
  * de l'équipe) arrive en plein écran, face cachée ; un toucher la retourne, dans une gerbe
  * de confettis aux couleurs de sa rareté. Les cartes qu'un membre montre (« Informer »)
  * arrivent de la même façon, en rangée. Une surprise à la fois ; vue = lue. Depuis la liste
- * des notifications, une présentation déjà vue se rejoue.
+ * des notifications, une présentation déjà vue se rejoue. « Tout passer » marque d'un coup
+ * toutes les surprises en attente comme vues et montre leurs cartes, face visible, en récap.
  */
 export function GiftReveal() {
   const signedIn = useAuthStore((state) => state.user !== null)
@@ -33,8 +34,11 @@ export function GiftReveal() {
   const markRead = useNotificationStore((state) => state.markRead)
   const replaying = useShowcaseStore((state) => state.replaying)
   const clearReplay = useShowcaseStore((state) => state.clear)
+  const collectionChanged = useBoosterStore((state) => state.collectionChanged)
   // Déjà montrées pendant cette visite (le temps que la lecture remonte au serveur).
   const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set())
+  /** « Tout passer » : les surprises passées, montrées d'un coup en récap. */
+  const [recap, setRecap] = useState<Surprise[] | null>(null)
   const pending = useMemo(
     () =>
       items
@@ -44,6 +48,7 @@ export function GiftReveal() {
   )
   const replay = replaying ? items.find((item): item is ShareNotification => item.id === replaying && item.type === 'card_share') : undefined
   const current = signedIn ? (replay ?? pending[0]) : undefined
+  if (recap) return createPortal(<SurpriseRecap items={recap} onClose={() => setRecap(null)} />, document.body)
   if (!current) return null
   const left = replay ? 0 : pending.length - 1
   const done = (id: string) => {
@@ -51,12 +56,25 @@ export function GiftReveal() {
     markRead([id])
     if (replay) clearReplay()
   }
+  /** Toutes les surprises en attente vues d'un coup : leurs cartes en récap. */
+  const skip = () => {
+    const skipped = replay ? [replay] : pending
+    vibrate(10)
+    setShown((set) => new Set([...set, ...skipped.map((item) => item.id)]))
+    markRead(skipped.map((item) => item.id))
+    if (skipped.some((item) => item.type === 'card_gift')) collectionChanged()
+    if (replay) clearReplay()
+    setRecap(skipped)
+  }
   return createPortal(
-    current.type === 'card_share' ? (
-      <ShareReveal key={current.id} share={current} left={left} onDone={() => done(current.id)} />
-    ) : (
-      <Reveal key={current.id} gift={current} left={left} onDone={() => done(current.id)} />
-    ),
+    <>
+      {current.type === 'card_share' ? (
+        <ShareReveal key={current.id} share={current} left={left} onDone={() => done(current.id)} />
+      ) : (
+        <Reveal key={current.id} gift={current} left={left} onDone={() => done(current.id)} />
+      )}
+      <SkipButton count={left + 1} onSkip={skip} />
+    </>,
     document.body,
   )
 }
@@ -278,6 +296,93 @@ function ShareReveal({ share, left, onDone }: { share: ShareNotification; left: 
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+/** « Tout passer » : en haut à droite, au-dessus de la surprise en cours. */
+function SkipButton({ count, onSkip }: { count: number; onSkip: () => void }) {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      onClick={onSkip}
+      className="fixed top-[max(1rem,env(safe-area-inset-top))] right-4 z-[97] inline-flex items-center gap-1.5 rounded-full border border-[#ffe39a]/30 bg-black/60 px-3.5 py-2 text-xs font-semibold text-[#fff4c8] tabular-nums hover:bg-[#ffe39a]/10"
+    >
+      <FastForward size={14} aria-hidden />
+      {t.notifications.surpriseRecap.skip(count)}
+    </button>
+  )
+}
+
+/** Cartes affichées à la fois dans le récap ; « Voir plus » en ajoute autant. */
+const RECAP_PAGE = 48
+
+/**
+ * Récap des surprises passées : toutes leurs cartes, face visible, en grille, chacune avec
+ * qui l'a montrée (ou offerte). Rien à retourner, rien à valider une par une.
+ */
+function SurpriseRecap({ items, onClose }: { items: Surprise[]; onClose: () => void }) {
+  const t = useT()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [limit, setLimit] = useState(RECAP_PAGE)
+  const entries = useMemo(
+    () =>
+      items.flatMap((item) =>
+        item.type === 'card_share'
+          ? item.data.cards.map((card, index) => ({ key: `${item.id}-${index}`, card, from: t.notifications.surpriseRecap.from(partyName(item.data.by, t.trades.anonymous)) }))
+          : [
+              {
+                key: item.id,
+                card: item.data.card,
+                from: item.data.from ? t.notifications.surpriseRecap.from(partyName(item.data.from, t.trades.anonymous)) : t.notifications.surpriseRecap.fromTeam,
+              },
+            ],
+      ),
+    [items, t],
+  )
+  const gap = 10
+  const columns = Math.max(2, Math.min(6, Math.floor((Math.min(window.innerWidth, 760) - 48 + gap) / (96 + gap))))
+  const width = Math.min(150, Math.floor((Math.min(window.innerWidth, 760) - 48 - (columns - 1) * gap) / columns))
+  const title = t.notifications.surpriseRecap.title(entries.length)
+
+  useGSAP(
+    () => {
+      gsap.fromTo('[data-recap-backdrop]', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 })
+      gsap.fromTo('[data-recap-card]', { y: 24, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.45, ease: EASE.glide, stagger: Math.min(0.03, 0.6 / Math.max(1, Math.min(entries.length, RECAP_PAGE))) })
+    },
+    { scope: rootRef },
+  )
+
+  return (
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[96] flex flex-col overflow-y-auto px-6 pt-[max(1.5rem,env(safe-area-inset-top))] text-center">
+      <div data-recap-backdrop aria-hidden className="fixed inset-0 bg-void/95" />
+      <header className="relative flex flex-col items-center gap-2 pb-5">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-glow/15 px-3 py-1 text-[10px] font-semibold tracking-[0.24em] text-glow uppercase">
+          <Megaphone size={12} aria-hidden />
+          {t.notifications.surpriseRecap.eyebrow}
+        </span>
+        <h2 className="font-display text-3xl leading-tight text-cream">{title}</h2>
+      </header>
+      <ul className="relative mx-auto grid justify-center" style={{ gridTemplateColumns: `repeat(${columns}, ${width}px)`, gap }}>
+        {entries.slice(0, limit).map((entry) => (
+          <li key={entry.key} data-recap-card className="flex flex-col items-center gap-1.5">
+            <CollectibleCard card={entry.card} width={width} />
+            <span className="w-full truncate text-[11px] text-cream/60">{entry.from}</span>
+          </li>
+        ))}
+      </ul>
+      {entries.length > limit && (
+        <button type="button" onClick={() => setLimit((value) => value + RECAP_PAGE)} className="relative mx-auto mt-5 rounded-full border border-[#ffe39a]/30 px-4 py-2 text-xs text-[#fff4c8] hover:bg-[#ffe39a]/10">
+          {t.notifications.surpriseRecap.more(entries.length - limit)}
+        </button>
+      )}
+      {/* Toujours à portée de pouce, même au milieu d'une longue liste. */}
+      <div className="sticky bottom-0 mt-auto bg-gradient-to-t from-void via-void/90 to-transparent pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <button type="button" onClick={onClose} className="mx-auto h-12 w-full max-w-sm rounded-full bg-cream text-sm font-semibold text-void">
+          {t.notifications.surpriseRecap.close}
+        </button>
+      </div>
     </div>
   )
 }

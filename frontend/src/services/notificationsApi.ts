@@ -31,7 +31,7 @@ export interface BoosterGiftNotification extends NotificationBase {
 /** Cadeau de l'équipe à tous les joueurs (geste d'excuse) : boosters et packs Légendaire. */
 export interface TeamGiftNotification extends NotificationBase {
   type: 'team_gift'
-  data: { boosters: number; legendaryPacks: number; reason: 'drop_incident' }
+  data: { boosters: number; legendaryPacks: number; reason: 'drop_incident' | 'server_outage' }
 }
 
 /** L'équipe a offert une carte (administration). */

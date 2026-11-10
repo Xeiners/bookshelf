@@ -611,6 +611,8 @@ export const fr = {
       reasons: {
         drop_incident:
           'Toutes nos excuses pour l’incident sur les drops de Légendaires : la garantie s’est déclenchée par erreur pour beaucoup d’entre vous. C’est corrigé. Pour nous faire pardonner : un pack avec une Légendaire garantie et 5 boosters, à ouvrir dans les Activités. Merci pour votre patience !',
+        server_outage:
+          'Le serveur a été coupé une journée et vos calendriers de récompenses sont repartis de zéro : toutes nos excuses. On vous remet au jour 25, et pour nous faire pardonner : un pack avec une Légendaire garantie et 5 boosters, à ouvrir dans les Activités. Merci pour votre patience !',
       },
     },
     boosterGift: {
@@ -629,6 +631,15 @@ export const fr = {
     cardShare: {
       title: (who: string, count: number) => (count > 1 ? `${who} te montre ${count} cartes !` : `${who} te montre sa carte !`),
       body: (cards: string[], message: string | null) => message ?? cards.join(' · '),
+    },
+    surpriseRecap: {
+      skip: (count: number) => (count > 1 ? `Tout passer (${count})` : 'Passer'),
+      eyebrow: 'Récap',
+      title: (count: number) => `${count} carte${plural(count, '', 's')} reçue${plural(count, '', 's')}`,
+      from: (who: string) => `de ${who}`,
+      fromTeam: 'de l’équipe',
+      more: (count: number) => `Voir plus (${count})`,
+      close: 'Fermer',
     },
     shareReveal: {
       eyebrow: 'Regarde ce tirage',
