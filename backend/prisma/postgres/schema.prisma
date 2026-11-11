@@ -96,6 +96,7 @@ model User {
   recordRewards    RecordReward[]
   teamEventClaims  TeamEventClaim[]
   jumpStats        JumpStats?
+  gravityProgress  GravityProgress[]
   jumpCharacters   JumpCharacter[]
   dailyReward      DailyReward?
   stackStats       StackStats?
@@ -899,4 +900,47 @@ model SiteSetting {
   /// E-mail de l'administrateur qui l'a changé en dernier.
   updatedBy String?
   updatedAt DateTime @updatedAt
+}
+
+/// Gravity Ninja : un niveau (format JSON du jeu, cf. `frontend/src/lib/gravity/types.ts`). Les
+/// niveaux intégrés sont semés au démarrage (`builtin`) ; l'atelier des admins en ajoute d'autres.
+model GravityLevel {
+  id         String   @id
+  name       String
+  theme      String
+  difficulty Int
+  /// Rang dans la liste des niveaux (croissant).
+  position   Int      @default(0)
+  builtin    Boolean  @default(false)
+  /// Le niveau complet, en JSON.
+  data       String
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  progress GravityProgress[]
+
+  @@index([position])
+}
+
+/// Gravity Ninja : la progression d'un joueur sur un niveau (meilleurs résultats, jamais en baisse).
+model GravityProgress {
+  userId       String
+  levelId      String
+  /// Avancement le plus loin atteint (0 → 100).
+  bestPercent  Int      @default(0)
+  completed    Boolean  @default(false)
+  /// Meilleur temps (ms) et le moins de chutes, sur un niveau fini.
+  bestTimeMs   Int?
+  fewestDeaths Int?
+  /// Rouleaux pris (le plus en une partie finie, 0 → 3).
+  scrolls      Int      @default(0)
+  attempts     Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level GravityLevel @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@id([userId, levelId])
+  @@index([levelId])
 }

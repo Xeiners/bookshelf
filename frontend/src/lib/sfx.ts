@@ -1005,3 +1005,63 @@ export function playJumpOver(): void {
   noiseBurst(e, { at, duration: 0.5, from: 2400, to: 300, q: 0.9, gain: 0.06, send: 0.2 })
   ;[392, 329.63, 261.63].forEach((frequency, index) => bell(e, frequency, at + 0.1 + index * 0.12, 1.2, 0.035, index * 0.3 - 0.3))
 }
+
+/* ---- Gravity Ninja --------------------------------------------------------------------- */
+
+/** Inversion : un souffle qui monte (vers le plafond) ou qui descend (vers le sol). */
+export function playGravityFlip(up: boolean): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.2, from: up ? 600 : 2600, to: up ? 2800 : 500, q: 1.4, gain: 0.08, send: 0.06 })
+  blip(e, up ? 523.25 : 392, at, 0.08, 0.025, 'triangle')
+}
+
+/** Atterrissage : un pas feutré. */
+export function playGravityLand(): void {
+  const e = start()
+  if (!e) return
+  boom(e, e.ctx.currentTime, 140, 70, 0.08, 0.12)
+}
+
+/** Disparition (chute) : la fumée du ninja, « pouf ». */
+export function playGravityPoof(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.35, from: 1800, to: 300, q: 0.7, gain: 0.14, send: 0.15 })
+  boom(e, at, 120, 50, 0.25, 0.22)
+}
+
+/** Rouleau ramassé : trois notes de cristal. */
+export function playGravityScroll(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[1046.5, 1318.5, 1568].forEach((frequency, index) => bell(e, frequency, at + index * 0.05, 0.5, 0.04, index * 0.3 - 0.3))
+}
+
+/** Lune : un accord suspendu, éthéré. */
+export function playGravityMoon(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[659.25, 830.61, 987.77, 1318.5].forEach((frequency, index) => bell(e, frequency, at + index * 0.08, 1.2, 0.035, index % 2 ? 0.4 : -0.4))
+}
+
+/** Point de reprise : un gong léger. */
+export function playGravityCheckpoint(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  bell(e, 392, at, 1.4, 0.05)
+  bell(e, 587.33, at + 0.06, 1.2, 0.035, 0.3)
+}
+
+/** Arrivée : une fanfare de cloches qui monte. */
+export function playGravityFinish(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  ;[523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((frequency, index) => bell(e, frequency, at + index * 0.09, 1.4, 0.05, index % 2 ? 0.35 : -0.35))
+}

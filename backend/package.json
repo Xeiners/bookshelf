@@ -21,6 +21,7 @@
     "db:schema:pg": "node scripts/prisma-postgres.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "cookie-parser": "^1.4.7",

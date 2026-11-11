@@ -33,6 +33,8 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.errors.notSuspended
     case 'daily_claimed':
       return t.daily.alreadyClaimed
+    case 'gravity_ai_unavailable':
+      return t.gravity.workshop.aiOff
     case 'character_owned':
       return t.jump.characters.alreadyOwned
     case 'event_claimed':

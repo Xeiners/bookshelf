@@ -19,6 +19,7 @@ import { useDailyStore } from '../../store/useDailyStore'
 import { useNews } from '../../store/useNews'
 import { useUiStore } from '../../store/useUiStore'
 import { StackEmblem } from '../stack/StackEmblem'
+import { GravityEmblem } from '../gravity/GravityEmblem'
 import { JumpEmblem } from '../jump/JumpEmblem'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
@@ -375,7 +376,7 @@ function DailyChip() {
 }
 
 /** Couleur de chaque mode : couverture de sa carte, pastille d'état, raccourci « À faire ». */
-const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff', stack: '#ff9a5c', jump: '#ff8a6b' } as const
+const TINT = { booster: '#ffc46b', oracle: '#9d7bff', collection: '#e0a82e', market: '#3fe0a0', bomb: '#b46cff', dle: '#ff5ec4', hl: '#4cc9f0', runner: '#ff6fb5', canvas: '#2bc3ff', stack: '#ff9a5c', jump: '#ff8a6b', gravity: '#e3313f' } as const
 
 /* ---- Vedette : l'ouverture des boosters ------------------------------------------------------------- */
 
@@ -805,6 +806,7 @@ function GamesCards() {
   const t = useT()
   const openActivity = useUiStore((state) => state.openActivity)
   const signedIn = useAuthStore((state) => state.user !== null)
+  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
   const overview = useDleStore((state) => state.overview)
   const hl = useHigherLowerStore((state) => state.overview?.me ?? null)
   const loadHl = useHigherLowerStore((state) => state.loadOverview)
@@ -822,6 +824,17 @@ function GamesCards() {
     <>
       <HubCard title={t.dle.title} description={g.dle} tint={TINT.dle} status={dleStatus} onClick={() => openActivity('dle')} emblem={<DleEmblem />} />
       <HubCard title={t.hl.title} description={g.hl} tint={TINT.hl} status={hlStatus} onClick={() => openActivity('higherlower')} emblem={<HlEmblem />} />
+      {/* Gravity Ninja : pour l'instant réservé aux administrateurs. */}
+      {isAdmin && (
+        <HubCard
+          title={t.gravity.title}
+          description={g.gravity}
+          tint={TINT.gravity}
+          status={{ label: t.gravity.home.adminOnly, tone: 'info' }}
+          onClick={() => openActivity('gravity')}
+          scene={<GravityEmblem className="block size-full" />}
+        />
+      )}
       <HubCard
         title={t.jump.title}
         description={g.jump}

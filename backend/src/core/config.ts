@@ -141,6 +141,11 @@ const EnvSchema = z.object({
    * résultats publique de youtube.com.
    */
   YOUTUBE_API_KEY: z.string().trim().optional(),
+  /**
+   * Clé de l'API Claude (Anthropic) : l'atelier de Gravity Ninja peut alors demander à une IA le plan
+   * d'un niveau. Absente, ce bouton est simplement désactivé (le générateur et l'import marchent).
+   */
+  ANTHROPIC_API_KEY: z.string().trim().optional(),
   /** `off` : aucune requête vers YouTube (la recherche répond 503). */
   MUSIC_SEARCH: z.enum(['on', 'off']).optional(),
 
@@ -267,6 +272,9 @@ export const config = {
   canvas: {
     minAccountAgeMs: (env.CANVAS_MIN_ACCOUNT_AGE_MIN ?? (env.NODE_ENV === 'test' ? 0 : 5)) * 60_000,
     dir: path.join(path.isAbsolute(env.BOOKS_DIR) ? env.BOOKS_DIR : path.resolve(BACKEND_ROOT, env.BOOKS_DIR), 'canvas'),
+  },
+  ai: {
+    anthropicApiKey: env.ANTHROPIC_API_KEY || undefined,
   },
   music: {
     search: (env.MUSIC_SEARCH ?? 'on') === 'on',
