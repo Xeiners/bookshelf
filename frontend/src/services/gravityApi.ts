@@ -23,11 +23,14 @@ export interface GravityProgress {
   attempts: number
 }
 
+/** IA qui peuvent écrire le plan d'un niveau (une clé chacune sur le serveur). */
+export type AiProvider = 'gemini' | 'claude'
+
 export interface GravityOverview {
   levels: GravityLevelSummary[]
   progress: Record<string, GravityProgress>
-  /** Génération par IA possible (clé de l'API Claude configurée sur le serveur). */
-  ai: boolean
+  /** IA branchées sur le serveur, dans l'ordre de préférence ; vide : génération par IA indisponible. */
+  ai: AiProvider[]
 }
 
 export interface GravityRunReport {
@@ -43,6 +46,8 @@ export interface PlanRequest {
   difficulty?: number
   theme?: ThemeId
   length?: 'short' | 'medium' | 'long'
+  /** L'IA à interroger ; par défaut, la première branchée. */
+  provider?: AiProvider
 }
 
 export const gravityApi = {
@@ -51,7 +56,7 @@ export const gravityApi = {
   run: (id: string, report: GravityRunReport) => api<{ progress: GravityProgress }>(`/gravity/levels/${encodeURIComponent(id)}/runs`, { method: 'POST', body: report }),
   save: (level: GravityLevel) => api<{ level: GravityLevelSummary }>('/gravity/levels', { method: 'POST', body: { level } }),
   remove: (id: string) => api<void>(`/gravity/levels/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  /** Le plan d'un niveau, écrit par Claude. 503 `gravity_ai_unavailable` sans clé sur le serveur. */
+  /** Le plan d'un niveau, écrit par une IA (Gemini ou Claude). 503 `gravity_ai_unavailable` sans clé sur le serveur. */
   plan: (request: PlanRequest) => api<{ plan: LevelPlan }>('/gravity/ai/plan', { method: 'POST', body: request }),
   /** Le texte de la demande, pour un autre assistant. */
   prompt: (request: PlanRequest) => api<{ prompt: string }>('/gravity/ai/prompt', { method: 'POST', body: request }),

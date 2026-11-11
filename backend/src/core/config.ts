@@ -146,6 +146,13 @@ const EnvSchema = z.object({
    * d'un niveau. Absente, ce bouton est simplement désactivé (le générateur et l'import marchent).
    */
   ANTHROPIC_API_KEY: z.string().trim().optional(),
+  /**
+   * Clé de l'API Gemini (Google AI Studio, offre gratuite) : même usage que la clé Claude, avec
+   * Gemini. `GEMINI_MODEL` choisit le modèle ; `GEMINI_BASE_URL` sert aux proxys (et aux tests).
+   */
+  GEMINI_API_KEY: z.string().trim().optional(),
+  GEMINI_MODEL: z.string().trim().regex(/^[\w.-]+$/).default('gemini-3.8-flash'),
+  GEMINI_BASE_URL: z.url().optional(),
   /** `off` : aucune requête vers YouTube (la recherche répond 503). */
   MUSIC_SEARCH: z.enum(['on', 'off']).optional(),
 
@@ -275,6 +282,7 @@ export const config = {
   },
   ai: {
     anthropicApiKey: env.ANTHROPIC_API_KEY || undefined,
+    gemini: { apiKey: env.GEMINI_API_KEY || undefined, model: env.GEMINI_MODEL, baseUrl: env.GEMINI_BASE_URL },
   },
   music: {
     search: (env.MUSIC_SEARCH ?? 'on') === 'on',

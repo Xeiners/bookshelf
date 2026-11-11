@@ -3,7 +3,7 @@ import { HttpError, notFound } from '../../core/http/errors.js'
 import type { Admin } from '../admin/admin.service.js'
 import { BUILTIN_LEVELS } from './gravity.levels.js'
 import { LevelSchema, type GravityLevelData, type GravityRun } from './gravity.schema.js'
-import { aiAvailable } from './gravity.ai.js'
+import { aiProviders, type AiProvider } from './gravity.ai.js'
 
 /*
  * Gravity Ninja : les niveaux (intégrés, semés une fois par démarrage ; ou créés dans l'atelier des
@@ -35,8 +35,8 @@ export interface GravityProgressDto {
 export interface GravityOverview {
   levels: GravityLevelSummary[]
   progress: Record<string, GravityProgressDto>
-  /** Génération de plans par IA possible (clé de l'API Claude présente). */
-  ai: boolean
+  /** IA branchées pour écrire des plans (une clé par IA) ; vide : génération par IA indisponible. */
+  ai: AiProvider[]
 }
 
 let seeded: Promise<void> | null = null
@@ -89,7 +89,7 @@ export async function gravityOverview(userId: string): Promise<GravityOverview> 
   return {
     levels: levels.map(summaryOf),
     progress: Object.fromEntries(progress.map((row) => [row.levelId, progressOf(row)])),
-    ai: aiAvailable(),
+    ai: aiProviders(),
   }
 }
 

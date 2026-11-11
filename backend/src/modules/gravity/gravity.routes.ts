@@ -4,7 +4,7 @@ import { config } from '../../core/config.js'
 import { currentUserId, requireAuth } from '../../core/http/auth.js'
 import { rateLimit } from '../../core/http/rateLimit.js'
 import { currentAdmin, requireAdmin } from '../admin/admin.access.js'
-import { generatePlan, planPrompt } from './gravity.ai.js'
+import { AI_PROVIDERS, generatePlan, planPrompt } from './gravity.ai.js'
 import { GRAVITY_THEMES, RunSchema } from './gravity.schema.js'
 import { deleteGravityLevel, gravityLevel, gravityOverview, recordGravityRun, saveGravityLevel } from './gravity.service.js'
 
@@ -55,10 +55,11 @@ const PlanBody = z.object({
   difficulty: z.number().int().min(1).max(10).optional(),
   theme: z.enum(GRAVITY_THEMES).optional(),
   length: z.enum(['short', 'medium', 'long']).optional(),
+  provider: z.enum(AI_PROVIDERS).optional(),
 })
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: config.env === 'test' ? 1000 : 6 })
 
-/** Atelier : le plan d'un niveau, écrit par Claude. 503 `gravity_ai_unavailable` sans clé. */
+/** Atelier : le plan d'un niveau, écrit par une IA (Gemini ou Claude). 503 `gravity_ai_unavailable` sans clé. */
 gravityRouter.post('/ai/plan', aiLimiter, async (req, res) => {
   res.json({ plan: await generatePlan(PlanBody.parse(req.body)) })
 })

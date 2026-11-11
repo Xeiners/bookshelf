@@ -35,6 +35,16 @@ export function apiErrorMessage(error: unknown, t: Dictionary): string {
       return t.daily.alreadyClaimed
     case 'gravity_ai_unavailable':
       return t.gravity.workshop.aiOff
+    case 'gravity_ai_busy':
+      return t.gravity.workshop.errors.busy
+    case 'gravity_ai_model':
+      return t.gravity.workshop.errors.model
+    case 'gravity_ai_refused':
+      return t.gravity.workshop.errors.refused
+    case 'gravity_ai_invalid':
+      return t.gravity.workshop.errors.invalid
+    case 'gravity_ai_failed':
+      return t.gravity.workshop.errors.failed
     case 'character_owned':
       return t.jump.characters.alreadyOwned
     case 'event_claimed':

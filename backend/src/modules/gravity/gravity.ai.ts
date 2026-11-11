@@ -1,20 +1,27 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
+import { ApiError as GeminiError, GoogleGenAI } from '@google/genai'
+import { z } from 'zod'
 import { config } from '../../core/config.js'
 import { HttpError } from '../../core/http/errors.js'
 import { GRAVITY_SECTIONS, GRAVITY_THEMES, PlanSchema, type GravityPlan } from './gravity.schema.js'
 
 /*
- * Gravity Ninja : une IA (Claude) écrit le PLAN d'un niveau — son nom, son thème et la suite de
- * ses sections — à partir d'une demande libre (« un niveau de Noël difficile, plein de plateformes
+ * Gravity Ninja : une IA écrit le PLAN d'un niveau — son nom, son thème et la suite de ses
+ * sections — à partir d'une demande libre (« un niveau de Noël difficile, plein de plateformes
  * qui s'effondrent »). Le générateur du jeu bâtit ensuite le niveau section par section et prouve
  * qu'il se finit : l'IA décide du rythme et de l'ambiance, la physique reste garantie.
  *
- * Sans `ANTHROPIC_API_KEY`, la génération par IA est indisponible (503) ; le même texte (`planPrompt`)
- * peut alors être copié vers n'importe quel assistant, et sa réponse importée dans l'atelier.
+ * Deux IA possibles, selon les clés présentes : Claude (`ANTHROPIC_API_KEY`) et Gemini
+ * (`GEMINI_API_KEY`, offre gratuite de Google AI Studio). Mêmes consignes, même plan, même
+ * vérification. Sans clé, la génération par IA est indisponible (503) ; le même texte
+ * (`planPrompt`) peut alors être copié vers n'importe quel assistant, et sa réponse importée.
  */
 
-const MODEL = 'claude-opus-5-5'
+export const AI_PROVIDERS = ['gemini', 'claude'] as const
+export type AiProvider = (typeof AI_PROVIDERS)[number]
+
+const CLAUDE_MODEL = 'claude-opus-5-5'
 
 /** Nombre de sections conseillé selon la longueur voulue. */
 const SECTIONS_FOR = { short: '10 à 14', medium: '16 à 22', long: '26 à 34' } as const
@@ -57,6 +64,8 @@ export interface PlanRequest {
   difficulty?: number
   theme?: (typeof GRAVITY_THEMES)[number]
   length?: PlanLength
+  /** L'IA à interroger ; par défaut, la première disponible. */
+  provider?: AiProvider
 }
 
 /** La demande, complétée des choix faits dans l'atelier. */
@@ -73,17 +82,34 @@ export function planPrompt(request: PlanRequest): string {
   return `${SYSTEM}\n\n${userMessage(request)}\n\nRéponds par un objet JSON de la forme {"name": "...", "theme": "...", "difficulty": 1-10, "sections": [{"kind": "...", "intensity": 1-10}, ...]}, sans aucun texte autour.`
 }
 
-export const aiAvailable = () => Boolean(config.ai.anthropicApiKey)
+/** Les IA branchées (une clé par IA), dans l'ordre de préférence. */
+export const aiProviders = (): AiProvider[] =>
+  AI_PROVIDERS.filter((provider) => (provider === 'gemini' ? Boolean(config.ai.gemini.apiKey) : Boolean(config.ai.anthropicApiKey)))
 
-let client: Anthropic | null = null
+const unavailable = (detail: string) => new HttpError(503, 'gravity_ai_unavailable', `Génération par IA indisponible : ${detail}`)
+const busy = () => new HttpError(429, 'gravity_ai_busy', 'L’IA est très demandée (ou le quota gratuit est atteint) : réessaie dans un instant.')
+const refused = () => new HttpError(422, 'gravity_ai_refused', 'L’IA a refusé cette demande.')
+const invalid = () => new HttpError(502, 'gravity_ai_invalid', 'L’IA n’a pas rendu de plan valable.')
+const failed = () => new HttpError(502, 'gravity_ai_failed', 'L’IA n’a pas pu répondre.')
 
-/** Demande le plan d'un niveau à Claude (sortie structurée, validée par `PlanSchema`). */
+/** Demande le plan d'un niveau à l'IA choisie (ou à la première disponible). */
 export async function generatePlan(request: PlanRequest): Promise<GravityPlan> {
-  if (!aiAvailable()) throw new HttpError(503, 'gravity_ai_unavailable', 'Génération par IA indisponible : ANTHROPIC_API_KEY manquante.')
-  client ??= new Anthropic({ apiKey: config.ai.anthropicApiKey, timeout: 120_000, maxRetries: 1 })
+  const providers = aiProviders()
+  if (providers.length === 0) throw unavailable('aucune clé d’IA (GEMINI_API_KEY ou ANTHROPIC_API_KEY).')
+  const provider = request.provider ?? providers[0]!
+  if (!providers.includes(provider)) throw unavailable(`${provider === 'gemini' ? 'GEMINI_API_KEY' : 'ANTHROPIC_API_KEY'} manquante.`)
+  return provider === 'gemini' ? geminiPlan(request) : claudePlan(request)
+}
+
+/* ---- Claude (Anthropic) ---------------------------------------------------------------- */
+
+let claude: Anthropic | null = null
+
+async function claudePlan(request: PlanRequest): Promise<GravityPlan> {
+  claude ??= new Anthropic({ apiKey: config.ai.anthropicApiKey, timeout: 120_000, maxRetries: 1 })
   try {
-    const response = await client.beta.messages.parse({
-      model: MODEL,
+    const response = await claude.beta.messages.parse({
+      model: CLAUDE_MODEL,
       max_tokens: 16000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
@@ -91,16 +117,58 @@ export async function generatePlan(request: PlanRequest): Promise<GravityPlan> {
       system: SYSTEM,
       messages: [{ role: 'user', content: userMessage(request) }],
     })
-    if (response.stop_reason === 'refusal') throw new HttpError(422, 'gravity_ai_refused', 'L’IA a refusé cette demande.')
-    if (!response.parsed_output) throw new HttpError(502, 'gravity_ai_invalid', 'L’IA n’a pas rendu de plan valable.')
+    if (response.stop_reason === 'refusal') throw refused()
+    if (!response.parsed_output) throw invalid()
     return response.parsed_output
   } catch (error) {
     if (error instanceof HttpError) throw error
-    if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
-      throw new HttpError(503, 'gravity_ai_unavailable', 'Clé de l’API Claude refusée.')
-    }
-    if (error instanceof Anthropic.RateLimitError) throw new HttpError(429, 'gravity_ai_busy', 'L’IA est très demandée, réessaie dans un instant.')
-    if (error instanceof Anthropic.APIError) throw new HttpError(502, 'gravity_ai_failed', 'L’IA n’a pas pu répondre.')
+    if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) throw unavailable('clé de l’API Claude refusée.')
+    if (error instanceof Anthropic.RateLimitError) throw busy()
+    if (error instanceof Anthropic.APIError) throw failed()
     throw error
+  }
+}
+
+/* ---- Gemini (Google) ------------------------------------------------------------------- */
+
+/** Le plan en JSON Schema, pour la sortie structurée de Gemini (bornes et descriptions comprises). */
+const { $schema: _schema, ...PLAN_JSON_SCHEMA } = z.toJSONSchema(PlanSchema) as Record<string, unknown>
+
+let gemini: GoogleGenAI | null = null
+
+/** Fins de réponse qui veulent dire « refusé » (filtres de sécurité). */
+const GEMINI_REFUSALS = new Set(['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII', 'RECITATION', 'IMAGE_SAFETY'])
+
+async function geminiPlan(request: PlanRequest): Promise<GravityPlan> {
+  const { apiKey, model, baseUrl } = config.ai.gemini
+  gemini ??= new GoogleGenAI({ apiKey, httpOptions: { timeout: 120_000, ...(baseUrl ? { baseUrl } : {}) } })
+  let text: string | undefined
+  try {
+    const response = await gemini.models.generateContent({
+      model,
+      contents: userMessage(request),
+      config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', responseJsonSchema: PLAN_JSON_SCHEMA },
+    })
+    if (response.promptFeedback?.blockReason) throw refused()
+    const finish = response.candidates?.[0]?.finishReason
+    if (finish && GEMINI_REFUSALS.has(finish)) throw refused()
+    text = response.text
+  } catch (error) {
+    if (error instanceof HttpError) throw error
+    if (error instanceof GeminiError) {
+      if (error.status === 429) throw busy()
+      if (error.status === 404) throw new HttpError(502, 'gravity_ai_model', `Modèle Gemini introuvable (${model}) : règle GEMINI_MODEL.`)
+      // Une clé invalide répond 400 (« API key not valid ») ou 401/403.
+      if (error.status === 401 || error.status === 403 || (error.status === 400 && /api key/i.test(error.message))) throw unavailable('clé de l’API Gemini refusée.')
+      throw failed()
+    }
+    // Réseau coupé, délai dépassé : l'IA n'a pas répondu.
+    console.error('[gravity] Gemini', error)
+    throw failed()
+  }
+  try {
+    return PlanSchema.parse(JSON.parse(text ?? ''))
+  } catch {
+    throw invalid()
   }
 }

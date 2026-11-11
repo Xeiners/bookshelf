@@ -10,7 +10,7 @@ import { solveLevel, type SolveReport } from '../../lib/gravity/solver'
 import { THEMES } from '../../lib/gravity/themes'
 import { THEME_IDS, type GravityLevel, type ThemeId } from '../../lib/gravity/types'
 import { parseLevel, parsePlan } from '../../lib/gravity/validate'
-import { gravityApi } from '../../services/gravityApi'
+import { gravityApi, type AiProvider } from '../../services/gravityApi'
 import { useUiStore } from '../../store/useUiStore'
 import { LevelPreview } from './LevelPreview'
 
@@ -24,8 +24,8 @@ interface Candidate {
 }
 
 interface GravityWorkshopProps {
-  /** Une IA est branchée sur le serveur. */
-  ai: boolean
+  /** IA branchées sur le serveur (Gemini, Claude) ; vide : la génération par IA est indisponible. */
+  ai: AiProvider[]
   onClose: () => void
   /** Essayer un niveau (rien n'est enregistré) ; avec `solution`, le regarder joué par le solveur. */
   onTry: (level: GravityLevel, solution?: SolveReport) => void
@@ -58,6 +58,8 @@ export function GravityWorkshop({ ai, onClose, onTry, onSaved }: GravityWorkshop
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [chosenProvider, setProvider] = useState<AiProvider | null>(null)
+  const provider = chosenProvider && ai.includes(chosenProvider) ? chosenProvider : (ai[0] ?? null)
 
   /** Laisse l'interface afficher l'attente avant un calcul lourd (génération, preuve). */
   const compute = (work: () => Candidate) => {
@@ -86,7 +88,7 @@ export function GravityWorkshop({ ai, onClose, onTry, onSaved }: GravityWorkshop
     setBusy(true)
     setError(null)
     try {
-      const { plan } = await gravityApi.plan({ prompt, difficulty, theme: aiTheme ?? undefined, length })
+      const { plan } = await gravityApi.plan({ prompt, difficulty, theme: aiTheme ?? undefined, length, provider: provider ?? undefined })
       setBusy(false)
       compute(() => {
         const result = buildLevel(plan, seed)
@@ -251,10 +253,27 @@ export function GravityWorkshop({ ai, onClose, onTry, onSaved }: GravityWorkshop
               aria-label={w.prompt}
               className="resize-none rounded-2xl border border-white/10 bg-black/30 px-3.5 py-3 text-sm text-cream outline-none placeholder:text-cream/35 focus:border-[#ff8a6b]/60"
             />
-            {!ai && <p className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs leading-relaxed text-cream/65">{w.aiOff}</p>}
-            <button type="button" onClick={() => void askAi()} disabled={busy || !ai} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#ff8a6b] text-sm font-bold text-void disabled:opacity-50">
+            {ai.length === 0 && <p className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs leading-relaxed text-cream/65">{w.aiOff}</p>}
+            {ai.length > 1 && (
+              <div className="flex items-center gap-2 text-xs text-cream/70" role="radiogroup" aria-label={w.provider}>
+                <span className="flex-1">{w.provider}</span>
+                {ai.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={provider === key}
+                    onClick={() => setProvider(key)}
+                    className={`h-8 rounded-full px-3.5 text-xs font-semibold ${provider === key ? 'bg-cream text-void' : 'bg-white/[0.06] text-cream/80'}`}
+                  >
+                    {w.providers[key]}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button type="button" onClick={() => void askAi()} disabled={busy || !provider} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#ff8a6b] text-sm font-bold text-void disabled:opacity-50">
               {busy ? <Loader2 size={17} className="animate-spin" aria-hidden /> : <Sparkles size={17} aria-hidden />}
-              {w.askAi}
+              {provider ? w.askProvider(w.providers[provider]) : w.askAi}
             </button>
             <button type="button" onClick={() => void copyPrompt()} className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/12 text-xs font-semibold text-cream/80">
               <ClipboardCopy size={15} aria-hidden />

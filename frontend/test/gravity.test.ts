@@ -8,6 +8,9 @@ import { buildLevel, generateLevel } from '../src/lib/gravity/generator'
 import { solveLevel } from '../src/lib/gravity/solver'
 import type { GravityLevel, LevelElement } from '../src/lib/gravity/types'
 import { parseLevel, parsePlan } from '../src/lib/gravity/validate'
+import { fr } from '../src/i18n/fr'
+import { apiErrorMessage } from '../src/lib/apiErrors'
+import { ApiError } from '../src/services/api'
 
 const level = (elements: LevelElement[], length = 60): GravityLevel => ({ format: 1, id: 't', name: 't', theme: 'konoha', difficulty: 1, speed: 8, length, start: { y: 11, g: 1 }, elements })
 const floor = (x: number, w: number): LevelElement => ({ type: 'block', x, y: 11, w, h: 6 })
@@ -192,5 +195,18 @@ describe('Gravity Ninja — lecture des niveaux et des plans', () => {
     assert.equal(plan.sections.length, 3)
     assert.equal(buildLevel(plan, 2).report.ok, true)
     assert.equal(parsePlan({ name: '', theme: 'konoha', difficulty: 3, sections: [] }), null)
+  })
+})
+
+describe('Gravity Ninja — erreurs de l’IA', () => {
+  it('chaque refus du serveur (quota, modèle, clé…) a son message', () => {
+    const message = (code: string, status: number) => apiErrorMessage(new ApiError(status, code, 'x'), fr)
+    assert.equal(message('gravity_ai_busy', 429), fr.gravity.workshop.errors.busy)
+    assert.equal(message('gravity_ai_model', 502), fr.gravity.workshop.errors.model)
+    assert.equal(message('gravity_ai_refused', 422), fr.gravity.workshop.errors.refused)
+    assert.equal(message('gravity_ai_invalid', 502), fr.gravity.workshop.errors.invalid)
+    assert.equal(message('gravity_ai_failed', 502), fr.gravity.workshop.errors.failed)
+    assert.equal(message('gravity_ai_unavailable', 503), fr.gravity.workshop.aiOff)
+    assert.match(fr.gravity.workshop.aiOff, /GEMINI_API_KEY/)
   })
 })

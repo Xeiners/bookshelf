@@ -55,7 +55,10 @@ services:
       MANGADEX_USER_AGENT: ${MANGADEX_USER_AGENT:-Bookshelf/0.1 (projet perso)}
       # YouTube Data API v3 (facultative) : musique d'ambiance et fil « Edits ». Sans clé : page publique.
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
-      # Clé de l'API Claude (facultative) : plans de niveaux de Gravity Ninja écrits par une IA (atelier des admins).
+      # Clés d'IA (facultatives) : plans de niveaux de Gravity Ninja écrits par une IA (atelier des admins).
+      # Gemini (offre gratuite, Google AI Studio) et/ou Claude.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # E-mails (code de vérification à l'inscription). Sans SMTP_HOST, les
       # inscriptions sont refusées : aucun compte sans adresse vérifiée.

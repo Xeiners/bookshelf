@@ -10,6 +10,7 @@ import { prepareEnvironment, startServer, type TestClient } from './harness.js'
 prepareEnvironment('gravity')
 process.env.ADMIN_EMAILS = 'chef@example.com'
 delete process.env.ANTHROPIC_API_KEY
+delete process.env.GEMINI_API_KEY
 const { client, close } = await startServer()
 after(close)
 
@@ -72,7 +73,7 @@ describe('gravity — niveaux et progression', () => {
     )
     assert.equal(body.levels[0].builtin, true)
     assert.equal(body.levels[0].scrolls, 3)
-    assert.equal(body.ai, false)
+    assert.deepEqual(body.ai, [])
     const level = await admin.request('GET', `/gravity/levels/${body.levels[0].id}`)
     assert.equal(level.status, 200)
     assert.ok(level.body.level.elements.length > 10)

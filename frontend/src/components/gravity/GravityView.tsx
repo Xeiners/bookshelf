@@ -153,7 +153,7 @@ export function GravityView() {
       <DleBar label={t.activities.back} onBack={() => openActivity('hub')} />
       <GravityHome overview={overview} failed={failed} loading={loading} onPlay={(level) => void play(level)} onWorkshop={() => setWorkshop(true)} onDelete={(level) => void remove(level)} onRetry={refresh} />
 
-      {workshop && <GravityWorkshop ai={overview?.ai ?? false} onClose={() => setWorkshop(false)} onTry={tryLevel} onSaved={refresh} />}
+      {workshop && <GravityWorkshop ai={overview?.ai ?? []} onClose={() => setWorkshop(false)} onTry={tryLevel} onSaved={refresh} />}
 
       {session && (
         <>
