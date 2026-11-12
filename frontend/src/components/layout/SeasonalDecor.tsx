@@ -61,26 +61,27 @@ const FLAKES = (() => {
 })()
 
 /**
- * Il neige doucement : chaque flocon descend (l'élément du dehors) en se balançant (celui du
- * dedans). Un disque aux bords doux (dégradé : aucun flou), et transform seulement.
+ * Il neige doucement : chaque flocon descend (`translate`) en se balançant (`transform`) — deux
+ * propriétés distinctes, deux animations sur un même élément, toutes deux confiées à la carte
+ * graphique (un calque par flocon). Un disque aux bords doux (dégradé : aucun flou).
  */
 function Snowfall() {
   return (
     <div className="absolute inset-0">
       {FLAKES.map((flake, index) => (
-        <div key={index} data-seasonal-motion className="absolute top-0" style={{ left: `${flake.left}%`, animation: `snow-fall ${flake.fall.toFixed(1)}s linear ${flake.delay.toFixed(1)}s infinite` }}>
-          <div
-            data-seasonal-motion
-            className="rounded-full"
-            style={{
-              width: flake.size,
-              height: flake.size,
-              opacity: flake.opacity,
-              background: 'radial-gradient(circle, #ffffff 0 38%, rgba(255,255,255,0.5) 62%, rgba(255,255,255,0) 72%)',
-              animation: `snow-sway-${flake.sway} ${flake.swayTime.toFixed(1)}s ease-in-out ${(index * -0.7).toFixed(1)}s infinite alternate`,
-            }}
-          />
-        </div>
+        <div
+          key={index}
+          data-seasonal-motion
+          className="absolute top-0 rounded-full"
+          style={{
+            left: `${flake.left}%`,
+            width: flake.size,
+            height: flake.size,
+            opacity: flake.opacity,
+            background: 'radial-gradient(circle, #ffffff 0 38%, rgba(255,255,255,0.5) 62%, rgba(255,255,255,0) 72%)',
+            animation: `snow-fall ${flake.fall.toFixed(1)}s linear ${flake.delay.toFixed(1)}s infinite, snow-sway-${flake.sway} ${flake.swayTime.toFixed(1)}s ease-in-out ${(index * -0.7).toFixed(1)}s infinite alternate`,
+          }}
+        />
       ))}
     </div>
   )
@@ -284,7 +285,7 @@ export function SeasonalSnow({ garland = false }: { garland?: boolean }) {
           <Garland swags={12} className="block h-auto max-w-none" style={{ width: 12 * 64 }} />
         </span>
       )}
-      <SnowCap className="absolute inset-x-0 top-0 block h-3 w-full" />
+      <SnowCap className="absolute inset-x-0 top-0 block h-[7px] w-full" />
     </span>
   )
 }

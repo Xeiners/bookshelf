@@ -5,6 +5,8 @@ import type { NewsId } from '../../lib/news'
 import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { CardBack } from '../cards/CardBack'
 import { STARDUST_GRADIENT } from '../dle/dleStyle'
+import { GravityEmblem } from '../gravity/GravityEmblem'
+import { JumpEmblem } from '../jump/JumpEmblem'
 import { StackEmblem } from '../stack/StackEmblem'
 
 /*
@@ -15,6 +17,22 @@ import { StackEmblem } from '../stack/StackEmblem'
 
 export function NewsVisual({ id }: { id: NewsId }) {
   switch (id) {
+    case 'gravity':
+      return (
+        <Stage background="#2b1b4d">
+          <GravityEmblem className="absolute inset-0 block size-full" />
+        </Stage>
+      )
+    case 'jump':
+      return (
+        <Stage background="radial-gradient(90% 80% at 50% 100%, #ff8a6b55, transparent 70%), linear-gradient(160deg, #3a1f6e, #140a26)">
+          <span className="block size-[46%] max-w-40 overflow-hidden rounded-[22%] shadow-[0_0_60px_-10px_#ff8a6b] motion-safe:animate-[news-float_4s_ease-in-out_infinite]">
+            <JumpEmblem className="block size-full" />
+          </span>
+        </Stage>
+      )
+    case 'fluid':
+      return <FluidScene />
     case 'legendaryShop':
       return <LegendaryShopScene />
     case 'halloween':
@@ -81,6 +99,40 @@ function Stage({ background, children }: { background: string; children: ReactNo
     <div aria-hidden className="relative grid h-full w-full place-items-center overflow-hidden" style={{ background }}>
       {children}
     </div>
+  )
+}
+
+/* ---- Plein écran : avant, l'en-tête mangeait le haut ; après, l'activité prend tout ---------------- */
+
+function FluidScene() {
+  return (
+    <Stage background="radial-gradient(70% 60% at 65% 45%, #2bc3ff40, transparent 70%), linear-gradient(160deg, #0d1626, #07080d)">
+      <div className="flex h-[76%] items-center gap-[6%]">
+        <Phone>
+          <span className="block h-[30%] shrink-0 rounded-md bg-white/15" />
+          <span className="block flex-1 rounded-md opacity-50" style={{ background: 'linear-gradient(180deg, #ff8a6b, #3a1f6e)' }} />
+        </Phone>
+        <span className="text-3xl text-cream/60">→</span>
+        <Phone glow>
+          <span className="relative grid flex-1 place-items-center rounded-md" style={{ background: 'linear-gradient(180deg, #ff8a6b, #3a1f6e)' }}>
+            <span className="grid size-10 place-items-center rounded-full bg-cream text-void shadow-[0_0_30px_-4px_#f7f5f0]">
+              <Zap size={20} className="fill-current" />
+            </span>
+          </span>
+        </Phone>
+      </div>
+    </Stage>
+  )
+}
+
+function Phone({ glow = false, children }: { glow?: boolean; children: ReactNode }) {
+  return (
+    <span
+      className={`flex h-full flex-col gap-1 overflow-hidden rounded-[1rem] border-[4px] border-[#0b0b10] bg-[#101017] p-1 ${glow ? 'shadow-[0_0_40px_-8px_#2bc3ff]' : 'opacity-70'}`}
+      style={{ aspectRatio: '9 / 17' }}
+    >
+      {children}
+    </span>
   )
 }
 

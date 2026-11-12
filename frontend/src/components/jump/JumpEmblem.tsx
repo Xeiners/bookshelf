@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 /** Cadrage du dessin : remplir le cadre (rogné) ou s'y loger entier. */
 const fit = (wide: boolean) => (wide ? 'xMidYMid slice' : 'xMidYMid meet') // i18n-ignore : attributs SVG
 
@@ -7,16 +9,18 @@ const fit = (wide: boolean) => (wide ? 'xMidYMid slice' : 'xMidYMid meet') // i1
  * `wide` : remplit un cadre plus large que haut (rogné), sinon carré.
  */
 export function JumpEmblem({ className = 'block size-16', wide = false }: { className?: string; wide?: boolean }) {
+  // Propre à chaque exemplaire : une copie cachée (page masquée) ne prive pas les autres du ciel.
+  const sky = `${useId().replace(/:/g, '')}-sky`
   return (
     <svg viewBox="0 0 72 72" preserveAspectRatio={fit(wide)} className={className} aria-hidden>
       <defs>
-        <linearGradient id="jump-sky" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={sky} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#3a1f6e" />
           <stop offset="0.55" stopColor="#ff8a6b" />
           <stop offset="1" stopColor="#ffd59e" />
         </linearGradient>
       </defs>
-      <rect width="72" height="72" fill="url(#jump-sky)" />
+      <rect width="72" height="72" fill={`url(#${sky})`} />
       {/* Nuages. */}
       <g fill="#ffffff" opacity="0.55">
         <circle cx="12" cy="52" r="5" />

@@ -339,6 +339,24 @@ export const en: Dictionary = {
     fresh: 'New',
     unseen: (count: number) => `${count} new`,
     items: {
+      gravity: {
+        tag: 'New game',
+        title: 'Gravity Ninja: flip gravity',
+        text: 'One move: tap the screen and your ninja flips from floor to ceiling. 17 levels from Easy to Extreme, with spikes, shurikens and portals. Your first clear of each level earns Stardust ✦ (even more with all its scrolls), every finished tier a booster, and the Extreme tier a Legendary booster.',
+        cta: 'Play',
+      },
+      jump: {
+        tag: 'New game',
+        title: 'Page Jump: bounce to the sky',
+        text: 'Hop from tome to tome, as high as you can: tap left or right, or tilt your phone. Springs, flight scrolls, bubbles and magnets help along the way, and onis get stomped from above. Unlock characters (Naruto, Luffy, Gojo…) with your Stardust ✦ and climb the leaderboard.',
+        cta: 'Play',
+      },
+      fluid: {
+        tag: 'Comfort',
+        title: 'Full-screen activities, an even smoother app',
+        text: 'Inside an activity, the site header steps aside: the game, your collection or the market take the whole screen, and the “Activities” button brings you back. Decorations and animations are lighter too: pages scroll much more smoothly, especially on phones.',
+        cta: 'See activities',
+      },
       legendaryShop: {
         tag: 'Shop',
         title: 'The Legendary booster hits the shop',

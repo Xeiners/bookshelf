@@ -1,8 +1,7 @@
-import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Suspense, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, Gift, Send, Sparkles } from 'lucide-react'
 import { useT } from '../../i18n'
 import type { BoxKind } from '../../lib/runner/wardrobe'
-import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import type { Promotion } from '../../services/promotionsApi'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -102,7 +101,7 @@ function ProductCard({
       {/* Scène : le paquet qui flotte sur un halo. */}
       <span aria-hidden className="relative grid h-[7.25rem] place-items-center">
         <span className="absolute size-28 rounded-full" style={{ background: `radial-gradient(closest-side, ${alpha(tint, prestige ? 33 : 23)}, transparent)` }} />
-        <span data-shop-bob className="relative will-change-transform" style={{ transform: 'rotate(-7deg)' }}>
+        <span data-shop-bob className="relative motion-safe:animate-[shop-bob_0.9s_ease-in-out_infinite_alternate]" style={{ transform: 'rotate(-7deg)' }}>
           {art}
         </span>
         <span
@@ -137,7 +136,6 @@ function ProductCard({
 
 export function ShopBanners() {
   const t = useT()
-  const ref = useRef<HTMLDivElement>(null)
   const signedIn = useAuthStore((state) => state.user !== null)
   const openAuth = useUiStore((state) => state.openAuth)
   const notify = useUiStore((state) => state.notify)
@@ -164,14 +162,6 @@ export function ShopBanners() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
-
-  useGSAP(
-    () => {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.to('[data-shop-bob]', { y: -3, rotation: -4, duration: 0.9, ease: 'sine.inOut', repeat: -1, yoyo: true, stagger: 0.4 })
-    },
-    { scope: ref },
-  )
 
   const balance = overview?.stardust ?? wardrobe?.balance ?? 0
   // Promotions en cours : prix réduit, prix habituel barré, et la fin.
@@ -231,7 +221,7 @@ export function ShopBanners() {
   }
 
   return (
-    <div ref={ref} className="@container flex shrink-0 flex-col gap-3">
+    <div className="@container flex shrink-0 flex-col gap-3">
       {/* En-tête : la boutique et le solde, pour savoir d'un coup d'œil ce qu'on peut s'offrir. */}
       <div className="flex items-center justify-between gap-3 px-1">
         <h3 className="font-display text-xl leading-none text-cream">{t.activities.shop.title}</h3>
@@ -283,7 +273,7 @@ export function ShopBanners() {
       >
         <SeasonalSnow />
         <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left @md:gap-4 @md:p-4">
-          <span data-shop-bob aria-hidden className="relative grid size-12 shrink-0 place-items-center will-change-transform">
+          <span data-shop-bob aria-hidden className="relative grid size-12 shrink-0 place-items-center motion-safe:animate-[shop-bob_0.9s_ease-in-out_0.4s_infinite_alternate]">
             <span className="absolute inset-0 rounded-xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: `0 0 18px -2px ${glowing ? '#ffd35c' : '#b05cff'}, inset 0 0 0 2px #ffc93c` }} />
             <span className="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 bg-[#ffc93c]" />
             <span className="absolute inset-x-0 top-[38%] h-2 bg-[#ffc93c]" />

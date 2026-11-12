@@ -34,6 +34,9 @@ export function AppHeader({ view }: AppHeaderProps) {
   const signedIn = useAuthStore((state) => state.user !== null)
   // Recherche défilée : l'en-tête se replie pour laisser la place aux résultats.
   const collapsed = useUiStore((state) => state.chromeCollapsed) && view === 'search'
+  // Dans une activité (jeu, collection, marché…), pas d'en-tête : son retour « Activités » suffit à
+  // se situer. Retiré d'un coup, sans animer sa hauteur (l'écran de l'activité arrive en glissant).
+  const inActivity = useUiStore((state) => state.activity !== 'hub') && view === 'activities'
   const collapseRef = useRef<HTMLDivElement>(null)
   useCollapse(collapseRef, collapsed)
 
@@ -63,7 +66,7 @@ export function AppHeader({ view }: AppHeaderProps) {
   )
 
   return (
-    <div ref={collapseRef} className="shrink-0">
+    <div ref={collapseRef} className={inActivity ? 'hidden' : 'shrink-0'}>
     <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-3 md:pb-5">
       <div className="flex min-w-0 items-start gap-2.5">
         <BrandLogo variant="mark" size="sm" className="mt-0.5 md:hidden" />

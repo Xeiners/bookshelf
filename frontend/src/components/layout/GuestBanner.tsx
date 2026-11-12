@@ -28,13 +28,6 @@ export function GuestBanner() {
         .timeline({ defaults: { ease: EASE.swift } })
         .from(rootRef.current, { height: 0, duration: 0.5, delay: 0.4 })
         .from('[data-banner-line]', { y: -8, autoAlpha: 0, duration: 0.45, stagger: 0.06 }, '-=0.25')
-
-      // Reflet discret qui traverse le bandeau de temps en temps.
-      gsap.fromTo(
-        '[data-banner-sheen]',
-        { xPercent: -100 },
-        { xPercent: 420, duration: 1.8, ease: 'power2.inOut', repeat: -1, repeatDelay: 6, delay: 1.6 },
-      )
     },
     { scope: rootRef },
   )
@@ -56,10 +49,11 @@ export function GuestBanner() {
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="relative flex items-center gap-3 overflow-hidden border-b border-glow/25 bg-linear-to-r from-glow/25 via-glow/12 to-like/12 px-4 py-2.5 md:px-6">
+        {/* Reflet discret qui traverse le bandeau de temps en temps (CSS : rien à calculer entre deux passages). */}
         <span
           data-banner-sheen
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 w-1/4 -skew-x-12 bg-linear-to-r from-transparent via-white/10 to-transparent"
+          className="pointer-events-none absolute inset-y-0 left-0 w-1/4 -translate-x-full -skew-x-12 bg-linear-to-r from-transparent via-white/10 to-transparent motion-safe:animate-[banner-sheen_7.8s_ease-in-out_1.6s_infinite]"
         />
 
         <span data-banner-line className="grid size-7 shrink-0 place-items-center rounded-full bg-glow/20 text-glow">

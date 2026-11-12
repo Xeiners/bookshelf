@@ -1,11 +1,13 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 /*
  * Noël : les dessins du thème (sapin, Père Noël, traîneau, guirlande, houx, bonnet), en SVG à
  * plat — aplats et traits, aucun flou. Ce qui bouge le fait en CSS (`data-seasonal-motion`, coupé
  * si l'appareil demande moins d'animations) : le traîneau et le bras du Père Noël par `transform`
- * (composité), et les ampoules clignotent par paliers (`steps`), en deux groupes qui alternent :
- * l'écran ne se repeint qu'à chaque bascule, quelques fois par seconde.
+ * (composité). Les lumières (guirlande, sapin) s'allument et s'éteignent en fondu : elles sont
+ * dessinées sur deux calques à part (un par groupe, cf. `GlowLayers`), dont seule l'opacité varie —
+ * la carte graphique s'en charge, rien n'est redessiné. Aucune animation DANS un SVG : elle
+ * forcerait le navigateur à refaire toute la page à chaque image.
  */
 
 const XMAS = {
@@ -26,8 +28,19 @@ const XMAS = {
 
 const BULBS = [XMAS.red, XMAS.gold, '#5fe08a', XMAS.blue]
 
-/** Les deux groupes d'ampoules : l'un s'allume quand l'autre s'éteint. */
-const twinkle = (index: number): CSSProperties => ({ animation: `xmas-twinkle 2.4s steps(1, end) ${index % 2 ? '-1.2s' : '0s'} infinite` })
+/**
+ * Les lumières d'un dessin, en deux calques posés dessus (même `viewBox`) : l'un s'allume quand
+ * l'autre s'éteint, en fondu. `light(index)` dessine la lumière n° `index`.
+ */
+function GlowLayers({ viewBox, count, light }: { viewBox: string; count: number; light: (index: number) => ReactNode }) {
+  return [0, 1].map((group) => (
+    <span key={group} data-seasonal-motion className="absolute inset-0" style={{ animation: `xmas-glow 3.6s ease-in-out ${group ? '-1.8s' : '0s'} infinite` }}>
+      <svg viewBox={viewBox} className="block size-full">
+        {Array.from({ length: count }, (_, index) => (index % 2 === group ? light(index) : null))}
+      </svg>
+    </span>
+  ))
+}
 
 type Point = readonly [number, number]
 /** Un point d'une courbe de Bézier quadratique. */
@@ -44,24 +57,33 @@ const starPoints = (x: number, y: number, outer: number, inner: number) =>
     return `${(x + Math.cos(angle) * radius).toFixed(1)},${(y + Math.sin(angle) * radius).toFixed(1)}`
   }).join(' ')
 
-/** Une ampoule pendue à son fil, en (x, y). */
+/** Une ampoule éteinte pendue à son fil, en (x, y) : la douille et le verre terne. */
 function Bulb({ x, y, index }: { x: number; y: number; index: number }) {
-  const color = BULBS[index % BULBS.length]
   return (
     <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
       <rect x="-1.7" y="-0.5" width="3.4" height="3.4" rx="0.7" fill="#24352d" />
-      <g data-seasonal-motion style={twinkle(index)}>
-        <circle cy="8" r="7" fill={color} opacity="0.2" />
-        <ellipse cy="7.6" rx="3.1" ry="4.6" fill={color} />
-        <ellipse cx="-1.1" cy="6" rx="0.9" ry="1.6" fill="#fff" opacity="0.75" />
-      </g>
+      <ellipse cy="7.6" rx="3.1" ry="4.6" fill={BULBS[index % BULBS.length]} opacity="0.25" />
+    </g>
+  )
+}
+
+/** La lumière d'une ampoule (halo, verre allumé, reflet), en (x, y). */
+function BulbLight({ x, y, index }: { x: number; y: number; index: number }) {
+  const color = BULBS[index % BULBS.length]
+  return (
+    <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+      <circle cy="8" r="7" fill={color} opacity="0.2" />
+      <ellipse cy="7.6" rx="3.1" ry="4.6" fill={color} />
+      <ellipse cx="-1.1" cy="6" rx="0.9" ry="1.6" fill="#fff" opacity="0.75" />
     </g>
   )
 }
 
 /**
  * Une guirlande lumineuse qui pend en festons, de gauche à droite (`swags` festons de 100 unités
- * chacun). Sa largeur en pixels se règle par `style` ; le parent coupe ce qui dépasse.
+ * chacun). Sa largeur en pixels se règle par `style` ; le parent coupe ce qui dépasse. Le fil et
+ * les ampoules éteintes sont fixes ; la lumière de chaque groupe d'ampoules est un calque posé
+ * dessus, qui s'allume et s'éteint en fondu (opacité seulement : composité).
  */
 export function Garland({ swags, className, style }: { swags: number; className?: string; style?: CSSProperties }) {
   const wire = `M0 3 ${Array.from({ length: swags }, (_, index) => `Q${index * 100 + 50} 26 ${index * 100 + 100} 3`).join(' ')}`
@@ -71,20 +93,24 @@ export function Garland({ swags, className, style }: { swags: number; className?
       return { x, y }
     }),
   ).flat()
+  const viewBox = `0 0 ${swags * 100} 40`
   return (
-    <svg viewBox={`0 0 ${swags * 100} 40`} className={className} style={style} aria-hidden>
-      <path d={wire} fill="none" stroke="#163b2a" strokeWidth="1.6" />
-      {bulbs.map((bulb, index) => (
-        <Bulb key={index} x={bulb.x} y={bulb.y} index={index} />
-      ))}
-      {/* Aux attaches : un nœud rouge et deux feuilles de houx. */}
-      {Array.from({ length: swags + 1 }, (_, index) => (
-        <g key={index} transform={`translate(${index * 100} 3)`}>
-          <path d="M0 0 Q-6 -1 -9 3 Q-4 4 0 0 Z M0 0 Q6 -1 9 3 Q4 4 0 0 Z" fill={XMAS.green} />
-          <circle r="2.6" fill={XMAS.red} />
-        </g>
-      ))}
-    </svg>
+    <span aria-hidden className={`relative ${className ?? ''}`} style={style}>
+      <svg viewBox={viewBox} className="block h-auto w-full">
+        <path d={wire} fill="none" stroke="#163b2a" strokeWidth="1.6" />
+        {bulbs.map((bulb, index) => (
+          <Bulb key={index} x={bulb.x} y={bulb.y} index={index} />
+        ))}
+        {/* Aux attaches : un nœud rouge et deux feuilles de houx. */}
+        {Array.from({ length: swags + 1 }, (_, index) => (
+          <g key={index} transform={`translate(${index * 100} 3)`}>
+            <path d="M0 0 Q-6 -1 -9 3 Q-4 4 0 0 Z M0 0 Q6 -1 9 3 Q4 4 0 0 Z" fill={XMAS.green} />
+            <circle r="2.6" fill={XMAS.red} />
+          </g>
+        ))}
+      </svg>
+      <GlowLayers viewBox={viewBox} count={bulbs.length} light={(index) => <BulbLight key={index} x={bulbs[index]!.x} y={bulbs[index]!.y} index={index} />} />
+    </span>
   )
 }
 
@@ -129,50 +155,60 @@ const BAUBLES = [
 export function ChristmasTree({ className, style }: { className?: string; style?: CSSProperties }) {
   const lights = DRAPES.flatMap(([a, b, c]) => [0.12, 0.37, 0.63, 0.88].map((t) => quad(a, b, c, t)))
   return (
-    <svg viewBox="0 0 120 152" className={className} style={style} aria-hidden>
-      <ellipse cx="60" cy="144" rx="57" ry="7.5" fill={XMAS.snow} />
-      <ellipse cx="66" cy="146" rx="44" ry="4.5" fill={XMAS.snowShade} opacity="0.6" />
-      <rect x="53" y="124" width="14" height="18" rx="2" fill={XMAS.wood} />
-      {TIERS.map((tier) => (
-        <g key={tier.full}>
-          <path d={tier.full} fill={XMAS.green} />
-          <path d={tier.shade} fill={XMAS.greenDark} />
-          <path d={tier.rim} fill="none" stroke={XMAS.snow} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-        </g>
-      ))}
-      {DRAPES.map(([a, b, c]) => (
-        <path key={a.join()} d={`M${a.join(' ')} Q${b.join(' ')} ${c.join(' ')}`} fill="none" stroke={XMAS.gold} strokeWidth="1.6" strokeLinecap="round" />
-      ))}
-      {BAUBLES.map((bauble) => (
-        <g key={`${bauble.x}-${bauble.y}`} transform={`translate(${bauble.x} ${bauble.y})`}>
-          <rect x="-1.4" y="-5.8" width="2.8" height="2" rx="0.5" fill={XMAS.goldDark} />
-          <circle r="4.3" fill={bauble.color} />
-          <circle cx="-1.4" cy="-1.4" r="1.2" fill="#fff" opacity="0.7" />
-        </g>
-      ))}
-      {lights.map(([x, y], index) => (
-        <circle key={index} data-seasonal-motion cx={x.toFixed(1)} cy={y.toFixed(1)} r="1.7" fill={BULBS[index % BULBS.length]} style={twinkle(index)} />
-      ))}
-      {/* L'étoile du sommet, sur son halo (un aplat clair, aucun flou). */}
-      <circle cx="60" cy="13" r="13" fill={XMAS.gold} opacity="0.18" />
-      <polygon points={starPoints(60, 13, 10, 4.4)} fill={XMAS.gold} stroke="#fff1b0" strokeWidth="1" strokeLinejoin="round" />
-      {/* Les cadeaux. */}
-      <g>
-        <rect x="16" y="127" width="25" height="16" rx="1.5" fill={XMAS.red} />
-        <rect x="26.5" y="127" width="4" height="16" fill={XMAS.gold} />
-        <rect x="16" y="133" width="25" height="4" fill={XMAS.gold} />
-        <path d="M28.5 127 C24 120 18 122 21 126 Z M28.5 127 C33 120 39 122 36 126 Z" fill={XMAS.gold} stroke={XMAS.goldDark} strokeWidth="0.6" />
-      </g>
-      <g>
-        <rect x="80" y="131" width="21" height="12" rx="1.5" fill="#3a7bd5" />
-        <rect x="88.5" y="131" width="4" height="12" fill={XMAS.snow} />
-        <path d="M90.5 131 C87 126 82 128 85 130.5 Z M90.5 131 C94 126 99 128 96 130.5 Z" fill={XMAS.snow} />
-      </g>
-      <g>
-        <rect x="64" y="135" width="13" height="9" rx="1.2" fill={XMAS.gold} />
-        <rect x="69" y="135" width="3" height="9" fill={XMAS.red} />
-      </g>
-    </svg>
+    <span aria-hidden className={className} style={style}>
+      <span className="relative block">
+        <svg viewBox="0 0 120 152" className="block h-auto w-full">
+          <ellipse cx="60" cy="144" rx="57" ry="7.5" fill={XMAS.snow} />
+          <ellipse cx="66" cy="146" rx="44" ry="4.5" fill={XMAS.snowShade} opacity="0.6" />
+          <rect x="53" y="124" width="14" height="18" rx="2" fill={XMAS.wood} />
+          {TIERS.map((tier) => (
+            <g key={tier.full}>
+              <path d={tier.full} fill={XMAS.green} />
+              <path d={tier.shade} fill={XMAS.greenDark} />
+              <path d={tier.rim} fill="none" stroke={XMAS.snow} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+            </g>
+          ))}
+          {DRAPES.map(([a, b, c]) => (
+            <path key={a.join()} d={`M${a.join(' ')} Q${b.join(' ')} ${c.join(' ')}`} fill="none" stroke={XMAS.gold} strokeWidth="1.6" strokeLinecap="round" />
+          ))}
+          {BAUBLES.map((bauble) => (
+            <g key={`${bauble.x}-${bauble.y}`} transform={`translate(${bauble.x} ${bauble.y})`}>
+              <rect x="-1.4" y="-5.8" width="2.8" height="2" rx="0.5" fill={XMAS.goldDark} />
+              <circle r="4.3" fill={bauble.color} />
+              <circle cx="-1.4" cy="-1.4" r="1.2" fill="#fff" opacity="0.7" />
+            </g>
+          ))}
+          {/* Les lumières éteintes ; leur éclat est sur les calques du dessus. */}
+          {lights.map(([x, y], index) => (
+            <circle key={index} cx={x.toFixed(1)} cy={y.toFixed(1)} r="1.7" fill={BULBS[index % BULBS.length]} opacity="0.3" />
+          ))}
+          {/* L'étoile du sommet, sur son halo (un aplat clair, aucun flou). */}
+          <circle cx="60" cy="13" r="13" fill={XMAS.gold} opacity="0.18" />
+          <polygon points={starPoints(60, 13, 10, 4.4)} fill={XMAS.gold} stroke="#fff1b0" strokeWidth="1" strokeLinejoin="round" />
+          {/* Les cadeaux. */}
+          <g>
+            <rect x="16" y="127" width="25" height="16" rx="1.5" fill={XMAS.red} />
+            <rect x="26.5" y="127" width="4" height="16" fill={XMAS.gold} />
+            <rect x="16" y="133" width="25" height="4" fill={XMAS.gold} />
+            <path d="M28.5 127 C24 120 18 122 21 126 Z M28.5 127 C33 120 39 122 36 126 Z" fill={XMAS.gold} stroke={XMAS.goldDark} strokeWidth="0.6" />
+          </g>
+          <g>
+            <rect x="80" y="131" width="21" height="12" rx="1.5" fill="#3a7bd5" />
+            <rect x="88.5" y="131" width="4" height="12" fill={XMAS.snow} />
+            <path d="M90.5 131 C87 126 82 128 85 130.5 Z M90.5 131 C94 126 99 128 96 130.5 Z" fill={XMAS.snow} />
+          </g>
+          <g>
+            <rect x="64" y="135" width="13" height="9" rx="1.2" fill={XMAS.gold} />
+            <rect x="69" y="135" width="3" height="9" fill={XMAS.red} />
+          </g>
+        </svg>
+        <GlowLayers
+          viewBox="0 0 120 152"
+          count={lights.length}
+          light={(index) => <circle key={index} cx={lights[index]![0].toFixed(1)} cy={lights[index]![1].toFixed(1)} r="1.7" fill={BULBS[index % BULBS.length]} />}
+        />
+      </span>
+    </span>
   )
 }
 

@@ -1,24 +1,28 @@
+import { useId } from 'react'
+
 /**
  * L'emblème de Gravity Ninja : un couloir au soleil couchant, deux ninjas — l'un court sur le toit
  * d'en bas, l'autre la tête en bas sous celui d'en haut — et la flèche de l'inversion.
+ * Identifiants propres à chaque exemplaire : une copie cachée (page masquée) ne prive pas les autres de leurs dégradés.
  */
 export function GravityEmblem({ className }: { className?: string }) {
+  const id = useId().replace(/:/g, '')
   return (
     <svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" className={className} aria-hidden>
       <defs>
-        <linearGradient id="gravity-sky" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${id}-sky`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#2b1b4d" />
           <stop offset="0.55" stopColor="#d9577a" />
           <stop offset="1" stopColor="#ffb36b" />
         </linearGradient>
-        <radialGradient id="gravity-sun">
+        <radialGradient id={`${id}-sun`}>
           <stop offset="0" stopColor="#fff6d8" />
           <stop offset="0.5" stopColor="#ffe3a0" />
           <stop offset="1" stopColor="#ffe3a0" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <rect width="160" height="90" fill="url(#gravity-sky)" />
-      <circle cx="112" cy="44" r="22" fill="url(#gravity-sun)" />
+      <rect width="160" height="90" fill={`url(#${id}-sky)`} />
+      <circle cx="112" cy="44" r="22" fill={`url(#${id}-sun)`} />
       <path d="M0 64 L14 52 L26 58 L40 46 L56 56 L70 48 L86 57 L102 47 L118 55 L134 45 L160 56 L160 90 L0 90 Z" fill="#7a3f73" />
       <g fill="#2a1236">
         <path d="M18 70 h22 l-4 -5 h-14 z M22 65 h14 v-6 h-14 z M20 59 h18 l-4 -4 h-10 z" />

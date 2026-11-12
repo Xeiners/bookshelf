@@ -229,8 +229,11 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
       const stage: HTMLDivElement = stageNode
       const proxy: HTMLDivElement = proxyNode
 
-      // Sans `track`, pas de vélocité lisible au relâchement.
-      InertiaPlugin.track(proxy, 'x,y')
+      // La vélocité du relâchement vient du suivi d'InertiaPlugin. Draggable suit sa cible tant
+      // qu'il est actif, et la page Découverte reste montée derrière les autres onglets : ce suivi
+      // réveillerait GSAP à chaque image, toute l'app recalculée sans arrêt. On ne le garde que le
+      // temps d'un geste — Draggable le relance à chaque appui, on le coupe après le relâchement.
+      const stopTracking = () => InertiaPlugin.untrack(proxy, 'x,y')
 
       let card: Book | undefined
       let top: HTMLDivElement | null = null
@@ -595,6 +598,12 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
         onPress() {
           bind()
         },
+        onRelease() {
+          // Après l'arbitrage du relâchement (`onDragEnd` lit la vélocité), sauf si un nouveau geste a commencé.
+          requestAnimationFrame(() => {
+            if (!drag.isPressed) stopTracking()
+          })
+        },
         onDrag() {
           render(drag.x, drag.y)
         },
@@ -609,6 +618,7 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
         },
       })
       drag = instances[0]
+      stopTracking()
 
       commitRef.current = commit
 
@@ -617,7 +627,7 @@ export function SwipeDeck({ queue, cursor, onDecision, onOpen, canUndo, onUndo }
         commitRef.current = null
         baseTween?.kill()
         drag.kill()
-        InertiaPlugin.untrack(proxy, 'x,y')
+        stopTracking()
       }
     },
     { dependencies: [] },

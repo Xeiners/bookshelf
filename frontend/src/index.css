@@ -482,13 +482,14 @@
 }
 
 /* Il neige doucement sur le fond de l'app : chaque flocon tombe du haut au bas de l'écran
-   (`snow-fall`) en se balançant (`snow-sway-*`, trois amplitudes). Transform seulement. */
+   (`snow-fall`, par `translate`) en se balançant (`snow-sway-*`, par `transform`, trois amplitudes).
+   Deux propriétés distinctes : les deux animations vont sur le même élément, composées. */
 @keyframes snow-fall {
   from {
-    transform: translateY(-3vh);
+    translate: 0 -3vh;
   }
   to {
-    transform: translateY(103vh);
+    translate: 0 103vh;
   }
 }
 
@@ -519,16 +520,48 @@
   }
 }
 
-/* Les ampoules : allumées, puis en veille (par paliers, deux groupes qui alternent). */
-@keyframes xmas-twinkle {
+/* Le reflet du bandeau invité : un passage (1,8 s), puis 6 s de pause. */
+@keyframes banner-sheen {
   0% {
+    translate: -100% 0;
+  }
+  23%,
+  100% {
+    translate: 420% 0;
+  }
+}
+
+/* Le paquet vedette du hub flotte, les paquets de la boutique se balancent. Par `translate` et
+   `rotate` (pas `transform` : la pose de l'élément reste la sienne), composés : aucune écriture JS
+   à chaque image. */
+@keyframes hub-float {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 0 -8px;
+  }
+}
+
+@keyframes shop-bob {
+  from {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  to {
+    translate: 0 -3px;
+    rotate: 3deg;
+  }
+}
+
+/* La lumière d'un groupe d'ampoules (guirlande, sapin) : elle s'éteint et se rallume en douceur. */
+@keyframes xmas-glow {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.25;
-  }
-  100% {
-    opacity: 1;
+    opacity: 0;
   }
 }
 

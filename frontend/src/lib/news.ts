@@ -6,11 +6,11 @@
  * dans la page Actus. Fonctions pures, testées (`frontend/test/news.test.ts`).
  */
 
-export const NEWS_IDS = ['legendaryShop', 'halloween', 'reveal', 'smoother', 'series3', 'edits', 'activities', 'stack', 'daily', 'dust', 'market', 'library', 'canvas'] as const
+export const NEWS_IDS = ['gravity', 'jump', 'fluid', 'legendaryShop', 'halloween', 'reveal', 'smoother', 'series3', 'edits', 'activities', 'stack', 'daily', 'dust', 'market', 'library', 'canvas'] as const
 export type NewsId = (typeof NEWS_IDS)[number]
 
 /** Où mène le bouton d'une actu. */
-export type NewsAction = 'booster' | 'edits' | 'activities' | 'stack' | 'daily' | 'collection' | 'market' | 'library' | 'canvas'
+export type NewsAction = 'booster' | 'edits' | 'activities' | 'stack' | 'jump' | 'gravity' | 'daily' | 'collection' | 'market' | 'library' | 'canvas'
 
 export interface NewsEntry {
   id: NewsId
@@ -21,6 +21,9 @@ export interface NewsEntry {
 
 /** La plus récente d'abord. */
 export const NEWS: readonly NewsEntry[] = [
+  { id: 'gravity', date: '2026-11-12', action: 'gravity' },
+  { id: 'jump', date: '2026-11-12', action: 'jump' },
+  { id: 'fluid', date: '2026-11-12', action: 'activities' },
   { id: 'legendaryShop', date: '2026-10-30', action: 'activities' },
   { id: 'halloween', date: '2026-10-30', action: null },
   { id: 'reveal', date: '2026-10-30', action: 'booster' },

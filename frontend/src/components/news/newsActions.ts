@@ -5,7 +5,7 @@ import { useNews } from '../../store/useNews'
 import { useUiStore } from '../../store/useUiStore'
 
 /** Ce qu'il faut un compte pour voir : sans compte, la connexion d'abord. */
-const NEEDS_ACCOUNT: ReadonlySet<NewsAction> = new Set(['daily', 'market', 'canvas'])
+const NEEDS_ACCOUNT: ReadonlySet<NewsAction> = new Set(['daily', 'market', 'canvas', 'gravity'])
 
 /** Le bouton d'une actu : ferme les actus et ouvre ce dont elle parle. */
 export function runNewsAction(action: NewsAction): void {

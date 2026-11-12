@@ -349,6 +349,24 @@ export const fr = {
     fresh: 'Nouveau',
     unseen: (count: number) => `${count} nouveauté${plural(count, '', 's')}`,
     items: {
+      gravity: {
+        tag: 'Nouveau jeu',
+        title: 'Gravity Ninja : inverse la gravité',
+        text: 'Un seul geste : touche l’écran et ton ninja passe du sol au plafond. 17 niveaux de Facile à Extrême, avec pics, shurikens et portails. Chaque niveau réussi pour la première fois rapporte des Poussières ✦ (encore plus avec tous ses rouleaux), chaque palier terminé un booster, et le palier Extrême un booster Légendaire.',
+        cta: 'Jouer',
+      },
+      jump: {
+        tag: 'Nouveau jeu',
+        title: 'Page Jump : rebondis jusqu’au ciel',
+        text: 'Saute de tome en tome, le plus haut possible : touche à gauche ou à droite, ou incline ton téléphone. Ressorts, rouleaux d’envol, bulles et aimants t’aident en chemin, et les onis s’écrasent par-dessus. Débloque des personnages (Naruto, Luffy, Gojo…) avec tes Poussières ✦ et grimpe au classement.',
+        cta: 'Jouer',
+      },
+      fluid: {
+        tag: 'Confort',
+        title: 'Les activités en plein écran, une app encore plus fluide',
+        text: 'Dans une activité, l’en-tête du site s’efface : le jeu, ta collection ou le marché prennent tout l’écran, et le bouton « Activités » te ramène. Les décors et les animations ont aussi été allégés : les pages défilent bien plus fluidement, surtout sur téléphone.',
+        cta: 'Voir les activités',
+      },
       legendaryShop: {
         tag: 'Boutique',
         title: 'Le Booster Légendaire arrive en boutique',

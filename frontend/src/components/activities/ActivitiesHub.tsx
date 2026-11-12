@@ -7,7 +7,6 @@ import { useUnreadTrades } from '../../hooks/useNotifications'
 import { useOracleStatus } from '../../hooks/useOracleStatus'
 import { useT } from '../../i18n'
 import { completion, rarityRank } from '../../lib/boosters'
-import { gsap, useGSAP } from '../../lib/gsap'
 import { vibrate } from '../../lib/haptics'
 import { formatCountdown } from '../../lib/oracle'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -426,7 +425,6 @@ function LegendaryPackBanner({ count }: { count: number }) {
  */
 function BoosterHero({ part }: { part: 'open' | 'shop' }) {
   const t = useT()
-  const ref = useRef<HTMLElement>(null)
   const boosters = useBoosters()
   const openBooster = useUiStore((state) => state.openBooster)
   const openAuth = useUiStore((state) => state.openAuth)
@@ -434,14 +432,6 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
   const lit = boosters.canOpen
   // Invité à court d'essais : la suite passe par un compte.
   const guestDone = !boosters.signedIn && !boosters.canOpen
-
-  useGSAP(
-    () => {
-      if (covered || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      gsap.to('[data-hero-pack]', { y: -8, duration: 2.2, ease: 'sine.inOut', repeat: -1, yoyo: true })
-    },
-    { scope: ref, dependencies: [covered], revertOnUpdate: true },
-  )
 
   // Jauge : pleine si un booster attend (ou en recette), sinon l'avancement du minuteur.
   const progress = boosters.unlimited || boosters.available > 0 ? 1 : boosters.progress
@@ -471,7 +461,6 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
 
   return (
     <section
-      ref={ref}
       aria-label={part === 'open' ? t.activities.booster.title : t.activities.shop.buyTitle}
       className="@container relative isolate flex h-full shrink-0 flex-col overflow-hidden rounded-[2rem] border"
       // Couleurs : les variables `--altar-*` (index.css), qu'un thème saisonnier redéfinit.
@@ -485,7 +474,8 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
         {/* Les trois séries en éventail ; la nouvelle (3) devant. */}
         <div aria-hidden className="relative grid h-[9.5rem] w-[9.25rem] shrink-0 place-items-center @lg:h-[12rem] @lg:w-[12rem]">
           <div aria-hidden className="absolute bottom-0 h-6 w-28 rounded-[50%]" style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,0.75), transparent)' }} />
-          <div data-hero-pack className="relative" style={{ willChange: 'transform' }}>
+          {/* Il flotte (CSS, confié à la carte graphique) ; immobile sous l'ouverture d'un booster. */}
+          <div data-hero-pack className={`relative ${covered ? '' : 'motion-safe:animate-[hub-float_2.2s_ease-in-out_infinite_alternate]'}`}>
             <div className="absolute top-3 -left-8 @lg:-left-12" style={{ transform: 'rotate(-14deg)', opacity: 0.8 }}>
               <BoosterPackArt width={64} series={1} lit={lit} dim={!lit} />
             </div>
@@ -874,8 +864,9 @@ function GamesCards() {
         description={g.bomb}
         tint={TINT.bomb}
         onClick={() => openActivity('bomb')}
+        // Immobile : ses anneaux et son étincelle s'animent DANS le SVG, ce qui ferait refaire toute la page à chaque image.
         emblem={
-          <span className="block translate-y-1">
+          <span className="block translate-y-1 [&_[data-bomb-fx]]:animate-none!">
             <Bomb syllable="爆" endsAt={null} totalMs={HUB_FUSE_MS} size={64} />
           </span>
         }
