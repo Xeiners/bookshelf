@@ -8,7 +8,7 @@ import { introsOf, type IntroKind } from '../../lib/gravity/intros'
 import type { SolveReport } from '../../lib/gravity/solver'
 import type { GravityLevel } from '../../lib/gravity/types'
 import { vibrate } from '../../lib/haptics'
-import { playGravityFinish, playGravityFlip, playGravityLand, playGravityLog, playGravityMoon, playGravityPoof, playGravityScroll, playGravitySize } from '../../lib/sfx'
+import { playGravityFinish, playGravityFlip, playGravityLand, playGravityLog, playGravityMoon, playGravityPoof, playGravityScroll, playGravitySize, playGravityWarp } from '../../lib/sfx'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import { SfxVolume } from '../ui/SfxVolume'
 import { GravityScene, layoutFor } from './scene/GravityScene'
@@ -239,6 +239,10 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
               case 'substitute':
                 playGravityPoof()
                 vibrate([20, 30, 20])
+                break
+              case 'warp':
+                playGravityWarp()
+                vibrate(14)
                 break
               case 'die':
                 playGravityPoof()

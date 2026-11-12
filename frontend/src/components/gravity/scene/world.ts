@@ -1,16 +1,23 @@
 import { CRUMBLE_DELAY, PICKUP_R, SPIKE_H, TICK, WORLD_HEIGHT } from '../../../lib/gravity/constants'
-import { scrollRank, shurikenAt, solidAt, type GravityRun, type GravityWorld, type Solid } from '../../../lib/gravity/engine'
+import { cycleAt, scrollRank, shurikenAt, solidAt, type Flame, type GravityRun, type GravityWorld, type Solid, type Warp } from '../../../lib/gravity/engine'
 import type { GravityTheme, Material } from '../../../lib/gravity/themes'
 
 /*
  * Les éléments d'un niveau, dessinés dans le repère du monde (une unité = une unité de jeu) :
  * blocs selon la matière du thème (tuiles de toit, pierre, mousse, bois, neige), fragiles qui
- * tremblent puis tombent, plateformes mobiles à runes, pics, shurikens qui tournent, sceaux
- * d'inversion, portes de taille, bûches de substitution, lune, rouleaux et torii d'arrivée.
+ * tremblent puis tombent, plateformes mobiles à runes, dalles spectrales qui vont et viennent,
+ * pics, jets de flammes, shurikens qui tournent (seuls ou en roue), sceaux d'inversion et de
+ * téléportation, portes de taille, bûches de substitution, lune, rouleaux et torii d'arrivée.
  */
 
 /** Couleurs des portes de taille : rapetisser (violet), grandir (ambre). */
 export const GATE_COLORS = { mini: '#c08bff', full: '#ffb84d' } as const
+/** Hiraishin (sceaux de téléportation), dalles spectrales. */
+export const WARP_COLOR = '#ffd34d'
+export const GHOST_COLOR = '#9fe8ff'
+
+/** Avant qu'un jet ne crache (s) : des braises préviennent. */
+const FLAME_WARNING = 0.35
 
 export interface View {
   /** Bord gauche et droit visibles (unités). */
@@ -91,6 +98,10 @@ export class WorldPainter {
 
     // Le chemin des pièges mobiles, discret.
     for (const shuriken of world.shurikens) {
+      if (shuriken.orbit > 0) {
+        if (visible(shuriken.x - shuriken.orbit, shuriken.x + shuriken.orbit)) this.orbitPath(ctx, shuriken.x, shuriken.y, shuriken.orbit)
+        continue
+      }
       if ((shuriken.dx || shuriken.dy) && visible(Math.min(shuriken.x, shuriken.x + shuriken.dx), Math.max(shuriken.x, shuriken.x + shuriken.dx))) {
         ctx.strokeStyle = 'rgba(255,255,255,0.18)'
         ctx.lineWidth = 0.06
@@ -111,11 +122,17 @@ export class WorldPainter {
       if (!visible(span[0]!, span[1]!)) return
       if (solid.kind === 'crumble') this.crumble(ctx, solid, index, run, renderTick)
       else if (solid.kind === 'mover') this.mover(ctx, solid, at.x, at.y, view.time)
+      else if (solid.kind === 'ghost') this.ghost(ctx, solid, t)
       else this.block(ctx, at.x, at.y, solid.w, solid.h)
     })
 
     for (const spike of world.spikes) if (visible(spike.x, spike.x + spike.w)) this.spikes(ctx, spike.x, spike.y, spike.w, spike.dir)
+    for (const flame of world.flames) if (visible(flame.x, flame.x + flame.w)) this.flame(ctx, flame, t, view.time)
     for (const flip of world.flips) if (visible(flip.x, flip.x + flip.w)) this.seal(ctx, flip.x, flip.y, flip.w, flip.h, view.time)
+    for (const warp of world.warps) {
+      if (visible(warp.x, warp.x + warp.w)) this.warp(ctx, warp, warp.x, warp.y, true, view.time)
+      if (visible(warp.tx, warp.tx + warp.w)) this.warp(ctx, warp, warp.tx, warp.ty, false, view.time)
+    }
     for (const gate of world.gates) if (visible(gate.x, gate.x + gate.w)) this.gate(ctx, gate.x, gate.y, gate.w, gate.h, gate.mini, view.time)
     world.pickups.forEach((pickup, index) => {
       if (!visible(pickup.x - 1, pickup.x + 1)) return
@@ -292,6 +309,179 @@ export class WorldPainter {
       ctx.arc(rx, y + solid.h / 2, 0.22, 0, Math.PI * 2)
       ctx.stroke()
     }
+  }
+
+  /**
+   * Dalle spectrale : verre de glace bleutée quand elle est là (elle pâlit juste avant de
+   * s'effacer) ; absente, un simple contour en pointillés qui s'allume juste avant son retour.
+   */
+  private ghost(ctx: CanvasRenderingContext2D, solid: Solid, t: number): void {
+    const cycle = cycleAt(t, solid.period, solid.phase)
+    const present = cycle < solid.on
+    let alpha: number
+    if (present) {
+      const left = (solid.on - cycle) * solid.period
+      alpha = left < 0.2 ? 0.35 + 0.65 * (left / 0.2) : 1
+    } else {
+      const until = (1 - cycle) * solid.period
+      alpha = until < 0.25 ? 0.18 + 0.5 * (1 - until / 0.25) : 0.18
+    }
+    ctx.save()
+    ctx.globalAlpha = alpha
+    if (present) {
+      const body = ctx.createLinearGradient(0, solid.y, 0, solid.y + solid.h)
+      body.addColorStop(0, 'rgba(190,240,255,0.9)')
+      body.addColorStop(1, 'rgba(120,150,255,0.5)')
+      ctx.fillStyle = body
+      ctx.fillRect(solid.x, solid.y, solid.w, solid.h)
+      ctx.strokeStyle = '#effcff'
+      ctx.lineWidth = 0.06
+      ctx.strokeRect(solid.x, solid.y, solid.w, solid.h)
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
+      ctx.lineWidth = 0.04
+      ctx.beginPath()
+      for (let x = solid.x + 0.6; x < solid.x + solid.w - 0.2; x += 1.2) {
+        ctx.moveTo(x, solid.y + 0.18)
+        ctx.lineTo(x + 0.25, solid.y + solid.h - 0.18)
+      }
+      ctx.stroke()
+    } else {
+      ctx.setLineDash([0.22, 0.18])
+      ctx.strokeStyle = GHOST_COLOR
+      ctx.lineWidth = 0.06
+      ctx.strokeRect(solid.x, solid.y, solid.w, solid.h)
+      ctx.setLineDash([])
+    }
+    ctx.restore()
+  }
+
+  /** Jet de flammes : une bouche de fonte ; des braises avant qu'il ne crache, puis la colonne de feu. */
+  private flame(ctx: CanvasRenderingContext2D, flame: Flame, t: number, time: number): void {
+    const up = flame.dir === 'up'
+    const sign = up ? -1 : 1
+    const cx = flame.x + flame.w / 2
+    ctx.fillStyle = '#26232d'
+    ctx.fillRect(flame.x + 0.05, up ? flame.y - 0.2 : flame.y, flame.w - 0.1, 0.2)
+    ctx.fillStyle = '#ff8a3d'
+    for (let slot = 0; slot < 3; slot += 1) ctx.fillRect(flame.x + 0.2 + slot * 0.24, up ? flame.y - 0.15 : flame.y + 0.08, 0.12, 0.07)
+    const cycle = cycleAt(t, flame.period, flame.phase)
+    if (cycle < flame.on) {
+      // Le jet jaillit et retombe vite : la portée suit, au bord du cycle.
+      const reach = flame.reach * Math.min(1, (cycle * flame.period) / 0.08, ((flame.on - cycle) * flame.period) / 0.08)
+      const tip = flame.y + sign * reach
+      const wobble = Math.sin(time * 38 + flame.x * 3) * 0.07
+      const half = flame.w * 0.42
+      const outer = ctx.createLinearGradient(0, flame.y, 0, tip)
+      outer.addColorStop(0, 'rgba(255,240,190,0.95)')
+      outer.addColorStop(0.35, 'rgba(255,170,50,0.9)')
+      outer.addColorStop(0.8, 'rgba(255,80,30,0.7)')
+      outer.addColorStop(1, 'rgba(200,30,20,0)')
+      ctx.fillStyle = outer
+      ctx.beginPath()
+      ctx.moveTo(cx - half, flame.y)
+      ctx.quadraticCurveTo(cx - half * 1.15 + wobble, flame.y + sign * reach * 0.55, cx + wobble * 2, tip)
+      ctx.quadraticCurveTo(cx + half * 1.15 - wobble, flame.y + sign * reach * 0.55, cx + half, flame.y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,252,230,0.85)'
+      ctx.beginPath()
+      ctx.moveTo(cx - half * 0.45, flame.y)
+      ctx.quadraticCurveTo(cx - wobble, flame.y + sign * reach * 0.4, cx, flame.y + sign * reach * 0.6)
+      ctx.quadraticCurveTo(cx + wobble, flame.y + sign * reach * 0.4, cx + half * 0.45, flame.y)
+      ctx.closePath()
+      ctx.fill()
+      return
+    }
+    const until = (1 - cycle) * flame.period
+    if (until < FLAME_WARNING) {
+      // Braises : la bouche rougeoie et crépite juste avant.
+      const heat = 1 - until / FLAME_WARNING
+      const glow = ctx.createRadialGradient(cx, flame.y, 0, cx, flame.y, 0.3 + heat * 0.5)
+      glow.addColorStop(0, `rgba(255,150,50,${(0.7 * heat).toFixed(2)})`)
+      glow.addColorStop(1, 'rgba(255,90,30,0)')
+      ctx.fillStyle = glow
+      ctx.fillRect(cx - 0.8, flame.y - 0.8, 1.6, 1.6)
+      ctx.fillStyle = '#ffc46b'
+      for (let spark = 0; spark < 3; spark += 1) {
+        const rise = ((time * 2.5 + spark * 0.37) % 1) * 0.7 * heat
+        ctx.fillRect(cx + (spark - 1) * 0.22, flame.y + sign * rise, 0.07, 0.07)
+      }
+    }
+  }
+
+  /**
+   * Hiraishin : le sceau du dieu de la foudre, une colonne dorée, un cercle de formules qui tourne
+   * et le kunai à trois pointes. Le sceau d'entrée brille ; sa jumelle, de l'autre côté, est plus pâle.
+   */
+  private warp(ctx: CanvasRenderingContext2D, warp: Warp, x: number, y: number, entry: boolean, time: number): void {
+    const cx = x + warp.w / 2
+    const cy = y + warp.h / 2
+    const column = ctx.createLinearGradient(x - 0.4, 0, x + warp.w + 0.4, 0)
+    column.addColorStop(0, 'rgba(0,0,0,0)')
+    column.addColorStop(0.5, WARP_COLOR)
+    column.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.globalAlpha = (entry ? 0.38 : 0.2) + Math.sin(time * 6) * 0.08
+    ctx.fillStyle = column
+    ctx.fillRect(x - 0.4, y, warp.w + 0.8, warp.h)
+    ctx.globalAlpha = entry ? 1 : 0.55
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(time * (entry ? 1.8 : -1.8))
+    ctx.strokeStyle = WARP_COLOR
+    ctx.lineWidth = 0.06
+    ctx.beginPath()
+    ctx.arc(0, 0, 0.72, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.lineWidth = 0.05
+    ctx.beginPath()
+    for (let tick = 0; tick < 8; tick += 1) {
+      const angle = (tick * Math.PI) / 4
+      ctx.moveTo(Math.cos(angle) * 0.78, Math.sin(angle) * 0.78)
+      ctx.lineTo(Math.cos(angle) * 0.95, Math.sin(angle) * 0.95)
+    }
+    ctx.stroke()
+    ctx.restore()
+    // Le kunai à trois pointes, pointe vers le bas.
+    ctx.fillStyle = '#f4f1ea'
+    ctx.strokeStyle = '#3a2d12'
+    ctx.lineWidth = 0.035
+    ctx.beginPath()
+    ctx.moveTo(cx, cy + 0.5)
+    ctx.lineTo(cx - 0.12, cy)
+    ctx.lineTo(cx, cy - 0.12)
+    ctx.lineTo(cx + 0.12, cy)
+    ctx.closePath()
+    for (const side of [-1, 1]) {
+      ctx.moveTo(cx + side * 0.1, cy - 0.02)
+      ctx.lineTo(cx + side * 0.36, cy + 0.26)
+      ctx.lineTo(cx + side * 0.18, cy - 0.12)
+      ctx.closePath()
+    }
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#3a2d12'
+    ctx.fillRect(cx - 0.035, cy - 0.5, 0.07, 0.38)
+    ctx.strokeStyle = WARP_COLOR
+    ctx.lineWidth = 0.04
+    ctx.beginPath()
+    ctx.arc(cx, cy - 0.58, 0.08, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+
+  /** Le cercle d'une roue de lames, discret, et son moyeu. */
+  private orbitPath(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)'
+    ctx.lineWidth = 0.06
+    ctx.setLineDash([0.2, 0.25])
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = 'rgba(255,255,255,0.22)'
+    ctx.beginPath()
+    ctx.arc(x, y, 0.16, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   /** Rangée de pics d'acier. */

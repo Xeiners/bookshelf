@@ -47,14 +47,18 @@ Sections disponibles (« kind ») :
 - moon : un bonus de lune, puis un vide trop long : il faut maintenir le doigt pour planer (gravité lunaire).
 - mini : une porte rend le ninja minuscule ; il file dans un tunnel trop bas pour sa taille normale, hérissé de pics tantôt au sol, tantôt au plafond (inversions rapides et rythmées), puis une porte lui rend sa taille.
 - kawarimi : une bûche de substitution (elle encaisse un piège à la place du ninja), suivie d'un passage plus rude.
+- hiraishin : une barrière sur toute la hauteur du couloir, que seul un sceau de téléportation franchit ; il faut être sur la voie du sceau (dès l'intensité 4, il faut d'abord inverser pour l'atteindre).
+- flames : des jets de flammes qui crachent en rythme sur les deux surfaces ; quitter chaque voie avant qu'elle ne crache.
+- ghost : des dalles spectrales qui apparaissent et s'effacent en rythme : s'y poser quand elles sont là, et en repartir aussitôt.
+- orbit : une roue de shurikens qui tourne au milieu de la trajectoire : inverser quand elle laisse un passage.
 
 « intensity » (1 à 10) règle la dureté de chaque section : la fenêtre pour inverser va d'environ 0,8 s (1) à 0,15 s (10), et les respirations raccourcissent.
 
 Bonnes pratiques :
 - Une courbe de difficulté : une mise en jambes, une montée progressive, un pic vers la fin, et une ou deux respirations (runway) après les passages intenses.
 - Varie les sections ; évite plus de deux fois de suite la même.
-- Introduis un mécanisme nouveau (moon, crumble, mover, shuriken, mini, kawarimi) à une intensité un peu plus basse que le reste, la première fois.
-- Pour un niveau facile, privilégie switch, spikes, wall, islands, pad et quelques runway ; garde zigzag, crumble, mover et shuriken pour les niveaux plus durs.
+- Introduis un mécanisme nouveau (moon, crumble, mover, shuriken, mini, kawarimi, hiraishin, flames, ghost, orbit) à une intensité un peu plus basse que le reste, la première fois.
+- Pour un niveau facile, privilégie switch, spikes, wall, islands, pad et quelques runway ; garde zigzag, crumble, mover et shuriken pour les niveaux plus durs, et flames, ghost et orbit pour les niveaux difficiles et extrêmes.
 - Le nom est court, en français, évocateur de l'ambiance (40 caractères au plus).
 
 Thèmes (« theme ») : ${GRAVITY_THEMES.join(', ')} — konoha (village caché au soleil couchant, pagodes, sakura), night (nuit bleue, bambous, lucioles), hunter (forêt verdoyante et tours géantes, univers de chasseurs), halloween (lune orange, citrouilles, braises), christmas (nuit de neige, sapins illuminés), sand (désert au couchant, sable ocre, hautes roches), mist (village dans la brume, pagodes grises, bois clair).

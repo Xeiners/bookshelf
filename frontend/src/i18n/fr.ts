@@ -352,7 +352,7 @@ export const fr = {
       gravity: {
         tag: 'Nouveau jeu',
         title: 'Gravity Ninja : inverse la gravité',
-        text: 'Un seul geste : touche l’écran et ton ninja passe du sol au plafond. 17 niveaux de Facile à Extrême, avec pics, shurikens et portails. Chaque niveau réussi pour la première fois rapporte des Poussières ✦ (encore plus avec tous ses rouleaux), chaque palier terminé un booster, et le palier Extrême un booster Légendaire.',
+        text: 'Un seul geste : touche l’écran et ton ninja passe du sol au plafond. 37 niveaux de Facile à Extrême, avec pics, shurikens, flammes, dalles spectrales et téléportations. Chaque niveau réussi pour la première fois rapporte des Poussières ✦ (encore plus avec tous ses rouleaux), chaque palier terminé un booster, et le palier Extrême un booster Légendaire.',
         cta: 'Jouer',
       },
       jump: {
@@ -975,6 +975,8 @@ export const fr = {
         'Lune : maintiens le doigt pour planer.',
         'Porte violette : tu rapetisses. Porte orange : tu reprends ta taille.',
         'Bûche : elle encaisse un piège à ta place.',
+        'Sceau doré (Hiraishin) : il te téléporte de l’autre côté d’une barrière.',
+        'Jets de flammes, dalles spectrales, roues de lames : ils vont en rythme, observe-les avant de passer.',
         'Une chute = retour au début. Les rouleaux comptent si tu finis dans la même tentative.',
       ],
       custom: 'Atelier',
@@ -1028,6 +1030,10 @@ export const fr = {
         scroll: { name: 'Rouleau', text: 'Prends les 3 et finis le niveau.' },
         log: { name: 'Kawarimi', text: 'Encaisse un piège à ta place.' },
         mini: { name: 'Porte de taille', text: 'Tu rapetisses ; l’orange te rend ta taille.' },
+        warp: { name: 'Hiraishin', text: 'Ce sceau te téléporte de l’autre côté de la barrière : sois sur sa voie.' },
+        flame: { name: 'Jets de flammes', text: 'Ils crachent en rythme : passe quand ils dorment.' },
+        ghost: { name: 'Dalle spectrale', text: 'Elle apparaît et s’efface en rythme : pose-toi, repars vite.' },
+        orbit: { name: 'Roue de lames', text: 'Les shurikens tournent : inverse quand la roue s’ouvre.' },
       },
       logReady: 'Kawarimi prêt',
       attempt: (count: number) => `Tentative ${count}`,

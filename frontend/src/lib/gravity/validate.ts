@@ -76,10 +76,39 @@ export function parseLevel(input: unknown): ParseResult {
           dy: optional(element.dy, `${at}.dy`, [-20, 20]),
           period: optional(element.period, `${at}.period`, [0.5, 30]),
           phase: optional(element.phase, `${at}.phase`, [0, 1]),
+          orbit: optional(element.orbit, `${at}.orbit`, [0, 8]),
         }
         elements.push({ type: 'shuriken', x, y: y(), ...Object.fromEntries(Object.entries(extra).filter(([, value]) => value !== undefined)) })
         break
       }
+      case 'warp':
+        elements.push({ type: 'warp', x, y: y(), w: size('w'), h: size('h'), tx: num(element.tx, `${at}.tx`, X_RANGE), ty: num(element.ty, `${at}.ty`, Y_RANGE) })
+        break
+      case 'flame':
+        elements.push({
+          type: 'flame',
+          x,
+          y: y(),
+          w: size('w'),
+          reach: num(element.reach, `${at}.reach`, [0.3, WORLD_HEIGHT], 1),
+          dir: element.dir === 'down' ? 'down' : element.dir === 'up' ? 'up' : (issues.push(`${at}.dir`), 'up'),
+          period: num(element.period, `${at}.period`, [0.5, 30], 2),
+          on: num(element.on, `${at}.on`, [0.05, 0.95], 0.5),
+          ...(element.phase !== undefined ? { phase: num(element.phase, `${at}.phase`, [0, 1]) } : {}),
+        })
+        break
+      case 'ghost':
+        elements.push({
+          type: 'ghost',
+          x,
+          y: y(),
+          w: size('w'),
+          h: size('h'),
+          period: num(element.period, `${at}.period`, [0.5, 30], 2),
+          on: num(element.on, `${at}.on`, [0.05, 0.95], 0.5),
+          ...(element.phase !== undefined ? { phase: num(element.phase, `${at}.phase`, [0, 1]) } : {}),
+        })
+        break
       case 'moon':
       case 'scroll':
       case 'log':

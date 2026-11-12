@@ -55,7 +55,11 @@ export interface SpikesElement {
   dir: 'up' | 'down'
 }
 
-/** Shuriken géant qui tourne (centre x, y) ; il peut aller et venir de (dx, dy) en `period` secondes. */
+/**
+ * Shuriken géant qui tourne (centre x, y) ; il peut aller et venir de (dx, dy) en `period` secondes,
+ * ou, avec `orbit`, tourner autour de (x, y) à cette distance (un tour en `period` secondes) : plusieurs
+ * shurikens de même centre, décalés (`phase`), forment une roue de lames.
+ */
 export interface ShurikenElement {
   type: 'shuriken'
   x: number
@@ -64,6 +68,50 @@ export interface ShurikenElement {
   dx?: number
   dy?: number
   period?: number
+  phase?: number
+  orbit?: number
+}
+
+/**
+ * Hiraishin : sceau de téléportation. Le traverser (la boîte x, y, w, h) transporte le ninja dans la
+ * boîte jumelle en (tx, ty), à la même place dans le sceau, avec sa gravité : il franchit ainsi une
+ * barrière que rien d'autre ne passe.
+ */
+export interface WarpElement {
+  type: 'warp'
+  x: number
+  y: number
+  w: number
+  h: number
+  tx: number
+  ty: number
+}
+
+/**
+ * Jet de flammes : une bouche posée sur une surface à la hauteur `y` (`up` sur un sol, `down` sous un
+ * plafond) qui crache sur `reach` unités, une fraction `on` de chaque cycle de `period` secondes.
+ */
+export interface FlameElement {
+  type: 'flame'
+  x: number
+  y: number
+  w: number
+  reach: number
+  dir: 'up' | 'down'
+  period: number
+  on: number
+  phase?: number
+}
+
+/** Dalle spectrale : solide une fraction `on` de chaque cycle de `period` secondes, absente le reste du temps. */
+export interface GhostElement {
+  type: 'ghost'
+  x: number
+  y: number
+  w: number
+  h: number
+  period: number
+  on: number
   phase?: number
 }
 
@@ -121,6 +169,9 @@ export type LevelElement =
   | ScrollElement
   | SizeElement
   | LogElement
+  | WarpElement
+  | FlameElement
+  | GhostElement
 
 export type ElementType = LevelElement['type']
 

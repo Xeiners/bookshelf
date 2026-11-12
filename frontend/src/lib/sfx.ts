@@ -1066,6 +1066,16 @@ export function playGravityLog(): void {
   bell(e, 880, at + 0.05, 0.6, 0.035)
 }
 
+/** Hiraishin : un éclair, un souffle qui file, puis une note claire à l'arrivée. */
+export function playGravityWarp(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  noiseBurst(e, { at, duration: 0.16, from: 4200, to: 1200, q: 2, gain: 0.07, send: 0.1 })
+  blip(e, 1567.98, at, 0.06, 0.025, 'triangle')
+  bell(e, 2093, at + 0.07, 0.5, 0.03, 0.3)
+}
+
 /** Arrivée : une fanfare de cloches qui monte. */
 export function playGravityFinish(): void {
   const e = start()

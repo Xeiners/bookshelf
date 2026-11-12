@@ -15,7 +15,7 @@ import {
   WORLD_HEIGHT,
   speedFor,
 } from './constants'
-import { buildWorld, spawnAt, tickAt } from './engine'
+import { buildWorld, spawnAt } from './engine'
 import { solveFrom, solveLevel, type SolveReport } from './solver'
 import type { Gravity, GravityLevel, LevelElement, ThemeId } from './types'
 
@@ -31,8 +31,15 @@ import type { Gravity, GravityLevel, LevelElement, ThemeId } from './types'
  * (sections imposées : le plan d'une IA, ou écrit à la main).
  */
 
-export const SECTION_KINDS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi'] as const
+export const SECTION_KINDS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit'] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
+
+/**
+ * Sections réglées sur l'horloge : le générateur y cale les flammes et les dalles spectrales sur
+ * l'instant où le ninja passera. Dans un niveau qui en compte, les plateformes mobiles ne vont que de
+ * haut en bas : une mobile horizontale pousse le ninja en avant et décalerait ce rendez-vous.
+ */
+const TIMED_SECTIONS: ReadonlySet<SectionKind> = new Set(['flames', 'ghost'])
 
 export interface PlanSection {
   kind: SectionKind
@@ -75,9 +82,24 @@ const TUNNEL_H = 1.25
 /** Hauteur des portes de taille, depuis la surface. */
 const GATE_H = 2.4
 
+/** Hauteur des sceaux de téléportation, depuis la surface. */
+const WARP_H = 2.4
+/** Épaisseur des dalles spectrales. */
+const GHOST_H = 0.8
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * clamp(t, 0, 1)
 const round = (value: number) => Math.round(value * 100) / 100
+/** Au millième : les rendez-vous (cycles, décalages) se jouent au centième de seconde. */
+const round3 = (value: number) => Math.round(value * 1000) / 1000
+const frac = (value: number) => value - Math.floor(value)
+
+/** Un jet de flammes : portée, cycle, part du cycle où il crache. */
+interface FlameSpec {
+  reach: number
+  period: number
+  on: number
+}
 
 /** Pas nécessaires pour franchir `distance` après une inversion (même intégration que le moteur). */
 export function flightTicks(distance: number, lunar = false): number {
@@ -99,7 +121,9 @@ interface Lane {
   g: Gravity
   /** Début du bloc de la voie. */
   start: number
-  kind: 'block' | 'crumble' | 'mover'
+  kind: 'block' | 'crumble' | 'mover' | 'ghost'
+  /** Spectrale : la part du cycle où elle est là. */
+  ghostOn?: number
 }
 
 interface Snapshot {
@@ -108,6 +132,7 @@ interface Snapshot {
   cursor: number
   landed: number
   lastBreather: number
+  shift: number
 }
 
 /** Fenêtres et respirations d'une section, selon son intensité. */
@@ -139,10 +164,18 @@ class Builder {
 
   readonly difficulty: number
   readonly rand: () => number
+  /** Le niveau a des sections réglées sur l'horloge (cf. `TIMED_SECTIONS`). */
+  readonly timed: boolean
+  /**
+   * Avance prise par les téléportations (unités) : le ninja passe en `x` plus tôt d'autant que la
+   * course pure ne le dirait (cf. `timeAt`).
+   */
+  shift = 0
 
-  constructor(difficulty: number, rand: () => number) {
+  constructor(difficulty: number, rand: () => number, timed = false) {
     this.difficulty = difficulty
     this.rand = rand
+    this.timed = timed
     this.speed = speedFor(difficulty)
     this.breathEvery = lerp(70, 140, (difficulty - 1) / 9)
     this.lane = { y: 11, g: 1, start: -4, kind: 'block' }
@@ -154,8 +187,13 @@ class Builder {
   between = (min: number, max: number) => min + (max - min) * this.rand()
   chance = (p: number) => this.rand() < p
 
+  /** L'instant (s) où le ninja passe en `x` : il court à vitesse fixe, et les téléportations l'avancent. */
+  timeAt(x: number): number {
+    return (x - START_X - this.shift) / this.speed
+  }
+
   snapshot(): Snapshot {
-    return { elements: this.elements.length, lane: { ...this.lane }, cursor: this.cursor, landed: this.landed, lastBreather: this.lastBreather }
+    return { elements: this.elements.length, lane: { ...this.lane }, cursor: this.cursor, landed: this.landed, lastBreather: this.lastBreather, shift: this.shift }
   }
 
   restore(snapshot: Snapshot): void {
@@ -164,6 +202,7 @@ class Builder {
     this.cursor = snapshot.cursor
     this.landed = snapshot.landed
     this.lastBreather = snapshot.lastBreather
+    this.shift = snapshot.shift
   }
 
   /** Le bloc d'une voie, de `x0` à `x1` : sol ou plafond prolongé hors champ, ou dalle suspendue. */
@@ -179,10 +218,41 @@ class Builder {
     return { type: lane.kind === 'crumble' ? 'crumble' : 'block', x, y: round(y), w, h: round(h) }
   }
 
+  /**
+   * La voie de `x0` à `x1`. Une spectrale déborde un peu de part et d'autre, mais n'est là que du
+   * moment où l'on peut s'y poser (en `x0`) à celui où il faut l'avoir quittée (en `x1`) ; avant, elle
+   * clignote à ce rythme.
+   */
+  laneElement(lane: Lane, x0: number, x1: number): LevelElement {
+    if (lane.kind !== 'ghost') return this.laneBlock(lane, x0, x1)
+    const from = x0 - this.speed * 0.3
+    const to = x1 + this.speed * 0.25
+    const appear = this.timeAt(x0) - 0.08
+    const vanish = this.timeAt(x1) + 0.04
+    const on = lane.ghostOn ?? 0.5
+    const period = round3(Math.max(0.6, (vanish - appear) / on))
+    return { type: 'ghost', x: round(from), y: round(lane.g === 1 ? lane.y : lane.y - GHOST_H), w: round(to - from), h: GHOST_H, period, on: round3((vanish - appear) / period), phase: round3(frac(-appear / period)) }
+  }
+
   /** Ferme la voie courante en `end`. */
   closeLane(end: number): void {
     if (this.lane.kind === 'mover') return
-    this.elements.push(this.laneBlock(this.lane, this.lane.start, end))
+    this.elements.push(this.laneElement(this.lane, this.lane.start, end))
+  }
+
+  /**
+   * Un jet de flammes sur la voie `lane`, en `x` : `lethal`, il crache à l'instant où le ninja y
+   * passerait (il faut avoir quitté la voie) ; sinon, il dort à cet instant précis et crache avant et
+   * après (il impressionne, sans danger pour qui garde le rythme).
+   */
+  flame(x: number, lane: Lane, spec: FlameSpec, lethal: boolean): void {
+    const passing = this.timeAt(x + 0.5)
+    const target = lethal ? spec.on / 2 : spec.on + (1 - spec.on) / 2
+    this.elements.push({ type: 'flame', x: round(x), y: round(lane.y), w: 1, reach: spec.reach, dir: lane.g === 1 ? 'up' : 'down', period: spec.period, on: spec.on, phase: round3(frac(target - passing / spec.period)) })
+  }
+
+  flameSpec(k: number): FlameSpec {
+    return { reach: round(lerp(1.6, 2.6, k)), period: round(lerp(1.9, 1.3, k)), on: round(lerp(0.42, 0.55, k)) }
   }
 
   /** Distance de vol (unités) d'une surface à l'autre. */
@@ -210,7 +280,18 @@ class Builder {
    */
   switchTo(
     targetY: number,
-    options: { window: number; react: number; filler?: 'void' | 'spikes' | 'wall' | 'pad'; kind?: Lane['kind']; lunar?: boolean; landRun?: number; mover?: { dx: number; dy: number; period: number } },
+    options: {
+      window: number
+      react: number
+      filler?: 'void' | 'spikes' | 'wall' | 'pad' | 'flames'
+      kind?: Lane['kind']
+      lunar?: boolean
+      landRun?: number
+      mover?: { dx: number; dy: number; period: number }
+      /** Flammes : celles de la voie quittée (`filler`), et les leurres de la nouvelle voie. */
+      flames?: FlameSpec
+      ghostOn?: number
+    },
   ): void {
     const from = this.lane
     const window = Math.max(0.6, options.window)
@@ -230,6 +311,14 @@ class Builder {
       const hazardEnd = end + flight + 2.5
       this.closeLane(hazardEnd)
       this.elements.push({ type: 'spikes', x: round(end + 0.15), y: from.y, w: round(hazardEnd - end - 0.15), dir: from.g === 1 ? 'up' : 'down' })
+    } else if (filler === 'flames') {
+      // La voie continue, mais ses bouches crachent juste quand le ninja y passerait : il faut l'avoir
+      // quittée, assez tôt pour que le jet ne le rattrape pas en plein vol.
+      const spec = options.flames ?? this.flameSpec(0.5)
+      const first = end + flightTicks(spec.reach + 0.3) * TICK * this.speed + PLAYER_W + 0.1
+      const hazardEnd = Math.max(end + flight + 2.5, first + 2.2)
+      this.closeLane(hazardEnd)
+      for (let x = first; x < hazardEnd - 1; x += 1.9) this.flame(x, from, spec, true)
     } else {
       // Un mur sur la voie, assez loin pour qu'une inversion faite au dernier moment passe au-dessus.
       const height = this.between(2.6, 3.6)
@@ -239,7 +328,7 @@ class Builder {
       this.elements.push({ type: 'block', x: round(end + clearance), y: round(from.g === 1 ? from.y - height : from.y), w: round(width), h: round(height) })
     }
     const kind = options.kind ?? 'block'
-    this.lane = { y: targetY, g: from.g === 1 ? -1 : 1, start, kind }
+    this.lane = { y: targetY, g: from.g === 1 ? -1 : 1, start, kind, ...(kind === 'ghost' ? { ghostOn: options.ghostOn ?? 0.5 } : {}) }
     const latest = end + flight
     this.landed = latest
     if (kind === 'mover' && options.mover) {
@@ -251,6 +340,10 @@ class Builder {
       this.cursor = start + length - window
     } else {
       this.cursor = latest + Math.max(options.react, options.landRun ?? 0)
+    }
+    // Des leurres sur la nouvelle voie : ils dorment à l'instant où le ninja passe dessus.
+    if (filler === 'flames' && kind === 'block') {
+      for (let x = start + 0.6; x < this.cursor - 0.8; x += 2.6) this.flame(x, this.lane, options.flames ?? this.flameSpec(0.5), false)
     }
   }
 
@@ -337,7 +430,8 @@ class Builder {
         break
       }
       case 'mover': {
-        const vertical = this.chance(0.5)
+        // Un niveau réglé sur l'horloge garde ses mobiles verticales (cf. `TIMED_SECTIONS`).
+        const vertical = this.chance(0.5) || this.timed
         const target = this.pickTarget(true)
         const amplitude = lerp(1.2, 2.6, k)
         this.switchTo(target, {
@@ -387,7 +481,71 @@ class Builder {
         this.switchTo(target, { window: lunarWindow, react, lunar: true })
         break
       }
+      case 'hiraishin':
+        this.hiraishin(intensity)
+        break
+      case 'flames': {
+        // Des bouches sur les deux surfaces : quitter chaque voie avant qu'elle ne crache.
+        const spec = this.flameSpec(k)
+        const count = Math.round(lerp(2, 4, k + this.rand() * 0.2))
+        for (let index = 0; index < count; index += 1) this.switchTo(this.pickTarget(false), { window, react: Math.max(react, this.speed * 0.3), filler: 'flames', flames: spec })
+        break
+      }
+      case 'ghost': {
+        // D'une dalle spectrale à l'autre : chacune apparaît pour qu'on s'y pose et s'efface peu après.
+        const hops = Math.round(lerp(1, 3, k + this.rand() * 0.25))
+        const ghostOn = round(lerp(0.55, 0.45, k))
+        for (let index = 0; index < hops; index += 1) this.switchTo(this.pickTarget(true), { window, react: this.speed * lerp(0.14, 0.05, k), kind: 'ghost', ghostOn })
+        this.switchTo(this.pickTarget(false), { window, react })
+        break
+      }
+      case 'orbit': {
+        // Une roue de lames tourne au milieu de la trajectoire : inverser quand elle laisse passer.
+        const from = this.lane
+        const target = this.pickTarget(false)
+        const wide = window * 2 + 2
+        const end = this.cursor + wide
+        const flight = this.flight(from.y, from.g, target)
+        this.switchTo(target, { window: wide, react })
+        const gap = Math.abs(from.y - target)
+        const radius = round(clamp(Math.min(lerp(1.4, 2.1, k), gap / 2 - PLAYER_H - 0.8), 0.9, 2.1))
+        const blades = k > 0.55 ? 3 : 2
+        const base = this.rand()
+        const center = { x: round(end - wide / 2 + flight / 2 + PLAYER_W / 2), y: round((from.y + target) / 2) }
+        for (let blade = 0; blade < blades; blade += 1) {
+          this.elements.push({ type: 'shuriken', ...center, r: 0.7, orbit: radius, period: round(lerp(2.6, 1.7, k)), phase: round3(frac(base + blade / blades)) })
+        }
+        break
+      }
     }
+  }
+
+  /**
+   * Hiraishin : une barrière sur toute la hauteur du couloir, que seul un sceau de téléportation
+   * franchit. Le sceau est sur la voie où l'on arrive (dès l'intensité 4, il faut d'abord inverser
+   * pour l'atteindre ; à partir de 7, il est sur une dalle suspendue) ; sa jumelle, de l'autre côté,
+   * pose le ninja sur une voie à une autre hauteur, avec la même gravité.
+   */
+  hiraishin(intensity: number): void {
+    const { window, react, k } = tuning(intensity, this.speed)
+    if (intensity >= 4 || this.lane.kind !== 'block') this.switchTo(this.pickTarget(intensity >= 7), { window, react: Math.max(react, this.speed * 0.45) })
+    const lane = this.lane
+    const g = lane.g
+    const sealX = this.cursor + this.speed * 0.2
+    const wallX = sealX + 1.6
+    const wallW = 1.4
+    const exitX = wallX + wallW + 1
+    // La voie d'arrivée : même gravité, une autre hauteur.
+    const heights = g === 1 ? [7.5, 12] : [2, 6.5]
+    let y2 = round(this.between(heights[0]!, heights[1]!))
+    if (Math.abs(y2 - lane.y) < 1.5) y2 = round(lane.y + (lane.y < (heights[0]! + heights[1]!) / 2 ? 1.8 : -1.8))
+    this.closeLane(wallX + 0.2)
+    this.elements.push({ type: 'block', x: round(wallX), y: -3, w: wallW, h: WORLD_HEIGHT + 6 })
+    this.elements.push({ type: 'warp', x: round(sealX), y: round(g === 1 ? lane.y - WARP_H : lane.y), w: 1, h: WARP_H, tx: round(exitX), ty: round(g === 1 ? y2 - WARP_H : y2) })
+    this.shift += round(exitX) - round(sealX)
+    this.lane = { y: y2, g, start: exitX - 1.2, kind: 'block' }
+    this.landed = exitX
+    this.cursor = exitX + PLAYER_W + Math.max(react, this.speed * lerp(0.45, 0.22, k))
   }
 
   /** Le niveau : la voie finale se prolonge au-delà de l'arrivée. */
@@ -424,12 +582,13 @@ function sectionHolds(builder: Builder, entry: { x: number; y: number; g: Gravit
     // La voie courante, encore ouverte, est posée jusqu'au bout de la section (une mobile l'est déjà).
     elements: [
       ...elements,
-      ...(builder.lane.kind === 'mover' ? [] : [builder.laneBlock(builder.lane, builder.lane.start, builder.cursor + 8)]),
+      ...(builder.lane.kind === 'mover' ? [] : [builder.laneElement(builder.lane, builder.lane.start, builder.cursor + 8)]),
     ],
   }
   const world = buildWorld(probe)
   const start = spawnAt(world, entry.x, entry.y, entry.g)
-  start.tick = tickAt(world, entry.x)
+  // L'instant où le ninja arrive à l'entrée de la section (avance des téléportations comprise).
+  start.tick = Math.max(0, Math.round(builder.timeAt(entry.x) / TICK))
   return solveFrom(world, start, builder.cursor, 60_000).ok
 }
 
@@ -475,6 +634,10 @@ function weightsFor(difficulty: number): [SectionKind, number][] {
     ['mover', k > 0.4 ? 3 + 8 * k : 0],
     ['mini', k > 0.1 ? 3 + 7 * k : 0],
     ['kawarimi', 3 + 3 * k],
+    ['hiraishin', k > 0.25 ? 2 + 4 * k : 0],
+    ['flames', k > 0.45 ? 3 + 7 * k : 0],
+    ['ghost', k > 0.45 ? 3 + 6 * k : 0],
+    ['orbit', k > 0.5 ? 2 + 7 * k : 0],
   ]
 }
 
@@ -519,12 +682,13 @@ function assemble(
   difficulty: number,
   seed: number,
   meta: { id: string; name: string; theme: ThemeId },
+  timed: boolean,
   layout: (builder: Builder, rand: () => number) => void,
 ): BuildResult {
   let last: BuildResult | null = null
   for (let attempt = 1; attempt <= 6; attempt += 1) {
     const rand = seededRandom(seed + attempt * 7919)
-    const builder = new Builder(clamp(Math.round(difficulty), 1, 10), rand)
+    const builder = new Builder(clamp(Math.round(difficulty), 1, 10), rand, timed)
     layout(builder, rand)
     const level = builder.finish(meta)
     const report = solveLevel(buildWorld(level))
@@ -544,7 +708,8 @@ export function generateLevel(options: GenerateOptions): BuildResult {
   const name = options.name ?? `Niveau ${difficulty}` // i18n-ignore : nom par défaut, remplacé à l'enregistrement
   const meta = { id: options.id ?? slugOf(`${name}-${options.seed}`), name, theme: options.theme }
   const weights = weightsFor(difficulty)
-  return assemble(difficulty, options.seed, meta, (builder, rand) => {
+  const timed = weights.some(([kind, weight]) => weight > 0 && TIMED_SECTIONS.has(kind))
+  return assemble(difficulty, options.seed, meta, timed, (builder, rand) => {
     // Une mise en jambes, puis des sections jusqu'à la longueur visée (un peu plus rudes vers la fin).
     placeSection(builder, 'switch', Math.max(1, difficulty - 2), meta)
     while (builder.cursor < target) {
@@ -558,7 +723,8 @@ export function generateLevel(options: GenerateOptions): BuildResult {
 /** Un niveau d'après un plan (une IA, ou à la main) : les sections dans l'ordre, prouvées une à une. */
 export function buildLevel(plan: LevelPlan, seed: number, id?: string): BuildResult {
   const meta = { id: id ?? slugOf(`${plan.name}-${seed}`), name: plan.name, theme: plan.theme }
-  return assemble(plan.difficulty, seed, meta, (builder) => {
+  const timed = plan.sections.some((section) => TIMED_SECTIONS.has(section.kind))
+  return assemble(plan.difficulty, seed, meta, timed, (builder) => {
     for (const section of plan.sections) placeSection(builder, section.kind, section.intensity, meta)
   })
 }

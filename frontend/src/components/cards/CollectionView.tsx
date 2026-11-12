@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Gift, Sparkles } from 'lucide-react'
 import { useCollection } from '../../hooks/useCollection'
 import { useDuplicates } from '../../hooks/useDuplicates'
@@ -56,7 +57,8 @@ export function CollectionView() {
           </>
         }
       />
-      {converting && <ConvertDuplicatesSheet onClose={() => setConverting(false)} />}
+      {/* Au-dessus de tout (barre de navigation comprise), avec les doublons déjà chargés : rien à attendre à l'ouverture. */}
+      {converting && createPortal(<ConvertDuplicatesSheet view={duplicates} onClose={() => setConverting(false)} />, document.body)}
     </>
   )
 }

@@ -39,7 +39,9 @@ export function ActivitiesView() {
 
   useGSAP(
     () => {
-      gsap.fromTo(rootRef.current, { autoAlpha: 0, x: activity === 'hub' ? -12 : 12 }, { autoAlpha: 1, x: 0, duration: 0.4, ease: EASE.glide })
+      // Le décalage est retiré à la fin : un `transform` resté sur l'écran y enfermerait tout ce qui
+      // est en `position: fixed` (feuilles, fenêtres), coupé en haut et sous la barre de navigation.
+      gsap.fromTo(rootRef.current, { autoAlpha: 0, x: activity === 'hub' ? -12 : 12 }, { autoAlpha: 1, x: 0, duration: 0.4, ease: EASE.glide, clearProps: 'transform' })
     },
     { dependencies: [activity] },
   )

@@ -342,7 +342,7 @@ export const en: Dictionary = {
       gravity: {
         tag: 'New game',
         title: 'Gravity Ninja: flip gravity',
-        text: 'One move: tap the screen and your ninja flips from floor to ceiling. 17 levels from Easy to Extreme, with spikes, shurikens and portals. Your first clear of each level earns Stardust ✦ (even more with all its scrolls), every finished tier a booster, and the Extreme tier a Legendary booster.',
+        text: 'One move: tap the screen and your ninja flips from floor to ceiling. 37 levels from Easy to Extreme, with spikes, shurikens, flames, spectral slabs and teleports. Your first clear of each level earns Stardust ✦ (even more with all its scrolls), every finished tier a booster, and the Extreme tier a Legendary booster.',
         cta: 'Play',
       },
       jump: {
@@ -962,6 +962,8 @@ export const en: Dictionary = {
         'Moon: hold your finger to glide.',
         'Purple gate: you shrink. Orange gate: you grow back.',
         'Log: it takes a trap hit for you.',
+        'Golden seal (Hiraishin): it teleports you past a barrier.',
+        'Flame jets, spectral slabs, blade wheels: they move in rhythm, watch them before you pass.',
         'A fall = back to the start. Scrolls count if you finish in the same attempt.',
       ],
       custom: 'Workshop',
@@ -1015,6 +1017,10 @@ export const en: Dictionary = {
         scroll: { name: 'Scroll', text: 'Grab all 3 and finish the level.' },
         log: { name: 'Kawarimi', text: 'Takes a trap hit for you.' },
         mini: { name: 'Size gate', text: 'You shrink; the orange one grows you back.' },
+        warp: { name: 'Hiraishin', text: 'This seal teleports you past the barrier: be on its lane.' },
+        flame: { name: 'Flame jets', text: 'They blaze in rhythm: pass while they sleep.' },
+        ghost: { name: 'Spectral slab', text: 'It fades in and out in rhythm: land, then leave fast.' },
+        orbit: { name: 'Blade wheel', text: 'The shurikens spin: flip when the wheel opens.' },
       },
       logReady: 'Kawarimi ready',
       attempt: (count: number) => `Attempt ${count}`,

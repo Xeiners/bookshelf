@@ -5,8 +5,7 @@ import { RARITY_STYLE, type Rarity } from '../../lib/boosters'
 import { vibrate } from '../../lib/haptics'
 import { ApiError } from '../../services/api'
 import { useCollection } from '../../hooks/useCollection'
-import { useDuplicates } from '../../hooks/useDuplicates'
-import { cardsApi, type ConversionResult } from '../../services/cardsApi'
+import { cardsApi, type ConversionResult, type DuplicatesView } from '../../services/cardsApi'
 import { useBoosterStore } from '../../store/useBoosterStore'
 import { useDleStore } from '../../store/useDleStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -37,11 +36,12 @@ const CONVERTIBLE: Convertible[] = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY']
 /**
  * Convertir ses doublons : chaque carte à doublons est listée, toutes cochées d'office (sauf les
  * favoris) ; on décoche celles à garder, par carte ou par rareté. « Convertir » ne touche que les cartes cochées.
+ * Les doublons viennent de la page (déjà chargés) : la liste est là dès l'ouverture, sans
+ * arriver d'un bloc en pleine animation.
  */
-export function ConvertDuplicatesSheet({ onClose }: { onClose: () => void }) {
+export function ConvertDuplicatesSheet({ view, onClose }: { view: DuplicatesView | null; onClose: () => void }) {
   const t = useT()
   const after = useAfterConversion()
-  const [view] = useDuplicates()
   const { data } = useCollection()
   /** Cartes décochées par le joueur, et favoris qu'il a cochés lui-même. */
   const [off, setOff] = useState<ReadonlySet<string>>(new Set())
@@ -152,12 +152,14 @@ export function ConvertDuplicatesSheet({ onClose }: { onClose: () => void }) {
                       role="checkbox"
                       aria-checked={on}
                       onClick={() => set([item], !on)}
-                      className={`flex items-center gap-3 rounded-2xl border px-2.5 py-2 text-left transition-colors ${on ? 'border-glow/50 bg-glow/10' : 'border-white/10 bg-white/[0.03] opacity-70'}`}
+                      // Hors de l'écran, une ligne n'est ni mise en page ni peinte (ni son image chargée) : une
+                      // centaine de doublons s'ouvrent aussi vite que dix.
+                      className={`flex items-center gap-3 rounded-2xl border px-2.5 py-2 text-left transition-colors [contain-intrinsic-size:auto_66px] [content-visibility:auto] ${on ? 'border-glow/50 bg-glow/10' : 'border-white/10 bg-white/[0.03] opacity-70'}`}
                     >
                       <span className="grid size-5 shrink-0 place-items-center rounded-md border border-white/25" style={on ? { background: style.color, borderColor: style.color } : undefined}>
                         {on && <Check size={14} className="text-void" aria-hidden />}
                       </span>
-                      {item.card && <img src={item.card.imageUrl} alt="" loading="lazy" className="h-12 w-9 shrink-0 rounded-md bg-ink object-cover" />}
+                      {item.card && <img src={item.card.imageUrl} alt="" loading="lazy" decoding="async" width={36} height={48} className="h-12 w-9 shrink-0 rounded-md bg-ink object-cover" />}
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1 text-sm font-semibold text-cream">
                           <span className="truncate">{name}</span>

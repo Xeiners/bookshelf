@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Gift, Send, Sparkles } from 'lucide-react'
 import { useT } from '../../i18n'
 import type { BoxKind } from '../../lib/runner/wardrobe'
@@ -339,11 +340,14 @@ export function ShopBanners() {
           <MysteryBox key={box.key} request={box.key} kind={box.kind} assets={null} onClose={() => setBox(null)} onAgain={(kind) => setBox({ kind, key: Date.now() })} />
         </Suspense>
       )}
-      {gifting && (
-        <Suspense fallback={null}>
-          <GiftBoxSheet onClose={() => setGifting(false)} />
-        </Suspense>
-      )}
+      {/* Au-dessus de tout (barre de navigation comprise) : la feuille s'ouvre depuis le milieu de la page. */}
+      {gifting &&
+        createPortal(
+          <Suspense fallback={null}>
+            <GiftBoxSheet onClose={() => setGifting(false)} />
+          </Suspense>,
+          document.body,
+        )}
     </div>
   )
 }

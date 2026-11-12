@@ -24,7 +24,9 @@ const render = (slot: Slot, dismiss: () => void) => (typeof slot === 'function' 
 /**
  * Feuille modale : glisse du bas sur téléphone, carte centrée en bas sur grand
  * écran. Entrée et sortie en `transform` / `opacity` seulement (GPU). Fermeture
- * par le fond, la croix ou Échap.
+ * par le fond, la croix ou Échap. Ouverte depuis une page (pas depuis une autre
+ * fenêtre), l'appelant la rend dans `body` (`createPortal`) : sinon elle reste sous
+ * la barre de navigation.
  */
 export function Sheet({ label, title, subtitle, onClose, children, footer }: SheetProps) {
   const t = useT()

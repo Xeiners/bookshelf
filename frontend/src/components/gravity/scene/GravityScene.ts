@@ -4,7 +4,7 @@ import type { SolveReport } from '../../../lib/gravity/solver'
 import { themeOf, type GravityTheme } from '../../../lib/gravity/themes'
 import { Backdrop } from './backdrop'
 import { Ninja, type NinjaPose } from './ninja'
-import { GATE_COLORS, WorldPainter } from './world'
+import { GATE_COLORS, WARP_COLOR, WorldPainter } from './world'
 
 /*
  * La scène de Gravity Ninja : la simulation (pas fixe) et son rendu (à chaque image), interpolés
@@ -68,6 +68,8 @@ export class GravityScene {
   private squash = 0
   private shake = 0
   private clock = 0
+  /** Après une téléportation, la caméra rattrape le ninja en glissant (unités de retard, vers 0). */
+  private glide = 0
   /** Le ninja a disparu (fumée) : il n'est plus dessiné jusqu'à sa réapparition. */
   private vanished = false
 
@@ -112,6 +114,7 @@ export class GravityScene {
     this.prev = { x: this.run.x, y: this.run.y, cameraX: this.run.cameraX }
     this.vanished = false
     this.ghosts = []
+    this.glide = 0
     const { w, h } = sizeOf(this.run)
     this.puff(this.run.x + w / 2, this.run.y + h / 2, 10)
   }
@@ -163,6 +166,18 @@ export class GravityScene {
       case 'finish':
         this.sparks(cx, run.y + h / 2, this.theme.accent, 40)
         break
+      case 'warp': {
+        // Un éclair doré au départ et à l'arrivée ; pas d'interpolation à travers la téléportation, la
+        // caméra glisse pour rattraper.
+        this.sparks(event.x, event.y, WARP_COLOR, 16)
+        this.ring(event.x, event.y, WARP_COLOR)
+        this.sparks(cx, run.y + h / 2, WARP_COLOR, 20)
+        this.ring(cx, run.y + h / 2, WARP_COLOR)
+        this.glide -= run.cameraX - this.prev.cameraX - this.world.speed * TICK
+        this.prev = { x: run.x, y: run.y, cameraX: run.cameraX }
+        this.ghosts = []
+        break
+      }
       case 'crumble':
         break
     }
@@ -201,7 +216,9 @@ export class GravityScene {
     const lerp = (a: number, b: number) => a + (b - a) * alpha
     const x = lerp(this.prev.x, run.x)
     const y = lerp(this.prev.y, run.y)
-    let cameraX = lerp(this.prev.cameraX, run.cameraX)
+    this.glide *= Math.exp(-dt * 9)
+    if (Math.abs(this.glide) < 0.01) this.glide = 0
+    let cameraX = lerp(this.prev.cameraX, run.cameraX) + this.glide
     this.shake = Math.max(0, this.shake - dt * 1.4)
     if (this.shake > 0) cameraX += (Math.random() - 0.5) * this.shake * 0.4
     const shakeY = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 0.4 * unit : 0

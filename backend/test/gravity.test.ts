@@ -133,6 +133,25 @@ describe('gravity — atelier', () => {
     assert.equal((await admin.request('GET', '/gravity/levels/atelier-1')).status, 404)
   })
 
+  it('les nouveaux éléments passent : Hiraishin, jets de flammes, dalles spectrales, roue de lames', async () => {
+    const base = sample('atelier-neuf')
+    const level = {
+      ...base,
+      elements: [
+        ...base.elements,
+        { type: 'warp', x: 30, y: 8.6, w: 1, h: 2.4, tx: 35, ty: 5.6 },
+        { type: 'flame', x: 50, y: 11, w: 1, reach: 2, dir: 'up', period: 1.6, on: 0.5, phase: 0.25 },
+        { type: 'ghost', x: 60, y: 7, w: 6, h: 0.8, period: 1.2, on: 0.5 },
+        { type: 'shuriken', x: 80, y: 7, r: 0.7, orbit: 2, period: 2, phase: 0.5 },
+      ],
+    }
+    assert.equal((await admin.request('POST', '/gravity/levels', { level })).status, 201)
+    const stored = (await admin.request('GET', '/gravity/levels/atelier-neuf')).body.level as { elements: { type: string }[] }
+    assert.deepEqual(stored.elements.slice(-4).map((element) => element.type), ['warp', 'flame', 'ghost', 'shuriken'])
+    const bad = { ...sample('casse-flamme'), elements: [{ type: 'flame', x: 1, y: 11, w: 1, reach: 2, dir: 'up', period: 1.6, on: 1.4 }] }
+    assert.equal((await admin.request('POST', '/gravity/levels', { level: bad })).status, 400, 'un jet allumé plus que tout son cycle')
+  })
+
   it('un niveau mal formé est refusé (thème inconnu, élément inconnu, bornes)', async () => {
     const broken = [
       { ...sample('casse-1'), theme: 'mars' },
@@ -176,6 +195,18 @@ describe('gravity — récompenses', () => {
     const fast = await post('pont-des-lanternes', { ...won, timeMs: 2000, scrolls: 0 })
     assert.equal(fast.status, 400, 'plus rapide que la course pure : refusé')
     assert.equal(fast.body.error.code, 'gravity_implausible')
+  })
+
+  it('les téléportations raccourcissent la course : une réussite qui les prend n’est pas refusée', async () => {
+    type Shape = { id: string; length: number; speed: number; elements: { type: string; x: number; tx?: number }[] }
+    const level = (BUILTIN_LEVELS as Shape[]).find((entry) => entry.elements.some((element) => element.type === 'warp'))!
+    const skipped = level.elements.reduce((sum, element) => sum + (element.type === 'warp' ? element.tx! - element.x : 0), 0)
+    assert.ok(skipped > 0)
+    // Le plus vite possible : la course pure, moins les bouts sautés.
+    const fastest = Math.ceil(((level.length - 4 - skipped) / level.speed) * 1000)
+    const run = (timeMs: number) => admin.request('POST', `/gravity/levels/${level.id}/runs`, { ...won, timeMs, scrolls: 0 })
+    assert.equal((await run(Math.round(fastest * 0.85))).status, 400)
+    assert.equal((await run(fastest)).status, 200)
   })
 
   it('finir tout un palier : un booster offert ; le palier Extrême : un booster Légendaire', async () => {

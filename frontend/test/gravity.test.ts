@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { CAMPAIGN } from '../src/lib/gravity/campaign'
 import { PLAYER_H, START_X, TICK, TIERS, tierOf } from '../src/lib/gravity/constants'
-import { buildWorld, cloneRun, restartRun, sizeOf, startRun, stepRun, type GravityRun, type GravityWorld } from '../src/lib/gravity/engine'
+import { buildWorld, cloneRun, restartRun, shurikenAt, sizeOf, startRun, stepRun, type GravityRun, type GravityWorld } from '../src/lib/gravity/engine'
 import { buildLevel, generateLevel } from '../src/lib/gravity/generator'
 import { introsOf } from '../src/lib/gravity/intros'
 import { solveLevel } from '../src/lib/gravity/solver'
@@ -161,12 +161,74 @@ describe('Gravity Ninja — moteur', () => {
     assert.equal(run.maxX, reached, 'l’avancement record reste')
   })
 
+  it('jets de flammes : ils brûlent quand ils crachent, pas quand ils dorment ; la bûche en encaisse un', () => {
+    // Le ninja passe sur la bouche (x = 20) vers 1,9 s : allumée à ce moment-là, ou éteinte.
+    const jet = (phase: number): LevelElement => ({ type: 'flame', x: 20, y: 11, w: 1, reach: 2, dir: 'up', period: 2, on: 0.5, phase })
+    const burning = buildWorld(level([floor(-4, 80), jet(0.25 - 1.95 / 2)]))
+    assert.equal(idle(burning, startRun(burning), 400).cause, 'flame')
+    const asleep = buildWorld(level([floor(-4, 80), jet(0.75 - 1.95 / 2)]))
+    const run = idle(asleep, startRun(asleep), 400)
+    assert.equal(run.status, 'running', 'éteinte au passage : rien')
+    const shielded = buildWorld(level([floor(-4, 80), { type: 'log', x: 8, y: 10.35 }, jet(0.25 - 1.95 / 2)]))
+    const saved = idle(shielded, startRun(shielded), 400)
+    assert.equal(saved.status, 'running', 'la bûche a pris le jet')
+  })
+
+  it('dalle spectrale : elle porte quand elle est là, on passe au travers sinon, et elle n’écrase jamais', () => {
+    // Le sol s'arrête en x = 12 ; une spectrale prend le relais de 12 à 40.
+    const ghost = (phase: number): LevelElement => ({ type: 'ghost', x: 12, y: 11, w: 28, h: 0.8, period: 10, on: 0.5, phase })
+    const there = buildWorld(level([floor(-4, 16), ghost(0)]))
+    const carried = idle(there, startRun(there), 120)
+    assert.equal(carried.status, 'running', 'là pendant 5 s : elle porte le ninja')
+    assert.ok(carried.x > 14 && carried.grounded)
+    const gone = buildWorld(level([floor(-4, 16), ghost(0.5)]))
+    assert.equal(idle(gone, startRun(gone)).cause, 'fall', 'absente : on tombe au travers')
+    // Elle réapparaît autour du ninja qui court sur le sol : il n'est ni écrasé ni hissé dessus.
+    const around = buildWorld(level([floor(-4, 80), { type: 'ghost', x: 10, y: 9.8, w: 20, h: 0.8, period: 2, on: 0.5, phase: 0.6 }]))
+    const runner = idle(around, startRun(around), 200)
+    assert.equal(runner.status, 'running')
+    assert.equal(runner.y, 11 - PLAYER_H, 'toujours les pieds sur le sol')
+  })
+
+  it('Hiraishin : le sceau téléporte le ninja à la même place dans sa jumelle, la caméra le suit', () => {
+    // Un mur sur toute la hauteur en x = 20 ; le sceau, juste avant, renvoie de l'autre côté, sur une voie plus haute.
+    const world = buildWorld(level([floor(-4, 26), { type: 'block', x: 20, y: -3, w: 1.4, h: 20 }, { type: 'block', x: 22, y: 8, w: 60, h: 1.2 }, { type: 'warp', x: 17, y: 8.6, w: 1, h: 2.4, tx: 22.5, ty: 5.6 }]))
+    const run = startRun(world)
+    const kinds: string[] = []
+    let before = { x: 0, cameraX: 0 }
+    for (let index = 0; index < 600 && run.status === 'running' && !kinds.includes('warp'); index += 1) {
+      before = { x: run.x, cameraX: run.cameraX }
+      stepRun(world, run, { press: false, hold: false })
+      kinds.push(...run.events.map((event) => event.kind))
+    }
+    assert.ok(kinds.includes('warp'))
+    assert.ok(run.x - before.x > 5, 'il a sauté le mur')
+    assert.ok(Math.abs(run.x - run.cameraX - (before.x - before.cameraX)) < 0.5, 'la même avance sur la caméra')
+    assert.ok(Math.abs(run.y - (8 - PLAYER_H)) < 1e-6 && run.grounded, 'posé sur la voie d’arrivée, plus haute')
+    assert.equal(idle(world, run, 2000).status, 'finished')
+    // Sans le sceau, le mur arrête tout.
+    const walled = buildWorld(level([floor(-4, 26), { type: 'block', x: 20, y: -3, w: 1.4, h: 20 }, { type: 'block', x: 22, y: 8, w: 60, h: 1.2 }]))
+    assert.equal(idle(walled, startRun(walled)).cause, 'left')
+  })
+
+  it('roue de lames : les shurikens tournent autour de leur centre, et frappent au bon moment', () => {
+    const wheel = (phase: number) => buildWorld(level([floor(-4, 80), { type: 'shuriken', x: 30, y: 8, r: 0.7, orbit: 2.5, period: 4, phase }]))
+    const at = (t: number) => shurikenAt(wheel(0).shurikens[0]!, t)
+    assert.deepEqual(at(0), { x: 32.5, y: 8 })
+    assert.ok(Math.abs(at(1).x - 30) < 1e-9 && Math.abs(at(1).y - 10.5) < 1e-9, 'un quart de tour : en bas, au ras du sol')
+    // Le ninja passe sous la roue vers 3,2 s : la lame est en haut (il passe), ou en bas (touché).
+    assert.equal(idle(wheel(0), startRun(wheel(0)), 600).status, 'finished')
+    assert.equal(idle(wheel(0.5), startRun(wheel(0.5)), 600).cause, 'shuriken')
+  })
+
   it('les niveaux intégrés : chaque palier de difficulté en compte au moins trois, et les nouveaux mécanismes y sont', () => {
     const tiers = new Map<string, number>()
     for (const entry of CAMPAIGN) tiers.set(tierOf(entry.plan.difficulty), (tiers.get(tierOf(entry.plan.difficulty)) ?? 0) + 1)
     for (const tier of TIERS) assert.ok((tiers.get(tier) ?? 0) >= 3, tier)
+    assert.ok((tiers.get('hard') ?? 0) >= 14 && (tiers.get('extreme') ?? 0) >= 14, 'dix niveaux de plus en Difficile et en Extrême')
     const kinds = new Set(CAMPAIGN.flatMap((entry) => entry.plan.sections.map((section) => section.kind)))
-    assert.ok(kinds.has('mini') && kinds.has('kawarimi'))
+    for (const kind of ['mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit'] as const) assert.ok(kinds.has(kind), kind)
+    assert.equal(new Set(CAMPAIGN.map((entry) => entry.id)).size, CAMPAIGN.length, 'identifiants uniques')
   })
 
   it('chaque élément particulier est repéré à sa première apparition, de gauche à droite', () => {
@@ -183,6 +245,24 @@ describe('Gravity Ninja — moteur', () => {
       { kind: 'moon', x: 11.4 },
       { kind: 'seal', x: 20 },
       { kind: 'shuriken', x: 45.25 },
+    ])
+  })
+
+  it('les nouveaux éléments ont aussi leur explication : Hiraishin, flammes, dalle spectrale, roue de lames', () => {
+    const world = buildWorld(
+      level([
+        floor(-4, 80),
+        { type: 'shuriken', x: 50, y: 7, r: 0.7, orbit: 2, period: 2 },
+        { type: 'flame', x: 30, y: 11, w: 1, reach: 2, dir: 'up', period: 2, on: 0.5 },
+        { type: 'ghost', x: 40, y: 6, w: 4, h: 0.8, period: 2, on: 0.5 },
+        { type: 'warp', x: 20, y: 8.6, w: 1, h: 2.4, tx: 25, ty: 8.6 },
+      ]),
+    )
+    assert.deepEqual(introsOf(world), [
+      { kind: 'warp', x: 20 },
+      { kind: 'flame', x: 30 },
+      { kind: 'ghost', x: 40 },
+      { kind: 'orbit', x: 47.3 },
     ])
   })
 
@@ -271,6 +351,17 @@ describe('Gravity Ninja — lecture des niveaux et des plans', () => {
     const broken = parseLevel({ ...built, theme: 'mars', elements: [{ type: 'block', x: 0, y: 11, w: -2, h: 1 }, { type: 'laser' }] })
     assert.equal(broken.ok, false)
     if (!broken.ok) assert.deepEqual(broken.issues, ['theme', 'elements[0].w', 'elements[1].x', 'elements[1].type'])
+  })
+
+  it('un niveau aux nouveaux éléments se relit à l’identique', () => {
+    const entry = CAMPAIGN.find((candidate) => candidate.id === 'le-dernier-sceau')!
+    const { level: built } = buildLevel(entry.plan, entry.seed, entry.id)
+    const types = new Set(built.elements.map((element) => element.type))
+    for (const type of ['warp', 'flame', 'ghost'] as const) assert.ok(types.has(type), type)
+    assert.ok(built.elements.some((element) => element.type === 'shuriken' && element.orbit), 'une roue de lames')
+    const parsed = parseLevel(JSON.parse(JSON.stringify(built)))
+    assert.equal(parsed.ok, true)
+    if (parsed.ok) assert.deepEqual(parsed.level, built)
   })
 
   it('un plan d’IA est lu (sections inconnues écartées), et bâti en niveau faisable', () => {

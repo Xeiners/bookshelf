@@ -105,7 +105,8 @@ export async function gravityLevel(id: string): Promise<GravityLevelData> {
 const START_X = 4
 /**
  * Une réussite ne peut pas être plus rapide que la course pure, du départ à l'arrivée (le ninja
- * court à vitesse fixe) ; la marge couvre les plateformes mobiles qui le portent un peu plus vite.
+ * court à vitesse fixe), moins les bouts sautés par téléportation ; la marge couvre les plateformes
+ * mobiles qui le portent un peu plus vite.
  */
 const MIN_TIME_FACTOR = 0.9
 
@@ -124,7 +125,9 @@ export async function recordGravityRun(userId: string, levelId: string, run: Gra
   if (!level) throw notFound('Niveau introuvable.')
   const shape = JSON.parse(level.data) as GravityLevelData
   const finished = run.completed
-  if (finished && run.timeMs < ((shape.length - START_X) / shape.speed) * 1000 * MIN_TIME_FACTOR) {
+  // Les sceaux de téléportation (Hiraishin) font sauter un bout du chemin : autant de course en moins.
+  const skipped = shape.elements.reduce((sum, element) => sum + (element.type === 'warp' ? Math.max(0, element.tx - element.x) : 0), 0)
+  if (finished && run.timeMs < ((shape.length - START_X - skipped) / shape.speed) * 1000 * MIN_TIME_FACTOR) {
     throw new HttpError(400, 'gravity_implausible', 'Partie invraisemblable.')
   }
   const scrollTotal = shape.elements.filter((element) => element.type === 'scroll').length

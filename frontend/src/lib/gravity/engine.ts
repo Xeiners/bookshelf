@@ -27,8 +27,8 @@ import type { Gravity, GravityLevel } from './types'
 /*
  * Gravity Ninja : simulation pure, au pas fixe `TICK`, sans rendu ni hasard. Le ninja court seul ;
  * toucher l'écran inverse la gravité, mais seulement posé sur une surface (comme Gravity Guy) — un
- * toucher en l'air est gardé un instant (`FLIP_BUFFER`). Les plateformes mobiles et les shurikens ne
- * dépendent que du temps : rejouer une partie avec les mêmes touchers donne la même partie, ce qui
+ * toucher en l'air est gardé un instant (`FLIP_BUFFER`). Les plateformes mobiles, les shurikens, les
+ * jets de flammes et les dalles spectrales ne dépendent que du temps : rejouer une partie avec les mêmes touchers donne la même partie, ce qui
  * permet au solveur de prouver qu'un niveau se finit. Une chute renvoie au départ : pas de point de
  * reprise, chaque tentative se joue d'une traite. Testée dans `frontend/test/gravity.test.ts`.
  */
@@ -46,15 +46,17 @@ export interface Box {
   h: number
 }
 
-export type SolidKind = 'block' | 'crumble' | 'mover'
+export type SolidKind = 'block' | 'crumble' | 'mover' | 'ghost'
 
 export interface Solid extends Box {
   kind: SolidKind
-  /** Mobile : amplitude, durée du cycle, décalage. */
+  /** Mobile : amplitude ; mobile et spectrale : durée du cycle, décalage. */
   dx: number
   dy: number
   period: number
   phase: number
+  /** Spectrale : fraction du cycle où elle est là (1 pour les autres). */
+  on: number
 }
 
 export interface Spikes {
@@ -72,6 +74,26 @@ export interface Shuriken {
   dy: number
   period: number
   phase: number
+  /** Rayon de l'orbite autour de (x, y) ; 0 : pas d'orbite. */
+  orbit: number
+}
+
+/** Jet de flammes (cf. `FlameElement`). */
+export interface Flame {
+  x: number
+  y: number
+  w: number
+  reach: number
+  dir: 'up' | 'down'
+  period: number
+  on: number
+  phase: number
+}
+
+/** Hiraishin : la boîte d'entrée, et le coin de sa jumelle. */
+export interface Warp extends Box {
+  tx: number
+  ty: number
 }
 
 export interface Pickup {
@@ -96,6 +118,8 @@ export interface GravityWorld {
   flips: Box[]
   gates: Gate[]
   pickups: Pickup[]
+  flames: Flame[]
+  warps: Warp[]
   /** Nombre de rouleaux du niveau. */
   scrollCount: number
   grid: {
@@ -105,10 +129,12 @@ export interface GravityWorld {
     flips: Map<number, number[]>
     gates: Map<number, number[]>
     pickups: Map<number, number[]>
+    flames: Map<number, number[]>
+    warps: Map<number, number[]>
   }
 }
 
-export type DeathCause = 'fall' | 'spikes' | 'shuriken' | 'left' | 'crushed'
+export type DeathCause = 'fall' | 'spikes' | 'shuriken' | 'flame' | 'left' | 'crushed'
 
 export type GravityEvent =
   | { kind: 'flip' }
@@ -121,6 +147,8 @@ export type GravityEvent =
   | { kind: 'grow' }
   | { kind: 'log' }
   | { kind: 'substitute' }
+  /** Hiraishin : d'où il part (centre du ninja) ; il est déjà arrivé. */
+  | { kind: 'warp'; x: number; y: number }
   | { kind: 'die'; cause: DeathCause }
   | { kind: 'finish' }
 
@@ -201,20 +229,40 @@ export function buildWorld(level: GravityLevel): GravityWorld {
   const flips: Box[] = []
   const gates: Gate[] = []
   const pickups: Pickup[] = []
+  const flames: Flame[] = []
+  const warps: Warp[] = []
   for (const element of level.elements) {
     switch (element.type) {
       case 'block':
       case 'crumble':
-        solids.push({ kind: element.type, x: element.x, y: element.y, w: element.w, h: element.h, dx: 0, dy: 0, period: 1, phase: 0 })
+        solids.push({ kind: element.type, x: element.x, y: element.y, w: element.w, h: element.h, dx: 0, dy: 0, period: 1, phase: 0, on: 1 })
         break
       case 'mover':
-        solids.push({ kind: 'mover', x: element.x, y: element.y, w: element.w, h: element.h, dx: element.dx, dy: element.dy, period: Math.max(0.5, element.period), phase: element.phase ?? 0 })
+        solids.push({ kind: 'mover', x: element.x, y: element.y, w: element.w, h: element.h, dx: element.dx, dy: element.dy, period: Math.max(0.5, element.period), phase: element.phase ?? 0, on: 1 })
+        break
+      case 'ghost':
+        solids.push({ kind: 'ghost', x: element.x, y: element.y, w: element.w, h: element.h, dx: 0, dy: 0, period: Math.max(0.5, element.period), phase: element.phase ?? 0, on: element.on })
         break
       case 'spikes':
         spikes.push({ x: element.x, y: element.y, w: element.w, dir: element.dir })
         break
       case 'shuriken':
-        shurikens.push({ x: element.x, y: element.y, r: element.r ?? SHURIKEN_R, dx: element.dx ?? 0, dy: element.dy ?? 0, period: Math.max(0.5, element.period ?? 2), phase: element.phase ?? 0 })
+        shurikens.push({
+          x: element.x,
+          y: element.y,
+          r: element.r ?? SHURIKEN_R,
+          dx: element.orbit ? 0 : (element.dx ?? 0),
+          dy: element.orbit ? 0 : (element.dy ?? 0),
+          period: Math.max(0.5, element.period ?? 2),
+          phase: element.phase ?? 0,
+          orbit: element.orbit ?? 0,
+        })
+        break
+      case 'flame':
+        flames.push({ x: element.x, y: element.y, w: element.w, reach: element.reach, dir: element.dir, period: Math.max(0.5, element.period), on: element.on, phase: element.phase ?? 0 })
+        break
+      case 'warp':
+        warps.push({ x: element.x, y: element.y, w: element.w, h: element.h, tx: element.tx, ty: element.ty })
         break
       case 'flip':
         flips.push({ x: element.x, y: element.y, w: element.w, h: element.h })
@@ -239,20 +287,36 @@ export function buildWorld(level: GravityLevel): GravityWorld {
     flips,
     gates,
     pickups,
+    flames,
+    warps,
     scrollCount: pickups.filter((pickup) => pickup.kind === 'scroll').length,
     grid: {
       solids: indexBy(solids, (solid) => [Math.min(solid.x, solid.x + solid.dx), Math.max(solid.x, solid.x + solid.dx) + solid.w]),
       spikes: indexBy(spikes, (spike) => [spike.x, spike.x + spike.w]),
-      shurikens: indexBy(shurikens, (shuriken) => [Math.min(shuriken.x, shuriken.x + shuriken.dx) - shuriken.r, Math.max(shuriken.x, shuriken.x + shuriken.dx) + shuriken.r]),
+      shurikens: indexBy(shurikens, (shuriken) => [Math.min(shuriken.x, shuriken.x + shuriken.dx) - shuriken.r - shuriken.orbit, Math.max(shuriken.x, shuriken.x + shuriken.dx) + shuriken.r + shuriken.orbit]),
       flips: indexBy(flips, (flip) => [flip.x, flip.x + flip.w]),
       gates: indexBy(gates, (gate) => [gate.x, gate.x + gate.w]),
       pickups: indexBy(pickups, (pickup) => [pickup.x - PICKUP_R, pickup.x + PICKUP_R]),
+      flames: indexBy(flames, (flame) => [flame.x, flame.x + flame.w]),
+      warps: indexBy(warps, (warp) => [warp.x, warp.x + warp.w]),
     },
   }
 }
 
 /** Avancement (0 → 1) d'un aller-retour au temps `t`. */
 const swing = (t: number, period: number, phase: number) => (1 - Math.cos(2 * Math.PI * (t / period + phase))) / 2
+
+/** Où l'on en est (0 → 1) d'un cycle de `period` secondes au temps `t`. */
+export const cycleAt = (t: number, period: number, phase: number) => {
+  const value = t / period + phase
+  return value - Math.floor(value)
+}
+
+/** Un solide est-il là au temps `t` ? Seules les dalles spectrales s'absentent. */
+export const solidPresent = (solid: Solid, t: number) => solid.kind !== 'ghost' || cycleAt(t, solid.period, solid.phase) < solid.on
+
+/** Un jet de flammes crache-t-il au temps `t` ? */
+export const flameActive = (flame: Flame, t: number) => cycleAt(t, flame.period, flame.phase) < flame.on
 
 /** Position d'un solide au temps `t` (les mobiles vont et viennent, les autres ne bougent pas). */
 export function solidAt(solid: Solid, t: number): { x: number; y: number } {
@@ -263,6 +327,10 @@ export function solidAt(solid: Solid, t: number): { x: number; y: number } {
 
 /** Centre d'un shuriken au temps `t`. */
 export function shurikenAt(shuriken: Shuriken, t: number): { x: number; y: number } {
+  if (shuriken.orbit > 0) {
+    const angle = 2 * Math.PI * (t / shuriken.period + shuriken.phase)
+    return { x: shuriken.x + Math.cos(angle) * shuriken.orbit, y: shuriken.y + Math.sin(angle) * shuriken.orbit }
+  }
   if (shuriken.dx === 0 && shuriken.dy === 0) return shuriken
   const f = swing(t, shuriken.period, shuriken.phase)
   return { x: shuriken.x + shuriken.dx * f, y: shuriken.y + shuriken.dy * f }
@@ -370,7 +438,10 @@ function supportOf(world: GravityWorld, run: GravityRun): number {
   for (const index of near(world.grid.solids, run.x - 0.5, run.x + w + 0.5)) {
     const solid = world.solids[index]!
     if (solid.kind === 'crumble' && !crumbleStanding(run, index)) continue
+    if (!solidPresent(solid, run.tick * TICK)) continue
     const at = solidAt(solid, run.tick * TICK)
+    // Une spectrale réapparue autour du ninja ne le porte pas : seulement s'il est à sa surface.
+    if (solid.kind === 'ghost' && (run.g === 1 ? run.y + h > at.y + SURFACE_SLOP : run.y < at.y + solid.h - SURFACE_SLOP)) continue
     if (overlaps(probe, { x: at.x, y: at.y, w: solid.w, h: solid.h })) {
       best = index
       if (solid.kind !== 'crumble') return index
@@ -412,6 +483,7 @@ function solidsNear(world: GravityWorld, run: GravityRun, x0: number, x1: number
   for (const index of near(world.grid.solids, x0, x1)) {
     const solid = world.solids[index]!
     if (solid.kind === 'crumble' && !crumbleStanding(run, index)) continue
+    if (!solidPresent(solid, t)) continue
     const at = solidAt(solid, t)
     list.push({ index, box: { x: at.x, y: at.y, w: solid.w, h: solid.h } })
   }
@@ -486,8 +558,10 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   run.y = nextY
   if (landed >= 0) run.vy = 0
 
-  // Encore pris dans un solide (une plateforme mobile s'est refermée) : écrasé.
-  for (const { box } of solidsNear(world, run, run.x, run.x + pw)) {
+  // Encore pris dans un solide (une plateforme mobile s'est refermée) : écrasé. Une dalle spectrale
+  // qui réapparaît autour du ninja ne l'écrase pas : il la traverse.
+  for (const { index, box } of solidsNear(world, run, run.x, run.x + pw)) {
+    if (world.solids[index]!.kind === 'ghost') continue
     if (overlaps({ x: run.x + 0.1, y: run.y + 0.1, w: pw - 0.2, h: ph - 0.2 }, box)) {
       die(run, 'crushed')
       return
@@ -561,6 +635,17 @@ function interact(world: GravityWorld, run: GravityRun): void {
         }
       }
     }
+    if (!hit) {
+      for (const index of near(world.grid.flames, x0, x1)) {
+        const flame = world.flames[index]!
+        if (!flameActive(flame, t)) continue
+        const box: Box = { x: flame.x + 0.15, y: flame.dir === 'up' ? flame.y - flame.reach : flame.y, w: flame.w - 0.3, h: flame.reach }
+        if (overlaps(body, box)) {
+          hit = 'flame'
+          break
+        }
+      }
+    }
     if (hit) {
       if (!run.shield) return die(run, hit)
       // Kawarimi : la bûche prend le coup à sa place, et le ninja file, intouchable un instant.
@@ -594,6 +679,21 @@ function interact(world: GravityWorld, run: GravityRun): void {
         run.events.push({ kind: 'scroll', index })
       }
     }
+  }
+
+  // Hiraishin : à la même place dans le sceau jumeau ; la caméra suit, pour garder la même avance sur la suite.
+  for (const index of near(world.grid.warps, x0, x1)) {
+    const warp = world.warps[index]!
+    if (!overlaps(bodyOf(run), warp)) continue
+    const from = { x: run.x + w / 2, y: run.y + h / 2 }
+    const dx = warp.tx - warp.x
+    run.x += dx
+    run.y += warp.ty - warp.y
+    run.cameraX += dx
+    run.coyote = 0
+    settle(world, run)
+    run.events.push({ kind: 'warp', ...from })
+    break
   }
 }
 
