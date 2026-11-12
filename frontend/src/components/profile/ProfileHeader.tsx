@@ -4,7 +4,7 @@ import { vibrate } from '../../lib/haptics'
 import type { ProfileCard, TitleId } from '../../services/profileApi'
 import { Pressable } from '../ui/Pressable'
 import { CardAvatar } from './CardAvatar'
-import { SeasonalCorner } from '../layout/SeasonalDecor'
+import { SeasonalCorner, SeasonalHat, SeasonalSnow } from '../layout/SeasonalDecor'
 
 interface ProfileHeaderProps {
   name: string
@@ -26,10 +26,15 @@ export function ProfileHeader({ name, avatar, avatarUrl, title, bio, memberSince
 
   return (
     <section data-anim className="glass relative rounded-4xl p-5">
+      {/* Noël : la guirlande qui pend sous la neige, le houx dans le coin, le bonnet sur l'avatar. */}
+      <SeasonalSnow garland />
       <SeasonalCorner size={72} />
       <div className="flex items-center gap-4">
         {signedIn ? (
-          <CardAvatar card={avatar} avatarUrl={avatarUrl} initial={name.charAt(0).toUpperCase()} size={76} />
+          <span className="relative shrink-0">
+            <CardAvatar card={avatar} avatarUrl={avatarUrl} initial={name.charAt(0).toUpperCase()} size={76} />
+            <SeasonalHat className="absolute -top-4 -left-3 z-[2] block h-auto w-11 -rotate-[24deg]" />
+          </span>
         ) : (
           <div className="grid size-[76px] shrink-0 place-items-center rounded-[30%] bg-glow/15 text-glow">
             <UserRound size={30} />

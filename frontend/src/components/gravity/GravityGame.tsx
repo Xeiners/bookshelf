@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Moon, Pause, Play, RotateCcw, ScrollText, Skull, Smartphone, X } from 'lucide-react'
+import { Moon, Pause, Play, RotateCcw, ScrollText, Shield, Skull, Smartphone, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { MOON_SECONDS, TICK } from '../../lib/gravity/constants'
 import { buildWorld, progressOf, scrollsIn, type GravityWorld } from '../../lib/gravity/engine'
+import { introsOf, type IntroKind } from '../../lib/gravity/intros'
 import type { SolveReport } from '../../lib/gravity/solver'
 import type { GravityLevel } from '../../lib/gravity/types'
 import { vibrate } from '../../lib/haptics'
-import { playGravityCheckpoint, playGravityFinish, playGravityFlip, playGravityLand, playGravityMoon, playGravityPoof, playGravityScroll } from '../../lib/sfx'
+import { playGravityFinish, playGravityFlip, playGravityLand, playGravityLog, playGravityMoon, playGravityPoof, playGravityScroll, playGravitySize } from '../../lib/sfx'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import { SfxVolume } from '../ui/SfxVolume'
 import { GravityScene, layoutFor } from './scene/GravityScene'
 
-/** Après une chute, le temps de voir la fumée avant de repartir (s). */
+/** Après une chute, le temps de voir la fumée avant la tentative suivante, au départ (s). */
 const RESPAWN_DELAY = 0.75
+/** Durée d'affichage de l'explication d'un élément nouveau (ms). */
+const TIP_MS = 3400
 /** Après l'arrivée, le temps de la fête avant le bilan (s). */
 const FINISH_DELAY = 1.1
 /** Images au plus rattrapées d'un coup (onglet en arrière-plan, appareil lent). */
@@ -41,6 +44,8 @@ interface GravityGameProps {
   trial?: boolean
   /** Démonstration : le solveur joue son chemin (les touchers du joueur sont ignorés). */
   solution?: SolveReport | null
+  /** Meilleur avancement déjà enregistré (0 → 100) : repéré sur la barre de progression. */
+  record?: number
 }
 
 /** Le bilan d'une partie (en cours ou finie). */
@@ -61,17 +66,23 @@ const portrait = () => typeof window !== 'undefined' && window.innerHeight > win
 /**
  * Gravity Ninja en plein écran : le canvas, la progression, les rouleaux, les chutes. Un seul
  * geste : toucher l'écran (clic, Espace, flèches) inverse la gravité ; le maintenir, sous la lune,
- * fait planer. Une chute renvoie au dernier point de reprise.
+ * fait planer. Pas de point de reprise : une chute renvoie au départ, pour une nouvelle tentative
+ * (« Tentative n »), et la barre garde la trace du meilleur avancement.
  */
-export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false, solution = null }: GravityGameProps) {
+export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false, solution = null, record = 0 }: GravityGameProps) {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<GravityScene | null>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const percentRef = useRef<HTMLSpanElement>(null)
+  const bestRef = useRef<HTMLSpanElement>(null)
+  const recordRef = useRef(record)
   const deathsRef = useRef<HTMLSpanElement>(null)
   const moonRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
   const [scrolls, setScrolls] = useState(0)
+  const [attempt, setAttempt] = useState(1)
+  const [tip, setTip] = useState<IntroKind | null>(null)
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef(false)
   const [hint, setHint] = useState(true)
@@ -88,7 +99,12 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
   }, [paused])
 
   const world = useMemo(() => buildWorld(level), [level])
-  const checkpoints = world.checkpoints.map((checkpoint) => progressOf(world, checkpoint.x))
+
+  useEffect(() => {
+    if (!tip) return
+    const timer = window.setTimeout(() => setTip(null), TIP_MS)
+    return () => window.clearTimeout(timer)
+  }, [tip])
 
   const result = (completed: boolean) => resultOf(world, sceneRef.current, elapsed.current, completed)
 
@@ -151,6 +167,10 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
     let deadFor = 0
     let finishedFor = -1
     let shownPercent = -1
+    let shownBest = -1
+    // Chaque élément particulier s'explique une fois par partie, un peu avant d'entrer dans l'écran.
+    const intros = introsOf(world)
+    let nextIntro = 0
     let shownDeaths = -1
     let shownScrolls = 0
 
@@ -177,7 +197,8 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
             deadFor += TICK
             if (deadFor >= RESPAWN_DELAY) {
               deadFor = 0
-              scene.respawn()
+              scene.restart()
+              setAttempt(run.deaths + 1)
             }
             continue
           }
@@ -206,8 +227,18 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
                 playGravityMoon()
                 vibrate(20)
                 break
-              case 'checkpoint':
-                playGravityCheckpoint()
+              case 'shrink':
+              case 'grow':
+                playGravitySize(event.kind === 'shrink')
+                vibrate(12)
+                break
+              case 'log':
+                playGravityLog()
+                vibrate(15)
+                break
+              case 'substitute':
+                playGravityPoof()
+                vibrate([20, 30, 20])
                 break
               case 'die':
                 playGravityPoof()
@@ -231,6 +262,11 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         }
       }
       const layout = layoutFor(window.innerWidth, window.innerHeight)
+      const ahead = run.cameraX + layout.width / layout.unit + world.speed * 0.4
+      while (nextIntro < intros.length && intros[nextIntro]!.x <= ahead) {
+        setTip(intros[nextIntro]!.kind)
+        nextIntro += 1
+      }
       scene.render(ctx, layout, pausedRef.current ? 1 : accumulator / TICK, pausedRef.current ? 0 : dt)
 
       // Interface : écrite directement dans le DOM, sans rendu React à chaque image.
@@ -239,6 +275,15 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         shownPercent = percent
         if (progressRef.current) progressRef.current.style.width = `${percent}%`
         if (percentRef.current) percentRef.current.textContent = `${percent} %`
+      }
+      // Le meilleur avancement (enregistré, ou de cette partie) : un repère sur la barre.
+      const best = Math.max(recordRef.current, progressOf(world, run.maxX))
+      if (best !== shownBest) {
+        shownBest = best
+        if (bestRef.current) {
+          bestRef.current.style.left = `${best}%`
+          bestRef.current.style.opacity = best > 0 && best < 100 ? '1' : '0'
+        }
       }
       if (run.deaths !== shownDeaths) {
         shownDeaths = run.deaths
@@ -253,6 +298,7 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         moonRef.current.style.opacity = run.moonLeft > 0 ? '1' : '0'
         moonRef.current.style.setProperty('--moon', String(run.moonLeft / MOON_SECONDS))
       }
+      if (logRef.current) logRef.current.style.opacity = run.shield ? '1' : '0'
     }
     frame = requestAnimationFrame(loop)
     return () => {
@@ -289,7 +335,7 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
 
       {/* Haut : quitter, pause, progression, rouleaux, chutes. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start gap-2 px-3 pt-[max(0.6rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={quit} aria-label={t.gravity.game.quit} className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/45 text-white/90 backdrop-blur-sm">
+        <button type="button" onClick={quit} aria-label={t.gravity.game.quit} className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/45 text-white/90">
           <X size={18} aria-hidden />
         </button>
         <button type="button" onClick={() => setPaused(true)} aria-label={t.gravity.game.pause} className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/45 text-white/90">
@@ -307,10 +353,16 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
           </div>
           <div className="relative h-2 overflow-hidden rounded-full bg-black/45">
             <div ref={progressRef} className="h-full rounded-full" style={{ width: '0%', background: 'linear-gradient(90deg, #ffe08a, #ff8a6b 60%, #e3313f)' }} />
-            {checkpoints.map((percent, index) => (
-              <span key={index} aria-hidden className="absolute top-0 h-full w-0.5 bg-white/70" style={{ left: `${percent}%` }} />
-            ))}
+            <span ref={bestRef} aria-hidden className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-white opacity-0" />
           </div>
+          {/* Un élément nouveau approche : son explication, en petit sous la barre (jamais devant le chemin). */}
+          {tip && !paused && (
+            <p key={tip} role="status" className="mt-0.5 line-clamp-2 animate-[gravity-banner_3.4s_ease-out_both] rounded-lg bg-black/55 px-2 py-1 text-[11px] leading-snug text-white/90">
+              <span className="font-bold text-[#ffd66b]">{t.gravity.game.elements[tip].name}</span>
+              <span className="text-white/50"> · </span>
+              {t.gravity.game.elements[tip].text}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1.5 text-white/90" aria-label={t.gravity.game.scrolls(scrolls, world.scrollCount)}>
           {Array.from({ length: world.scrollCount }, (_, index) => (
@@ -324,14 +376,30 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         </div>
       </div>
 
+      {/* Kawarimi : une bûche en réserve. */}
+      <div ref={logRef} className="pointer-events-none absolute top-[max(4rem,calc(env(safe-area-inset-top)+3.4rem))] left-3 flex items-center gap-2 rounded-full bg-[#3a2414]/85 px-3 py-1.5 text-xs font-semibold text-[#ffe2b8] opacity-0 transition-opacity">
+        <Shield size={14} aria-hidden />
+        {t.gravity.game.logReady}
+      </div>
+
       {/* La lune : le temps qui reste. */}
       <div ref={moonRef} className="pointer-events-none absolute top-[max(4rem,calc(env(safe-area-inset-top)+3.4rem))] right-3 flex items-center gap-2 rounded-full bg-[#1a2147]/80 px-3 py-1.5 text-xs font-semibold text-[#dfe6ff] opacity-0 transition-opacity">
         <Moon size={14} aria-hidden />
-        {t.gravity.game.moon}
+        <span>{t.gravity.game.moon}</span>
+        <span className="font-medium text-[#dfe6ff]/75">{t.gravity.game.moonHold}</span>
         <span className="block h-1.5 w-14 overflow-hidden rounded-full bg-white/15">
           <span className="block h-full origin-left rounded-full bg-[#cfd8ff]" style={{ transform: 'scaleX(var(--moon, 0))' }} />
         </span>
       </div>
+
+      {!paused && !solution && (
+        <p
+          key={attempt}
+          className="pointer-events-none absolute inset-x-0 top-[max(4.5rem,calc(env(safe-area-inset-top)+4rem))] animate-[gravity-banner_1.6s_ease-out_both] text-center font-display text-3xl text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.7)]"
+        >
+          {t.gravity.game.attempt(attempt)}
+        </p>
+      )}
 
       {hint && !paused && !solution && (
         <p className="pointer-events-none absolute inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] animate-pulse text-center text-sm font-semibold text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.8)]">

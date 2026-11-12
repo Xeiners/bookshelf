@@ -6,7 +6,9 @@ import {
   FLIP_BUFFER,
   FLIP_KICK,
   GRAVITY,
+  KAWARIMI_SAFE,
   MAX_FALL,
+  MINI_SCALE,
   MOON_GRAVITY,
   MOON_MAX_FALL,
   MOON_SECONDS,
@@ -20,14 +22,15 @@ import {
   TICK,
   WORLD_HEIGHT,
 } from './constants'
-import type { CheckpointElement, Gravity, GravityLevel } from './types'
+import type { Gravity, GravityLevel } from './types'
 
 /*
  * Gravity Ninja : simulation pure, au pas fixe `TICK`, sans rendu ni hasard. Le ninja court seul ;
  * toucher l'écran inverse la gravité, mais seulement posé sur une surface (comme Gravity Guy) — un
  * toucher en l'air est gardé un instant (`FLIP_BUFFER`). Les plateformes mobiles et les shurikens ne
  * dépendent que du temps : rejouer une partie avec les mêmes touchers donne la même partie, ce qui
- * permet au solveur de prouver qu'un niveau se finit. Testée dans `frontend/test/gravity.test.ts`.
+ * permet au solveur de prouver qu'un niveau se finit. Une chute renvoie au départ : pas de point de
+ * reprise, chaque tentative se joue d'une traite. Testée dans `frontend/test/gravity.test.ts`.
  */
 
 const EPS = 1e-6
@@ -72,9 +75,14 @@ export interface Shuriken {
 }
 
 export interface Pickup {
-  kind: 'moon' | 'scroll'
+  kind: 'moon' | 'scroll' | 'log'
   x: number
   y: number
+}
+
+/** Porte de taille. */
+export interface Gate extends Box {
+  mini: boolean
 }
 
 /** Un niveau prêt à jouer : éléments rangés par nature et indexés par position. */
@@ -86,12 +94,18 @@ export interface GravityWorld {
   spikes: Spikes[]
   shurikens: Shuriken[]
   flips: Box[]
+  gates: Gate[]
   pickups: Pickup[]
-  /** Points de reprise, de gauche à droite. */
-  checkpoints: CheckpointElement[]
   /** Nombre de rouleaux du niveau. */
   scrollCount: number
-  grid: { solids: Map<number, number[]>; spikes: Map<number, number[]>; shurikens: Map<number, number[]>; flips: Map<number, number[]>; pickups: Map<number, number[]> }
+  grid: {
+    solids: Map<number, number[]>
+    spikes: Map<number, number[]>
+    shurikens: Map<number, number[]>
+    flips: Map<number, number[]>
+    gates: Map<number, number[]>
+    pickups: Map<number, number[]>
+  }
 }
 
 export type DeathCause = 'fall' | 'spikes' | 'shuriken' | 'left' | 'crushed'
@@ -103,7 +117,10 @@ export type GravityEvent =
   | { kind: 'crumble'; index: number }
   | { kind: 'moon' }
   | { kind: 'scroll'; index: number }
-  | { kind: 'checkpoint'; index: number }
+  | { kind: 'shrink' }
+  | { kind: 'grow' }
+  | { kind: 'log' }
+  | { kind: 'substitute' }
   | { kind: 'die'; cause: DeathCause }
   | { kind: 'finish' }
 
@@ -137,12 +154,18 @@ export interface GravityRun {
   moons: number[]
   /** Rouleaux pris (masque sur leur rang). */
   scrolls: number
-  /** Dernier point de reprise atteint (-1 : le départ). */
-  checkpoint: number
+  /** Minuscule (porte de taille). */
+  mini: boolean
+  /** Une bûche de substitution en réserve (kawarimi). */
+  shield: boolean
+  /** Intouchable par les pièges encore tant de secondes (après une substitution). */
+  safe: number
+  /** Bûches déjà prises (indices de `pickups`). */
+  logs: number[]
   status: 'running' | 'dead' | 'finished'
   cause: DeathCause | null
   deaths: number
-  /** Plus loin atteint (unités). */
+  /** Plus loin atteint (unités), toutes tentatives confondues. */
   maxX: number
   /** Pas de la dernière inversion (rendu : la rotation du ninja). */
   flippedAt: number
@@ -176,8 +199,8 @@ export function buildWorld(level: GravityLevel): GravityWorld {
   const spikes: Spikes[] = []
   const shurikens: Shuriken[] = []
   const flips: Box[] = []
+  const gates: Gate[] = []
   const pickups: Pickup[] = []
-  const checkpoints: CheckpointElement[] = []
   for (const element of level.elements) {
     switch (element.type) {
       case 'block':
@@ -196,16 +219,16 @@ export function buildWorld(level: GravityLevel): GravityWorld {
       case 'flip':
         flips.push({ x: element.x, y: element.y, w: element.w, h: element.h })
         break
+      case 'size':
+        gates.push({ x: element.x, y: element.y, w: element.w, h: element.h, mini: element.mini })
+        break
       case 'moon':
       case 'scroll':
+      case 'log':
         pickups.push({ kind: element.type, x: element.x, y: element.y })
-        break
-      case 'checkpoint':
-        checkpoints.push(element)
         break
     }
   }
-  checkpoints.sort((a, b) => a.x - b.x)
   return {
     level,
     speed: level.speed,
@@ -214,14 +237,15 @@ export function buildWorld(level: GravityLevel): GravityWorld {
     spikes,
     shurikens,
     flips,
+    gates,
     pickups,
-    checkpoints,
     scrollCount: pickups.filter((pickup) => pickup.kind === 'scroll').length,
     grid: {
       solids: indexBy(solids, (solid) => [Math.min(solid.x, solid.x + solid.dx), Math.max(solid.x, solid.x + solid.dx) + solid.w]),
       spikes: indexBy(spikes, (spike) => [spike.x, spike.x + spike.w]),
       shurikens: indexBy(shurikens, (shuriken) => [Math.min(shuriken.x, shuriken.x + shuriken.dx) - shuriken.r, Math.max(shuriken.x, shuriken.x + shuriken.dx) + shuriken.r]),
       flips: indexBy(flips, (flip) => [flip.x, flip.x + flip.w]),
+      gates: indexBy(gates, (gate) => [gate.x, gate.x + gate.w]),
       pickups: indexBy(pickups, (pickup) => [pickup.x - PICKUP_R, pickup.x + PICKUP_R]),
     },
   }
@@ -263,6 +287,18 @@ const overlaps = (a: Box, b: Box) => a.x < b.x + b.w - EPS && a.x + a.w > b.x + 
 
 /* ---- Partie --------------------------------------------------------------------------------- */
 
+const FULL_SIZE = { w: PLAYER_W, h: PLAYER_H }
+const MINI_SIZE = { w: PLAYER_W * MINI_SCALE, h: PLAYER_H * MINI_SCALE }
+
+/** La boîte du ninja : normale, ou minuscule après une porte de taille. */
+export const sizeOf = (run: { mini: boolean }) => (run.mini ? MINI_SIZE : FULL_SIZE)
+
+/** La boîte qui touche les pièges : un peu plus petite que le ninja (ils se frôlent, mais pas au pixel). */
+function bodyOf(run: GravityRun): Box {
+  const { w, h } = sizeOf(run)
+  return { x: run.x + w * 0.15, y: run.y + h * 0.077, w: w * 0.7, h: h * 0.846 }
+}
+
 /** Le pas où le ninja passe en `x` en courant sans encombre depuis le départ (les mobiles s'y calent). */
 export const tickAt = (world: GravityWorld, x: number) => Math.max(0, Math.round((x - START_X) / world.speed / TICK))
 
@@ -285,7 +321,10 @@ export function spawnAt(world: GravityWorld, x: number, y: number, g: Gravity): 
     crumbles: new Map(),
     moons: [],
     scrolls: 0,
-    checkpoint: -1,
+    mini: false,
+    shield: false,
+    safe: 0,
+    logs: [],
     status: 'running',
     cause: null,
     deaths: 0,
@@ -295,37 +334,25 @@ export function spawnAt(world: GravityWorld, x: number, y: number, g: Gravity): 
   }
 }
 
-/** Une nouvelle partie, au départ du niveau. */
+/** Une nouvelle partie (une tentative), au départ du niveau. */
 export function startRun(world: GravityWorld): GravityRun {
-  return spawnRun(world, -1)
-}
-
-/** Le ninja posé au point de reprise `checkpoint` (-1 : le départ), comme après une chute. */
-export function spawnRun(world: GravityWorld, checkpoint: number): GravityRun {
-  const point = checkpoint >= 0 ? world.checkpoints[checkpoint] : undefined
-  const run = point ? spawnAt(world, point.x, point.y, point.g) : spawnAt(world, START_X, world.level.start.y, world.level.start.g)
-  run.checkpoint = point ? checkpoint : -1
+  const run = spawnAt(world, START_X, world.level.start.y, world.level.start.g)
   settle(world, run)
   return run
 }
 
 /** Copie indépendante (le solveur explore plusieurs suites à partir d'un même état). */
 export function cloneRun(run: GravityRun): GravityRun {
-  return { ...run, crumbles: new Map(run.crumbles), moons: run.moons.slice(), events: [] }
+  return { ...run, crumbles: new Map(run.crumbles), moons: run.moons.slice(), logs: run.logs.slice(), events: [] }
 }
 
 /**
- * Après une chute : retour au dernier point de reprise (ou au départ), au pas où l'on y passait,
- * pour que plateformes mobiles et shurikens y soient à la même place. Les rouleaux pris le restent.
+ * Après une chute, tout recommence au départ, comme une nouvelle tentative : pas de point de
+ * reprise. Dalles fragiles, lunes, bûches et rouleaux sont remis en place (un rouleau ne compte que pris
+ * dans la tentative qui finit le niveau) ; restent le compte des chutes et l'avancement record.
  */
-export function respawn(world: GravityWorld, run: GravityRun): void {
-  const fresh = spawnRun(world, run.checkpoint)
-  const from = fresh.x
-  // Ce qui est devant redevient comme neuf : fragiles, bonus de lune.
-  const crumbles = new Map([...run.crumbles].filter(([index]) => world.solids[index]!.x + world.solids[index]!.w < from - 1))
-  const moons = run.moons.filter((index) => world.pickups[index]!.x < from)
-  Object.assign(run, { ...fresh, crumbles, moons, scrolls: run.scrolls, deaths: run.deaths, maxX: run.maxX, events: [] })
-  settle(world, run)
+export function restartRun(world: GravityWorld, run: GravityRun): void {
+  Object.assign(run, { ...startRun(world), deaths: run.deaths, maxX: run.maxX })
 }
 
 /** Pose le ninja sur sa surface (contact), sans bouger. */
@@ -337,9 +364,10 @@ function settle(world: GravityWorld, run: GravityRun): void {
 
 /** Le solide sur lequel le ninja est posé (dans le sens de la gravité), ou -1. */
 function supportOf(world: GravityWorld, run: GravityRun): number {
-  const probe: Box = { x: run.x, y: run.y + run.g * 0.03, w: PLAYER_W, h: PLAYER_H }
+  const { w, h } = sizeOf(run)
+  const probe: Box = { x: run.x, y: run.y + run.g * 0.03, w, h }
   let best = -1
-  for (const index of near(world.grid.solids, run.x - 0.5, run.x + PLAYER_W + 0.5)) {
+  for (const index of near(world.grid.solids, run.x - 0.5, run.x + w + 0.5)) {
     const solid = world.solids[index]!
     if (solid.kind === 'crumble' && !crumbleStanding(run, index)) continue
     const at = solidAt(solid, run.tick * TICK)
@@ -360,6 +388,14 @@ function flip(run: GravityRun, event: GravityEvent): void {
   run.buffer = 0
   run.flippedAt = run.tick
   run.events.push(event)
+}
+
+/** Porte de taille : le ninja rapetisse (ou grandit), les pieds sur sa surface (ou la tête sous son plafond). */
+function resize(run: GravityRun, mini: boolean): void {
+  const before = sizeOf(run).h
+  run.mini = mini
+  if (run.g === 1) run.y += before - sizeOf(run).h
+  run.events.push({ kind: mini ? 'shrink' : 'grow' })
 }
 
 function die(run: GravityRun, cause: DeathCause): void {
@@ -386,6 +422,7 @@ function solidsNear(world: GravityWorld, run: GravityRun, x0: number, x1: number
 export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInput): void {
   run.events = []
   if (run.status !== 'running') return
+  const { w: pw, h: ph } = sizeOf(run)
   const before = run.tick * TICK
   run.tick += 1
   const now = run.tick * TICK
@@ -406,17 +443,18 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   run.buffer = Math.max(0, run.buffer - TICK)
   run.coyote = Math.max(0, run.coyote - TICK)
   run.moonLeft = Math.max(0, run.moonLeft - TICK)
+  run.safe = Math.max(0, run.safe - TICK)
   run.lunar = run.moonLeft > 0 && input.hold && !run.grounded
 
   // Course : à la vitesse du niveau, un peu plus vite tant qu'on a du retard sur la caméra.
   const anchor = run.cameraX + ANCHOR
   let nextX = run.x + world.speed * TICK
   if (run.x < anchor - EPS) nextX = Math.min(run.x + world.speed * CATCH_UP * TICK, Math.max(anchor, nextX))
-  const right = run.x + PLAYER_W
-  for (const { box } of solidsNear(world, run, run.x, nextX + PLAYER_W)) {
-    const vertical = run.y < box.y + box.h - EPS && run.y + PLAYER_H > box.y + EPS
+  const right = run.x + pw
+  for (const { box } of solidsNear(world, run, run.x, nextX + pw)) {
+    const vertical = run.y < box.y + box.h - EPS && run.y + ph > box.y + EPS
     // Un mur devant (son côté gauche, atteint pendant ce pas) arrête la course.
-    if (vertical && box.x >= right - SURFACE_SLOP && box.x < nextX + PLAYER_W) nextX = Math.min(nextX, box.x - PLAYER_W - EPS)
+    if (vertical && box.x >= right - SURFACE_SLOP && box.x < nextX + pw) nextX = Math.min(nextX, box.x - pw - EPS)
   }
   run.x = Math.max(run.x, nextX)
 
@@ -429,13 +467,13 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   let nextY = run.y + run.vy * TICK
   const wasGrounded = run.grounded
   let landed = -1
-  for (const { index, box } of solidsNear(world, run, run.x, run.x + PLAYER_W)) {
-    const horizontal = run.x < box.x + box.w - EPS && run.x + PLAYER_W > box.x + EPS
+  for (const { index, box } of solidsNear(world, run, run.x, run.x + pw)) {
+    const horizontal = run.x < box.x + box.w - EPS && run.x + pw > box.x + EPS
     if (!horizontal) continue
-    if (nextY + PLAYER_H > box.y + EPS && nextY < box.y + box.h - EPS) {
-      if (run.vy >= 0 && fromTop + PLAYER_H <= box.y + SURFACE_SLOP) {
+    if (nextY + ph > box.y + EPS && nextY < box.y + box.h - EPS) {
+      if (run.vy >= 0 && fromTop + ph <= box.y + SURFACE_SLOP) {
         // Arrivée sur le dessus.
-        nextY = box.y - PLAYER_H
+        nextY = box.y - ph
         if (run.g === 1) landed = index
       } else if (run.vy <= 0 && fromTop >= box.y + box.h - SURFACE_SLOP) {
         // Arrivée par-dessous.
@@ -449,8 +487,8 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   if (landed >= 0) run.vy = 0
 
   // Encore pris dans un solide (une plateforme mobile s'est refermée) : écrasé.
-  for (const { box } of solidsNear(world, run, run.x, run.x + PLAYER_W)) {
-    if (overlaps({ x: run.x + 0.1, y: run.y + 0.1, w: PLAYER_W - 0.2, h: PLAYER_H - 0.2 }, box)) {
+  for (const { box } of solidsNear(world, run, run.x, run.x + pw)) {
+    if (overlaps({ x: run.x + 0.1, y: run.y + 0.1, w: pw - 0.2, h: ph - 0.2 }, box)) {
       die(run, 'crushed')
       return
     }
@@ -477,8 +515,9 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   run.cameraX += world.speed * TICK
   if (run.status !== 'running') return
 
-  if (run.y > WORLD_HEIGHT + OUT_MARGIN || run.y + PLAYER_H < -OUT_MARGIN) die(run, 'fall')
-  else if (run.x + PLAYER_W < run.cameraX) die(run, 'left')
+  const size = sizeOf(run)
+  if (run.y > WORLD_HEIGHT + OUT_MARGIN || run.y + size.h < -OUT_MARGIN) die(run, 'fall')
+  else if (run.x + size.w < run.cameraX) die(run, 'left')
   else if (run.x >= world.length) {
     run.status = 'finished'
     run.events.push({ kind: 'finish' })
@@ -486,26 +525,49 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   run.maxX = Math.max(run.maxX, Math.min(run.x, world.length))
 }
 
-/** Pièges, sceaux, bonus et points de reprise touchés à ce pas. */
+/** Portes, pièges, sceaux et bonus touchés à ce pas. */
 function interact(world: GravityWorld, run: GravityRun): void {
   const t = run.tick * TICK
-  // Boîte un peu plus petite que le ninja : les pièges se frôlent sans pardon, mais pas au pixel.
-  const body: Box = { x: run.x + 0.12, y: run.y + 0.1, w: PLAYER_W - 0.24, h: PLAYER_H - 0.2 }
   const x0 = run.x - 1
   const x1 = run.x + PLAYER_W + 1
 
-  for (const index of near(world.grid.spikes, x0, x1)) {
-    const spike = world.spikes[index]!
-    const tall = SPIKE_H * 0.75
-    const box: Box = { x: spike.x + 0.1, y: spike.dir === 'up' ? spike.y - tall : spike.y, w: spike.w - 0.2, h: tall }
-    if (overlaps(body, box)) return die(run, 'spikes')
+  for (const index of near(world.grid.gates, x0, x1)) {
+    const gate = world.gates[index]!
+    if (gate.mini !== run.mini && overlaps(bodyOf(run), gate)) resize(run, gate.mini)
   }
-  for (const index of near(world.grid.shurikens, x0, x1)) {
-    const shuriken = world.shurikens[index]!
-    const at = shurikenAt(shuriken, t)
-    const nearestX = Math.max(body.x, Math.min(at.x, body.x + body.w))
-    const nearestY = Math.max(body.y, Math.min(at.y, body.y + body.h))
-    if ((nearestX - at.x) ** 2 + (nearestY - at.y) ** 2 < (shuriken.r * 0.8) ** 2) return die(run, 'shuriken')
+
+  const body = bodyOf(run)
+  const { w, h } = sizeOf(run)
+  if (run.safe <= 0) {
+    let hit: DeathCause | null = null
+    for (const index of near(world.grid.spikes, x0, x1)) {
+      const spike = world.spikes[index]!
+      const tall = SPIKE_H * 0.75
+      const box: Box = { x: spike.x + 0.1, y: spike.dir === 'up' ? spike.y - tall : spike.y, w: spike.w - 0.2, h: tall }
+      if (overlaps(body, box)) {
+        hit = 'spikes'
+        break
+      }
+    }
+    if (!hit) {
+      for (const index of near(world.grid.shurikens, x0, x1)) {
+        const shuriken = world.shurikens[index]!
+        const at = shurikenAt(shuriken, t)
+        const nearestX = Math.max(body.x, Math.min(at.x, body.x + body.w))
+        const nearestY = Math.max(body.y, Math.min(at.y, body.y + body.h))
+        if ((nearestX - at.x) ** 2 + (nearestY - at.y) ** 2 < (shuriken.r * 0.8) ** 2) {
+          hit = 'shuriken'
+          break
+        }
+      }
+    }
+    if (hit) {
+      if (!run.shield) return die(run, hit)
+      // Kawarimi : la bûche prend le coup à sa place, et le ninja file, intouchable un instant.
+      run.shield = false
+      run.safe = KAWARIMI_SAFE
+      run.events.push({ kind: 'substitute' })
+    }
   }
 
   let inFlip = false
@@ -515,12 +577,16 @@ function interact(world: GravityWorld, run: GravityRun): void {
 
   for (const index of near(world.grid.pickups, x0, x1)) {
     const pickup = world.pickups[index]!
-    const touches = pickup.x + PICKUP_R > run.x && pickup.x - PICKUP_R < run.x + PLAYER_W && pickup.y + PICKUP_R > run.y && pickup.y - PICKUP_R < run.y + PLAYER_H
+    const touches = pickup.x + PICKUP_R > run.x && pickup.x - PICKUP_R < run.x + w && pickup.y + PICKUP_R > run.y && pickup.y - PICKUP_R < run.y + h
     if (!touches) continue
     if (pickup.kind === 'moon' && !run.moons.includes(index)) {
       run.moons.push(index)
       run.moonLeft = MOON_SECONDS
       run.events.push({ kind: 'moon' })
+    } else if (pickup.kind === 'log' && !run.logs.includes(index)) {
+      run.logs.push(index)
+      run.shield = true
+      run.events.push({ kind: 'log' })
     } else if (pickup.kind === 'scroll') {
       const rank = scrollRank(world, index)
       if (!(run.scrolls & (1 << rank))) {
@@ -528,11 +594,6 @@ function interact(world: GravityWorld, run: GravityRun): void {
         run.events.push({ kind: 'scroll', index })
       }
     }
-  }
-
-  while (run.checkpoint + 1 < world.checkpoints.length && world.checkpoints[run.checkpoint + 1]!.x <= run.x) {
-    run.checkpoint += 1
-    run.events.push({ kind: 'checkpoint', index: run.checkpoint })
   }
 }
 

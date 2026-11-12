@@ -1,18 +1,18 @@
 import { TICK } from './constants'
-import { cloneRun, spawnRun, stepRun, type GravityRun, type GravityWorld } from './engine'
+import { cloneRun, startRun, stepRun, type GravityRun, type GravityWorld } from './engine'
 
 /*
  * Le solveur : un joueur parfait qui essaie les touchers possibles (recherche en profondeur, sans
  * repasser par un état déjà vu) jusqu'à franchir l'objectif. La simulation étant déterministe, une
- * suite de touchers qui réussit ici réussit en jeu : c'est la preuve qu'un niveau se finit. Chaque
- * tronçon (du départ au premier point de reprise, puis de point en point jusqu'à l'arrivée) est
- * prouvé à part, depuis l'état où l'on y repart après une chute.
+ * suite de touchers qui réussit ici réussit en jeu : c'est la preuve qu'un niveau se finit. Comme
+ * une chute renvoie au départ (pas de point de reprise), la preuve se fait d'une traite, sans
+ * faute, du départ à l'arrivée.
  */
 
 /** Un toucher n'est essayé qu'un pas sur `STRIDE` (50 ms) : assez fin pour les fenêtres du générateur. */
 const STRIDE = 3
-/** États explorés au plus, par tronçon. */
-const MAX_NODES = 250_000
+/** États explorés au plus pour un niveau entier (les niveaux intégrés en demandent quelques milliers). */
+const MAX_NODES = 600_000
 
 /** Une décision du solveur : au pas `tick`, toucher (ou non) et maintenir (ou non). */
 export interface Decision {
@@ -27,24 +27,17 @@ export interface PathPoint {
   airborne: boolean
 }
 
-export interface SegmentResult {
-  /** Point de reprise de départ (-1 : le départ du niveau). */
-  from: number
-  /** Abscisse à franchir. */
-  target: number
-  ok: boolean
-  /** Le plus loin atteint (unités). */
-  reached: number
-  decisions: Decision[]
-  path: PathPoint[]
-  nodes: number
-}
-
 export interface SolveReport {
   ok: boolean
+  /** Abscisse à franchir (l'arrivée, pour un niveau entier). */
+  target: number
   /** Le plus loin atteint sans faute (unités) : là où le niveau coince, s'il coince. */
   reached: number
-  segments: SegmentResult[]
+  /** Les changements de geste du parcours trouvé (toucher, maintenir, lâcher), dans l'ordre. */
+  decisions: Decision[]
+  /** Le parcours, pas à pas. */
+  path: PathPoint[]
+  nodes: number
 }
 
 interface Node {
@@ -54,12 +47,12 @@ interface Node {
 }
 
 const keyOf = (run: GravityRun, hold: boolean) =>
-  `${run.tick}|${Math.round(run.x * 10)}|${Math.round(run.y * 10)}|${run.g}|${Math.round(run.vy)}|${hold ? 1 : 0}|${run.moonLeft > 0 ? 1 : 0}`
+  `${run.tick}|${Math.round(run.x * 10)}|${Math.round(run.y * 10)}|${run.g}|${Math.round(run.vy)}|${hold ? 1 : 0}|${run.moonLeft > 0 ? 1 : 0}|${run.mini ? 1 : 0}|${run.shield ? 1 : 0}|${run.safe > 0 ? 1 : 0}`
 
 const canDecide = (run: GravityRun) => run.tick % STRIDE === 0 && (run.grounded || run.coyote > 0 || run.moonLeft > 0)
 
 /** Cherche une suite de touchers qui mène de `start` au-delà de `targetX`. */
-export function solveFrom(world: GravityWorld, start: GravityRun, targetX: number, maxNodes = MAX_NODES): Omit<SegmentResult, 'from'> {
+export function solveFrom(world: GravityWorld, start: GravityRun, targetX: number, maxNodes = MAX_NODES): SolveReport {
   const visited = new Set<string>()
   const stack: Node[] = [{ run: cloneRun(start), parent: null, decision: { tick: start.tick, press: false, hold: false } }]
   let reached = start.x
@@ -107,7 +100,7 @@ function chainOf(node: Node): Decision[] {
   return decisions.reverse()
 }
 
-/** Rejoue des décisions depuis `start` : le chemin, pas à pas. */
+/** Rejoue des décisions depuis `start` : le chemin pas à pas, et les seuls changements de geste. */
 function replay(world: GravityWorld, start: GravityRun, decisions: Decision[], targetX: number): { decisions: Decision[]; path: PathPoint[] } {
   const run = cloneRun(start)
   const byTick = new Map(decisions.map((decision) => [decision.tick, decision]))
@@ -119,23 +112,20 @@ function replay(world: GravityWorld, start: GravityRun, decisions: Decision[], t
     stepRun(world, run, { press: decision?.press ?? false, hold })
     path.push({ x: run.x, y: run.y, airborne: !run.grounded })
   }
-  return { decisions: decisions.filter((decision) => decision.press || decision.hold), path }
+  // Un lâcher compte autant qu'un toucher : sans lui, une démonstration planerait trop longtemps.
+  let held = false
+  const changes = decisions.filter((decision) => {
+    const keep = decision.press || decision.hold !== held
+    held = decision.hold
+    return keep
+  })
+  return { decisions: changes, path }
 }
 
-/** Prouve chaque tronçon du niveau (du départ, puis de chaque point de reprise). */
+/** Prouve qu'un niveau se finit d'une traite, du départ à l'arrivée. */
 export function solveLevel(world: GravityWorld, maxNodes = MAX_NODES): SolveReport {
-  const segments: SegmentResult[] = []
-  let reached = 0
-  let blocked = false
-  for (let from = -1; from < world.checkpoints.length; from += 1) {
-    const target = from + 1 < world.checkpoints.length ? world.checkpoints[from + 1]!.x : world.length
-    const result = { from, ...solveFrom(world, spawnRun(world, from), target, maxNodes) }
-    segments.push(result)
-    if (!blocked) reached = result.ok ? target : result.reached
-    if (!result.ok) blocked = true
-  }
-  return { ok: segments.every((segment) => segment.ok), reached: Math.min(reached, world.length), segments }
+  return solveFrom(world, startRun(world), world.length, maxNodes)
 }
 
 /** Durée (s) d'un parcours sans faute du solveur. */
-export const pathSeconds = (report: SolveReport) => report.segments.reduce((sum, segment) => sum + segment.path.length, 0) * TICK
+export const pathSeconds = (report: SolveReport) => report.path.length * TICK

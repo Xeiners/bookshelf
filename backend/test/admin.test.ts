@@ -208,6 +208,10 @@ describe('admin — thème saisonnier', () => {
     assert.ok(entry, 'action inscrite au journal')
     assert.equal(entry.details.theme, 'halloween')
 
+    // Noël prend la suite d'Halloween.
+    assert.equal((await admin.request('POST', '/admin/theme', { theme: 'christmas' })).body.theme, 'christmas')
+    assert.equal((await alice.request('GET', '/theme')).body.theme, 'christmas')
+
     assert.equal((await admin.request('POST', '/admin/theme', { theme: 'none' })).body.theme, 'none')
     assert.equal((await client().request('GET', '/theme')).body.theme, 'none')
   })

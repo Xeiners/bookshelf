@@ -6,8 +6,11 @@ import type { GravityTheme, Material } from '../../../lib/gravity/themes'
  * Les éléments d'un niveau, dessinés dans le repère du monde (une unité = une unité de jeu) :
  * blocs selon la matière du thème (tuiles de toit, pierre, mousse, bois, neige), fragiles qui
  * tremblent puis tombent, plateformes mobiles à runes, pics, shurikens qui tournent, sceaux
- * d'inversion, lune, rouleaux, bannières de reprise et torii d'arrivée.
+ * d'inversion, portes de taille, bûches de substitution, lune, rouleaux et torii d'arrivée.
  */
+
+/** Couleurs des portes de taille : rapetisser (violet), grandir (ambre). */
+export const GATE_COLORS = { mini: '#c08bff', full: '#ffb84d' } as const
 
 export interface View {
   /** Bord gauche et droit visibles (unités). */
@@ -113,13 +116,13 @@ export class WorldPainter {
 
     for (const spike of world.spikes) if (visible(spike.x, spike.x + spike.w)) this.spikes(ctx, spike.x, spike.y, spike.w, spike.dir)
     for (const flip of world.flips) if (visible(flip.x, flip.x + flip.w)) this.seal(ctx, flip.x, flip.y, flip.w, flip.h, view.time)
-    world.checkpoints.forEach((checkpoint, index) => {
-      if (visible(checkpoint.x - 1, checkpoint.x + 1)) this.banner(ctx, checkpoint.x, checkpoint.y, checkpoint.g, index <= run.checkpoint, view.time)
-    })
+    for (const gate of world.gates) if (visible(gate.x, gate.x + gate.w)) this.gate(ctx, gate.x, gate.y, gate.w, gate.h, gate.mini, view.time)
     world.pickups.forEach((pickup, index) => {
       if (!visible(pickup.x - 1, pickup.x + 1)) return
       if (pickup.kind === 'moon') {
         if (!run.moons.includes(index)) this.moon(ctx, pickup.x, pickup.y + Math.sin(view.time * 3 + index) * 0.12, view.time)
+      } else if (pickup.kind === 'log') {
+        if (!run.logs.includes(index)) this.log(ctx, pickup.x, pickup.y + Math.sin(view.time * 2.8 + index) * 0.12, view.time)
       } else if (!(run.scrolls & (1 << scrollRank(world, index)))) this.scroll(ctx, pickup.x, pickup.y + Math.sin(view.time * 2.6 + index) * 0.12, view.time)
     })
     for (const shuriken of world.shurikens) {
@@ -300,8 +303,8 @@ export class WorldPainter {
     gradient.addColorStop(0, shade(this.theme.hazard, -0.55))
     gradient.addColorStop(1, this.theme.hazard)
     ctx.fillStyle = gradient
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)'
-    ctx.lineWidth = 0.035
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)'
+    ctx.lineWidth = 0.055
     ctx.beginPath()
     for (let index = 0; index < count; index += 1) {
       const sx = x + index * step
@@ -389,6 +392,81 @@ export class WorldPainter {
     ctx.stroke()
   }
 
+  /** Porte de taille : un anneau vertical ; flèches vers le centre pour rapetisser, vers l'extérieur pour grandir. */
+  private gate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, mini: boolean, time: number): void {
+    const color = mini ? GATE_COLORS.mini : GATE_COLORS.full
+    const cx = x + w / 2
+    const cy = y + h / 2
+    const column = ctx.createLinearGradient(x - 0.4, 0, x + w + 0.4, 0)
+    column.addColorStop(0, 'rgba(0,0,0,0)')
+    column.addColorStop(0.5, color)
+    column.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.globalAlpha = 0.28 + Math.sin(time * 4) * 0.08
+    ctx.fillStyle = column
+    ctx.fillRect(x - 0.4, y, w + 0.8, h)
+    ctx.globalAlpha = 1
+    ctx.strokeStyle = color
+    ctx.lineWidth = 0.09
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, w * 0.45 + 0.15, h / 2, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([0.14, 0.12])
+    ctx.lineDashOffset = -time * 0.8
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, w * 0.3 + 0.08, h / 2 - 0.25, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.lineDashOffset = 0
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 0.07
+    ctx.lineCap = 'round'
+    const pulse = Math.sin(time * 6) * 0.05
+    for (const side of [-1, 1]) {
+      const tip = cy + side * (mini ? 0.25 - pulse : 0.65 + pulse)
+      const back = side * (mini ? 1 : -1) * 0.16
+      ctx.beginPath()
+      ctx.moveTo(cx - 0.16, tip + back)
+      ctx.lineTo(cx, tip)
+      ctx.lineTo(cx + 0.16, tip + back)
+      ctx.stroke()
+    }
+  }
+
+  /** Bûche de substitution (kawarimi) : un rondin, son bout clair et un sceau de papier. */
+  log(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, 1)
+    glow.addColorStop(0, 'rgba(226,178,119,0.55)')
+    glow.addColorStop(1, 'rgba(226,178,119,0)')
+    ctx.fillStyle = glow
+    ctx.fillRect(x - 1, y - 1, 2, 2)
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(-0.25 + Math.sin(time * 2) * 0.08)
+    ctx.fillStyle = '#8a5a2b'
+    ctx.fillRect(-0.4, -0.19, 0.78, 0.38)
+    ctx.strokeStyle = '#5e3a1a'
+    ctx.lineWidth = 0.04
+    ctx.beginPath()
+    ctx.moveTo(-0.36, -0.07)
+    ctx.lineTo(0.3, -0.07)
+    ctx.moveTo(-0.32, 0.08)
+    ctx.lineTo(0.34, 0.08)
+    ctx.stroke()
+    ctx.fillStyle = '#d9a868'
+    ctx.beginPath()
+    ctx.ellipse(0.38, 0, 0.1, 0.19, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#8a5a2b'
+    ctx.beginPath()
+    ctx.ellipse(0.38, 0, 0.05, 0.1, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = '#f3e3bd'
+    ctx.fillRect(-0.14, -0.24, 0.16, 0.48)
+    ctx.fillStyle = '#d6263b'
+    ctx.fillRect(-0.09, -0.07, 0.06, 0.14)
+    ctx.restore()
+  }
+
   /** Bonus de la lune : un croissant lumineux. */
   moon(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
     const glow = ctx.createRadialGradient(x, y, 0, x, y, 1.1)
@@ -426,32 +504,6 @@ export class WorldPainter {
     ctx.fillStyle = '#d6263b'
     ctx.fillRect(-0.04, -0.17, 0.08, 0.34)
     ctx.restore()
-  }
-
-  /** Point de reprise : bannière sur sa hampe, allumée une fois atteinte. */
-  private banner(ctx: CanvasRenderingContext2D, x: number, y: number, g: 1 | -1, reached: boolean, time: number): void {
-    const up = -g
-    const height = 2.1
-    ctx.fillStyle = '#3a2a22'
-    ctx.fillRect(x - 0.05, g === 1 ? y - height : y, 0.1, height)
-    const flutter = Math.sin(time * 6) * 0.08
-    const color = reached ? this.theme.accent : 'rgba(220,220,235,0.55)'
-    ctx.fillStyle = color
-    ctx.beginPath()
-    const top = y + up * height
-    ctx.moveTo(x + 0.05, top)
-    ctx.lineTo(x + 0.75 + flutter, top + g * 0.08)
-    ctx.lineTo(x + 0.7 - flutter, top + g * 1.05)
-    ctx.lineTo(x + 0.05, top + g * 1)
-    ctx.closePath()
-    ctx.fill()
-    if (reached) {
-      const glow = ctx.createRadialGradient(x + 0.4, top + g * 0.5, 0, x + 0.4, top + g * 0.5, 1.4)
-      glow.addColorStop(0, 'rgba(255,240,200,0.5)')
-      glow.addColorStop(1, 'rgba(255,240,200,0)')
-      ctx.fillStyle = glow
-      ctx.fillRect(x - 1, top + g * 0.5 - 1.4, 2.8, 2.8)
-    }
   }
 
   /** L'arrivée : un grand torii sur toute la hauteur du couloir. */

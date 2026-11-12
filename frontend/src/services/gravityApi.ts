@@ -1,3 +1,5 @@
+import type { BoosterStatus } from '../lib/boosters'
+import type { Tier } from '../lib/gravity/constants'
 import type { LevelPlan } from '../lib/gravity/generator'
 import type { GravityLevel, ThemeId } from '../lib/gravity/types'
 import { api } from './api'
@@ -10,8 +12,27 @@ export interface GravityLevelSummary {
   difficulty: number
   builtin: boolean
   length: number
-  checkpoints: number
   scrolls: number
+}
+
+/** Ce qu'une réussite rapporte (niveaux intégrés, une fois chacune). */
+export interface GravityReward {
+  tier: Tier
+  /** ✦ de la première réussite, et du bonus des trois rouleaux. */
+  clear: number
+  scrolls: number
+  /** Palier terminé : un booster offert (Extrême : un booster Légendaire). */
+  tierComplete: boolean
+  boosters: number
+  legendaryPacks: number
+}
+
+export interface GravityRunOutcome {
+  progress: GravityProgress
+  reward: GravityReward | null
+  /** Nouveau solde de ✦ et réserve de boosters, s'ils ont changé. */
+  stardust: number | null
+  boosters: BoosterStatus | null
 }
 
 export interface GravityProgress {
@@ -53,7 +74,7 @@ export interface PlanRequest {
 export const gravityApi = {
   overview: (signal?: AbortSignal) => api<GravityOverview>('/gravity', { signal }),
   level: (id: string) => api<{ level: GravityLevel }>(`/gravity/levels/${encodeURIComponent(id)}`),
-  run: (id: string, report: GravityRunReport) => api<{ progress: GravityProgress }>(`/gravity/levels/${encodeURIComponent(id)}/runs`, { method: 'POST', body: report }),
+  run: (id: string, report: GravityRunReport) => api<GravityRunOutcome>(`/gravity/levels/${encodeURIComponent(id)}/runs`, { method: 'POST', body: report }),
   save: (level: GravityLevel) => api<{ level: GravityLevelSummary }>('/gravity/levels', { method: 'POST', body: { level } }),
   remove: (id: string) => api<void>(`/gravity/levels/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   /** Le plan d'un niveau, écrit par une IA (Gemini ou Claude). 503 `gravity_ai_unavailable` sans clé sur le serveur. */

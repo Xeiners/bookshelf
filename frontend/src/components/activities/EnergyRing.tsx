@@ -15,7 +15,8 @@ const TICKS = 48
 /**
  * Jauge d'énergie circulaire, façon horloge néon : graduations fines, arc
  * cyan → violet → or qui se remplit, lueur quand la jauge est pleine. Le
- * contenu (compte à rebours, « prêt ») est centré dedans.
+ * contenu (compte à rebours, « prêt ») est centré dedans. Ses couleurs viennent
+ * des variables `--ring-*` (index.css) : un thème saisonnier les redéfinit.
  */
 export function EnergyRing({ progress, size, charged = false, children, label }: EnergyRingProps) {
   const id = useId().replace(/:/g, '')
@@ -30,9 +31,9 @@ export function EnergyRing({ progress, size, charged = false, children, label }:
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden className="absolute inset-0">
         <defs>
           <linearGradient id={`energy-${id}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#4cc9f0" />
-            <stop offset="0.55" stopColor="#b46cff" />
-            <stop offset="1" stopColor="#ffc46b" />
+            <stop offset="0" style={{ stopColor: 'var(--ring-from)' }} />
+            <stop offset="0.55" style={{ stopColor: 'var(--ring-mid)' }} />
+            <stop offset="1" style={{ stopColor: 'var(--ring-to)' }} />
           </linearGradient>
         </defs>
         {/* Graduations. */}
@@ -47,7 +48,7 @@ export function EnergyRing({ progress, size, charged = false, children, label }:
               y1={center + inner * Math.sin(angle)}
               x2={center + outer * Math.cos(angle)}
               y2={center + outer * Math.sin(angle)}
-              stroke={index / TICKS <= clamped ? '#fff4c8' : 'rgba(247,245,240,0.16)'}
+              style={{ stroke: index / TICKS <= clamped ? (index % 2 ? 'var(--ring-tick-alt)' : 'var(--ring-tick)') : 'rgba(247,245,240,0.16)' }}
               strokeWidth={index % 6 === 0 ? 1.4 : 0.8}
             />
           )
@@ -73,7 +74,7 @@ export function EnergyRing({ progress, size, charged = false, children, label }:
           aria-hidden
           data-card-fx
           className="pointer-events-none absolute inset-[12%] rounded-full"
-          style={{ background: 'radial-gradient(closest-side, rgba(255,196,107,0.35), transparent)', animation: 'altar-pulse 2.2s ease-in-out infinite' }}
+          style={{ background: 'radial-gradient(closest-side, var(--ring-glow), transparent)', animation: 'altar-pulse 2.2s ease-in-out infinite' }}
         />
       )}
       <div className="absolute inset-0 grid place-items-center text-center">{children}</div>

@@ -2,9 +2,11 @@ import type { CSSProperties } from 'react'
 import moonUrl from '../../assets/moon-soul-eater.svg'
 import { useT } from '../../i18n'
 import { useThemeStore } from '../../store/useThemeStore'
+import { ChristmasTree, Garland, Holly, Santa, SantaHat, Sleigh, SnowCap } from './ChristmasArt'
 
 /**
- * Décor du thème saisonnier, choisi par l'administration (cf. `useThemeStore`). Tout passe
+ * Décor du thème saisonnier, choisi par l'administration (cf. `useThemeStore`) : Halloween ici,
+ * Noël avec ses dessins dans `ChristmasArt.tsx`. Tout passe
  * DERRIÈRE l'interface (aucun bouton ni texte masqué) et ne coûte presque rien : des tracés
  * SVG peints une fois, aucun flou ni particule ; seuls quelques petits éléments s'animent, en
  * CSS (`transform`), et rien ne bouge si l'appareil demande moins d'animations.
@@ -12,7 +14,94 @@ import { useThemeStore } from '../../store/useThemeStore'
 export function SeasonalDecor() {
   const theme = useThemeStore((state) => state.theme)
   if (theme === 'halloween') return <HalloweenDecor />
+  if (theme === 'christmas') return <ChristmasDecor />
   return null
+}
+
+/**
+ * Noël : une guirlande lumineuse tout le long du haut de l'écran, le sapin voilé dans le coin
+ * bas (en retrait : il ne lutte pas avec les cartes), une neige légère qui tombe doucement, et le
+ * traîneau qui traverse le ciel de temps en temps.
+ */
+function ChristmasDecor() {
+  return (
+    <div aria-hidden data-seasonal-decor className="pointer-events-none fixed inset-0 -z-[4] overflow-hidden">
+      {/* Ciel : une lueur dorée en haut, un voile de sapin en bas. */}
+      <div
+        className="absolute inset-0"
+        style={{ background: 'radial-gradient(70% 45% at 82% 0%, rgba(255,211,92,0.04), transparent 70%), radial-gradient(90% 40% at 20% 100%, rgba(47,154,95,0.05), transparent 72%)' }}
+      />
+      <ChristmasTree className="absolute right-[max(0.5rem,2vw)] bottom-[max(4.5rem,9vh)] h-auto w-[min(36vmin,220px)] opacity-[0.28]" />
+      <Snowfall />
+      <LightsAndSleigh />
+    </div>
+  )
+}
+
+/**
+ * Les flocons du fond, tirés une fois (toujours les mêmes, à des places irrégulières) : la
+ * profondeur (`depth`, 0 au loin → 1 tout près) règle leur taille, leur éclat et leur vitesse ;
+ * chacun a son balancement et son moment de départ.
+ */
+const FLAKES = (() => {
+  let seed = 20251224
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  return Array.from({ length: 30 }, (_, index) => {
+    const depth = random() ** 1.6
+    return {
+      left: random() * 100,
+      size: 2.2 + depth * 5,
+      opacity: 0.3 + depth * 0.55,
+      fall: 30 - depth * 15 + random() * 6,
+      delay: -random() * 36,
+      sway: ['s', 'm', 'l'][index % 3]!,
+      swayTime: 3.2 + random() * 2.6,
+    }
+  })
+})()
+
+/**
+ * Il neige doucement : chaque flocon descend (l'élément du dehors) en se balançant (celui du
+ * dedans). Un disque aux bords doux (dégradé : aucun flou), et transform seulement.
+ */
+function Snowfall() {
+  return (
+    <div className="absolute inset-0">
+      {FLAKES.map((flake, index) => (
+        <div key={index} data-seasonal-motion className="absolute top-0" style={{ left: `${flake.left}%`, animation: `snow-fall ${flake.fall.toFixed(1)}s linear ${flake.delay.toFixed(1)}s infinite` }}>
+          <div
+            data-seasonal-motion
+            className="rounded-full"
+            style={{
+              width: flake.size,
+              height: flake.size,
+              opacity: flake.opacity,
+              background: 'radial-gradient(circle, #ffffff 0 38%, rgba(255,255,255,0.5) 62%, rgba(255,255,255,0) 72%)',
+              animation: `snow-sway-${flake.sway} ${flake.swayTime.toFixed(1)}s ease-in-out ${(index * -0.7).toFixed(1)}s infinite alternate`,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** La guirlande en haut, et le traîneau qui passe (`sleigh` : il passe aussi). */
+function LightsAndSleigh({ sleigh = true }: { sleigh?: boolean }) {
+  return (
+    <>
+      <div className="absolute inset-x-0 top-0 overflow-hidden">
+        <Garland swags={30} className="block h-auto max-w-none" style={{ width: 30 * 84 }} />
+      </div>
+      {sleigh && (
+        <div data-seasonal-motion className="absolute top-[14%] left-0" style={{ animation: 'sleigh-cross 36s linear -9s infinite' }}>
+          <div data-seasonal-motion style={{ animation: 'sleigh-bob 3.2s ease-in-out infinite' }}>
+            <Sleigh className="block h-auto w-[min(48vw,220px)]" />
+          </div>
+        </div>
+      )}
+    </>
+  )
 }
 
 /** Chauves-souris : hauteur (% de l'écran), taille (px), durée de traversée (s), décalage (s), sens. */
@@ -71,20 +160,28 @@ function WebsAndBats({ bats = BATS }: { bats?: typeof BATS }) {
 
 /**
  * Pour les écrans qui recouvrent tout (ouverture des boosters…) et masquent le décor de fond :
- * toiles d'araignée et deux chauves-souris, à poser DANS leur fond (derrière leur contenu).
+ * toiles d'araignée et deux chauves-souris (Noël : la neige, la guirlande et le traîneau), à poser DANS leur
+ * fond (derrière leur contenu).
  */
 export function SeasonalOverlay() {
   const theme = useThemeStore((state) => state.theme)
-  if (theme !== 'halloween') return null
+  if (theme !== 'halloween' && theme !== 'christmas') return null
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <WebsAndBats bats={BATS.slice(0, 2)} />
+      {theme === 'halloween' ? (
+        <WebsAndBats bats={BATS.slice(0, 2)} />
+      ) : (
+        <>
+          <Snowfall />
+          <LightsAndSleigh />
+        </>
+      )}
     </div>
   )
 }
 
 /**
- * Petite toile d'araignée dans un coin d'une surface (carte, tuile) ; rien hors thème. Le parent
+ * Petite toile d'araignée (Noël : un brin de houx) dans un coin d'une surface (carte, tuile) ; rien hors thème. Le parent
  * doit être positionné (`relative`) : la toile épouse ses coins arrondis.
  */
 export function SeasonalCorner({
@@ -98,10 +195,14 @@ export function SeasonalCorner({
   behind?: boolean
 }) {
   const theme = useThemeStore((state) => state.theme)
-  if (theme !== 'halloween') return null
+  if (theme !== 'halloween' && theme !== 'christmas') return null
   return (
     <span aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden ${behind ? '-z-10' : 'z-[1]'}`} style={{ borderRadius: 'inherit' }}>
-      <Cobweb strong className={`absolute top-0 ${corner === 'right' ? 'right-0 -scale-x-100' : 'left-0'}`} style={{ width: size }} />
+      {theme === 'halloween' ? (
+        <Cobweb strong className={`absolute top-0 ${corner === 'right' ? 'right-0 -scale-x-100' : 'left-0'}`} style={{ width: size }} />
+      ) : (
+        <Holly className={`absolute top-1 ${corner === 'right' ? 'right-1 -scale-x-100' : 'left-1'}`} style={{ width: Math.round(size * 0.66) }} />
+      )}
     </span>
   )
 }
@@ -113,6 +214,7 @@ export function SeasonalCorner({
 export function SeasonalHubBanner() {
   const t = useT()
   const theme = useThemeStore((state) => state.theme)
+  if (theme === 'christmas') return <ChristmasHubBanner />
   if (theme !== 'halloween') return null
   const copy = t.seasonal.halloween
   return (
@@ -138,9 +240,72 @@ export function SeasonalHubBanner() {
   )
 }
 
-/** Petite chauve-souris à côté d'un titre ; rien hors thème. */
+/**
+ * Noël, en tête du hub : la guirlande qui pend du bord, le mot de l'équipe, et à droite le Père
+ * Noël qui fait coucou au pied de son sapin.
+ */
+function ChristmasHubBanner() {
+  const t = useT()
+  const copy = t.seasonal.christmas
+  return (
+    <section
+      aria-label={copy.title}
+      className="relative isolate flex shrink-0 items-end gap-2 overflow-hidden rounded-[1.75rem] border border-[#ffd35c]/25 pt-6 pr-2 pb-3 pl-5"
+      style={{ background: 'radial-gradient(90% 130% at 100% 0%, rgba(227,38,58,0.26), transparent 62%), linear-gradient(120deg, #0c2a1d, #0a1a14 55%, #2a0a12)' }}
+    >
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-0.5 -z-10 overflow-hidden">
+        <Garland swags={10} className="block h-auto max-w-none" style={{ width: 10 * 66 }} />
+      </div>
+      <div className="min-w-0 flex-1 self-center pt-2">
+        <p className="text-[10px] font-semibold tracking-[0.28em] text-[#ffd35c]/85 uppercase">{copy.eyebrow}</p>
+        <h2 className="mt-0.5 font-display text-2xl leading-tight text-[#fff1d6]">{copy.title}</h2>
+        <p className="mt-1 text-xs leading-snug text-cream/65">{copy.body}</p>
+      </div>
+      <div aria-hidden className="relative h-[6.6rem] w-[7.4rem] shrink-0">
+        <ChristmasTree className="absolute right-0 bottom-0 h-auto w-[5rem]" />
+        <Santa className="absolute bottom-0 left-0 w-[4.4rem]" />
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Noël : de la neige posée sur le bord du haut d'une surface (carte, bannière) ; avec `garland`,
+ * une guirlande qui pend sous la neige. Rien hors thème. Le parent doit être positionné et couper
+ * ce qui dépasse ; poser ce décor après ce qu'il doit recouvrir.
+ */
+export function SeasonalSnow({ garland = false }: { garland?: boolean }) {
+  const theme = useThemeStore((state) => state.theme)
+  if (theme !== 'christmas') return null
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden" style={{ borderRadius: 'inherit' }}>
+      {garland && (
+        <span className="absolute inset-x-0 top-0 overflow-hidden">
+          <Garland swags={12} className="block h-auto max-w-none" style={{ width: 12 * 64 }} />
+        </span>
+      )}
+      <SnowCap className="absolute inset-x-0 top-0 block h-3 w-full" />
+    </span>
+  )
+}
+
+/** Un bonnet de Père Noël posé sur un avatar ou une carte (`className` le place) ; rien hors thème. */
+export function SeasonalHat({ className }: { className: string }) {
+  const theme = useThemeStore((state) => state.theme)
+  if (theme !== 'christmas') return null
+  return <SantaHat className={`pointer-events-none ${className}`} />
+}
+
+/** Petite chauve-souris (Noël : un bonnet) à côté d'un titre ; rien hors thème. */
 export function SeasonalTitleMark() {
   const theme = useThemeStore((state) => state.theme)
+  if (theme === 'christmas') {
+    return (
+      <span aria-hidden className="ml-2 inline-block align-middle">
+        <SantaHat className="block h-auto w-5 -rotate-12" />
+      </span>
+    )
+  }
   if (theme !== 'halloween') return null
   return (
     <span aria-hidden className="ml-2 inline-block align-middle">

@@ -8,7 +8,9 @@ import { layoutPanels, type Rect } from '../../lib/stack/layout'
 import { TOWER_SIZE, towerSource } from '../../lib/stack/tower'
 import { PLAYER_COLORS, type StackRelay, type StackRoom } from '../../lib/stack/net'
 import { useStackRoom } from '../../store/useStackRoom'
+import { useThemeStore } from '../../store/useThemeStore'
 import { Board } from './board'
+import { setStackSeason } from './worlds'
 
 /** Position envoyée aux autres joueurs toutes les 50 ms (versus : sa pile ; coop : quand c'est son tour). */
 const TICK_EVERY = 0.05
@@ -37,7 +39,10 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [count, setCount] = useState<string | null>(null)
   const roomRef = useRef(room)
-  const labels = useRef({ worlds: t.stack.worlds, world: t.stack.game.world, pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting })
+  // Noël : les mondes de Noël, figés pour la partie.
+  const [festive] = useState(() => useThemeStore.getState().theme === 'christmas')
+  const worldNames = festive ? t.stack.christmasWorlds : t.stack.worlds
+  const labels = useRef({ worlds: worldNames, world: t.stack.game.world, pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting })
   const turn = useRef<string | null>(room.turn)
   const roomCode = room.code
   const roomSeed = room.seed
@@ -45,7 +50,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
   useEffect(() => {
     roomRef.current = room
     if (room.turn) turn.current = room.turn
-    labels.current = { worlds: t.stack.worlds, world: t.stack.game.world, pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting }
+    labels.current = { worlds: worldNames, world: t.stack.game.world, pages: t.stack.game.pages, perfect: t.stack.game.perfect, eliminated: t.stack.arena.eliminated, you: t.stack.arena.you, yourTurn: t.stack.arena.yourTurn, turnOf: t.stack.arena.turnOf, waiting: t.stack.arena.waiting }
   })
 
   useEffect(() => {
@@ -62,6 +67,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
     // Même suite d'affiches pour tout le monde : celles du salon, dans l'ordre du serveur.
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches || players.length > 2
     const make = (id: string, sound: boolean): Panel => {
+      setStackSeason(festive ? 'christmas' : 'default')
       const board = new Board({ sound, reduced, perfectLabel: labels.current.perfect, worldNames: labels.current.worlds, worldLabel: labels.current.world })
       board.coverOffset = room.seed % 1000
       return { id, board, color: colorOf(id) }
@@ -291,7 +297,7 @@ export function StackArena({ room, meId, onLeave }: StackArenaProps) {
       placeRef.current = null
       towerSource.current = null
     }
-  }, [roomCode, roomSeed, meId])
+  }, [roomCode, roomSeed, meId, festive])
 
   const placeRef = useRef<(() => void) | null>(null)
 

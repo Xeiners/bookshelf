@@ -7,9 +7,9 @@ import { z } from 'zod'
  */
 
 /** Thèmes connus du jeu (`THEME_IDS` côté front). */
-export const GRAVITY_THEMES = ['konoha', 'night', 'hunter', 'halloween', 'christmas'] as const
+export const GRAVITY_THEMES = ['konoha', 'night', 'hunter', 'halloween', 'christmas', 'sand', 'mist'] as const
 /** Sections du générateur (`SECTION_KINDS` côté front). */
-export const GRAVITY_SECTIONS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon'] as const
+export const GRAVITY_SECTIONS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi'] as const
 
 const range = (min: number, max: number) => z.number().finite().min(min).max(max)
 const X = range(-20, 3100)
@@ -19,7 +19,7 @@ const Gravity = z.union([z.literal(1), z.literal(-1)])
 
 const Box = { x: X, y: Y, w: SIZE, h: SIZE }
 
-export const ElementSchema = z.discriminatedUnion('type', [
+const ELEMENTS = [
   z.object({ type: z.literal('block'), ...Box }),
   z.object({ type: z.literal('crumble'), ...Box }),
   z.object({ type: z.literal('flip'), ...Box }),
@@ -37,8 +37,15 @@ export const ElementSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('moon'), x: X, y: Y }),
   z.object({ type: z.literal('scroll'), x: X, y: Y }),
-  z.object({ type: z.literal('checkpoint'), x: X, y: Y, g: Gravity }),
-])
+  z.object({ type: z.literal('size'), ...Box, mini: z.boolean() }),
+  z.object({ type: z.literal('log'), x: X, y: Y }),
+] as const
+
+export const ElementSchema = z.discriminatedUnion('type', [...ELEMENTS])
+type GravityElement = z.infer<typeof ElementSchema>
+
+/** Ancien format : les points de reprise n'existent plus (une chute renvoie au départ) ; lus, puis écartés. */
+const LegacyCheckpoint = z.object({ type: z.literal('checkpoint'), x: X, y: Y, g: Gravity })
 
 export const LevelSchema = z.object({
   format: z.literal(1).default(1),
@@ -49,7 +56,10 @@ export const LevelSchema = z.object({
   speed: range(6, 16),
   length: range(60, 3000),
   start: z.object({ y: Y, g: Gravity }),
-  elements: z.array(ElementSchema).max(2000),
+  elements: z
+    .array(z.discriminatedUnion('type', [...ELEMENTS, LegacyCheckpoint]))
+    .max(2000)
+    .transform((elements) => elements.filter((element): element is GravityElement => element.type !== 'checkpoint')),
 })
 
 export type GravityLevelData = z.infer<typeof LevelSchema>

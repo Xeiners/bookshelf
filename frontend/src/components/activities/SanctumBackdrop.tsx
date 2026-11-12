@@ -26,6 +26,16 @@ const PALETTE: Record<SiteTheme, { aurora: string; first: string; second: string
     first: 'radial-gradient(closest-side, rgba(107, 33, 168, 0.07), rgba(107, 33, 168, 0.02) 50%, transparent)',
     second: 'radial-gradient(closest-side, rgba(255, 122, 26, 0.045), rgba(194, 65, 12, 0.015) 55%, transparent)',
   },
+  // Noël : un vert de sapin au sommet, une lueur rouge et or en bas.
+  christmas: {
+    aurora: [
+      'radial-gradient(70% 50% at 20% -10%, rgba(47, 154, 95, 0.08), rgba(47, 154, 95, 0.02) 45%, transparent 75%)',
+      'radial-gradient(60% 45% at 85% -5%, rgba(255, 211, 92, 0.035), transparent 70%)',
+      'radial-gradient(60% 40% at 85% 108%, rgba(227, 38, 58, 0.035), transparent 70%)',
+    ].join(', '),
+    first: 'radial-gradient(closest-side, rgba(47, 154, 95, 0.07), rgba(29, 110, 67, 0.02) 50%, transparent)',
+    second: 'radial-gradient(closest-side, rgba(227, 38, 58, 0.05), rgba(165, 16, 42, 0.015) 55%, transparent)',
+  },
 }
 
 /**

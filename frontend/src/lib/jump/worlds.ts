@@ -11,9 +11,9 @@ export const WORLD_SPAN = 2600
 export const WORLD_BLEND = 600
 
 /** Ce qui se dresse à l'horizon d'un univers. */
-export type Landmark = 'rooftops' | 'sakura' | 'fuji' | 'city' | 'pagoda' | 'waves' | 'planets' | 'pumpkins' | 'graves' | 'castle'
+export type Landmark = 'rooftops' | 'sakura' | 'fuji' | 'city' | 'pagoda' | 'waves' | 'planets' | 'pumpkins' | 'graves' | 'castle' | 'pines' | 'chalets' | 'tree'
 /** Ce qui flotte dans le ciel, en parallaxe. */
-export type Ambient = 'clouds' | 'petals' | 'stars' | 'lanterns' | 'bats'
+export type Ambient = 'clouds' | 'petals' | 'stars' | 'lanterns' | 'bats' | 'snow'
 
 export interface World {
   /** Clé du nom (`t.jump.worlds[id]`). */
@@ -34,7 +34,7 @@ export interface Skin {
   platforms: string[]
   moving: string
   fragile: string
-  enemy: 'oni' | 'ghost'
+  enemy: 'oni' | 'ghost' | 'snowman'
 }
 
 const MANGA: World[] = [
@@ -56,9 +56,20 @@ const HALLOWEEN: World[] = [
   { id: 'bloodmoon', orb: 'moon', sky: ['#1a0206', '#7a1020'], land: '#0c0104', light: '#ff4d4d', landmark: 'planets', ambient: 'stars' },
 ]
 
+const CHRISTMAS: World[] = [
+  { id: 'northpole', orb: 'moon', sky: ['#0f2a4a', '#6a9ad0'], land: '#0a1a2c', light: '#ffd35c', landmark: 'chalets', ambient: 'snow' },
+  { id: 'firs', orb: 'moon', sky: ['#0b2a22', '#3f8f74'], land: '#06180f', light: '#f4f7ff', landmark: 'pines', ambient: 'snow' },
+  { id: 'workshop', orb: null, sky: ['#3a0b14', '#d04a3a'], land: '#1c0508', light: '#ffd35c', landmark: 'chalets', ambient: 'stars' },
+  { id: 'greattree', orb: 'moon', sky: ['#081a2e', '#2a4f7a'], land: '#04101c', light: '#ffd35c', landmark: 'tree', ambient: 'snow' },
+  { id: 'aurora', orb: null, sky: ['#04121a', '#1f8a6a'], land: '#020a0c', light: '#9fffe0', landmark: 'pines', ambient: 'stars' },
+  { id: 'sleighnight', orb: 'moon', sky: ['#0a0820', '#3a2a6a'], land: '#060414', light: '#ffd35c', landmark: 'tree', ambient: 'snow' },
+]
+
 export const SKINS: Record<SiteTheme, Skin> = {
   none: { worlds: MANGA, platforms: ['#7bd34a', '#ff6fb5', '#ffc23a', '#9b8cff'], moving: '#4cc9f0', fragile: '#d9b48a', enemy: 'oni' },
   halloween: { worlds: HALLOWEEN, platforms: ['#ff8a1f', '#a06bff', '#7bd34a'], moving: '#4cc9f0', fragile: '#cfae8a', enemy: 'ghost' },
+  // Noël : plateformes rouge, vert sapin et or, glace pour celles qui bougent, pain d'épices pour les fragiles.
+  christmas: { worlds: CHRISTMAS, platforms: ['#e3263a', '#2f9a5f', '#ffd35c'], moving: '#8fd8ff', fragile: '#c98a4b', enemy: 'snowman' },
 }
 
 /** Numéro de l'univers (0, 1, 2… sans fin) à une hauteur donnée. */

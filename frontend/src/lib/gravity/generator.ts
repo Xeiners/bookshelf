@@ -4,6 +4,7 @@ import {
   GRAVITY,
   LEVEL_FORMAT,
   MAX_FALL,
+  MINI_SCALE,
   MOON_GRAVITY,
   MOON_MAX_FALL,
   PLAYER_H,
@@ -23,14 +24,14 @@ import type { Gravity, GravityLevel, LevelElement, ThemeId } from './types'
  * pics, sauter d'îlot en îlot…) posées l'une après l'autre. Chaque section est calculée à partir de
  * la physique (durée d'une chute, fenêtre où l'on peut inverser) et vérifiée aussitôt par le
  * solveur ; une section impossible est refaite plus douce. À la fin, tout le niveau est prouvé
- * tronçon par tronçon, puis les rouleaux sont posés sur le chemin du solveur. Même graine, même
- * plan : même niveau.
+ * d'une traite, du départ à l'arrivée (une chute renvoie au départ : pas de point de reprise), puis
+ * les rouleaux sont posés sur le chemin du solveur. Même graine, même plan : même niveau.
  *
  * Deux entrées : `generateLevel` (sections tirées au hasard selon la difficulté) et `buildLevel`
  * (sections imposées : le plan d'une IA, ou écrit à la main).
  */
 
-export const SECTION_KINDS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon'] as const
+export const SECTION_KINDS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi'] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
 
 export interface PlanSection {
@@ -69,6 +70,11 @@ export interface BuildResult {
   softened: number
 }
 
+/** Hauteur libre d'un tunnel de mini-ninja : trop basse pour le ninja à sa taille normale. */
+const TUNNEL_H = 1.25
+/** Hauteur des portes de taille, depuis la surface. */
+const GATE_H = 2.4
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * clamp(t, 0, 1)
 const round = (value: number) => Math.round(value * 100) / 100
@@ -101,7 +107,7 @@ interface Snapshot {
   lane: Lane
   cursor: number
   landed: number
-  lastCheckpoint: number
+  lastBreather: number
 }
 
 /** Fenêtres et respirations d'une section, selon son intensité. */
@@ -110,9 +116,9 @@ function tuning(intensity: number, speed: number) {
   return {
     k,
     /** Fenêtre où l'inversion réussit (unités). */
-    window: lerp(0.8, 0.15, k) * speed,
+    window: lerp(0.55, 0.15, k) * speed,
     /** Temps de lecture après un atterrissage avant la prochaine action (unités). */
-    react: lerp(0.75, 0.24, k) * speed,
+    react: lerp(0.36, 0.14, k) * speed,
   }
 }
 
@@ -123,11 +129,13 @@ class Builder {
   cursor: number
   /** Atterrissage le plus tardif de la dernière inversion. */
   landed: number
-  lastCheckpoint: number
+  /** Dernière respiration (abscisse). */
+  lastBreather: number
   sections = 0
   softened = 0
   readonly speed: number
-  readonly cpEvery: number
+  /** Distance entre deux respirations (plus longue à haute difficulté). */
+  readonly breathEvery: number
 
   readonly difficulty: number
   readonly rand: () => number
@@ -136,18 +144,18 @@ class Builder {
     this.difficulty = difficulty
     this.rand = rand
     this.speed = speedFor(difficulty)
-    this.cpEvery = lerp(45, 110, (difficulty - 1) / 9)
+    this.breathEvery = lerp(70, 140, (difficulty - 1) / 9)
     this.lane = { y: 11, g: 1, start: -4, kind: 'block' }
-    this.cursor = START_X + this.speed * 1.6
+    this.cursor = START_X + this.speed * 1.1
     this.landed = START_X
-    this.lastCheckpoint = START_X
+    this.lastBreather = START_X
   }
 
   between = (min: number, max: number) => min + (max - min) * this.rand()
   chance = (p: number) => this.rand() < p
 
   snapshot(): Snapshot {
-    return { elements: this.elements.length, lane: { ...this.lane }, cursor: this.cursor, landed: this.landed, lastCheckpoint: this.lastCheckpoint }
+    return { elements: this.elements.length, lane: { ...this.lane }, cursor: this.cursor, landed: this.landed, lastBreather: this.lastBreather }
   }
 
   restore(snapshot: Snapshot): void {
@@ -155,7 +163,7 @@ class Builder {
     this.lane = { ...snapshot.lane }
     this.cursor = snapshot.cursor
     this.landed = snapshot.landed
-    this.lastCheckpoint = snapshot.lastCheckpoint
+    this.lastBreather = snapshot.lastBreather
   }
 
   /** Le bloc d'une voie, de `x0` à `x1` : sol ou plafond prolongé hors champ, ou dalle suspendue. */
@@ -246,13 +254,44 @@ class Builder {
     }
   }
 
-  /** Point de reprise si le dernier est loin : posé juste après l'atterrissage, avec du temps pour repartir. */
-  maybeCheckpoint(): void {
-    if (this.lane.kind !== 'block' || this.cursor - this.lastCheckpoint < this.cpEvery) return
+  /** Une respiration si la dernière est loin : après l'atterrissage, un bout de course tranquille avant la suite. */
+  maybeBreather(): void {
+    if (this.lane.kind !== 'block' || this.cursor - this.lastBreather < this.breathEvery) return
     const x = round(Math.max(this.lane.start + 0.5, this.landed + 0.6))
-    this.elements.push({ type: 'checkpoint', x, y: this.lane.y, g: this.lane.g })
-    this.lastCheckpoint = x
-    this.cursor = Math.max(this.cursor, x + this.speed * 1.1)
+    this.lastBreather = x
+    this.cursor = Math.max(this.cursor, x + this.speed * 0.55)
+  }
+
+  /**
+   * Mini-ninja : une porte le rend minuscule, puis un tunnel trop bas pour sa taille normale, hérissé
+   * de pics tantôt sur la voie, tantôt au plafond du tunnel : il faut y basculer en rythme. Un nombre
+   * pair de rangées ramène le ninja sur sa voie ; une porte lui rend alors sa taille.
+   */
+  miniTunnel(intensity: number): void {
+    const { k } = tuning(intensity, this.speed)
+    const lane = this.lane
+    const g = lane.g
+    const gateX = this.cursor + 0.4
+    const gate = (x: number, mini: boolean): LevelElement => ({ type: 'size', x: round(x), y: round(g === 1 ? lane.y - GATE_H : lane.y), w: 0.8, h: GATE_H, mini })
+    this.elements.push(gate(gateX, true))
+    const roof = lane.y - g * TUNNEL_H
+    const t0 = gateX + 0.8 + this.speed * 0.3
+    const rows = 2 * clamp(Math.round(lerp(1, 3, k + this.rand() * 0.25)), 1, 3)
+    const rowLength = lerp(0.5, 0.3, k) * this.speed
+    const gap = lerp(0.45, 0.22, k) * this.speed
+    let x = t0 + lerp(0.4, 0.24, k) * this.speed
+    for (let row = 0; row < rows; row += 1) {
+      // Rangées paires : sur la voie (le ninja doit être au plafond du tunnel) ; impaires : au plafond.
+      const onLane = row % 2 === 0
+      const floorSide = onLane ? g === 1 : g === -1
+      this.elements.push({ type: 'spikes', x: round(x), y: round(onLane ? lane.y : roof), w: round(rowLength), dir: floorSide ? 'up' : 'down' })
+      x += rowLength + gap
+    }
+    const t1 = x - gap + this.speed * 0.2
+    const thickness = 1
+    this.elements.push({ type: 'block', x: round(t0), y: round(g === 1 ? roof - thickness : roof), w: round(t1 - t0), h: thickness })
+    this.elements.push(gate(t1 + 0.6, false))
+    this.cursor = t1 + 1.4 + PLAYER_W * MINI_SCALE + this.speed * 0.25
   }
 
   /** Une section, à l'intensité donnée. */
@@ -260,7 +299,7 @@ class Builder {
     const { window, react, k } = tuning(intensity, this.speed)
     switch (kind) {
       case 'runway':
-        this.cursor += this.speed * this.between(0.8, 1.8)
+        this.cursor += this.speed * this.between(0.35, 0.75)
         break
       case 'switch':
         this.switchTo(this.pickTarget(false), { window, react })
@@ -324,6 +363,18 @@ class Builder {
         this.elements.push({ type: 'shuriken', x: round(end - wide / 2 + flight / 2 + PLAYER_W / 2), y: round(middle), r: 0.75, dx: 0, dy: round(lerp(0, 2.2, k) * (this.chance(0.5) ? 1 : -1)), period: round(lerp(2.6, 1.6, k)), phase: round(this.rand()) })
         break
       }
+      case 'mini':
+        if (this.lane.kind === 'block') this.miniTunnel(intensity)
+        else this.switchTo(this.pickTarget(false), { window, react })
+        break
+      case 'kawarimi': {
+        // Une bûche de substitution, puis un passage plus rude : elle y pardonne une erreur.
+        const lane = this.lane
+        this.elements.push({ type: 'log', x: round(this.cursor + 0.5), y: round(lane.g === 1 ? lane.y - PLAYER_H / 2 : lane.y + PLAYER_H / 2) })
+        this.cursor += this.speed * 0.3
+        this.section(this.chance(0.5) ? 'zigzag' : 'spikes', Math.min(10, intensity + 2))
+        break
+      }
       case 'moon': {
         // La lune, puis un vide trop long pour un vol normal : maintenir pour planer jusqu'en face.
         const from = this.lane
@@ -332,7 +383,7 @@ class Builder {
         const lunar = this.flight(from.y, from.g, target, true)
         const lunarWindow = clamp(lunar - normal - 1.2, 0.8, window * 1.4)
         this.elements.push({ type: 'moon', x: round(this.cursor + 0.5), y: round(from.g === 1 ? from.y - PLAYER_H / 2 : from.y + PLAYER_H / 2) })
-        this.cursor += this.speed * 0.9
+        this.cursor += this.speed * 0.6
         this.switchTo(target, { window: lunarWindow, react, lunar: true })
         break
       }
@@ -341,7 +392,7 @@ class Builder {
 
   /** Le niveau : la voie finale se prolonge au-delà de l'arrivée. */
   finish(meta: { id: string; name: string; theme: ThemeId }): GravityLevel {
-    const length = round(this.cursor + this.speed * 1.2)
+    const length = round(this.cursor + this.speed * 0.8)
     this.closeLane(length + 40)
     return {
       format: LEVEL_FORMAT,
@@ -360,7 +411,7 @@ class Builder {
 /** Vérifie la dernière section posée, depuis l'entrée de la section jusqu'à sa sortie. */
 function sectionHolds(builder: Builder, entry: { x: number; y: number; g: Gravity }, meta: { theme: ThemeId }): boolean {
   const from = entry.x - 30
-  const elements = builder.elements.filter((element) => element.type === 'checkpoint' || element.type === 'scroll' || ('w' in element ? element.x + element.w > from : element.x > from))
+  const elements = builder.elements.filter((element) => element.type === 'scroll' || ('w' in element ? element.x + element.w > from : element.x > from))
   const probe: GravityLevel = {
     format: LEVEL_FORMAT,
     id: 'probe',
@@ -372,7 +423,7 @@ function sectionHolds(builder: Builder, entry: { x: number; y: number; g: Gravit
     start: { y: entry.y, g: entry.g },
     // La voie courante, encore ouverte, est posée jusqu'au bout de la section (une mobile l'est déjà).
     elements: [
-      ...elements.filter((element) => element.type !== 'checkpoint'),
+      ...elements,
       ...(builder.lane.kind === 'mover' ? [] : [builder.laneBlock(builder.lane, builder.lane.start, builder.cursor + 8)]),
     ],
   }
@@ -398,7 +449,7 @@ function placeSection(builder: Builder, kind: SectionKind, intensity: number, me
     builder.section(tryKind, clamp(tryIntensity, 1, 10))
     if (sectionHolds(builder, entry, meta)) {
       if (index >= 2) builder.softened += 1
-      builder.maybeCheckpoint()
+      builder.maybeBreather()
       return
     }
     builder.restore(before)
@@ -422,6 +473,8 @@ function weightsFor(difficulty: number): [SectionKind, number][] {
     ['crumble', k > 0.3 ? 4 + 10 * k : 0],
     ['shuriken', k > 0.3 ? 4 + 10 * k : 0],
     ['mover', k > 0.4 ? 3 + 8 * k : 0],
+    ['mini', k > 0.1 ? 3 + 7 * k : 0],
+    ['kawarimi', 3 + 3 * k],
   ]
 }
 
@@ -437,7 +490,7 @@ function pickKind(weights: [SectionKind, number][], rand: () => number): Section
 
 /** Les rouleaux, sur le chemin du solveur (de préférence en plein vol), vers 25, 55 et 85 % du niveau. */
 function placeScrolls(level: GravityLevel, report: SolveReport): void {
-  const path = report.segments.flatMap((segment) => segment.path)
+  const { path } = report
   if (path.length === 0) return
   const marks = [0.25, 0.55, 0.85].slice(0, SCROLLS_PER_LEVEL)
   for (const mark of marks) {

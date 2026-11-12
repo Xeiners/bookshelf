@@ -54,6 +54,13 @@
   100% { opacity: 0; transform: translateY(-8px) scale(1); }
 }
 
+@keyframes gravity-banner {
+  0% { opacity: 0; transform: translateY(8px) scale(0.94); }
+  15% { opacity: 1; transform: translateY(0) scale(1); }
+  70% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-6px) scale(1); }
+}
+
 @keyframes news-float {
   0%,
   100% {
@@ -335,10 +342,42 @@
 }
 
 /* ==========================================================================
+   SURFACES DES BOOSTERS — l'autel « Ouvrir », sa jauge, la boutique, le cadeau de l'équipe.
+   Comme le bouton : leurs couleurs ne viennent que de ces variables, qu'un thème redéfinit.
+   ========================================================================== */
+:root {
+  --altar-edge: rgba(255, 196, 107, 0.22);
+  --altar-edge-lit: rgba(255, 214, 130, 0.6);
+  --altar-bg: radial-gradient(120% 90% at 20% 20%, rgba(124, 92, 255, 0.09), transparent 60%), #0e0e14;
+  --altar-bg-lit: radial-gradient(120% 90% at 20% 20%, rgba(255, 196, 107, 0.12), transparent 60%), radial-gradient(90% 80% at 90% 100%, rgba(255, 94, 196, 0.07), transparent 60%), #0e0e14;
+  --altar-eyebrow: rgba(255, 244, 200, 0.6);
+  --altar-title: color-mix(in oklab, #ffc46b 85%, white);
+  --altar-text: rgba(255, 196, 107, 0.85);
+  /* La jauge : l'arc (trois teintes), les graduations allumées (deux teintes qui alternent), la lueur, les chiffres. */
+  --ring-from: #4cc9f0;
+  --ring-mid: #b46cff;
+  --ring-to: #ffc46b;
+  --ring-tick: #fff4c8;
+  --ring-tick-alt: #fff4c8;
+  --ring-glow: rgba(255, 196, 107, 0.35);
+  --ring-ink: #ffc46b;
+  /* Le cadeau de l'équipe (packs Légendaires offerts). */
+  --gift-edge: rgba(255, 210, 122, 0.6);
+  --gift-glow: #ffc46b;
+  --gift-bg: radial-gradient(120% 120% at 0% 0%, rgba(255, 214, 130, 0.35), transparent 55%), linear-gradient(110deg, #3a2408, #24120a 55%, #2a0f22);
+  --gift-eyebrow: #ffd27a;
+  /* La boutique : l'article de prestige, la lueur de la boîte mystère prête, le solde. */
+  --shop-prestige: #ffc46b;
+  --shop-glow: #ffd35c;
+  --shop-chip-edge: rgba(255, 227, 154, 0.25);
+  --shop-chip-ink: #fff4c8;
+}
+
+/* ==========================================================================
    THÈMES SAISONNIERS — choisis par l'administration (`<html data-theme>`)
    Pour un nouveau thème : l'ajouter côté serveur (`SITE_THEMES`) et côté app (`themeApi`), lui
-   donner ici son bloc `[data-theme='…']` (accent `--color-glow`, bouton `--cta-*`), et son décor
-   dans `SeasonalDecor.tsx`.
+   donner ici son bloc `[data-theme='…']` (accent `--color-glow`, bouton `--cta-*`), son décor
+   dans `SeasonalDecor.tsx`, et son habillage de Page Jump (`lib/jump/worlds.ts`).
    Le décor vit dans `components/layout/SeasonalDecor.tsx`. Ici : les couleurs, et les
    quelques mouvements du décor (transform seulement, coupés si l'appareil le demande).
    ========================================================================== */
@@ -376,6 +415,155 @@
 [data-theme='halloween'] [data-indicator],
 [data-theme='halloween'] [data-sidebar-indicator] {
   background-color: #ff8a2a;
+}
+
+[data-theme='christmas'] {
+  /* L'accent de l'app passe au rouge de Noël. */
+  --color-glow: #ff4d5e;
+
+  /* Bouton « Ouvrir » : un papier cadeau rouge à fines rayures de sucre d'orge, la neige qui coule
+     du bord du haut, et un brin de houx posé dedans. SVG dans le CSS : aucun composant à toucher. */
+  --cta-bg: linear-gradient(180deg, #ff5a63 0%, #e3263a 55%, #a5102a 100%);
+  --cta-ink: #fffaf0;
+  --cta-shadow: inset 0 -2px 0 rgba(80, 0, 12, 0.4), 0 0 0 1.5px #0e3a26, 0 10px 26px -10px rgba(227, 38, 58, 0.9);
+  --cta-decor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 22'%3E%3Cg fill='%232f9a5f' stroke='%230e3a26' stroke-width='0.7' stroke-linejoin='round'%3E%3Cpath transform='translate(17 7) rotate(150)' d='M0 0Q3-4 6-3L7-6Q9-4 11-4L12-6Q14-3 16 0Q14 3 12 6L11 4Q9 4 7 6L6 3Q3 4 0 0Z'/%3E%3Cpath transform='translate(19 7) rotate(30)' d='M0 0Q3-4 6-3L7-6Q9-4 11-4L12-6Q14-3 16 0Q14 3 12 6L11 4Q9 4 7 6L6 3Q3 4 0 0Z'/%3E%3C/g%3E%3Cg fill='%23ff3347' stroke='%237a0c1a' stroke-width='0.6'%3E%3Ccircle cx='15.6' cy='7.5' r='2.5'/%3E%3Ccircle cx='20.4' cy='7.5' r='2.5'/%3E%3Ccircle cx='18' cy='4.2' r='2.5'/%3E%3C/g%3E%3Cg fill='%23fff' fill-opacity='0.8'%3E%3Ccircle cx='14.9' cy='6.8' r='0.7'/%3E%3Ccircle cx='19.7' cy='6.8' r='0.7'/%3E%3Ccircle cx='17.3' cy='3.5' r='0.7'/%3E%3C/g%3E%3C/svg%3E") no-repeat 84% 0 / auto 46%,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 14' preserveAspectRatio='none'%3E%3Cpath d='M0 0H120V5Q116 9 112 6Q108 12 103 7Q97 10 92 6Q88 8 84 6Q80 13 75 7Q69 10 63 6Q58 9 53 6Q49 12 44 7Q38 10 32 6Q27 9 22 6Q18 11 13 6Q8 9 4 6Q2 7 0 5Z' fill='%23f4f7ff'/%3E%3Cpath d='M0 5Q2 7 4 6Q8 9 13 6Q18 11 22 6Q27 9 32 6Q38 10 44 7Q49 12 53 6Q58 9 63 6Q69 10 75 7Q80 13 84 6Q88 8 92 6Q97 10 103 7Q108 12 112 6Q116 9 120 5' fill='none' stroke='%23c9d6ee' stroke-width='0.8'/%3E%3C/svg%3E") no-repeat 0 0 / 100% 34%,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 52%),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.09) 0 7px, transparent 7px 16px);
+  /* La boutique suit le même papier cadeau. */
+  --cta-shop-bg: var(--cta-bg);
+  --cta-shop-ink: var(--cta-ink);
+  --cta-shop-shadow: var(--cta-shadow);
+}
+
+/* Partout : les surfaces sombres prennent un liseré doré. */
+[data-theme='christmas'] .glass,
+[data-theme='christmas'] .glass-strong,
+[data-theme='christmas'] .glass-flat {
+  border-color: rgb(255 211 92 / 0.2);
+}
+
+/* Navigation : la capsule active devient rouge Noël. */
+[data-theme='christmas'] [data-pill],
+[data-theme='christmas'] [data-indicator],
+[data-theme='christmas'] [data-sidebar-indicator] {
+  background-color: #e3263a;
+}
+
+/* Les surfaces des boosters : sapin et rouge Noël au lieu de l'or, la jauge en sucre d'orge
+   (graduations rouges et blanches), le cadeau de l'équipe en papier cadeau rouge, rayé, avec son
+   ruban de satin blanc. */
+[data-theme='christmas'] {
+  --altar-edge: rgba(95, 224, 138, 0.24);
+  --altar-edge-lit: rgba(255, 110, 122, 0.6);
+  --altar-bg: radial-gradient(120% 90% at 20% 20%, rgba(47, 154, 95, 0.12), transparent 60%), #0b100e;
+  --altar-bg-lit: radial-gradient(120% 90% at 20% 20%, rgba(227, 38, 58, 0.17), transparent 60%), radial-gradient(90% 80% at 90% 100%, rgba(47, 154, 95, 0.16), transparent 60%), #0d0f10;
+  --altar-eyebrow: rgba(244, 247, 255, 0.62);
+  --altar-title: #ffd6da;
+  --altar-text: rgba(196, 240, 210, 0.85);
+  --ring-from: #5fe08a;
+  --ring-mid: #2f9a5f;
+  --ring-to: #ff4d5e;
+  --ring-tick: #ff4d5e;
+  --ring-tick-alt: #f4f7ff;
+  --ring-glow: rgba(255, 77, 94, 0.35);
+  --ring-ink: #ff8a95;
+  --gift-edge: rgba(255, 120, 132, 0.55);
+  --gift-glow: #ff4d5e;
+  --gift-bg: linear-gradient(90deg, transparent 30px, rgba(244, 247, 255, 0.16) 30px 41px, transparent 41px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 22px),
+    radial-gradient(120% 120% at 0% 0%, rgba(255, 77, 94, 0.32), transparent 55%), linear-gradient(110deg, #3a0a14, #1c0a10 55%, #0c2a1d);
+  --gift-eyebrow: #ffb3ba;
+  --shop-prestige: #ff6b78;
+  --shop-glow: #ff4d5e;
+  --shop-chip-edge: rgba(255, 120, 132, 0.35);
+  --shop-chip-ink: #ffe9ec;
+}
+
+/* Il neige doucement sur le fond de l'app : chaque flocon tombe du haut au bas de l'écran
+   (`snow-fall`) en se balançant (`snow-sway-*`, trois amplitudes). Transform seulement. */
+@keyframes snow-fall {
+  from {
+    transform: translateY(-3vh);
+  }
+  to {
+    transform: translateY(103vh);
+  }
+}
+
+@keyframes snow-sway-s {
+  from {
+    transform: translateX(-7px);
+  }
+  to {
+    transform: translateX(7px);
+  }
+}
+
+@keyframes snow-sway-m {
+  from {
+    transform: translateX(-13px);
+  }
+  to {
+    transform: translateX(13px);
+  }
+}
+
+@keyframes snow-sway-l {
+  from {
+    transform: translateX(-20px);
+  }
+  to {
+    transform: translateX(20px);
+  }
+}
+
+/* Les ampoules : allumées, puis en veille (par paliers, deux groupes qui alternent). */
+@keyframes xmas-twinkle {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Le traîneau traverse le ciel en montant, puis laisse le ciel libre un moment. */
+@keyframes sleigh-cross {
+  0% {
+    transform: translate(-110%, 34px);
+  }
+  62% {
+    transform: translate(110vw, -26px);
+  }
+  100% {
+    transform: translate(110vw, -26px);
+  }
+}
+
+@keyframes sleigh-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+}
+
+/* Le Père Noël fait coucou. */
+@keyframes santa-wave {
+  0%,
+  100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(16deg);
+  }
 }
 
 @keyframes bat-cross {

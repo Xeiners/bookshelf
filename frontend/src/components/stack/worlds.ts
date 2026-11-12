@@ -5,6 +5,7 @@
  * dessiné en vectoriel (Canvas 2D), sans image, et sans état : chaque élément animé est une
  * fonction du temps, ce qui permet de fondre deux mondes l'un dans l'autre à la transition.
  * Les nuages sont des sprites de bouffées à dégradé radial (pas de blocs), préparés une fois.
+ * À Noël (thème saisonnier de l'app), six mondes de Noël prennent leur place (`setStackSeason`).
  */
 
 type Rgb = [number, number, number]
@@ -573,8 +574,345 @@ const SKIES: Sky[] = [
   { stops: [[0, hex('#07021a')], [0.5, hex('#1a0c40')], [1, hex('#40206b')]] },
 ]
 
+/* ---- Noël ------------------------------------------------------------------------------- */
+
+/** L'habillage des mondes : celui de toujours, ou Noël (thème saisonnier de l'app, figé pour une partie). */
+export type StackSeason = 'default' | 'christmas'
+let season: StackSeason = 'default'
+export function setStackSeason(next: StackSeason): void {
+  season = next
+}
+
+const BULB_COLORS = ['#ff4d5e', '#ffd35c', '#5fe08a', '#6cc8ff']
+
+/** Une étoile à cinq branches, sur son halo. */
+function star5(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: Rgb, glow = 2.6): void {
+  const halo = ctx.createRadialGradient(x, y, 0, x, y, radius * glow)
+  halo.addColorStop(0, rgba(color, 0.45))
+  halo.addColorStop(1, rgba(color, 0))
+  ctx.fillStyle = halo
+  ctx.fillRect(x - radius * glow, y - radius * glow, radius * glow * 2, radius * glow * 2)
+  ctx.fillStyle = rgba(color)
+  ctx.beginPath()
+  for (let point = 0; point < 10; point += 1) {
+    const angle = -Math.PI / 2 + (point * Math.PI) / 5
+    const r = point % 2 ? radius * 0.45 : radius
+    ctx.lineTo(x + Math.cos(angle) * r, y + Math.sin(angle) * r)
+  }
+  ctx.closePath()
+  ctx.fill()
+}
+
+/** Un sapin : quatre étages au bord enneigé, et s'il est décoré, des ampoules qui clignent et l'étoile. */
+function fir(ctx: CanvasRenderingContext2D, x: number, base: number, size: number, color: Rgb, time: number, decorated: boolean): void {
+  ctx.fillStyle = 'rgba(70,40,24,1)'
+  ctx.fillRect(x - size * 0.04, base - size * 0.13, size * 0.08, size * 0.13)
+  for (let tier = 0; tier < 4; tier += 1) {
+    const ty = base - size * 0.12 - tier * size * 0.2
+    const tw = size * (0.62 - tier * 0.12)
+    ctx.fillStyle = rgba(mix(color, [255, 255, 255], tier * 0.04))
+    ctx.beginPath()
+    ctx.moveTo(x - tw / 2, ty)
+    ctx.lineTo(x, ty - size * 0.34)
+    ctx.lineTo(x + tw / 2, ty)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(244,247,255,0.85)'
+    ctx.lineWidth = Math.max(1, size * 0.02)
+    ctx.beginPath()
+    ctx.moveTo(x - tw / 2, ty)
+    ctx.quadraticCurveTo(x, ty - size * 0.05, x + tw / 2, ty)
+    ctx.stroke()
+  }
+  if (!decorated) return
+  const alpha = ctx.globalAlpha
+  for (let index = 0; index < 20; index += 1) {
+    const level = ((index * 7) % 20) / 20
+    const y = base - size * (0.16 + level * 0.66)
+    const half = size * 0.28 * (1 - level)
+    const on = Math.sin(time * 2.4 + index * 1.3) > -0.25
+    ctx.globalAlpha = alpha * (on ? 1 : 0.3)
+    ctx.fillStyle = BULB_COLORS[index % BULB_COLORS.length]!
+    ctx.beginPath()
+    ctx.arc(x + Math.sin(index * 2.1) * half * 0.85, y, Math.max(1.2, size * 0.016), 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.globalAlpha = alpha
+  star5(ctx, x, base - size * 1.06, size * 0.065, hex('#ffd35c'))
+}
+
+/** Un chalet sous la neige : toit blanc, cheminée, fenêtres chaudes et leur halo. */
+function chalet(ctx: CanvasRenderingContext2D, x: number, base: number, size: number, color: Rgb): void {
+  const w = size
+  const h = size * 0.55
+  const roof = size * 0.45
+  const eave = base - h
+  ctx.fillStyle = rgba(color)
+  ctx.fillRect(x - w / 2, eave, w, h)
+  ctx.fillRect(x + w * 0.2, eave - roof * 0.85, w * 0.12, roof * 0.6)
+  ctx.beginPath()
+  ctx.moveTo(x - w * 0.62, eave + 1)
+  ctx.lineTo(x, eave - roof)
+  ctx.lineTo(x + w * 0.62, eave + 1)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = 'rgba(244,247,255,0.96)'
+  ctx.beginPath()
+  ctx.moveTo(x - w * 0.67, eave + 3)
+  ctx.lineTo(x, eave - roof - size * 0.035)
+  ctx.lineTo(x + w * 0.67, eave + 3)
+  ctx.quadraticCurveTo(x + w * 0.38, eave - roof * 0.2, x, eave - roof * 0.68)
+  ctx.quadraticCurveTo(x - w * 0.38, eave - roof * 0.2, x - w * 0.67, eave + 3)
+  ctx.fill()
+  ctx.fillRect(x + w * 0.18, eave - roof * 0.88, w * 0.16, size * 0.035)
+  for (const dx of [-0.25, 0.25]) {
+    const wx = x + dx * w
+    const glow = ctx.createRadialGradient(wx, base - h * 0.5, 0, wx, base - h * 0.5, w * 0.3)
+    glow.addColorStop(0, 'rgba(255,190,100,0.45)')
+    glow.addColorStop(1, 'rgba(255,190,100,0)')
+    ctx.fillStyle = glow
+    ctx.fillRect(wx - w * 0.3, base - h * 0.8, w * 0.6, h * 0.6)
+    ctx.fillStyle = 'rgba(255,214,140,0.95)'
+    ctx.fillRect(wx - w * 0.08, base - h * 0.66, w * 0.16, h * 0.3)
+    ctx.fillStyle = rgba(color)
+    ctx.fillRect(wx - w * 0.006, base - h * 0.66, w * 0.012, h * 0.3)
+    ctx.fillRect(wx - w * 0.08, base - h * 0.52, w * 0.16, h * 0.025)
+  }
+  ctx.fillStyle = rgba(mix(color, [0, 0, 0], 0.35))
+  ctx.fillRect(x - w * 0.07, base - h * 0.42, w * 0.14, h * 0.42)
+}
+
+/** Une pile de cadeaux enrubannés. */
+function gifts(ctx: CanvasRenderingContext2D, x: number, base: number, size: number): void {
+  const boxes: [number, number, number, string, string][] = [
+    [-0.32, 0.36, 0.3, '#e3263a', '#ffd35c'],
+    [0.06, 0.3, 0.24, '#2f9a5f', '#f4f7ff'],
+    [0.34, 0.26, 0.2, '#3a7bd5', '#ffd35c'],
+  ]
+  for (const [dx, w, h, paper, ribbon] of boxes) {
+    const bx = x + dx * size
+    ctx.fillStyle = paper
+    ctx.fillRect(bx - (w * size) / 2, base - h * size, w * size, h * size)
+    ctx.fillStyle = ribbon
+    ctx.fillRect(bx - size * 0.02, base - h * size, size * 0.04, h * size)
+    ctx.fillRect(bx - (w * size) / 2, base - h * size * 0.6, w * size, size * 0.035)
+    ctx.beginPath()
+    ctx.ellipse(bx - size * 0.04, base - h * size - size * 0.025, size * 0.045, size * 0.025, -0.4, 0, Math.PI * 2)
+    ctx.ellipse(bx + size * 0.04, base - h * size - size * 0.025, size * 0.045, size * 0.025, 0.4, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+/** Une guirlande d'ampoules tendue en travers du ciel ; elles clignent l'une après l'autre. */
+function bulbGarland(ctx: CanvasRenderingContext2D, view: WorldView, y: number, sag: number, time: number): void {
+  ctx.strokeStyle = 'rgba(20,40,30,0.85)'
+  ctx.lineWidth = 1.4
+  ctx.beginPath()
+  ctx.moveTo(-10, y)
+  ctx.quadraticCurveTo(view.width / 2, y + sag * 2, view.width + 10, y)
+  ctx.stroke()
+  const alpha = ctx.globalAlpha
+  const count = 11
+  for (let index = 0; index < count; index += 1) {
+    const t = (index + 0.5) / count
+    const x = view.width * t
+    const by = (1 - t) * (1 - t) * y + 2 * (1 - t) * t * (y + sag * 2) + t * t * y + view.stage * 0.012
+    const on = Math.floor(time * 2 + index) % 3 !== 0
+    ctx.globalAlpha = alpha * (on ? 1 : 0.35)
+    const color = hex(BULB_COLORS[index % BULB_COLORS.length]!)
+    const halo = ctx.createRadialGradient(x, by, 0, x, by, view.stage * 0.035)
+    halo.addColorStop(0, rgba(color, 0.55))
+    halo.addColorStop(1, rgba(color, 0))
+    ctx.fillStyle = halo
+    ctx.fillRect(x - view.stage * 0.035, by - view.stage * 0.035, view.stage * 0.07, view.stage * 0.07)
+    ctx.fillStyle = rgba(color)
+    ctx.beginPath()
+    ctx.ellipse(x, by, view.stage * 0.009, view.stage * 0.014, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.globalAlpha = alpha
+}
+
+/** La neige qui tombe, en se balançant. */
+function snowfall(ctx: CanvasRenderingContext2D, view: WorldView, time: number, count: number, options: { speed: number; size: number; seed: number }): void {
+  const random = rng(options.seed)
+  ctx.fillStyle = 'rgba(255,255,255,0.88)'
+  for (let index = 0; index < count; index += 1) {
+    const vy = (0.03 + random() * 0.035) * options.speed
+    const x = random() + Math.sin(time * 0.9 + index * 1.7) * 0.015
+    const y = ((((random() + time * vy) % 1.1) + 1.1) % 1.1) - 0.05
+    const radius = options.size * (0.5 + random() * 0.8)
+    ctx.beginPath()
+    ctx.arc(x * view.width, y * view.height, radius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+/** Le traîneau et ses deux rennes, en ombre chinoise, tournés vers la droite. */
+function sleigh(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string): void {
+  ctx.fillStyle = color
+  ctx.strokeStyle = color
+  ctx.lineCap = 'round'
+  ctx.lineWidth = Math.max(1, size * 0.03)
+  ctx.beginPath()
+  ctx.moveTo(x - size * 0.5, y - size * 0.12)
+  ctx.quadraticCurveTo(x - size * 0.53, y + size * 0.12, x - size * 0.3, y + size * 0.12)
+  ctx.lineTo(x - size * 0.05, y + size * 0.12)
+  ctx.quadraticCurveTo(x + size * 0.03, y + size * 0.12, x + size * 0.03, y)
+  ctx.lineTo(x - size * 0.42, y)
+  ctx.closePath()
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(x - size * 0.56, y + size * 0.19)
+  ctx.lineTo(x - size * 0.02, y + size * 0.19)
+  ctx.quadraticCurveTo(x + size * 0.07, y + size * 0.19, x + size * 0.07, y + size * 0.1)
+  ctx.moveTo(x - size * 0.4, y + size * 0.12)
+  ctx.lineTo(x - size * 0.42, y + size * 0.19)
+  ctx.moveTo(x - size * 0.12, y + size * 0.12)
+  ctx.lineTo(x - size * 0.12, y + size * 0.19)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.ellipse(x - size * 0.42, y - size * 0.1, size * 0.08, size * 0.11, 0, 0, Math.PI * 2)
+  ctx.arc(x - size * 0.2, y - size * 0.06, size * 0.075, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(x - size * 0.19, y - size * 0.18, size * 0.045, 0, Math.PI * 2)
+  ctx.moveTo(x - size * 0.23, y - size * 0.2)
+  ctx.lineTo(x - size * 0.17, y - size * 0.3)
+  ctx.lineTo(x - size * 0.13, y - size * 0.2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(x - size * 0.12, y - size * 0.06)
+  ctx.lineTo(x + size * 0.62, y - size * 0.1)
+  ctx.stroke()
+  for (const dx of [0.3, 0.62]) {
+    const rx = x + dx * size
+    ctx.beginPath()
+    ctx.ellipse(rx, y - size * 0.05, size * 0.1, size * 0.04, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(rx + size * 0.06, y - size * 0.07)
+    ctx.lineTo(rx + size * 0.11, y - size * 0.16)
+    ctx.moveTo(rx + size * 0.07, y - size * 0.02)
+    ctx.lineTo(rx + size * 0.13, y + size * 0.05)
+    ctx.moveTo(rx + size * 0.05, y - size * 0.02)
+    ctx.lineTo(rx + size * 0.08, y + size * 0.06)
+    ctx.moveTo(rx - size * 0.07, y - size * 0.02)
+    ctx.lineTo(rx - size * 0.12, y + size * 0.05)
+    ctx.moveTo(rx - size * 0.05, y - size * 0.02)
+    ctx.lineTo(rx - size * 0.07, y + size * 0.06)
+    ctx.moveTo(rx + size * 0.11, y - size * 0.18)
+    ctx.lineTo(rx + size * 0.09, y - size * 0.25)
+    ctx.moveTo(rx + size * 0.12, y - size * 0.19)
+    ctx.lineTo(rx + size * 0.15, y - size * 0.25)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.ellipse(rx + size * 0.13, y - size * 0.165, size * 0.035, size * 0.022, 0.2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+const CHRISTMAS_SKIES: Sky[] = [
+  { stops: [[0, hex('#1d1b4a')], [0.5, hex('#6a3f8f')], [0.8, hex('#e0708a')], [1, hex('#ffc39a')]] },
+  { stops: [[0, hex('#5f9be8')], [0.6, hex('#cfe6ff')], [1, hex('#fff0e0')]] },
+  { stops: [[0, hex('#14061a')], [0.55, hex('#3a0f22')], [1, hex('#7a2a2a')]] },
+  { stops: [[0, hex('#020814')], [0.55, hex('#06243a')], [1, hex('#0f4a5a')]] },
+  { stops: [[0, hex('#060418')], [0.5, hex('#151040')], [1, hex('#2e2a6e')]] },
+  { stops: [[0, hex('#0a0420')], [0.55, hex('#2a0f3e')], [1, hex('#5a1a3a')]] },
+]
+
+/** Les six mondes de Noël, mêmes règles que les autres (plans qui glissent avec `local`, tout fonction du temps). */
+function drawChristmasWorld(ctx: CanvasRenderingContext2D, view: WorldView, index: number, local: number, time: number): void {
+  const { width, height, stage } = view
+  const progress = local / PAGES_PER_WORLD
+  const farShift = progress * height * 0.22
+  const midShift = progress * height * 0.45
+  const nearShift = progress * height * 0.85
+  const gradient = ctx.createLinearGradient(0, 0, 0, height)
+  for (const [stop, color] of CHRISTMAS_SKIES[index]!.stops) gradient.addColorStop(stop, rgba(color))
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, width, height)
+
+  if (index === 0) {
+    // Village sous la neige, au crépuscule : soleil rose, collines blanches, chalets éclairés, le sapin de la place.
+    body(ctx, width * 0.72, height * 0.6 + farShift * 0.5, stage * 0.16, hex('#ffd9b0'), 3)
+    clouds(ctx, view, hex('#ffc0c8'), { count: 4, y: height * 0.3, size: 0.9, speed: 0.01, alpha: 0.7, time, seed: 103 })
+    ridge(ctx, view, 112, hex('#c9c3e8'), height * 0.8 + farShift, stage * 0.16)
+    ridge(ctx, view, 113, hex('#9d93cc'), height * 0.86 + midShift * 0.7, stage * 0.1)
+    for (const [x, size] of [[0.16, 0.34], [0.38, 0.28], [0.84, 0.36]] as const) chalet(ctx, x * width, height * 0.92 + midShift, stage * size, hex('#2a1f45'))
+    fir(ctx, width * 0.6, height * 0.93 + midShift, stage * 0.62, hex('#1d4a3a'), time, true)
+    ridge(ctx, view, 114, hex('#eef0ff'), height * 0.98 + nearShift, stage * 0.06)
+    bulbGarland(ctx, view, height * 0.06 + nearShift * 0.3, stage * 0.07, time)
+    snowfall(ctx, view, time, 40, { speed: 1, size: 2.2, seed: 7 })
+  } else if (index === 1) {
+    // Forêt de sapins à l'aube : montagnes enneigées, brume, rangées de sapins.
+    body(ctx, width * 0.4, height * 0.32 + farShift * 0.4, stage * 0.12, hex('#fff2c4'), 3)
+    fuji(ctx, width * 0.62, height * 0.76 + farShift, stage * 1.5, stage * 0.8, hex('#6f8cc4'), hex('#ffffff'))
+    mist(ctx, view, height * 0.74 + farShift, stage * 0.16, hex('#ffffff'), 0.55)
+    for (let slot = 0; slot < 6; slot += 1) fir(ctx, width * (0.04 + slot * 0.19), height * 0.86 + midShift, stage * (0.36 + (slot % 3) * 0.06), hex('#3d6a82'), time, false)
+    ridge(ctx, view, 121, hex('#e8f0ff'), height * 0.9 + midShift, stage * 0.08)
+    for (const [x, size] of [[0.08, 0.7], [0.92, 0.82]] as const) fir(ctx, x * width, height * 1.02 + nearShift, stage * size, hex('#1c3a48'), time, false)
+    snowfall(ctx, view, time, 30, { speed: 0.7, size: 2, seed: 11 })
+  } else if (index === 2) {
+    // L'atelier des lutins, la nuit : grand chalet éclairé, fumée de cheminée, cadeaux empilés.
+    stars(ctx, view, time, 0.6, farShift * 0.2)
+    body(ctx, width * 0.22, height * 0.2 + farShift * 0.3, stage * 0.1, hex('#fff1d0'), 3, true)
+    ridge(ctx, view, 131, hex('#3a1a2a'), height * 0.82 + farShift, stage * 0.16)
+    clouds(ctx, view, hex('#d8c8d8'), { count: 3, y: height * 0.5 + midShift * 0.5, size: 0.7, speed: 0.02, alpha: 0.35, time, seed: 133 })
+    chalet(ctx, width * 0.58, height * 0.9 + midShift, stage * 0.72, hex('#2a0f18'))
+    chalet(ctx, width * 0.16, height * 0.93 + midShift, stage * 0.3, hex('#24101a'))
+    gifts(ctx, width * 0.86, height * 0.93 + midShift, stage * 0.3)
+    ridge(ctx, view, 134, hex('#f2f0ff'), height * 0.98 + nearShift, stage * 0.06)
+    bulbGarland(ctx, view, height * 0.07 + nearShift * 0.3, stage * 0.08, time)
+    snowfall(ctx, view, time, 36, { speed: 0.9, size: 2.1, seed: 13 })
+  } else if (index === 3) {
+    // Aurore boréale : voiles verts, lac gelé, sapins en contre-jour.
+    stars(ctx, view, time, 1, farShift * 0.25)
+    aurora(ctx, view, time, 1)
+    ridge(ctx, view, 141, hex('#cfe2f0'), height * 0.82 + farShift, stage * 0.18)
+    const lake = ctx.createLinearGradient(0, height * 0.86 + midShift, 0, height * 1.02 + midShift)
+    lake.addColorStop(0, 'rgba(160,220,230,0.85)')
+    lake.addColorStop(1, 'rgba(60,120,150,0.9)')
+    ctx.fillStyle = lake
+    ctx.fillRect(0, height * 0.86 + midShift, width, height)
+    for (let slot = 0; slot < 5; slot += 1) fir(ctx, width * (0.06 + slot * 0.22), height * 0.87 + midShift, stage * (0.3 + (slot % 2) * 0.08), hex('#0a2230'), time, false)
+    for (const [x, size] of [[0.1, 0.75], [0.9, 0.62]] as const) fir(ctx, x * width, height * 1.02 + nearShift, stage * size, hex('#04121a'), time, false)
+    snowfall(ctx, view, time, 18, { speed: 0.5, size: 1.8, seed: 17 })
+  } else if (index === 4) {
+    // Nuit du traîneau : la grande lune, le traîneau qui passe devant, étoiles filantes, hameau au loin.
+    stars(ctx, view, time, 1, farShift * 0.3)
+    const moonX = width * 0.62
+    const moonY = height * 0.3 + farShift * 0.4
+    body(ctx, moonX, moonY, stage * 0.3, hex('#f6f3ff'), 2.4, true)
+    const crossing = ((time * 0.045) % 1.5) - 0.25
+    sleigh(ctx, crossing * width, moonY + stage * 0.08 - Math.sin(crossing * Math.PI) * stage * 0.12, stage * 0.42, 'rgba(14,10,40,0.92)')
+    for (let slot = 0; slot < 2; slot += 1) shootingStar(ctx, view, time, slot + 5)
+    ridge(ctx, view, 151, hex('#2a2a5a'), height * 0.84 + farShift, stage * 0.14)
+    for (const [x, size] of [[0.22, 0.2], [0.34, 0.16], [0.74, 0.22]] as const) chalet(ctx, x * width, height * 0.9 + midShift, stage * size, hex('#15123a'))
+    ridge(ctx, view, 152, hex('#dfe4ff'), height * 0.94 + midShift, stage * 0.08)
+    fir(ctx, width * 0.9, height * 1.02 + nearShift, stage * 0.7, hex('#0b1530'), time, false)
+    snowfall(ctx, view, time, 30, { speed: 0.8, size: 2, seed: 19 })
+  } else {
+    // Le Grand Sapin : la place en fête, feux d'artifice, le sapin géant et ses cadeaux.
+    stars(ctx, view, time, 0.7, farShift * 0.2)
+    for (let slot = 0; slot < 3; slot += 1) firework(ctx, view, time, slot + 4, 3.6 + slot * 0.8)
+    ridge(ctx, view, 161, hex('#3a1440'), height * 0.84 + farShift, stage * 0.16)
+    for (const [x, size] of [[0.12, 0.3], [0.88, 0.32]] as const) chalet(ctx, x * width, height * 0.92 + midShift, stage * size, hex('#200a26'))
+    fir(ctx, width * 0.5, height * 0.95 + midShift, stage * 1.05, hex('#1e5a40'), time, true)
+    gifts(ctx, width * 0.5, height * 0.95 + midShift, stage * 0.36)
+    ridge(ctx, view, 162, hex('#f4f2ff'), height * 0.99 + nearShift, stage * 0.05)
+    bulbGarland(ctx, view, height * 0.05 + nearShift * 0.3, stage * 0.06, time)
+    risers(ctx, view, time, 12, hex('#ffe58a'), { speed: 0.6, size: 1.8 })
+    snowfall(ctx, view, time, 34, { speed: 0.9, size: 2.1, seed: 23 })
+  }
+}
+
 /** Un monde, dessiné avec l'opacité courante du contexte. `local` : tomes posés dans ce monde, qui fait glisser les plans. */
 function drawWorld(ctx: CanvasRenderingContext2D, view: WorldView, index: number, local: number, time: number): void {
+  if (season === 'christmas') {
+    drawChristmasWorld(ctx, view, index, local, time)
+    return
+  }
   const { width, height, stage } = view
   const progress = local / PAGES_PER_WORLD
   const farShift = progress * height * 0.22

@@ -610,7 +610,7 @@ export class JumpBoard {
     const viewHeight = height / scale
     const drift = reduced ? 0 : time
     for (const decor of DECOR) {
-      const fallBy = kind === 'petals' ? drift * 22 : 0
+      const fallBy = kind === 'petals' ? drift * 22 : kind === 'snow' ? drift * 16 : 0
       const y = (((decor.y - camera * 0.3 - fallBy) % DECOR_LOOP) + DECOR_LOOP) % DECOR_LOOP
       if (y > viewHeight + 40) continue
       const sx = ((decor.x + (kind === 'clouds' ? drift * 6 : kind === 'bats' ? drift * 30 : 0)) % WORLD_WIDTH) * scale
@@ -650,6 +650,13 @@ export class JumpBoard {
           ctx.fill()
           ctx.fillStyle = INK
           ctx.fillRect(sx - 3 * size, sy - 7.5 * size, 6 * size, 2 * size)
+          break
+        case 'snow':
+          ctx.globalAlpha = alpha * 0.85
+          ctx.fillStyle = '#ffffff'
+          ctx.beginPath()
+          ctx.arc(sx + Math.sin(drift * 1.2 + decor.phase) * 6 * scale, sy, 2.2 * size, 0, Math.PI * 2)
+          ctx.fill()
           break
         case 'bats': {
           const flap = reduced ? 1 : 0.4 + Math.abs(Math.sin(drift * 9 + decor.phase)) * 0.6
@@ -934,6 +941,119 @@ function drawLandmark(ctx: CanvasRenderingContext2D, kind: Landmark, land: strin
       for (const dx of [-0.2, 0, 0.2]) ctx.fillRect(cx + dx * width - 2, baseline - band * 0.6, 4, 7)
       break
     }
+    case 'pines': {
+      // Sapins en contre-jour, trois étages chacun, la neige au bord des branches.
+      const foot = baseline - band * 0.16
+      for (let index = 0; index < 7; index += 1) {
+        const cx = width * (0.05 + index * 0.15)
+        const h = band * (0.45 + ((index * 41) % 5) * 0.08)
+        const w = h * 0.55
+        for (let tier = 0; tier < 3; tier += 1) {
+          const ty = foot - h * tier * 0.28
+          const tw = w * (1 - tier * 0.25)
+          const th = h * 0.45
+          ctx.fillStyle = land
+          ctx.beginPath()
+          ctx.moveTo(cx - tw / 2, ty)
+          ctx.lineTo(cx, ty - th)
+          ctx.lineTo(cx + tw / 2, ty)
+          ctx.closePath()
+          ctx.fill()
+          ctx.strokeStyle = light
+          ctx.globalAlpha = 0.8
+          ctx.lineWidth = 2.2
+          ctx.beginPath()
+          ctx.moveTo(cx - tw / 2, ty)
+          ctx.quadraticCurveTo(cx, ty - th * 0.12, cx + tw / 2, ty)
+          ctx.stroke()
+          ctx.globalAlpha = 1
+        }
+        // La neige sur la pointe.
+        const tipBase = foot - h * 0.56
+        const tipW = w * 0.5
+        ctx.fillStyle = light
+        ctx.beginPath()
+        ctx.moveTo(cx - tipW * 0.2, tipBase - h * 0.3)
+        ctx.lineTo(cx, tipBase - h * 0.45)
+        ctx.lineTo(cx + tipW * 0.2, tipBase - h * 0.3)
+        ctx.closePath()
+        ctx.fill()
+      }
+      break
+    }
+    case 'chalets': {
+      // Chalets sous la neige : toits blancs, fenêtres chaudes, une cheminée chacun.
+      const foot = baseline - band * 0.14
+      for (let index = 0; index < 4; index += 1) {
+        const w = width / 4
+        const x = index * w + w * 0.14
+        const bw = w * 0.62
+        const bh = band * (0.26 + ((index * 29) % 3) * 0.06)
+        const roof = bh * 0.75
+        const eave = foot - bh
+        ctx.fillStyle = land
+        ctx.fillRect(x, eave, bw, bh)
+        ctx.fillRect(x + bw * 0.68, eave - roof * 0.82, bw * 0.12, roof * 0.62)
+        ctx.beginPath()
+        ctx.moveTo(x - bw * 0.12, eave + 1)
+        ctx.lineTo(x + bw / 2, eave - roof)
+        ctx.lineTo(x + bw * 1.12, eave + 1)
+        ctx.closePath()
+        ctx.fill()
+        ctx.fillStyle = '#eef4ff'
+        ctx.beginPath()
+        ctx.moveTo(x - bw * 0.15, eave + 2)
+        ctx.lineTo(x + bw / 2, eave - roof - 3)
+        ctx.lineTo(x + bw * 1.15, eave + 2)
+        ctx.lineTo(x + bw * 1.0, eave + 2)
+        ctx.lineTo(x + bw / 2, eave - roof * 0.62)
+        ctx.lineTo(x, eave + 2)
+        ctx.closePath()
+        ctx.fill()
+        ctx.fillRect(x + bw * 0.66, eave - roof * 0.86, bw * 0.16, 3)
+        ctx.fillStyle = light
+        ctx.fillRect(x + bw * 0.16, foot - bh * 0.7, bw * 0.2, bh * 0.3)
+        ctx.fillRect(x + bw * 0.62, foot - bh * 0.7, bw * 0.2, bh * 0.3)
+      }
+      break
+    }
+    case 'tree': {
+      // Le Grand Sapin de la place : quatre étages, ses lumières et son étoile.
+      const cx = width * 0.5
+      const foot = baseline - band * 0.15
+      const h = band * 0.8
+      ctx.fillStyle = land
+      for (let tier = 0; tier < 4; tier += 1) {
+        const ty = foot - h * tier * 0.2
+        const tw = width * (0.34 - tier * 0.07)
+        ctx.beginPath()
+        ctx.moveTo(cx - tw / 2, ty)
+        ctx.lineTo(cx, ty - h * 0.36)
+        ctx.lineTo(cx + tw / 2, ty)
+        ctx.closePath()
+        ctx.fill()
+      }
+      ctx.fillStyle = light
+      for (let index = 0; index < 14; index += 1) {
+        const level = ((index * 7) % 10) / 10
+        const y = foot - h * (0.08 + level * 0.62)
+        const x = cx + width * 0.11 * (1 - level) * Math.sin(index * 2.3)
+        ctx.beginPath()
+        ctx.arc(x, y, Math.max(1.5, band * 0.018), 0, Math.PI * 2)
+        ctx.fill()
+      }
+      const sy = foot - h * 0.96
+      const r = band * 0.06
+      ctx.beginPath()
+      for (let point = 0; point < 10; point += 1) {
+        const angle = -Math.PI / 2 + (point * Math.PI) / 5
+        const radius = point % 2 ? r * 0.45 : r
+        ctx.lineTo(cx + Math.cos(angle) * radius, sy + Math.sin(angle) * radius)
+      }
+      ctx.closePath()
+      ctx.fill()
+      break
+    }
   }
 }
 
@@ -1160,16 +1280,109 @@ function paintCloud(ctx: CanvasRenderingContext2D, w: number, h: number): void {
 
 /**
  * Un monstre, dessiné une fois : à Halloween, un spectre encapuchonné (cape en lambeaux, yeux
- * verts qui luisent, gueule dentée, griffes) ; sinon un oni rouge (cornes, sourcils froncés, crocs).
+ * verts qui luisent, gueule dentée, griffes) ; à Noël, un bonhomme de neige grognon (haut-de-forme,
+ * écharpe, nez carotte, sourcils froncés) ; sinon un oni rouge (cornes, sourcils froncés, crocs).
  * Le cadre fait `size` × `size` ; le centre du corps est au milieu.
  */
-function paintMonster(ctx: CanvasRenderingContext2D, kind: 'oni' | 'ghost', size: number): void {
+function paintMonster(ctx: CanvasRenderingContext2D, kind: Skin['enemy'], size: number): void {
   const c = size / 2
   const r = size * 0.3
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
   ctx.strokeStyle = INK
   ctx.lineWidth = Math.max(2, size * 0.035)
+
+  if (kind === 'snowman') {
+    const line = Math.max(2, size * 0.035)
+    // Bras en branches.
+    ctx.strokeStyle = '#5a3a22'
+    ctx.lineWidth = line
+    for (const side of [-1, 1]) {
+      ctx.beginPath()
+      ctx.moveTo(c + side * r * 0.6, c + r * 0.35)
+      ctx.lineTo(c + side * r * 1.45, c - r * 0.1)
+      ctx.moveTo(c + side * r * 1.12, c + r * 0.03)
+      ctx.lineTo(c + side * r * 1.3, c - r * 0.35)
+      ctx.stroke()
+    }
+    ctx.strokeStyle = INK
+    // Le corps, puis la tête ; une ombre bleutée sur le côté.
+    for (const [cy, rx, ry] of [
+      [c + r * 0.55, r * 0.85, r * 0.72],
+      [c - r * 0.42, r * 0.62, r * 0.58],
+    ] as const) {
+      ctx.fillStyle = '#f4f7ff'
+      ctx.beginPath()
+      ctx.ellipse(c, cy, rx, ry, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(120,150,210,0.28)'
+      ctx.beginPath()
+      ctx.ellipse(c + rx * 0.3, cy + ry * 0.1, rx * 0.68, ry * 0.86, 0, -Math.PI * 0.45, Math.PI * 0.45)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.ellipse(c, cy, rx, ry, 0, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    // Boutons de charbon.
+    ctx.fillStyle = INK
+    for (const dy of [0.42, 0.72]) {
+      ctx.beginPath()
+      ctx.arc(c, c + r * dy, r * 0.07, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    // L'écharpe rouge et son pan.
+    ctx.fillStyle = '#e3263a'
+    roundRect(ctx, c - r * 0.6, c - r * 0.02, r * 1.2, r * 0.24, r * 0.12)
+    ctx.fill()
+    ctx.stroke()
+    roundRect(ctx, c + r * 0.18, c + r * 0.08, r * 0.22, r * 0.55, r * 0.06)
+    ctx.fill()
+    ctx.stroke()
+    // Le haut-de-forme et son ruban.
+    ctx.fillStyle = INK
+    roundRect(ctx, c - r * 0.62, c - r * 0.98, r * 1.24, r * 0.15, r * 0.06)
+    ctx.fill()
+    ctx.fillRect(c - r * 0.4, c - r * 1.58, r * 0.8, r * 0.64)
+    ctx.fillStyle = '#e3263a'
+    ctx.fillRect(c - r * 0.4, c - r * 1.08, r * 0.8, r * 0.13)
+    // Yeux de charbon, sourcils froncés.
+    ctx.fillStyle = INK
+    ctx.lineWidth = Math.max(2.5, size * 0.045)
+    for (const side of [-1, 1]) {
+      ctx.beginPath()
+      ctx.arc(c + side * r * 0.22, c - r * 0.5, r * 0.08, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.moveTo(c + side * r * 0.08, c - r * 0.62)
+      ctx.lineTo(c + side * r * 0.38, c - r * 0.74)
+      ctx.stroke()
+    }
+    ctx.lineWidth = line
+    // Nez carotte, pointé vers l'avant.
+    ctx.fillStyle = '#ff8a1f'
+    ctx.beginPath()
+    ctx.moveTo(c, c - r * 0.44)
+    ctx.lineTo(c + r * 0.58, c - r * 0.33)
+    ctx.lineTo(c, c - r * 0.26)
+    ctx.closePath()
+    ctx.fill()
+    ctx.lineWidth = Math.max(1.2, size * 0.02)
+    ctx.stroke()
+    // Bouche boudeuse : des cailloux en arc tombant.
+    ctx.fillStyle = INK
+    for (const [dx, dy] of [
+      [-0.2, -0.08],
+      [-0.1, -0.13],
+      [0, -0.15],
+      [0.1, -0.13],
+      [0.2, -0.08],
+    ] as const) {
+      ctx.beginPath()
+      ctx.arc(c + r * dx, c + r * dy, r * 0.045, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return
+  }
 
   if (kind === 'ghost') {
     // Halo verdâtre (anneaux pleins, aucun flou).

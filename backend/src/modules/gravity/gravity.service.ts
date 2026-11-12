@@ -4,6 +4,8 @@ import type { Admin } from '../admin/admin.service.js'
 import { BUILTIN_LEVELS } from './gravity.levels.js'
 import { LevelSchema, type GravityLevelData, type GravityRun } from './gravity.schema.js'
 import { aiProviders, type AiProvider } from './gravity.ai.js'
+import { claimGravityRewards, type GravityRewardDto } from './gravity.rewards.js'
+import { boosterStatus, type BoosterStatus } from '../cards/cards.service.js'
 
 /*
  * Gravity Ninja : les niveaux (intégrés, semés une fois par démarrage ; ou créés dans l'atelier des
@@ -17,9 +19,8 @@ export interface GravityLevelSummary {
   theme: string
   difficulty: number
   builtin: boolean
-  /** Longueur (unités) et nombre de points de reprise : de quoi décrire le niveau dans la liste. */
+  /** Longueur (unités) et rouleaux : de quoi décrire le niveau dans la liste. */
   length: number
-  checkpoints: number
   scrolls: number
 }
 
@@ -65,7 +66,6 @@ const summaryOf = (row: { id: string; name: string; theme: string; difficulty: n
     difficulty: row.difficulty,
     builtin: row.builtin,
     length: level.length,
-    checkpoints: level.elements.filter((element) => element.type === 'checkpoint').length,
     scrolls: level.elements.filter((element) => element.type === 'scroll').length,
   }
 }
@@ -101,24 +101,57 @@ export async function gravityLevel(id: string): Promise<GravityLevelData> {
   return LevelSchema.parse(JSON.parse(row.data))
 }
 
-/** Une partie jouée : la progression ne garde que le meilleur. */
-export async function recordGravityRun(userId: string, levelId: string, run: GravityRun): Promise<GravityProgressDto> {
-  const level = await prisma.gravityLevel.findUnique({ where: { id: levelId }, select: { id: true } })
+/** Départ du ninja (`START_X` côté jeu). */
+const START_X = 4
+/**
+ * Une réussite ne peut pas être plus rapide que la course pure, du départ à l'arrivée (le ninja
+ * court à vitesse fixe) ; la marge couvre les plateformes mobiles qui le portent un peu plus vite.
+ */
+const MIN_TIME_FACTOR = 0.9
+
+export interface GravityRunOutcome {
+  progress: GravityProgressDto
+  /** Ce que la partie rapporte (niveaux intégrés, une fois chacun) ; `null` : rien. */
+  reward: GravityRewardDto | null
+  /** Nouveau solde de Poussières d'Étoile, et réserve de boosters, s'ils ont changé. */
+  stardust: number | null
+  boosters: BoosterStatus | null
+}
+
+/** Une partie jouée : la progression ne garde que le meilleur ; une réussite peut rapporter (cf. `gravity.rewards.ts`). */
+export async function recordGravityRun(userId: string, levelId: string, run: GravityRun, now = new Date()): Promise<GravityRunOutcome> {
+  const level = await prisma.gravityLevel.findUnique({ where: { id: levelId }, select: { id: true, builtin: true, difficulty: true, data: true } })
   if (!level) throw notFound('Niveau introuvable.')
-  const key = { userId_levelId: { userId, levelId } }
-  const current = await prisma.gravityProgress.findUnique({ where: key })
+  const shape = JSON.parse(level.data) as GravityLevelData
   const finished = run.completed
-  const better = (value: number | null, next: number) => (value === null ? next : Math.min(value, next))
-  const data = {
-    bestPercent: Math.max(current?.bestPercent ?? 0, finished ? 100 : run.percent),
-    completed: (current?.completed ?? false) || finished,
-    bestTimeMs: finished ? better(current?.bestTimeMs ?? null, run.timeMs) : (current?.bestTimeMs ?? null),
-    fewestDeaths: finished ? better(current?.fewestDeaths ?? null, run.deaths) : (current?.fewestDeaths ?? null),
-    scrolls: finished ? Math.max(current?.scrolls ?? 0, run.scrolls) : (current?.scrolls ?? 0),
-    attempts: (current?.attempts ?? 0) + 1,
+  if (finished && run.timeMs < ((shape.length - START_X) / shape.speed) * 1000 * MIN_TIME_FACTOR) {
+    throw new HttpError(400, 'gravity_implausible', 'Partie invraisemblable.')
   }
-  const row = await prisma.gravityProgress.upsert({ where: key, create: { userId, levelId, ...data }, update: data })
-  return progressOf(row)
+  const scrollTotal = shape.elements.filter((element) => element.type === 'scroll').length
+  const key = { userId_levelId: { userId, levelId } }
+  // La ligne existe avant la transaction : les récompenses s'y réclament par mise à jour conditionnelle.
+  await prisma.gravityProgress.upsert({ where: key, create: { userId, levelId }, update: {} })
+  const better = (value: number | null, next: number) => (value === null ? next : Math.min(value, next))
+  const { row, claimed } = await prisma.$transaction(async (tx) => {
+    const current = (await tx.gravityProgress.findUnique({ where: key }))!
+    const claimed = finished ? await claimGravityRewards(tx, userId, level, run, scrollTotal) : null
+    const data = {
+      bestPercent: Math.max(current.bestPercent, finished ? 100 : run.percent),
+      completed: current.completed || finished,
+      bestTimeMs: finished ? better(current.bestTimeMs, run.timeMs) : current.bestTimeMs,
+      fewestDeaths: finished ? better(current.fewestDeaths, run.deaths) : current.fewestDeaths,
+      scrolls: finished ? Math.max(current.scrolls, run.scrolls) : current.scrolls,
+      attempts: current.attempts + 1,
+    }
+    return { row: await tx.gravityProgress.update({ where: key, data }), claimed }
+  })
+  const reward = claimed?.reward ?? null
+  return {
+    progress: progressOf(row),
+    reward,
+    stardust: claimed?.balance ?? null,
+    boosters: reward && reward.boosters + reward.legendaryPacks > 0 ? await boosterStatus(userId, now) : null,
+  }
 }
 
 /** Enregistre un niveau de l'atelier (nouveau, ou remplace un niveau de l'atelier du même identifiant). */

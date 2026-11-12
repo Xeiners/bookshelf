@@ -313,7 +313,7 @@ export function GravityWorkshop({ ai, onClose, onTry, onSaved }: GravityWorkshop
             <ul className="grid grid-cols-2 gap-1.5 text-xs text-cream/70">
               <li className="rounded-lg bg-white/[0.04] px-2.5 py-1.5">{w.stats.duration(seconds)}</li>
               <li className="rounded-lg bg-white/[0.04] px-2.5 py-1.5">{w.stats.difficulty(candidate.level.difficulty)}</li>
-              <li className="rounded-lg bg-white/[0.04] px-2.5 py-1.5">{w.stats.checkpoints(world.checkpoints.length)}</li>
+              {candidate.report.ok && <li className="rounded-lg bg-white/[0.04] px-2.5 py-1.5">{w.stats.flips(candidate.report.decisions.filter((decision) => decision.press).length)}</li>}
               <li className="rounded-lg bg-white/[0.04] px-2.5 py-1.5">{t.gravity.themes[candidate.level.theme]}</li>
               {candidate.sections && <li className="col-span-2 rounded-lg bg-white/[0.04] px-2.5 py-1.5">{w.stats.sections(candidate.sections.count, candidate.sections.softened)}</li>}
             </ul>

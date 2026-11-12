@@ -5,7 +5,7 @@
  */
 
 /** Thèmes visuels (décors, matières, particules) : cf. `themes.ts`. */
-export const THEME_IDS = ['konoha', 'night', 'hunter', 'halloween', 'christmas'] as const
+export const THEME_IDS = ['konoha', 'night', 'hunter', 'halloween', 'christmas', 'sand', 'mist'] as const
 export type ThemeId = (typeof THEME_IDS)[number]
 
 /** Sens de la gravité : 1 vers le bas (on court sur les sols), -1 vers le haut (sous les plafonds). */
@@ -83,22 +83,31 @@ export interface MoonElement {
   y: number
 }
 
+/**
+ * Porte de taille : la traverser rend le ninja minuscule (`mini`), ou lui rend sa taille. Minuscule,
+ * il se faufile dans des tunnels trop bas pour lui.
+ */
+export interface SizeElement {
+  type: 'size'
+  x: number
+  y: number
+  w: number
+  h: number
+  mini: boolean
+}
+
+/** Kawarimi : bûche de substitution (centre). Elle encaisse le prochain piège (pics, shuriken). */
+export interface LogElement {
+  type: 'log'
+  x: number
+  y: number
+}
+
 /** Rouleau à collectionner (centre). */
 export interface ScrollElement {
   type: 'scroll'
   x: number
   y: number
-}
-
-/**
- * Point de reprise : on y repart après une chute, posé à l'abscisse `x` sur la surface `y`
- * (gravité 1 : les pieds sur `y` ; gravité −1 : la tête sous `y`).
- */
-export interface CheckpointElement {
-  type: 'checkpoint'
-  x: number
-  y: number
-  g: Gravity
 }
 
 export type LevelElement =
@@ -110,7 +119,8 @@ export type LevelElement =
   | FlipElement
   | MoonElement
   | ScrollElement
-  | CheckpointElement
+  | SizeElement
+  | LogElement
 
 export type ElementType = LevelElement['type']
 

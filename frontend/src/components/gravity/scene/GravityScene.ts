@@ -1,10 +1,10 @@
-import { PLAYER_H, PLAYER_W, TICK, WORLD_HEIGHT, MOON_SECONDS } from '../../../lib/gravity/constants'
-import { respawn, spawnRun, startRun, stepRun, type GravityEvent, type GravityInput, type GravityRun, type GravityWorld } from '../../../lib/gravity/engine'
+import { MINI_SCALE, PLAYER_H, PLAYER_W, TICK, WORLD_HEIGHT, MOON_SECONDS } from '../../../lib/gravity/constants'
+import { restartRun, sizeOf, startRun, stepRun, type GravityEvent, type GravityInput, type GravityRun, type GravityWorld } from '../../../lib/gravity/engine'
 import type { SolveReport } from '../../../lib/gravity/solver'
 import { themeOf, type GravityTheme } from '../../../lib/gravity/themes'
 import { Backdrop } from './backdrop'
 import { Ninja, type NinjaPose } from './ninja'
-import { WorldPainter } from './world'
+import { GATE_COLORS, WorldPainter } from './world'
 
 /*
  * La scène de Gravity Ninja : la simulation (pas fixe) et son rendu (à chaque image), interpolés
@@ -22,7 +22,7 @@ const DRAW_SCALE = 1.3
 const FIGURE_HEIGHT = 1.22
 
 interface Effect {
-  kind: 'dust' | 'smoke' | 'spark' | 'ring' | 'leaf'
+  kind: 'dust' | 'smoke' | 'spark' | 'ring' | 'leaf' | 'log'
   x: number
   y: number
   vx: number
@@ -37,6 +37,8 @@ interface Effect {
 interface Ghost {
   x: number
   y: number
+  /** 1 : taille normale ; moins : mini-ninja. */
+  scale: number
   scaleY: number
   age: number
 }
@@ -86,49 +88,46 @@ export class GravityScene {
     stepRun(this.world, this.run, this.solution ? this.solutionInput() : input)
     const events = this.run.events
     for (const event of events) this.react(event)
-    // La solution est prouvée tronçon par tronçon, depuis chaque point de reprise : on s'y recale.
-    if (this.solution && events.some((event) => event.kind === 'checkpoint')) {
-      const synced = spawnRun(this.world, this.run.checkpoint)
-      Object.assign(this.run, { ...synced, scrolls: this.run.scrolls, deaths: this.run.deaths, maxX: this.run.maxX, moons: this.run.moons, crumbles: this.run.crumbles })
-    }
     return events
   }
 
-  /** Démonstration : le chemin du solveur rejoué (atelier, « Voir la solution »). */
-  private solution: { decisions: Map<number, { press: boolean; hold: boolean }>[]; hold: boolean } | null = null
+  /** Démonstration : le chemin du solveur rejoué d'une traite (atelier, « Voir la solution »). */
+  private solution: { decisions: Map<number, { press: boolean; hold: boolean }>; hold: boolean } | null = null
 
   playSolution(report: SolveReport): void {
-    this.solution = { decisions: report.segments.map((segment) => new Map(segment.decisions.map((decision) => [decision.tick, decision]))), hold: false }
+    this.solution = { decisions: new Map(report.decisions.map((decision) => [decision.tick, decision])), hold: false }
   }
 
   private solutionInput(): GravityInput {
     const solution = this.solution!
-    const decision = solution.decisions[this.run.checkpoint + 1]?.get(this.run.tick)
+    const decision = solution.decisions.get(this.run.tick)
     if (decision) solution.hold = decision.hold
     return { press: decision?.press ?? false, hold: solution.hold }
   }
 
-  /** Retour au dernier point de reprise, dans un nuage de fumée. */
-  respawn(): void {
-    respawn(this.world, this.run)
+  /** Une nouvelle tentative : retour au départ, dans un nuage de fumée. */
+  restart(): void {
+    restartRun(this.world, this.run)
+    if (this.solution) this.solution.hold = false
     this.prev = { x: this.run.x, y: this.run.y, cameraX: this.run.cameraX }
     this.vanished = false
     this.ghosts = []
-    this.puff(this.run.x + PLAYER_W / 2, this.run.y + PLAYER_H / 2, 10)
+    const { w, h } = sizeOf(this.run)
+    this.puff(this.run.x + w / 2, this.run.y + h / 2, 10)
   }
 
   private react(event: GravityEvent): void {
     const run = this.run
-    const cx = run.x + PLAYER_W / 2
-    const feet = run.g === 1 ? run.y + PLAYER_H : run.y
+    const { w, h } = sizeOf(run)
+    const cx = run.x + w / 2
     switch (event.kind) {
       case 'flip':
       case 'pad':
-        this.ring(cx, run.g === 1 ? run.y : run.y + PLAYER_H, event.kind === 'pad' ? this.theme.accent : '#ffffff')
+        this.ring(cx, run.g === 1 ? run.y : run.y + h, event.kind === 'pad' ? this.theme.accent : '#ffffff')
         break
       case 'land': {
         this.squash = Math.min(1, event.speed / 22)
-        const head = run.g === 1 ? run.y + PLAYER_H : run.y
+        const head = run.g === 1 ? run.y + h : run.y
         for (let index = 0; index < 6; index += 1) {
           const side = index % 2 ? 1 : -1
           this.effects.push({ kind: 'dust', x: cx + side * 0.2, y: head, vx: side * (0.8 + Math.random() * 1.6) - 2, vy: -run.g * Math.random() * 0.6, age: 0, life: 0.45, size: 0.18 + Math.random() * 0.15, color: 'rgba(255,255,255,0.55)', spin: 0 })
@@ -136,21 +135,33 @@ export class GravityScene {
         break
       }
       case 'scroll':
-        this.sparks(cx, run.y + PLAYER_H / 2, '#ffd66b', 18)
+        this.sparks(cx, run.y + h / 2, '#ffd66b', 18)
         break
       case 'moon':
-        this.sparks(cx, run.y + PLAYER_H / 2, '#cfd8ff', 22)
+        this.sparks(cx, run.y + h / 2, '#cfd8ff', 22)
         break
-      case 'checkpoint':
-        this.sparks(cx, feet, this.theme.accent, 14)
+      case 'shrink':
+      case 'grow': {
+        const color = event.kind === 'shrink' ? GATE_COLORS.mini : GATE_COLORS.full
+        this.ring(cx, run.y + h / 2, color)
+        this.sparks(cx, run.y + h / 2, color, 16)
+        break
+      }
+      case 'log':
+        this.sparks(cx, run.y + h / 2, '#e2b277', 16)
+        break
+      case 'substitute':
+        // La bûche reste à sa place et tombe, le ninja file dans la fumée.
+        this.puff(cx, run.y + h / 2, 12)
+        this.effects.push({ kind: 'log', x: cx, y: run.y + h / 2, vx: -3, vy: -run.g * 2.5, age: 0, life: 0.9, size: 1, color: '', spin: 0 })
         break
       case 'die':
         this.vanished = true
         this.shake = 0.5
-        this.puff(cx, Math.max(-0.5, Math.min(WORLD_HEIGHT + 0.5, run.y + PLAYER_H / 2)), 18)
+        this.puff(cx, Math.max(-0.5, Math.min(WORLD_HEIGHT + 0.5, run.y + h / 2)), 18)
         break
       case 'finish':
-        this.sparks(cx, run.y + PLAYER_H / 2, this.theme.accent, 40)
+        this.sparks(cx, run.y + h / 2, this.theme.accent, 40)
         break
       case 'crumble':
         break
@@ -221,14 +232,14 @@ export class GravityScene {
     this.ghostClock += dt
     if (!run.grounded && !this.vanished && this.ghostClock > 0.035) {
       this.ghostClock = 0
-      this.ghosts.push({ x, y, scaleY: this.orientation(run), age: 0 })
+      this.ghosts.push({ x, y, scale: run.mini ? MINI_SCALE : 1, scaleY: this.orientation(run), age: 0 })
     }
     for (const ghost of this.ghosts) ghost.age += dt
     this.ghosts = this.ghosts.filter((ghost) => ghost.age < 0.22)
     const pose = this.pose(run)
     for (const ghost of this.ghosts) {
       ctx.globalAlpha = 0.28 * (1 - ghost.age / 0.22)
-      this.placeNinja(ctx, ghost.x, ghost.y, ghost.scaleY, 0, () => this.ninja.draw(ctx, pose, this.theme.accent))
+      this.placeNinja(ctx, ghost.x, ghost.y, ghost.scale, ghost.scaleY, 0, () => this.ninja.draw(ctx, pose, this.theme.accent))
     }
     ctx.globalAlpha = 1
 
@@ -236,9 +247,10 @@ export class GravityScene {
     this.ninja.update(dt, pose)
     this.squash = Math.max(0, this.squash - dt * 5)
     if (!this.vanished) {
+      const { w, h } = sizeOf(run)
       if (run.moonLeft > 0) {
-        const cx = x + PLAYER_W / 2
-        const cy = y + PLAYER_H / 2
+        const cx = x + w / 2
+        const cy = y + h / 2
         const strength = run.lunar ? 0.75 : 0.35 * Math.min(1, run.moonLeft / MOON_SECONDS + 0.3)
         const aura = ctx.createRadialGradient(cx, cy, 0.2, cx, cy, 1.6)
         aura.addColorStop(0, `rgba(200,215,255,${strength.toFixed(2)})`)
@@ -248,7 +260,18 @@ export class GravityScene {
       }
       const turning = Math.min(1, ((run.tick - run.flippedAt) * TICK) / FLIP_TURN)
       const tilt = Math.sin(turning * Math.PI) * 0.5
-      this.placeNinja(ctx, x, y, this.orientation(run), tilt, () => this.ninja.draw(ctx, pose))
+      // Kawarimi en réserve : la bûche, petite, flotte dans son dos.
+      if (run.shield) {
+        ctx.save()
+        ctx.translate(x - 0.2, y + h / 2 + Math.sin(this.clock * 3) * 0.1)
+        ctx.scale(0.55, 0.55)
+        this.painter.log(ctx, 0, 0, this.clock)
+        ctx.restore()
+      }
+      // Intouchable juste après une substitution : il clignote.
+      if (run.safe > 0) ctx.globalAlpha = Math.floor(this.clock * 14) % 2 ? 0.35 : 0.9
+      this.placeNinja(ctx, x, y, run.mini ? MINI_SCALE : 1, this.orientation(run), tilt, () => this.ninja.draw(ctx, pose))
+      ctx.globalAlpha = 1
     }
 
     this.drawEffects(ctx, dt)
@@ -273,14 +296,15 @@ export class GravityScene {
   }
 
   /** Place le repère du ninja : centré sur sa boîte, pieds vers la gravité. */
-  private placeNinja(ctx: CanvasRenderingContext2D, x: number, y: number, scaleY: number, tilt: number, draw: () => void): void {
-    const size = (PLAYER_H * DRAW_SCALE) / FIGURE_HEIGHT
+  private placeNinja(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, scaleY: number, tilt: number, draw: () => void): void {
+    const height = PLAYER_H * scale
+    const size = (height * DRAW_SCALE) / FIGURE_HEIGHT
     ctx.save()
-    ctx.translate(x + PLAYER_W / 2, y + PLAYER_H / 2)
+    ctx.translate(x + (PLAYER_W * scale) / 2, y + height / 2)
     ctx.rotate(tilt)
     ctx.scale(size, size * (Math.abs(scaleY) < 0.08 ? Math.sign(scaleY || 1) * 0.08 : scaleY))
     // Les pieds du dessin sont à son origine : on les descend au bas de la boîte.
-    ctx.translate(0, PLAYER_H / 2 / size)
+    ctx.translate(0, height / 2 / size)
     draw()
     ctx.restore()
   }
@@ -313,6 +337,14 @@ export class GravityScene {
           ctx.beginPath()
           ctx.ellipse(effect.x, effect.y, effect.size + t * 1.4, (effect.size + t * 1.4) * 0.35, 0, 0, Math.PI * 2)
           ctx.stroke()
+          break
+        case 'log':
+          ctx.save()
+          ctx.translate(effect.x, effect.y)
+          ctx.rotate(effect.age * 5)
+          ctx.scale(0.8, 0.8)
+          this.painter.log(ctx, 0, 0, 0)
+          ctx.restore()
           break
         case 'leaf':
           ctx.save()

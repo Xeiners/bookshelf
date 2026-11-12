@@ -11,6 +11,7 @@ import { useUiStore } from '../../store/useUiStore'
 const PREVIEW: Record<SiteTheme, string> = {
   none: 'radial-gradient(80% 70% at 20% 10%, rgba(124,92,255,0.45), transparent 70%), #0b0b12',
   halloween: 'radial-gradient(60% 55% at 80% 15%, rgba(255,214,150,0.85), rgba(255,122,26,0.35) 35%, transparent 60%), linear-gradient(180deg, #1a0b26, #07040c)',
+  christmas: 'radial-gradient(55% 55% at 80% 18%, rgba(255,211,92,0.8), rgba(227,38,58,0.4) 38%, transparent 62%), linear-gradient(180deg, #0f3b2a, #05140e)',
 }
 
 /**

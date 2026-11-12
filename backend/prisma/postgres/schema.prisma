@@ -893,7 +893,7 @@ model DleImageReview {
 }
 
 /// Réglage global du site, piloté par un administrateur : une clé, une valeur (texte ou JSON).
-/// `theme` : le thème saisonnier affiché à tout le monde (`none`, `halloween`…).
+/// `theme` : le thème saisonnier affiché à tout le monde (`none`, `halloween`, `christmas`).
 model SiteSetting {
   key       String   @id
   value     String

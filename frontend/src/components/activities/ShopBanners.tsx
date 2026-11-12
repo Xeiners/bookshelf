@@ -14,6 +14,10 @@ import { BoosterPackArt } from '../boosters/BoosterPackArt'
 import { BuyBoostersSheet } from '../boosters/BuyBoostersSheet'
 import { BuyLegendarySheet } from '../boosters/BuyLegendarySheet'
 import { LEGENDARY_PACK_PRICE } from '../../lib/boosters'
+import { SeasonalSnow } from '../layout/SeasonalDecor'
+
+/** Une teinte (couleur ou variable CSS) à `percent` % d'opacité. */
+const alpha = (tint: string, percent: number) => `color-mix(in srgb, ${tint} ${percent}%, transparent)` // i18n-ignore : valeur CSS
 
 /*
  * La boutique, sous l'autel des boosters : dépenser ses Poussières sans quitter les activités.
@@ -89,20 +93,21 @@ function ProductCard({
       aria-haspopup="dialog"
       className="group relative isolate flex min-w-0 flex-col overflow-hidden rounded-[1.4rem] border text-left transition-transform duration-200 active:scale-[0.97]"
       style={{
-        borderColor: prestige ? `${tint}80` : 'rgba(255,255,255,0.09)',
-        background: `linear-gradient(180deg, ${tint}${prestige ? '24' : '14'} 0%, #100d17 55%, #0b0a10 100%)`,
+        borderColor: prestige ? alpha(tint, 50) : 'rgba(255,255,255,0.09)',
+        background: `linear-gradient(180deg, ${alpha(tint, prestige ? 14 : 8)} 0%, #100d17 55%, #0b0a10 100%)`,
         boxShadow: prestige ? `0 0 34px -16px ${tint}` : undefined,
       }}
     >
+      <SeasonalSnow />
       {/* Scène : le paquet qui flotte sur un halo. */}
       <span aria-hidden className="relative grid h-[7.25rem] place-items-center">
-        <span className="absolute size-28 rounded-full" style={{ background: `radial-gradient(closest-side, ${tint}${prestige ? '55' : '3a'}, transparent)` }} />
+        <span className="absolute size-28 rounded-full" style={{ background: `radial-gradient(closest-side, ${alpha(tint, prestige ? 33 : 23)}, transparent)` }} />
         <span data-shop-bob className="relative will-change-transform" style={{ transform: 'rotate(-7deg)' }}>
           {art}
         </span>
         <span
           className="absolute top-2.5 left-2.5 rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.16em] uppercase"
-          style={{ borderColor: `${tint}55`, background: 'rgba(0,0,0,0.45)', color: tint }}
+          style={{ borderColor: alpha(tint, 33), background: 'rgba(0,0,0,0.45)', color: tint }}
         >
           {tag}
         </span>
@@ -114,11 +119,12 @@ function ProductCard({
       </span>
 
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 pb-3">
-        <span className="truncate font-display text-[17px] leading-tight text-cream">{name}</span>
-        <span className="line-clamp-2 min-h-[2.4em] text-[11px] leading-[1.2] text-cream/55">{detail}</span>
+        <span className="line-clamp-2 font-display text-[15px] leading-tight text-cream @md:text-[17px]">{name}</span>
+        <span className="mb-2 line-clamp-2 min-h-[2.4em] text-[11px] leading-[1.2] text-cream/55">{detail}</span>
+        {/* Le prix de prestige porte l'habit du bouton d'action (`.btn-cta`) : celui du thème saisonnier. */}
         <span
-          className="mt-2 flex h-10 items-center justify-center gap-1.5 rounded-full text-sm font-bold tabular-nums transition-[filter] group-hover:brightness-110"
-          style={prestige ? { background: 'linear-gradient(135deg, #fff0a8, #ffc23a 55%, #ff9a3d)', color: '#2a1404' } : { background: 'rgba(255,255,255,0.08)', color: '#f7f5f0' }}
+          className={`mt-auto flex h-10 items-center justify-center gap-1.5 overflow-hidden rounded-full text-sm font-bold tabular-nums transition-[filter] group-hover:brightness-110 ${prestige ? 'btn-cta' : ''}`}
+          style={prestige ? undefined : { background: 'rgba(255,255,255,0.08)', color: '#f7f5f0' }}
         >
           {promo && <span className="text-[11px] font-semibold line-through opacity-55">{promo.regular}</span>}
           {price === null ? '…' : price.toLocaleString()} ✦
@@ -225,13 +231,14 @@ export function ShopBanners() {
   }
 
   return (
-    <div ref={ref} className="flex shrink-0 flex-col gap-3">
+    <div ref={ref} className="@container flex shrink-0 flex-col gap-3">
       {/* En-tête : la boutique et le solde, pour savoir d'un coup d'œil ce qu'on peut s'offrir. */}
       <div className="flex items-center justify-between gap-3 px-1">
         <h3 className="font-display text-xl leading-none text-cream">{t.activities.shop.title}</h3>
         {signedIn && (
           <span
-            className="inline-flex items-center gap-1 rounded-full border border-[#ffe39a]/25 bg-black/40 px-2.5 py-1 text-xs font-bold text-[#fff4c8] tabular-nums"
+            className="inline-flex items-center gap-1 rounded-full border bg-black/40 px-2.5 py-1 text-xs font-bold tabular-nums"
+            style={{ borderColor: 'var(--shop-chip-edge)', color: 'var(--shop-chip-ink)' }}
             aria-label={t.activities.shop.balance(balance)}
           >
             {balance.toLocaleString()} <span className="text-gold">✦</span>
@@ -256,7 +263,7 @@ export function ShopBanners() {
           name={t.activities.shop.legendaryTitle}
           detail={t.activities.shop.legendaryShort}
           tag={t.activities.shop.legendaryTag}
-          tint="#ffc46b"
+          tint="var(--shop-prestige)"
           art={<BoosterPackArt width={54} series={3} lit halo="LEGENDARY" />}
           price={LEGENDARY_PACK_PRICE}
           promo={null}
@@ -270,11 +277,12 @@ export function ShopBanners() {
 
       {/* Boîte mystère de la garde-robe. */}
       <section
-        className="overflow-hidden rounded-[1.4rem] border"
+        className="relative overflow-hidden rounded-[1.4rem] border"
         // Même surface sombre que la vitrine des boosters, teintée du violet de la garde-robe.
-        style={{ borderColor: glowing ? '#ffd35c99' : 'rgba(255,255,255,0.09)', background: 'linear-gradient(110deg, #b05cff26 0%, #100d17 55%, #0b0a10 100%)', boxShadow: glowing ? '0 0 30px -12px #ffc23a' : undefined }}
+        style={{ borderColor: glowing ? alpha('var(--shop-glow)', 60) : 'rgba(255,255,255,0.09)', background: 'linear-gradient(110deg, #b05cff26 0%, #100d17 55%, #0b0a10 100%)', boxShadow: glowing ? '0 0 30px -12px var(--shop-glow)' : undefined }}
       >
-        <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left sm:gap-4 sm:p-4">
+        <SeasonalSnow />
+        <button type="button" onClick={() => toggle('box')} aria-expanded={open === 'box'} className="relative flex w-full items-center gap-3 overflow-hidden p-3.5 text-left @md:gap-4 @md:p-4">
           <span data-shop-bob aria-hidden className="relative grid size-12 shrink-0 place-items-center will-change-transform">
             <span className="absolute inset-0 rounded-xl" style={{ background: 'linear-gradient(160deg, #5a24a8, #2a1150)', boxShadow: `0 0 18px -2px ${glowing ? '#ffd35c' : '#b05cff'}, inset 0 0 0 2px #ffc93c` }} />
             <span className="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 bg-[#ffc93c]" />
@@ -283,8 +291,8 @@ export function ShopBanners() {
             {glowing && <span className="absolute -top-1 -right-1 size-3 animate-ping rounded-full bg-like" />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[10px] font-semibold tracking-[0.2em] text-[#dcb2ff]/80 uppercase">{t.activities.shop.boxEyebrow}</span>
-            <span className="block font-display text-lg leading-tight text-cream sm:text-xl">{t.runner.wardrobe.box.title}</span>
+            <span className="hidden truncate text-[10px] font-semibold tracking-[0.2em] text-[#dcb2ff]/80 uppercase @md:block">{t.activities.shop.boxEyebrow}</span>
+            <span className="block font-display text-lg leading-tight text-cream @md:text-xl">{t.runner.wardrobe.box.title}</span>
             <span className={`block text-xs tabular-nums ${glowing ? 'font-bold text-gold' : 'text-cream/60'}`}>
               {gifts > 0 ? t.runner.wardrobe.box.gifted(gifts) : freeReady ? t.runner.wardrobe.box.freeReady : freeAt ? t.runner.wardrobe.box.freeIn(countdown(freeAt - now)) : t.activities.shop.boxBody}
             </span>
@@ -300,8 +308,7 @@ export function ShopBanners() {
               type="button"
               onClick={() => openBox('free')}
               disabled={!freeReady}
-              className="inline-flex h-12 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-bold text-void disabled:bg-white/[0.06] disabled:text-cream/50"
-              style={freeReady ? { background: 'linear-gradient(135deg, #fff0a8, #ffc23a 55%, #ff8a3d)' } : undefined}
+              className={`inline-flex h-12 items-center justify-center gap-1.5 overflow-hidden rounded-full px-2 text-[13px] font-bold disabled:bg-white/[0.06] disabled:text-cream/50 ${freeReady ? 'btn-cta' : ''}`}
             >
               <Gift size={15} aria-hidden />
               {freeReady ? t.runner.wardrobe.box.free : t.runner.wardrobe.box.freeIn(countdown((freeAt ?? now) - now))}

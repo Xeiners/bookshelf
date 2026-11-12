@@ -82,10 +82,14 @@ export function parseLevel(input: unknown): ParseResult {
       }
       case 'moon':
       case 'scroll':
+      case 'log':
         elements.push({ type: element.type, x, y: y() })
         break
+      case 'size':
+        elements.push({ type: 'size', x, y: y(), w: size('w'), h: size('h'), mini: typeof element.mini === 'boolean' ? element.mini : (issues.push(`${at}.mini`), true) })
+        break
       case 'checkpoint':
-        elements.push({ type: 'checkpoint', x, y: y(), g: element.g === -1 ? -1 : element.g === 1 ? 1 : (issues.push(`${at}.g`), 1) })
+        // Ancien format : les points de reprise n'existent plus (une chute renvoie au départ), on les écarte.
         break
       default:
         issues.push(`${at}.type`)

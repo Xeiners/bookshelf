@@ -1,7 +1,7 @@
 import { api } from './api'
 
 /** Thème saisonnier (cf. `backend/src/modules/theme/`) : l'app habillée pour une fête, pour tout le monde. */
-export const SITE_THEMES = ['none', 'halloween'] as const
+export const SITE_THEMES = ['none', 'halloween', 'christmas'] as const
 export type SiteTheme = (typeof SITE_THEMES)[number]
 
 export const isSiteTheme = (value: unknown): value is SiteTheme => (SITE_THEMES as readonly unknown[]).includes(value)

@@ -1049,13 +1049,21 @@ export function playGravityMoon(): void {
   ;[659.25, 830.61, 987.77, 1318.5].forEach((frequency, index) => bell(e, frequency, at + index * 0.08, 1.2, 0.035, index % 2 ? 0.4 : -0.4))
 }
 
-/** Point de reprise : un gong léger. */
-export function playGravityCheckpoint(): void {
+/** Porte de taille : trois notes qui descendent (rapetisser) ou qui montent (grandir). */
+export function playGravitySize(mini: boolean): void {
   const e = start()
   if (!e) return
   const at = e.ctx.currentTime
-  bell(e, 392, at, 1.4, 0.05)
-  bell(e, 587.33, at + 0.06, 1.2, 0.035, 0.3)
+  ;(mini ? [1318.5, 987.77, 739.99] : [739.99, 987.77, 1318.5]).forEach((frequency, index) => blip(e, frequency, at + index * 0.045, 0.09, 0.03, 'triangle'))
+}
+
+/** Bûche ramassée : un « tok » de bois, puis une clochette. */
+export function playGravityLog(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 320, 180, 0.07, 0.12)
+  bell(e, 880, at + 0.05, 0.6, 0.035)
 }
 
 /** Arrivée : une fanfare de cloches qui monte. */

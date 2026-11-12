@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { CalendarCheck, Check, Newspaper, ChevronRight, FlaskConical, Gift, Handshake, MoonStar, Sparkle, TrendingUp, WifiOff, Zap } from 'lucide-react'
+import { ArrowLeftRight, CalendarCheck, Check, Newspaper, ChevronRight, FlaskConical, Gift, Handshake, MoonStar, Sparkle, TrendingUp, WifiOff, Zap } from 'lucide-react'
 import { useActivitiesStatus } from '../../hooks/useActivitiesStatus'
 import { useBoosters } from '../../hooks/useBoosters'
 import { useCollection } from '../../hooks/useCollection'
@@ -32,7 +32,9 @@ import { EnergyRing } from './EnergyRing'
 import { ShopBanners } from './ShopBanners'
 import { inkText } from '../../lib/ink'
 import { canvasApi } from '../../services/canvasApi'
-import { SeasonalCorner, SeasonalHubBanner } from '../layout/SeasonalDecor'
+import { GiftBox } from '../layout/ChristmasArt'
+import { SeasonalCorner, SeasonalHat, SeasonalHubBanner, SeasonalSnow } from '../layout/SeasonalDecor'
+import { useThemeStore } from '../../store/useThemeStore'
 
 /** Texte néon : lueur de la couleur donnée. */
 const neon = (color: string): CSSProperties => ({ color, textShadow: `0 0 6px ${color}, 0 0 18px ${color}` })
@@ -396,14 +398,18 @@ function LegendaryPackBanner({ count }: { count: number }) {
         vibrate(12)
         useUiStore.getState().openLegendaryPack()
       }}
-      className="relative mb-3 flex w-full shrink-0 items-center gap-3 overflow-hidden rounded-[1.5rem] border border-[#ffd27a]/60 p-3.5 text-left shadow-[0_0_40px_-14px_#ffc46b] transition-transform active:scale-[0.99] sm:gap-4 sm:p-4"
-      style={{ background: 'radial-gradient(120% 120% at 0% 0%, rgba(255,214,130,0.35), transparent 55%), linear-gradient(110deg, #3a2408, #24120a 55%, #2a0f22)' }}
+      // Ses couleurs viennent des variables `--gift-*` (index.css) : un thème saisonnier les redéfinit.
+      className="relative mb-3 flex w-full shrink-0 items-center gap-3 overflow-hidden rounded-[1.5rem] border p-3.5 text-left transition-transform active:scale-[0.99] sm:gap-4 sm:p-4"
+      style={{ borderColor: 'var(--gift-edge)', boxShadow: '0 0 40px -14px var(--gift-glow)', background: 'var(--gift-bg)' }}
     >
+      <SeasonalSnow />
       <span className="relative -my-2 shrink-0" style={{ transform: 'rotate(-8deg)' }}>
         <BoosterPackArt width={46} series={3} lit halo="LEGENDARY" />
       </span>
       <span className="relative min-w-0 flex-1">
-        <span className="block text-[10px] font-semibold tracking-[0.2em] text-[#ffd27a] uppercase">{t.activities.legendaryPack.eyebrow}</span>
+        <span className="block text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--gift-eyebrow)' }}>
+          {t.activities.legendaryPack.eyebrow}
+        </span>
         <span className="block font-display text-lg leading-tight text-cream sm:text-xl">{t.activities.legendaryPack.title(count)}</span>
         <span className="block text-xs text-cream/65">{t.activities.legendaryPack.body}</span>
       </span>
@@ -448,12 +454,12 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
       ∞
     </span>
   ) : stock > 0 ? (
-    <span className="text-lg leading-none font-semibold tabular-nums" style={neon('#ffc46b')}>
+    <span className="text-lg leading-none font-semibold tabular-nums" style={neon('var(--ring-ink)')}>
       {stock}/{boosters.max}
     </span>
   ) : boosters.gifted > 0 ? (
     // Stock vide, boosters offerts en réserve : on les montre (ils s'ouvrent tout de suite).
-    <span className="text-lg leading-none font-semibold tabular-nums" style={neon('#ffc46b')}>
+    <span className="text-lg leading-none font-semibold tabular-nums" style={neon('var(--ring-ink)')}>
       +{boosters.gifted}
     </span>
   ) : (
@@ -467,26 +473,23 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
     <section
       ref={ref}
       aria-label={part === 'open' ? t.activities.booster.title : t.activities.shop.buyTitle}
-      className="relative isolate flex h-full shrink-0 flex-col overflow-hidden rounded-[2rem] border"
-      style={{
-        borderColor: lit ? 'rgba(255,214,130,0.6)' : 'rgba(255,196,107,0.22)',
-        background: lit
-          ? 'radial-gradient(120% 90% at 20% 20%, rgba(255,196,107,0.12), transparent 60%), radial-gradient(90% 80% at 90% 100%, rgba(255,94,196,0.07), transparent 60%), #0e0e14'
-          : 'radial-gradient(120% 90% at 20% 20%, rgba(124,92,255,0.09), transparent 60%), #0e0e14',
-      }}
+      className="@container relative isolate flex h-full shrink-0 flex-col overflow-hidden rounded-[2rem] border"
+      // Couleurs : les variables `--altar-*` (index.css), qu'un thème saisonnier redéfinit.
+      style={{ borderColor: lit ? 'var(--altar-edge-lit)' : 'var(--altar-edge)', background: lit ? 'var(--altar-bg-lit)' : 'var(--altar-bg)' }}
     >
       {part === 'open' && <SeasonalCorner size={84} />}
+      <SeasonalSnow />
       {part === 'open' && (
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-      <div className="flex items-center gap-3 p-5 pb-4 md:gap-8 md:p-7 md:pb-5">
+      <div className="flex items-center gap-3 p-5 pb-4 @lg:gap-8 @lg:p-7 @lg:pb-5">
         {/* Les trois séries en éventail ; la nouvelle (3) devant. */}
-        <div aria-hidden className="relative grid h-[9.5rem] w-[9.25rem] shrink-0 place-items-center md:h-[12rem] md:w-[12rem]">
+        <div aria-hidden className="relative grid h-[9.5rem] w-[9.25rem] shrink-0 place-items-center @lg:h-[12rem] @lg:w-[12rem]">
           <div aria-hidden className="absolute bottom-0 h-6 w-28 rounded-[50%]" style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,0.75), transparent)' }} />
           <div data-hero-pack className="relative" style={{ willChange: 'transform' }}>
-            <div className="absolute top-3 -left-8 md:-left-12" style={{ transform: 'rotate(-14deg)', opacity: 0.8 }}>
+            <div className="absolute top-3 -left-8 @lg:-left-12" style={{ transform: 'rotate(-14deg)', opacity: 0.8 }}>
               <BoosterPackArt width={64} series={1} lit={lit} dim={!lit} />
             </div>
-            <div className="absolute top-3 -right-8 md:-right-12" style={{ transform: 'rotate(14deg)', opacity: 0.8 }}>
+            <div className="absolute top-3 -right-8 @lg:-right-12" style={{ transform: 'rotate(14deg)', opacity: 0.8 }}>
               <BoosterPackArt width={64} series={2} lit={lit} dim={!lit} />
             </div>
             <div className="relative" style={{ transform: 'rotate(-2deg)' }}>
@@ -499,15 +502,19 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <p className="text-[10px] tracking-[0.28em] text-[#fff4c8]/60 uppercase">{t.activities.booster.eyebrow}</p>
-          <h2 className="font-display text-[1.55rem] leading-[1.05] md:text-[2.2rem]" style={inkText('linear-gradient(135deg, #fff4c8, #ffc46b 45%, #ff5ec4)')}>
+          <p className="text-[10px] tracking-[0.28em] uppercase" style={{ color: 'var(--altar-eyebrow)' }}>
+            {t.activities.booster.eyebrow}
+          </p>
+          <h2 className="font-display text-[1.55rem] leading-[1.05] @lg:text-[2.2rem]" style={{ color: 'var(--altar-title)' }}>
             {t.activities.booster.title}
           </h2>
-          <p className="text-xs leading-snug text-[#ffc46b]/85 md:text-sm">{subtitle}</p>
+          <p className="text-xs leading-snug @lg:text-sm" style={{ color: 'var(--altar-text)' }}>
+            {subtitle}
+          </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 px-5 pb-5 md:px-7 md:pb-7">
+      <div className="flex items-center gap-3 px-5 pb-5 @lg:px-7 @lg:pb-7">
         <EnergyRing progress={progress} size={56} charged={lit} label={t.activities.ringLabel}>
           {ring}
         </EnergyRing>
@@ -528,10 +535,10 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
       </div>
       {/* Un booster peut encore arriver pendant qu'un autre attend : le minuteur reste lisible. */}
       {boosters.signedIn && !boosters.unlimited && boosters.available > 0 && boosters.remaining !== null && (
-        <p className="-mt-2 px-5 pb-4 text-[11px] tracking-[0.1em] text-cream/50 uppercase tabular-nums md:px-7">{t.activities.booster.next(formatCountdown(boosters.remaining * 1000))}</p>
+        <p className="-mt-2 px-5 pb-4 text-[11px] tracking-[0.1em] text-cream/50 uppercase tabular-nums @lg:px-7">{t.activities.booster.next(formatCountdown(boosters.remaining * 1000))}</p>
       )}
       {!boosters.signedIn && !guestDone && (
-        <p className="-mt-2 flex flex-wrap items-center gap-x-2 px-5 pb-4 text-[11px] tracking-[0.1em] text-cream/50 uppercase md:px-7">
+        <p className="-mt-2 flex flex-wrap items-center gap-x-2 px-5 pb-4 text-[11px] tracking-[0.1em] text-cream/50 uppercase @lg:px-7">
           {t.activities.guest.trial}
           <span aria-hidden>·</span>
           <button type="button" onClick={openAuth} className="text-[#fff4c8]/85 uppercase underline-offset-4 hover:underline">
@@ -543,7 +550,7 @@ function BoosterHero({ part }: { part: 'open' | 'shop' }) {
       )}
       {/* La boutique : un booster ou une boîte mystère contre des ✦. */}
       {part === 'shop' && (
-        <div className="flex min-w-0 flex-1 flex-col justify-center p-3 sm:p-4 md:p-5">
+        <div className="flex min-w-0 flex-1 flex-col justify-center p-3 @sm:p-4 @lg:p-5">
           <ShopBanners />
         </div>
       )}
@@ -630,6 +637,8 @@ function HubCard({ title, description, tint, status = null, progress = null, sce
         <span className="absolute inset-x-0 bottom-0 h-3/5" style={{ background: 'linear-gradient(to top, #0e0e14 8%, rgba(14,14,20,0.72) 45%, transparent)' }} />
         {/* Liseré lumineux en haut, à la couleur du mode : plus vif quand quelque chose attend. */}
         <span className="absolute inset-x-6 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${tint}${attention ? 'ee' : '80'}, transparent)` }} />
+        {/* Noël : la neige posée sur le haut de la carte. */}
+        <SeasonalSnow />
       </span>
       {status && <StatusPill status={status} tint={tint} />}
 
@@ -705,6 +714,7 @@ function CollectionArtefact() {
               )}
             </span>
           ))}
+          <SeasonalHat className="absolute -top-3 left-[1.55rem] z-[3] block h-auto w-6 rotate-[14deg]" />
         </span>
       }
     />
@@ -718,6 +728,7 @@ function MarketArtefact() {
   const unread = useUnreadTrades()
   const mine = useTradeStore((state) => state.mine)
   const openOffers = mine?.filter((offer) => offer.mine && offer.status === 'OPEN').length ?? null
+  const festive = useThemeStore((state) => state.theme === 'christmas')
 
   return (
     <HubCard
@@ -727,9 +738,18 @@ function MarketArtefact() {
       status={unread > 0 ? { label: t.trades.hubNew(unread), tone: 'attention' } : openOffers ? { label: t.trades.hubOpen(openOffers), tone: 'info' } : null}
       onClick={() => openActivity('market')}
       emblem={
-        <span className="grid size-14 place-items-center rounded-2xl border border-[#3fe0a0]/35 bg-black/40 text-[#3fe0a0]">
-          <Handshake size={26} />
-        </span>
+        festive ? (
+          <span className="relative grid size-14 place-items-center rounded-2xl border border-[#3fe0a0]/35 bg-black/40">
+            <GiftBox className="block h-auto w-9" />
+            <span className="absolute -right-1.5 -bottom-1.5 grid size-6 place-items-center rounded-full border border-[#3fe0a0]/50 bg-[#0c1f18] text-[#3fe0a0]">
+              <ArrowLeftRight size={13} />
+            </span>
+          </span>
+        ) : (
+          <span className="grid size-14 place-items-center rounded-2xl border border-[#3fe0a0]/35 bg-black/40 text-[#3fe0a0]">
+            <Handshake size={26} />
+          </span>
+        )
       }
     />
   )
@@ -806,7 +826,6 @@ function GamesCards() {
   const t = useT()
   const openActivity = useUiStore((state) => state.openActivity)
   const signedIn = useAuthStore((state) => state.user !== null)
-  const isAdmin = useAuthStore((state) => state.user?.isAdmin === true)
   const overview = useDleStore((state) => state.overview)
   const hl = useHigherLowerStore((state) => state.overview?.me ?? null)
   const loadHl = useHigherLowerStore((state) => state.loadOverview)
@@ -824,13 +843,13 @@ function GamesCards() {
     <>
       <HubCard title={t.dle.title} description={g.dle} tint={TINT.dle} status={dleStatus} onClick={() => openActivity('dle')} emblem={<DleEmblem />} />
       <HubCard title={t.hl.title} description={g.hl} tint={TINT.hl} status={hlStatus} onClick={() => openActivity('higherlower')} emblem={<HlEmblem />} />
-      {/* Gravity Ninja : pour l'instant réservé aux administrateurs. */}
-      {isAdmin && (
+      {/* Gravity Ninja : la progression et les récompenses vont au compte. */}
+      {signedIn && (
         <HubCard
           title={t.gravity.title}
           description={g.gravity}
           tint={TINT.gravity}
-          status={{ label: t.gravity.home.adminOnly, tone: 'info' }}
+          status={{ label: g.new, tone: 'attention' }}
           onClick={() => openActivity('gravity')}
           scene={<GravityEmblem className="block size-full" />}
         />

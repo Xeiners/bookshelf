@@ -3,10 +3,11 @@ import { PLAYER_H, PLAYER_W, WORLD_HEIGHT } from '../../lib/gravity/constants'
 import type { SolveReport } from '../../lib/gravity/solver'
 import { themeOf } from '../../lib/gravity/themes'
 import type { GravityLevel } from '../../lib/gravity/types'
+import { GATE_COLORS } from './scene/world'
 
 /**
- * Le niveau entier en une bande : plateformes, pièges, points de reprise, rouleaux, et le chemin
- * du solveur (la preuve qu'il se finit) ; en rouge, l'endroit où il coince, s'il coince.
+ * Le niveau entier en une bande : plateformes, pièges, portes, bûches, rouleaux, et le chemin du solveur (la
+ * preuve qu'il se finit d'une traite) ; en rouge, l'endroit où il coince, s'il coince.
  */
 export function LevelPreview({ level, report, className }: { level: GravityLevel; report: SolveReport | null; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -55,6 +56,14 @@ export function LevelPreview({ level, report, className }: { level: GravityLevel
           ctx.fillStyle = theme.accent
           ctx.fillRect(element.x * sx, element.y * sy, Math.max(2, element.w * sx), element.h * sy)
           break
+        case 'size':
+          ctx.fillStyle = element.mini ? GATE_COLORS.mini : GATE_COLORS.full
+          ctx.fillRect(element.x * sx, element.y * sy, Math.max(2, element.w * sx), element.h * sy)
+          break
+        case 'log':
+          ctx.fillStyle = '#c88a4a'
+          ctx.fillRect(element.x * sx - 2.5, element.y * sy - 1.5, 5, 3)
+          break
         case 'moon':
           ctx.fillStyle = '#dfe6ff'
           ctx.beginPath()
@@ -65,10 +74,6 @@ export function LevelPreview({ level, report, className }: { level: GravityLevel
           ctx.fillStyle = '#ffd66b'
           ctx.fillRect(element.x * sx - 2.5, element.y * sy - 2.5, 5, 5)
           break
-        case 'checkpoint':
-          ctx.fillStyle = 'rgba(255,255,255,0.8)'
-          ctx.fillRect(element.x * sx - 0.5, 0, 1, height)
-          break
       }
     }
 
@@ -76,16 +81,14 @@ export function LevelPreview({ level, report, className }: { level: GravityLevel
     if (report) {
       ctx.strokeStyle = 'rgba(255,255,255,0.9)'
       ctx.lineWidth = 1.2
-      for (const segment of report.segments) {
-        ctx.beginPath()
-        segment.path.forEach((point, index) => {
-          const x = (point.x + PLAYER_W / 2) * sx
-          const y = (point.y + PLAYER_H / 2) * sy
-          if (index === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
-        })
-        ctx.stroke()
-      }
+      ctx.beginPath()
+      report.path.forEach((point, index) => {
+        const x = (point.x + PLAYER_W / 2) * sx
+        const y = (point.y + PLAYER_H / 2) * sy
+        if (index === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      })
+      ctx.stroke()
       if (!report.ok) {
         ctx.fillStyle = 'rgba(255,60,80,0.35)'
         ctx.fillRect(report.reached * sx - 4, 0, 8, height)

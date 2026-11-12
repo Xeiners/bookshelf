@@ -1,10 +1,12 @@
 import { useEffect, type CSSProperties } from 'react'
-import { Sparkles, Star } from 'lucide-react'
+import { Snowflake, Sparkles, Star } from 'lucide-react'
 import { useT } from '../../i18n'
 import { RARITIES, RARITY_STYLE, type Rarity } from '../../lib/boosters'
 import { BRAND } from '../../lib/brand'
 import type { CardSeries } from '../../services/cardsApi'
 import { useBoosterStore } from '../../store/useBoosterStore'
+import { useThemeStore } from '../../store/useThemeStore'
+import { Bow, SnowCap } from '../layout/ChristmasArt'
 import { IRIDESCENT } from '../cards/cardFrames'
 import { inkText } from '../../lib/ink'
 
@@ -61,13 +63,49 @@ const STRIP_CLIP =
 /** En dessous de cette largeur, le paquet reste sobre (icône, vignette) : pas de collage illisible. */
 const DETAILED_FROM = 96
 
-/** Une pièce de la bande : dorure, bord en dents de scie, perforations. */
-function StripFace({ gild }: { gild: string }) {
+/**
+ * Une pièce de la bande : dorure, bord en dents de scie, perforations. À Noël (`festive`) : un
+ * sucre d'orge (rayures rouges et blanches, à l'échelle du paquet) avec de la neige posée dessus —
+ * l'ouverture l'arrache avec.
+ */
+function StripFace({ gild, festive, width }: { gild: string; festive: boolean; width: number }) {
+  const stripe = Math.max(3, Math.round(width * 0.045))
   return (
     <>
-      <div className="absolute inset-0 rounded-t-[14px]" style={{ background: `linear-gradient(180deg, ${gild}, #e8a23c 60%, #c0368f)`, clipPath: STRIP_CLIP }} />
-      <div className="absolute inset-x-[3%] bottom-[26%] h-0 border-t-2 border-dotted" style={{ borderColor: '#fff4c8' }} />
+      <div
+        className="absolute inset-0 overflow-hidden rounded-t-[14px]"
+        style={{
+          background: festive ? `repeating-linear-gradient(-55deg, #fff7f2 0 ${stripe}px, #e3263a ${stripe}px ${stripe * 2}px)` : `linear-gradient(180deg, ${gild}, #e8a23c 60%, #c0368f)`,
+          clipPath: STRIP_CLIP,
+        }}
+      >
+        {festive && <SnowCap className="absolute inset-x-0 top-0 block h-[42%] w-full" />}
+      </div>
+      <div className="absolute inset-x-[3%] bottom-[26%] h-0 border-t-2 border-dotted" style={{ borderColor: festive ? '#ffffff' : '#fff4c8' }} />
     </>
+  )
+}
+
+/**
+ * Noël : le paquet emballé comme un cadeau, un ruban de satin rouge en croix (décentrée, pour
+ * laisser voir la carte vedette et les textes) et un gros nœud au croisement.
+ */
+function GiftWrap({ width, detailed }: { width: number; detailed: boolean }) {
+  // Le ruban horizontal passe sur le haut du bandeau du bas (paquet détaillé), plus haut sinon.
+  const across = detailed ? 75 : 72
+  const satin = 'rgba(255,255,255,0.35)'
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div
+        className="absolute inset-y-0 left-[11%] w-[7%]"
+        style={{ background: `linear-gradient(90deg, #a5102a, #e3263a 30%, #ff5a66 50%, #e3263a 70%, #a5102a)`, boxShadow: `inset 1px 0 0 ${satin}, inset -1px 0 0 ${satin}` }}
+      />
+      <div
+        className="absolute inset-x-0 h-[4.5%] -translate-y-1/2"
+        style={{ top: `${across}%`, background: 'linear-gradient(180deg, #ff5a66, #e3263a 45%, #a5102a)', boxShadow: `inset 0 1px 0 ${satin}, inset 0 -1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.35)` }}
+      />
+      <Bow className="absolute block h-auto -translate-x-1/2 -translate-y-[48%]" style={{ left: '14.5%', top: `${across}%`, width: width * 0.28 }} />
+    </div>
   )
 }
 
@@ -85,7 +123,8 @@ function useSeriesCovers(series: CardSeries | null, wanted: boolean): string[] {
  * Le booster, dessiné comme un paquet de cartes à collectionner : feuille
  * holographique aux couleurs de la série, mosaïque inclinée des couvertures de ses
  * œuvres, carte vedette (la plus rare) sertie d'irisations, bandeau « SÉRIE n »
- * doré, pierres de rareté. Purement visuel : les animations (flottaison,
+ * doré, pierres de rareté. À Noël, emballé comme un cadeau (ruban, nœud, bande en
+ * sucre d'orge enneigée). Purement visuel : les animations (flottaison,
  * déchirure) sont pilotées par le parent via les attributs `data-pack-*`.
  */
 export function BoosterPackArt({ width, halo = null, lit = false, dim = false, series = null, layer = 'full' }: BoosterPackArtProps) {
@@ -112,6 +151,8 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
    * une fine ligne lumineuse restait visible le long du bord droit.
    */
   const split = layer !== 'full'
+  // Noël : le paquet emballé en cadeau (thème saisonnier de l'app).
+  const festive = useThemeStore((state) => state.theme === 'christmas')
 
   return (
     <div className="relative" style={{ width, height }}>
@@ -209,8 +250,17 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
                     <div className="rounded-[9%] p-[3.5%]" style={{ background: IRIDESCENT, boxShadow: `0 10px 30px -6px rgba(0,0,0,0.8), 0 0 24px ${style?.glow}` }}>
                       <img src={hero} alt="" draggable={false} decoding="async" className="aspect-[3/4] w-full rounded-[7%] object-cover" />
                     </div>
-                    <Sparkles aria-hidden size={Math.round(width * 0.11)} className="absolute -top-[9%] -right-[14%] text-[#fff4c8]" />
-                    <Star aria-hidden size={Math.round(width * 0.07)} className="absolute bottom-[8%] -left-[14%] fill-[#fff4c8] text-[#fff4c8]" />
+                    {festive ? (
+                      <>
+                        <Snowflake aria-hidden size={Math.round(width * 0.12)} strokeWidth={2.4} className="absolute -top-[9%] -right-[15%] text-white" />
+                        <Snowflake aria-hidden size={Math.round(width * 0.075)} strokeWidth={2.4} className="absolute bottom-[8%] -left-[14%] text-white/85" />
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles aria-hidden size={Math.round(width * 0.11)} className="absolute -top-[9%] -right-[14%] text-[#fff4c8]" />
+                        <Star aria-hidden size={Math.round(width * 0.07)} className="absolute bottom-[8%] -left-[14%] fill-[#fff4c8] text-[#fff4c8]" />
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -269,6 +319,8 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
               </>
             )}
 
+            {festive && <GiftWrap width={width} detailed={detailed} />}
+
             {/* Reflet qui balaie la feuille. */}
             <div
               data-pack-shine
@@ -279,7 +331,7 @@ export function BoosterPackArt({ width, halo = null, lit = false, dim = false, s
 
           {/* Bande sertie, avec sa ligne de perforations dorée : l'ouverture l'arrache entière. */}
           <div data-pack-strip className="absolute inset-x-0 top-0 h-[13%]" style={{ filter: dim ? 'grayscale(0.85) brightness(0.55)' : undefined }}>
-            <StripFace gild={gild} />
+            <StripFace gild={gild} festive={festive} width={width} />
           </div>
         </>
       )}

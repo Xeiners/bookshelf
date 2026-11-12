@@ -2,12 +2,12 @@ import { prisma } from '../../core/db.js'
 import { record, type Admin } from '../admin/admin.service.js'
 
 /*
- * Thème saisonnier : un administrateur habille l'app pour une fête (Halloween…), pour tout le
+ * Thème saisonnier : un administrateur habille l'app pour une fête (Halloween, Noël…), pour tout le
  * monde, et le retire quand il veut. Rangé dans `SiteSetting` (clé `theme`) ; lu par chaque
  * appareil au démarrage, d'où un petit cache mémoire.
  */
 
-export const SITE_THEMES = ['none', 'halloween'] as const
+export const SITE_THEMES = ['none', 'halloween', 'christmas'] as const
 export type SiteTheme = (typeof SITE_THEMES)[number]
 
 const KEY = 'theme'

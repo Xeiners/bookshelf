@@ -4,7 +4,9 @@ import { useT } from '../../i18n'
 import { chooseCovers, coverList, loadCovers } from '../../lib/stack/covers'
 import { outcomeOf, pageCount, type StackOutcome } from '../../lib/stack/engine'
 import { TOWER_SIZE, towerSource } from '../../lib/stack/tower'
+import { useThemeStore } from '../../store/useThemeStore'
 import { Board, popScore } from './board'
+import { setStackSeason } from './worlds'
 import { SfxVolume } from '../ui/SfxVolume'
 
 /** Après la chute de la dernière page, le temps de la voir tomber avant le bilan. */
@@ -29,11 +31,14 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
   const boardRef = useRef<Board | null>(null)
   const [hud, setHud] = useState({ score: 0, pages: 0, combo: 0 })
   const [hint, setHint] = useState(true)
-  const labels = useRef({ perfect: t.stack.game.perfect, worlds: t.stack.worlds, world: t.stack.game.world })
+  // Noël : les mondes de Noël, figés pour la partie.
+  const [festive] = useState(() => useThemeStore.getState().theme === 'christmas')
+  const worldNames = festive ? t.stack.christmasWorlds : t.stack.worlds
+  const labels = useRef({ perfect: t.stack.game.perfect, worlds: worldNames, world: t.stack.game.world })
   const callbacks = useRef({ onOver, onQuit })
   // Valeurs lues par la boucle de jeu : mises à jour après chaque rendu, jamais pendant.
   useEffect(() => {
-    labels.current = { perfect: t.stack.game.perfect, worlds: t.stack.worlds, world: t.stack.game.world }
+    labels.current = { perfect: t.stack.game.perfect, worlds: worldNames, world: t.stack.game.world }
     callbacks.current = { onOver, onQuit }
   })
 
@@ -42,6 +47,7 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    setStackSeason(festive ? 'christmas' : 'default')
     const board = new Board({ sound: true, reduced, perfectLabel: labels.current.perfect, worldNames: labels.current.worlds, worldLabel: labels.current.world })
     board.coverOffset = Math.floor(Math.random() * 1000)
     boardRef.current = board
@@ -98,7 +104,7 @@ export function StackGame({ onOver, onQuit }: StackGameProps) {
       boardRef.current = null
       towerSource.current = null
     }
-  }, [])
+  }, [festive])
 
   /** Un toucher, un clic ou la barre d'espace : la page se pose. */
   const place = () => {

@@ -24,6 +24,25 @@ type Power = 'spring' | 'rocket' | 'shield' | 'wide' | 'magnet' | 'feather'
 const TILT_FULL = 22
 const TILT_DEAD = 2
 const CONTROLS_KEY = 'bookshelf:jump:controls'
+/** Les bonus déjà expliqués sur cet appareil : leur explication ne revient plus. */
+const POWERS_SEEN_KEY = 'bookshelf:jump:powers-seen'
+
+function seenPowers(): Set<string> {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(POWERS_SEEN_KEY) ?? '[]')
+    return new Set(Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function rememberPowers(seen: Set<string>): void {
+  try {
+    localStorage.setItem(POWERS_SEEN_KEY, JSON.stringify([...seen]))
+  } catch {
+    // Stockage indisponible : l'explication reviendra, sans plus.
+  }
+}
 
 type Controls = 'touch' | 'tilt'
 
@@ -145,7 +164,7 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
   }, [])
   /** Univers qu'on vient d'atteindre : son nom s'affiche un instant. */
   const [world, setWorld] = useState<{ index: number; name: string } | null>(null)
-  /** Bonus qu'on vient de prendre pour la première fois de la partie : à quoi il sert. */
+  /** Bonus qu'on prend pour la toute première fois : à quoi il sert (une seule fois par appareil). */
   const [tip, setTip] = useState<Power | null>(null)
   /** Univers en cours : il habille aussi les côtés de l'écran (ordinateur, tablette). */
   const [worldIndex, setWorldIndex] = useState(0)
@@ -176,11 +195,12 @@ export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
       .decode()
       .then(() => board.setMoon(moon))
       .catch(() => undefined)
-    // Chaque bonus s'explique la première fois qu'on le prend dans la partie, pas à chaque fois.
-    const explained = new Set<Power>()
+    // Chaque bonus ne s'explique que la toute première fois qu'on le prend, puis plus jamais.
+    const explained = seenPowers()
     board.onPower = (kind) => {
       if (explained.has(kind)) return
       explained.add(kind)
+      rememberPowers(explained)
       setTip(kind)
     }
     board.onWorld = (index) => {
