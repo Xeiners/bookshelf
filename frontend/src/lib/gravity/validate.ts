@@ -1,4 +1,4 @@
-import { LEVEL_FORMAT, LIMITS, WORLD_HEIGHT } from './constants'
+import { KEY_CHANNELS, LEVEL_FORMAT, LIMITS, WORLD_HEIGHT } from './constants'
 import { SECTION_KINDS, type LevelPlan } from './generator'
 import { THEME_IDS, type GravityLevel, type LevelElement } from './types'
 
@@ -94,6 +94,29 @@ export function parseLevel(input: unknown): ParseResult {
           dir: element.dir === 'down' ? 'down' : element.dir === 'up' ? 'up' : (issues.push(`${at}.dir`), 'up'),
           period: num(element.period, `${at}.period`, [0.5, 30], 2),
           on: num(element.on, `${at}.on`, [0.05, 0.95], 0.5),
+          ...(element.phase !== undefined ? { phase: num(element.phase, `${at}.phase`, [0, 1]) } : {}),
+        })
+        break
+      case 'spring':
+        elements.push({ type: 'spring', x, y: y(), w: size('w'), dir: element.dir === 'down' ? 'down' : element.dir === 'up' ? 'up' : (issues.push(`${at}.dir`), 'up') })
+        break
+      case 'cloud':
+        elements.push({ type: 'cloud', x, y: y(), w: size('w'), h: size('h'), dir: element.dir === 'down' ? 'down' : element.dir === 'up' ? 'up' : (issues.push(`${at}.dir`), 'up') })
+        break
+      case 'key':
+        elements.push({ type: 'key', x, y: y(), channel: Math.round(num(element.channel, `${at}.channel`, [0, KEY_CHANNELS - 1])) })
+        break
+      case 'barrier':
+        elements.push({ type: 'barrier', x, y: y(), w: size('w'), h: size('h'), channel: Math.round(num(element.channel, `${at}.channel`, [0, KEY_CHANNELS - 1])) })
+        break
+      case 'kunai':
+        elements.push({
+          type: 'kunai',
+          x,
+          y: y(),
+          speed: num(element.speed, `${at}.speed`, [2, 60], 15),
+          range: num(element.range, `${at}.range`, [1, 120], 20),
+          period: num(element.period, `${at}.period`, [0.5, 30], 3),
           ...(element.phase !== undefined ? { phase: num(element.phase, `${at}.phase`, [0, 1]) } : {}),
         })
         break

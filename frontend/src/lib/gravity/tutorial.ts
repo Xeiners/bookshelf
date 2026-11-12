@@ -17,7 +17,7 @@ import type { GravityLevel } from './types'
  * `frontend/test/gravity.test.ts`.
  */
 
-export const CHAPTER_IDS = ['flip', 'edges', 'spikes', 'islands', 'seal', 'crumble', 'mover', 'shuriken', 'moon', 'mini', 'log', 'scrolls', 'warp', 'flames', 'ghost', 'orbit'] as const
+export const CHAPTER_IDS = ['flip', 'edges', 'spikes', 'islands', 'seal', 'crumble', 'mover', 'shuriken', 'moon', 'mini', 'log', 'scrolls', 'warp', 'flames', 'ghost', 'orbit', 'spring', 'cloud', 'kekkai', 'kunai'] as const
 export type ChapterId = (typeof CHAPTER_IDS)[number]
 
 const s = (kind: SectionKind, intensity = 1): ScriptStep => ({ kind, intensity })
@@ -41,7 +41,11 @@ const SCRIPT: [ChapterId, ScriptStep[]][] = [
   ['warp', [...breath, s('hiraishin'), s('runway'), s('hiraishin', 4)]],
   ['flames', [...breath, s('flames')]],
   ['ghost', [...breath, s('ghost')]],
-  ['orbit', [...breath, s('orbit'), s('runway'), s('switch'), s('runway')]],
+  ['orbit', [...breath, s('orbit')]],
+  ['spring', [...breath, s('spring')]],
+  ['cloud', [...breath, s('cloud')]],
+  ['kekkai', [...breath, s('kekkai')]],
+  ['kunai', [...breath, s('kunai'), s('runway'), s('switch'), s('runway')]],
 ]
 const SEED = 7
 

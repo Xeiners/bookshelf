@@ -9,7 +9,7 @@ import { z } from 'zod'
 /** Thèmes connus du jeu (`THEME_IDS` côté front). */
 export const GRAVITY_THEMES = ['konoha', 'night', 'hunter', 'halloween', 'christmas', 'sand', 'mist'] as const
 /** Sections du générateur (`SECTION_KINDS` côté front). */
-export const GRAVITY_SECTIONS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit'] as const
+export const GRAVITY_SECTIONS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit', 'spring', 'cloud', 'kekkai', 'kunai'] as const
 
 const range = (min: number, max: number) => z.number().finite().min(min).max(max)
 const X = range(-20, 3100)
@@ -43,6 +43,11 @@ const ELEMENTS = [
   z.object({ type: z.literal('warp'), ...Box, tx: X, ty: Y }),
   z.object({ type: z.literal('flame'), x: X, y: Y, w: SIZE, reach: range(0.3, 14), dir: z.enum(['up', 'down']), period: range(0.5, 30), on: range(0.05, 0.95), phase: range(0, 1).optional() }),
   z.object({ type: z.literal('ghost'), ...Box, period: range(0.5, 30), on: range(0.05, 0.95), phase: range(0, 1).optional() }),
+  z.object({ type: z.literal('spring'), x: X, y: Y, w: SIZE, dir: z.enum(['up', 'down']) }),
+  z.object({ type: z.literal('cloud'), ...Box, dir: z.enum(['up', 'down']) }),
+  z.object({ type: z.literal('key'), x: X, y: Y, channel: z.number().int().min(0).max(7) }),
+  z.object({ type: z.literal('barrier'), ...Box, channel: z.number().int().min(0).max(7) }),
+  z.object({ type: z.literal('kunai'), x: X, y: Y, speed: range(2, 60), range: range(1, 120), period: range(0.5, 30), phase: range(0, 1).optional() }),
 ] as const
 
 export const ElementSchema = z.discriminatedUnion('type', [...ELEMENTS])

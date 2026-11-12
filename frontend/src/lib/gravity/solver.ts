@@ -47,7 +47,7 @@ interface Node {
 }
 
 const keyOf = (run: GravityRun, hold: boolean) =>
-  `${run.tick}|${Math.round(run.x * 10)}|${Math.round(run.y * 10)}|${run.g}|${Math.round(run.vy)}|${hold ? 1 : 0}|${run.moonLeft > 0 ? 1 : 0}|${run.mini ? 1 : 0}|${run.shield ? 1 : 0}|${run.safe > 0 ? 1 : 0}`
+  `${run.tick}|${Math.round(run.x * 10)}|${Math.round(run.y * 10)}|${run.g}|${Math.round(run.vy)}|${hold ? 1 : 0}|${run.moonLeft > 0 ? 1 : 0}|${run.mini ? 1 : 0}|${run.shield ? 1 : 0}|${run.safe > 0 ? 1 : 0}|${run.keys}`
 
 const canDecide = (run: GravityRun) => run.tick % STRIDE === 0 && (run.grounded || run.coyote > 0 || run.moonLeft > 0)
 

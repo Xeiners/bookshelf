@@ -9,7 +9,7 @@ import type { SolveReport } from '../../lib/gravity/solver'
 import type { CoachCue } from '../../lib/gravity/tutorial'
 import type { GravityLevel } from '../../lib/gravity/types'
 import { vibrate } from '../../lib/haptics'
-import { playGravityFinish, playGravityFlip, playGravityLand, playGravityLog, playGravityMoon, playGravityPoof, playGravityScroll, playGravitySize, playGravityWarp } from '../../lib/sfx'
+import { playGravityFinish, playGravityFlip, playGravityKey, playGravityLand, playGravityLog, playGravityMoon, playGravityPoof, playGravityScroll, playGravitySize, playGravitySpring, playGravityWarp } from '../../lib/sfx'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import { SfxVolume } from '../ui/SfxVolume'
 import { GravityScene, layoutFor } from './scene/GravityScene'
@@ -308,6 +308,14 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
               case 'warp':
                 playGravityWarp()
                 vibrate(14)
+                break
+              case 'spring':
+                playGravitySpring()
+                vibrate(12)
+                break
+              case 'key':
+                playGravityKey()
+                vibrate([10, 30, 16])
                 break
               case 'die':
                 playGravityPoof()

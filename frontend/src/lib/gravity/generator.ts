@@ -2,6 +2,7 @@ import { seededRandom } from '../runner/random'
 import {
   FLIP_KICK,
   GRAVITY,
+  KEY_CHANNELS,
   LEVEL_FORMAT,
   MAX_FALL,
   MINI_SCALE,
@@ -10,6 +11,7 @@ import {
   PLAYER_H,
   PLAYER_W,
   SCROLLS_PER_LEVEL,
+  SPRING_V,
   START_X,
   TICK,
   WORLD_HEIGHT,
@@ -31,7 +33,7 @@ import type { Gravity, GravityLevel, LevelElement, ThemeId } from './types'
  * (sections imposées : le plan d'une IA, ou écrit à la main).
  */
 
-export const SECTION_KINDS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit'] as const
+export const SECTION_KINDS = ['runway', 'switch', 'spikes', 'wall', 'zigzag', 'islands', 'crumble', 'mover', 'pad', 'shuriken', 'moon', 'mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit', 'spring', 'cloud', 'kekkai', 'kunai'] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
 
 /**
@@ -39,7 +41,7 @@ export type SectionKind = (typeof SECTION_KINDS)[number]
  * l'instant où le ninja passera. Dans un niveau qui en compte, les plateformes mobiles ne vont que de
  * haut en bas : une mobile horizontale pousse le ninja en avant et décalerait ce rendez-vous.
  */
-const TIMED_SECTIONS: ReadonlySet<SectionKind> = new Set(['flames', 'ghost'])
+const TIMED_SECTIONS: ReadonlySet<SectionKind> = new Set(['flames', 'ghost', 'kunai'])
 
 export interface PlanSection {
   kind: SectionKind
@@ -84,8 +86,9 @@ const GATE_H = 2.4
 
 /** Hauteur des sceaux de téléportation, depuis la surface. */
 const WARP_H = 2.4
-/** Épaisseur des dalles spectrales. */
+/** Épaisseur des dalles spectrales, et des nuages. */
 const GHOST_H = 0.8
+const CLOUD_H = 0.6
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * clamp(t, 0, 1)
@@ -121,7 +124,9 @@ interface Lane {
   g: Gravity
   /** Début du bloc de la voie. */
   start: number
-  kind: 'block' | 'crumble' | 'mover' | 'ghost'
+  kind: 'block' | 'crumble' | 'mover' | 'ghost' | 'cloud'
+  /** Nuage : il commence dès là (il s'étend sous la trajectoire qui le traverse). */
+  cloudFrom?: number
   /** Spectrale : la part du cycle où elle est là. */
   ghostOn?: number
 }
@@ -171,6 +176,8 @@ class Builder {
    * course pure ne le dirait (cf. `timeAt`).
    */
   shift = 0
+  /** Kekkai : le prochain canal libre (un par talisman, pour qu'un talisman n'ouvre que sa barrière). */
+  channel = 0
 
   constructor(difficulty: number, rand: () => number, timed = false) {
     this.difficulty = difficulty
@@ -224,6 +231,11 @@ class Builder {
    * clignote à ce rythme.
    */
   laneElement(lane: Lane, x0: number, x1: number): LevelElement {
+    if (lane.kind === 'cloud') {
+      // Un nuage : une dalle mince, qu'on traverse d'un côté et sur laquelle on se pose de l'autre.
+      const from = Math.min(x0, lane.cloudFrom ?? x0)
+      return { type: 'cloud', x: round(from), y: round(lane.g === 1 ? lane.y : lane.y - CLOUD_H), w: round(x1 - from), h: CLOUD_H, dir: lane.g === 1 ? 'up' : 'down' }
+    }
     if (lane.kind !== 'ghost') return this.laneBlock(lane, x0, x1)
     const from = x0 - this.speed * 0.3
     const to = x1 + this.speed * 0.25
@@ -283,7 +295,7 @@ class Builder {
     options: {
       window: number
       react: number
-      filler?: 'void' | 'spikes' | 'wall' | 'pad' | 'flames'
+      filler?: 'void' | 'spikes' | 'wall' | 'pad' | 'flames' | 'spring' | 'keep'
       kind?: Lane['kind']
       lunar?: boolean
       landRun?: number
@@ -301,6 +313,9 @@ class Builder {
     const start = end + flight + PLAYER_W - window
     const filler = options.filler ?? 'void'
     if (filler === 'void') this.closeLane(end)
+    else if (filler === 'keep') {
+      // La voie continue : l'appelant la fermera (kekkai : à la barrière).
+    }
     else if (filler === 'pad') {
       // Sceau d'inversion au bout de la voie : il retourne le ninja de lui-même.
       this.closeLane(end + 1.5)
@@ -311,6 +326,14 @@ class Builder {
       const hazardEnd = end + flight + 2.5
       this.closeLane(hazardEnd)
       this.elements.push({ type: 'spikes', x: round(end + 0.15), y: from.y, w: round(hazardEnd - end - 0.15), dir: from.g === 1 ? 'up' : 'down' })
+    } else if (filler === 'spring') {
+      // Un tremplin piégé : la voie continue, mais un tremplin y renvoie droit dans les pics qui suivent.
+      const air = this.bounceDistance()
+      const padX = end + 0.3
+      const hazardEnd = Math.max(end + flight + 2.5, padX + air + 3)
+      this.closeLane(hazardEnd)
+      this.elements.push({ type: 'spring', x: round(padX), y: from.y, w: 1.2, dir: from.g === 1 ? 'up' : 'down' })
+      this.elements.push({ type: 'spikes', x: round(padX + 1.4), y: from.y, w: round(hazardEnd - padX - 1.4), dir: from.g === 1 ? 'up' : 'down' })
     } else if (filler === 'flames') {
       // La voie continue, mais ses bouches crachent juste quand le ninja y passerait : il faut l'avoir
       // quittée, assez tôt pour que le jet ne le rattrape pas en plein vol.
@@ -499,6 +522,18 @@ class Builder {
         this.switchTo(this.pickTarget(false), { window, react })
         break
       }
+      case 'spring':
+        this.springs(intensity)
+        break
+      case 'cloud':
+        this.cloud(intensity)
+        break
+      case 'kekkai':
+        this.kekkai(intensity)
+        break
+      case 'kunai':
+        this.kunais(intensity)
+        break
       case 'orbit': {
         // Une roue de lames tourne au milieu de la trajectoire : inverser quand elle laisse passer.
         const from = this.lane
@@ -546,6 +581,129 @@ class Builder {
     this.lane = { y: y2, g, start: exitX - 1.2, kind: 'block' }
     this.landed = exitX
     this.cursor = exitX + PLAYER_W + Math.max(react, this.speed * lerp(0.45, 0.22, k))
+  }
+
+  /** Distance (unités) d'un bond de tremplin : de l'élan jusqu'au retour à la hauteur de la surface (même intégration que le moteur). */
+  bounceDistance(): number {
+    let vy = -SPRING_V
+    let away = 0
+    let ticks = 0
+    while (ticks < 600) {
+      vy = Math.min(MAX_FALL, vy + GRAVITY * TICK)
+      away -= vy * TICK
+      ticks += 1
+      if (away <= 0) break
+    }
+    return ticks * TICK * this.speed
+  }
+
+  /**
+   * Tremplins : un tremplin sur la voie, puis une fosse de pics qu'il fait franchir d'un bond (ne pas
+   * toucher). Plus dur : plusieurs à la suite, et des tremplins piégés (ils renvoient dans les pics) à
+   * éviter en inversant avant.
+   */
+  springs(intensity: number): void {
+    const { window, react, k } = tuning(intensity, this.speed)
+    const count = Math.round(lerp(1, 3, k + this.rand() * 0.2))
+    for (let index = 0; index < count; index += 1) {
+      if (this.lane.kind !== 'block') {
+        this.switchTo(this.pickTarget(false), { window, react })
+        continue
+      }
+      if (k >= 0.4 && this.chance(0.45)) {
+        this.switchTo(this.pickTarget(false), { window, react: Math.max(react, this.speed * 0.3), filler: 'spring' })
+        continue
+      }
+      const lane = this.lane
+      const air = this.bounceDistance()
+      const padX = this.cursor + this.speed * 0.25
+      const padW = 1.2
+      this.elements.push({ type: 'spring', x: round(padX), y: lane.y, w: padW, dir: lane.g === 1 ? 'up' : 'down' })
+      // Le bond part dès que le ninja touche le tremplin, et le repose `air` plus loin.
+      const landX = padX - PLAYER_W * 0.85 + air
+      const pitFrom = padX + padW + 0.3
+      const pitTo = landX - lerp(1.6, 0.8, k)
+      if (pitTo - pitFrom > 0.8) this.elements.push({ type: 'spikes', x: round(pitFrom), y: lane.y, w: round(pitTo - pitFrom), dir: lane.g === 1 ? 'up' : 'down' })
+      this.landed = landX + PLAYER_W
+      this.cursor = landX + PLAYER_W + Math.max(react, this.speed * 0.25)
+    }
+  }
+
+  /**
+   * Nuage : on inverse à travers un nuage (on le traverse), on file sur la surface d'en face, puis on
+   * inverse de nouveau pour se poser DESSUS (la surface de départ, elle, s'est arrêtée) ; enfin on le
+   * quitte.
+   */
+  cloud(intensity: number): void {
+    const { window, react } = tuning(intensity, this.speed)
+    const from = this.lane
+    const far = this.pickTarget(false)
+    if (from.kind !== 'block' || Math.abs(from.y - far) < 6.5) {
+      this.switchTo(far, { window, react })
+      return
+    }
+    const startX = this.cursor
+    const share = this.between(0.35, 0.65)
+    const cloudY = round(from.g === 1 ? lerp(far + PLAYER_H + 1.8, from.y - 2.2, share) : lerp(far - PLAYER_H - 1.8, from.y + 2.2, share))
+    this.switchTo(far, { window, react: Math.max(react, this.speed * 0.35) })
+    this.switchTo(cloudY, { window, react: Math.max(react, this.speed * 0.3), kind: 'cloud' })
+    this.lane.cloudFrom = startX
+    this.switchTo(this.pickTarget(false), { window, react })
+  }
+
+  /**
+   * Kekkai : une barrière sur toute la hauteur du couloir, qu'ouvre seulement le talisman posé sur la
+   * voie d'en face (dès l'intensité 6, sur une dalle suspendue). La voie de départ continue jusqu'à la
+   * barrière : qui ne va pas chercher le talisman s'y arrête net.
+   */
+  kekkai(intensity: number): void {
+    const { window, react, k } = tuning(intensity, this.speed)
+    const from = this.lane
+    if (from.kind !== 'block' || this.channel >= KEY_CHANNELS) {
+      this.switchTo(this.pickTarget(false), { window, react })
+      return
+    }
+    const channel = this.channel
+    this.channel += 1
+    this.switchTo(this.pickTarget(intensity >= 6), { window, react: Math.max(react, this.speed * 0.45), filler: 'keep' })
+    const lane = this.lane
+    const keyX = this.landed + 0.6
+    this.elements.push({ type: 'key', x: round(keyX), y: round(lane.g === 1 ? lane.y - PLAYER_H / 2 : lane.y + PLAYER_H / 2), channel })
+    const barrierX = Math.max(this.cursor, keyX + 1.5) + this.speed * lerp(0.6, 0.35, k)
+    this.elements.push({ type: 'barrier', x: round(barrierX), y: -3, w: 1.2, h: WORLD_HEIGHT + 6, channel })
+    // La voie de départ court jusqu'à la barrière.
+    this.elements.push(this.laneElement(from, from.start, barrierX + 0.4))
+    this.cursor = barrierX + 1.2 + this.speed * 0.25
+  }
+
+  /**
+   * Kunaï : une inversion large, et des kunaï lancés en travers de la trajectoire, qui la coupent au
+   * milieu de la fenêtre : inverser tôt ou tard. Plus dur : une seconde volée, et plus vite.
+   */
+  kunais(intensity: number): void {
+    const { window, react, k } = tuning(intensity, this.speed)
+    const from = this.lane
+    const target = this.pickTarget(false)
+    const wide = window * 2 + 2
+    const end = this.cursor + wide
+    this.switchTo(target, { window: wide, react })
+    const volleys = k > 0.5 ? 2 : 1
+    const mid = (from.y + target) / 2
+    const center = from.g === 1 ? from.y - PLAYER_H / 2 : from.y + PLAYER_H / 2
+    // Le temps de vol d'une surface jusqu'au milieu du couloir (même intégration que le moteur).
+    const toMid = flightTicks(Math.abs(mid - center)) * TICK
+    for (let volley = 0; volley < volleys; volley += 1) {
+      // La trajectoire visée : celle d'une inversion au milieu de la fenêtre (puis à son premier quart) ;
+      // la volée, trois kunaï en colonne, la coupe à l'instant où elle passe au milieu du couloir.
+      const flipX = end - wide * (volley === 0 ? 0.5 : 0.8)
+      const crossX = flipX + toMid * this.speed + PLAYER_W / 2
+      const crossT = this.timeAt(flipX) + toMid
+      const speed = round(lerp(13, 21, k))
+      const lead = lerp(1.1, 0.7, k)
+      const period = 4
+      const phase = round3(frac(-(crossT - lead) / period))
+      for (const dy of [-1.2, 0, 1.2]) this.elements.push({ type: 'kunai', x: round(crossX + speed * lead), y: round(mid + dy), speed, range: round(speed * lead + 8), period, phase })
+    }
   }
 
   /**
@@ -655,6 +813,10 @@ function weightsFor(difficulty: number): [SectionKind, number][] {
     ['flames', k > 0.45 ? 3 + 7 * k : 0],
     ['ghost', k > 0.45 ? 3 + 6 * k : 0],
     ['orbit', k > 0.5 ? 2 + 7 * k : 0],
+    ['spring', 3 + 3 * k],
+    ['cloud', k > 0.15 ? 3 + 4 * k : 0],
+    ['kekkai', k > 0.2 ? 2 + 4 * k : 0],
+    ['kunai', k > 0.4 ? 3 + 6 * k : 0],
   ]
 }
 

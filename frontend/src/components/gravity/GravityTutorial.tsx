@@ -4,11 +4,14 @@ import {
   ArrowUpDown,
   Asterisk,
   BrickWall,
+  ChevronsUp,
   CircleDashed,
+  Cloud,
   Flame,
   Ghost,
   GraduationCap,
   Hourglass,
+  KeyRound,
   Layers,
   Minimize2,
   Moon,
@@ -18,6 +21,7 @@ import {
   RotateCcw,
   ScrollText,
   Shield,
+  Sword,
   Triangle,
   Zap,
   type LucideIcon,
@@ -47,6 +51,10 @@ const ICONS: Record<ChapterId, LucideIcon> = {
   flames: Flame,
   ghost: Ghost,
   orbit: CircleDashed,
+  spring: ChevronsUp,
+  cloud: Cloud,
+  kekkai: KeyRound,
+  kunai: Sword,
 }
 
 /**

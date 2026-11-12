@@ -352,7 +352,7 @@ export const fr = {
       gravity: {
         tag: 'Nouveau jeu',
         title: 'Gravity Ninja : inverse la gravité',
-        text: 'Un seul geste : touche l’écran et ton ninja passe du sol au plafond. 37 niveaux de Facile à Extrême, avec pics, shurikens, flammes, dalles spectrales et téléportations. Chaque niveau réussi pour la première fois rapporte des Poussières ✦ (encore plus avec tous ses rouleaux), chaque palier terminé un booster, et le palier Extrême un booster Légendaire.',
+        text: 'Un seul geste : touche l’écran et ton ninja passe du sol au plafond. 67 niveaux de Facile à Extrême, avec pics, shurikens, flammes, tremplins, nuages, kunaï et téléportations. Chaque niveau réussi pour la première fois rapporte des Poussières ✦ (encore plus avec tous ses rouleaux), chaque palier terminé un booster, et le palier Extrême un booster Légendaire.',
         cta: 'Jouer',
       },
       jump: {
@@ -977,6 +977,8 @@ export const fr = {
         'Bûche : elle encaisse un piège à ta place.',
         'Sceau doré (Hiraishin) : il te téléporte de l’autre côté d’une barrière.',
         'Jets de flammes, dalles spectrales, roues de lames : ils vont en rythme, observe-les avant de passer.',
+        'Tremplin : il te fait bondir sans changer ta gravité. Nuage : tu le traverses d’un côté, tu te poses dessus de l’autre.',
+        'Barrière rouge (kekkai) : prends le talisman pour l’ouvrir. Kunaï : passe avant ou après la volée.',
         'Une chute = retour au début. Les rouleaux comptent si tu finis dans la même tentative.',
       ],
       custom: 'Atelier',
@@ -1035,6 +1037,10 @@ export const fr = {
         flame: { name: 'Jets de flammes', text: 'Ils crachent en rythme : passe quand ils dorment.' },
         ghost: { name: 'Dalle spectrale', text: 'Elle apparaît et s’efface en rythme : pose-toi, repars vite.' },
         orbit: { name: 'Roue de lames', text: 'Les shurikens tournent : inverse quand la roue s’ouvre.' },
+        spring: { name: 'Tremplin', text: 'Il te propulse sans changer ta gravité : au-dessus des pics… ou dedans.' },
+        cloud: { name: 'Nuage', text: 'Tu le traverses d’un côté, tu te poses dessus de l’autre.' },
+        key: { name: 'Kekkai', text: 'Prends le talisman : il dissout la barrière rouge plus loin.' },
+        kunai: { name: 'Kunaï', text: 'Lancés en travers de ta route : passe avant ou après.' },
       },
       logReady: 'Kawarimi prêt',
       attempt: (count: number) => `Tentative ${count}`,
@@ -1042,7 +1048,7 @@ export const fr = {
     },
     tutorial: {
       open: 'Tutoriel',
-      pitch: 'Toutes les mécaniques, d’une traite · 1 min',
+      pitch: 'Toutes les mécaniques, d’une traite · 1 min 30',
       done: 'Terminé · à revoir quand tu veux',
       title: 'Tutoriel',
       completeTitle: 'Tu connais tout !',
@@ -1051,7 +1057,7 @@ export const fr = {
       replay: 'Rejouer le tutoriel',
       back: 'Retour',
       offerTitle: 'Première partie ?',
-      offerText: 'Le tutoriel est un parcours d’une minute : tu cours, et chaque mécanique s’annonce à son tour, avec le bon moment pour toucher. Tu pourras le relancer quand tu veux depuis l’accueil du mode.',
+      offerText: 'Le tutoriel est un parcours d’une minute et demie : tu cours, et chaque mécanique s’annonce à son tour, avec le bon moment pour toucher. Tu pourras le relancer quand tu veux depuis l’accueil du mode.',
       offerYes: 'Faire le tutoriel',
       offerNo: 'Non, jouer directement',
       coach: {
@@ -1076,6 +1082,10 @@ export const fr = {
         flames: { title: 'Les jets de flammes', text: 'Ils crachent en rythme, des braises préviennent : quitte la voie avant qu’elle ne crache.' },
         ghost: { title: 'Les dalles spectrales', text: 'Elle apparaît et s’efface en rythme : pose-toi quand elle brille, repars vite.' },
         orbit: { title: 'Les roues de lames', text: 'Les shurikens tournent : inverse quand la roue laisse un passage.' },
+        spring: { title: 'Les tremplins', text: 'Il te propulse sans changer ta gravité : laisse-le te faire sauter la fosse. Un tremplin suivi de pics est un piège : inverse avant.' },
+        cloud: { title: 'Les nuages', text: 'Tu traverses le nuage d’un côté, tu te poses dessus de l’autre : monte au travers, puis reviens t’y poser.' },
+        kekkai: { title: 'Le kekkai', text: 'La barrière rouge ferme le couloir : va chercher le talisman en face, elle se dissout.' },
+        kunai: { title: 'Les kunaï', text: 'Une volée coupe ta trajectoire : inverse avant ou après son passage.' },
       },
     },
     result: {

@@ -7,6 +7,8 @@ import {
   FLIP_KICK,
   GRAVITY,
   KAWARIMI_SAFE,
+  KUNAI_LENGTH,
+  KUNAI_THICKNESS,
   MAX_FALL,
   MINI_SCALE,
   MOON_GRAVITY,
@@ -18,6 +20,7 @@ import {
   PLAYER_W,
   SHURIKEN_R,
   SPIKE_H,
+  SPRING_V,
   START_X,
   TICK,
   WORLD_HEIGHT,
@@ -46,7 +49,7 @@ export interface Box {
   h: number
 }
 
-export type SolidKind = 'block' | 'crumble' | 'mover' | 'ghost'
+export type SolidKind = 'block' | 'crumble' | 'mover' | 'ghost' | 'cloud' | 'barrier'
 
 export interface Solid extends Box {
   kind: SolidKind
@@ -57,6 +60,31 @@ export interface Solid extends Box {
   phase: number
   /** Spectrale : fraction du cycle où elle est là (1 pour les autres). */
   on: number
+  /**
+   * Nuage : le seul sens où il porte (1 : on s'y pose dessus, gravité normale ; −1 : dessous, gravité
+   * inversée) ; on le traverse dans tous les autres cas. 0 pour les autres solides.
+   */
+  oneway: 0 | Gravity
+  /** Barrière : son canal (le talisman du même canal la dissout). */
+  channel: number
+}
+
+/** Tremplin. */
+export interface Spring {
+  x: number
+  y: number
+  w: number
+  dir: 'up' | 'down'
+}
+
+/** Lanceur de kunaï (cf. `KunaiElement`). */
+export interface Kunai {
+  x: number
+  y: number
+  speed: number
+  range: number
+  period: number
+  phase: number
 }
 
 export interface Spikes {
@@ -97,9 +125,11 @@ export interface Warp extends Box {
 }
 
 export interface Pickup {
-  kind: 'moon' | 'scroll' | 'log'
+  kind: 'moon' | 'scroll' | 'log' | 'key'
   x: number
   y: number
+  /** Talisman : son canal. */
+  channel: number
 }
 
 /** Porte de taille. */
@@ -120,6 +150,8 @@ export interface GravityWorld {
   pickups: Pickup[]
   flames: Flame[]
   warps: Warp[]
+  springs: Spring[]
+  kunais: Kunai[]
   /** Nombre de rouleaux du niveau. */
   scrollCount: number
   grid: {
@@ -131,10 +163,12 @@ export interface GravityWorld {
     pickups: Map<number, number[]>
     flames: Map<number, number[]>
     warps: Map<number, number[]>
+    springs: Map<number, number[]>
+    kunais: Map<number, number[]>
   }
 }
 
-export type DeathCause = 'fall' | 'spikes' | 'shuriken' | 'flame' | 'left' | 'crushed'
+export type DeathCause = 'fall' | 'spikes' | 'shuriken' | 'flame' | 'kunai' | 'left' | 'crushed'
 
 export type GravityEvent =
   | { kind: 'flip' }
@@ -149,6 +183,8 @@ export type GravityEvent =
   | { kind: 'substitute' }
   /** Hiraishin : d'où il part (centre du ninja) ; il est déjà arrivé. */
   | { kind: 'warp'; x: number; y: number }
+  | { kind: 'spring' }
+  | { kind: 'key'; channel: number }
   | { kind: 'die'; cause: DeathCause }
   | { kind: 'finish' }
 
@@ -190,6 +226,8 @@ export interface GravityRun {
   safe: number
   /** Bûches déjà prises (indices de `pickups`). */
   logs: number[]
+  /** Talismans pris (masque sur leur canal) : les barrières de ces canaux sont dissoutes. */
+  keys: number
   status: 'running' | 'dead' | 'finished'
   cause: DeathCause | null
   deaths: number
@@ -231,17 +269,35 @@ export function buildWorld(level: GravityLevel): GravityWorld {
   const pickups: Pickup[] = []
   const flames: Flame[] = []
   const warps: Warp[] = []
+  const springs: Spring[] = []
+  const kunais: Kunai[] = []
+  const solid = (kind: SolidKind, box: Box, extra: Partial<Solid> = {}): Solid => ({ kind, x: box.x, y: box.y, w: box.w, h: box.h, dx: 0, dy: 0, period: 1, phase: 0, on: 1, oneway: 0, channel: 0, ...extra })
   for (const element of level.elements) {
     switch (element.type) {
       case 'block':
       case 'crumble':
-        solids.push({ kind: element.type, x: element.x, y: element.y, w: element.w, h: element.h, dx: 0, dy: 0, period: 1, phase: 0, on: 1 })
+        solids.push(solid(element.type, element))
         break
       case 'mover':
-        solids.push({ kind: 'mover', x: element.x, y: element.y, w: element.w, h: element.h, dx: element.dx, dy: element.dy, period: Math.max(0.5, element.period), phase: element.phase ?? 0, on: 1 })
+        solids.push(solid('mover', element, { dx: element.dx, dy: element.dy, period: Math.max(0.5, element.period), phase: element.phase ?? 0 }))
         break
       case 'ghost':
-        solids.push({ kind: 'ghost', x: element.x, y: element.y, w: element.w, h: element.h, dx: 0, dy: 0, period: Math.max(0.5, element.period), phase: element.phase ?? 0, on: element.on })
+        solids.push(solid('ghost', element, { period: Math.max(0.5, element.period), phase: element.phase ?? 0, on: element.on }))
+        break
+      case 'cloud':
+        solids.push(solid('cloud', element, { oneway: element.dir === 'up' ? 1 : -1 }))
+        break
+      case 'barrier':
+        solids.push(solid('barrier', element, { channel: element.channel }))
+        break
+      case 'spring':
+        springs.push({ x: element.x, y: element.y, w: element.w, dir: element.dir })
+        break
+      case 'kunai':
+        kunais.push({ x: element.x, y: element.y, speed: element.speed, range: element.range, period: Math.max(0.5, element.period), phase: element.phase ?? 0 })
+        break
+      case 'key':
+        pickups.push({ kind: 'key', x: element.x, y: element.y, channel: element.channel })
         break
       case 'spikes':
         spikes.push({ x: element.x, y: element.y, w: element.w, dir: element.dir })
@@ -273,7 +329,7 @@ export function buildWorld(level: GravityLevel): GravityWorld {
       case 'moon':
       case 'scroll':
       case 'log':
-        pickups.push({ kind: element.type, x: element.x, y: element.y })
+        pickups.push({ kind: element.type, x: element.x, y: element.y, channel: 0 })
         break
     }
   }
@@ -289,6 +345,8 @@ export function buildWorld(level: GravityLevel): GravityWorld {
     pickups,
     flames,
     warps,
+    springs,
+    kunais,
     scrollCount: pickups.filter((pickup) => pickup.kind === 'scroll').length,
     grid: {
       solids: indexBy(solids, (solid) => [Math.min(solid.x, solid.x + solid.dx), Math.max(solid.x, solid.x + solid.dx) + solid.w]),
@@ -299,8 +357,16 @@ export function buildWorld(level: GravityLevel): GravityWorld {
       pickups: indexBy(pickups, (pickup) => [pickup.x - PICKUP_R, pickup.x + PICKUP_R]),
       flames: indexBy(flames, (flame) => [flame.x, flame.x + flame.w]),
       warps: indexBy(warps, (warp) => [warp.x, warp.x + warp.w]),
+      springs: indexBy(springs, (spring) => [spring.x, spring.x + spring.w]),
+      kunais: indexBy(kunais, (kunai) => [kunai.x - kunai.range - KUNAI_LENGTH, kunai.x + KUNAI_LENGTH]),
     },
   }
+}
+
+/** Le kunaï d'un lanceur au temps `t` (centre), ou `null` entre deux tirs. */
+export function kunaiAt(kunai: Kunai, t: number): { x: number; y: number } | null {
+  const flown = cycleAt(t, kunai.period, kunai.phase) * kunai.period * kunai.speed
+  return flown <= kunai.range ? { x: kunai.x - flown, y: kunai.y } : null
 }
 
 /** Avancement (0 → 1) d'un aller-retour au temps `t`. */
@@ -393,6 +459,7 @@ export function spawnAt(world: GravityWorld, x: number, y: number, g: Gravity): 
     shield: false,
     safe: 0,
     logs: [],
+    keys: 0,
     status: 'running',
     cause: null,
     deaths: 0,
@@ -460,10 +527,12 @@ function supportOf(world: GravityWorld, run: GravityRun): number {
   for (const index of near(world.grid.solids, run.x - 0.5, run.x + w + 0.5)) {
     const solid = world.solids[index]!
     if (solid.kind === 'crumble' && !crumbleStanding(run, index)) continue
-    if (!solidPresent(solid, run.tick * TICK)) continue
+    if (!solidPresent(solid, run.tick * TICK) || barrierOpen(run, solid)) continue
+    // Un nuage ne porte que dans son sens.
+    if (solid.oneway !== 0 && solid.oneway !== run.g) continue
     const at = solidAt(solid, run.tick * TICK)
-    // Une spectrale réapparue autour du ninja ne le porte pas : seulement s'il est à sa surface.
-    if (solid.kind === 'ghost' && (run.g === 1 ? run.y + h > at.y + SURFACE_SLOP : run.y < at.y + solid.h - SURFACE_SLOP)) continue
+    // Une spectrale réapparue autour du ninja, ou un nuage qu'il traverse, ne le porte pas : seulement s'il est à sa surface.
+    if ((solid.kind === 'ghost' || solid.oneway !== 0) && (run.g === 1 ? run.y + h > at.y + SURFACE_SLOP : run.y < at.y + solid.h - SURFACE_SLOP)) continue
     if (overlaps(probe, { x: at.x, y: at.y, w: solid.w, h: solid.h })) {
       best = index
       if (solid.kind !== 'crumble') return index
@@ -498,6 +567,9 @@ function die(run: GravityRun, cause: DeathCause): void {
   run.events.push({ kind: 'die', cause })
 }
 
+/** Une barrière dont le talisman a été pris : dissoute. */
+export const barrierOpen = (run: { keys: number }, solid: Solid) => solid.kind === 'barrier' && (run.keys & (1 << solid.channel)) !== 0
+
 /** Les solides présents au pas courant, autour d'une plage horizontale (positions du moment). */
 function solidsNear(world: GravityWorld, run: GravityRun, x0: number, x1: number): { index: number; box: Box }[] {
   const t = run.tick * TICK
@@ -505,7 +577,7 @@ function solidsNear(world: GravityWorld, run: GravityRun, x0: number, x1: number
   for (const index of near(world.grid.solids, x0, x1)) {
     const solid = world.solids[index]!
     if (solid.kind === 'crumble' && !crumbleStanding(run, index)) continue
-    if (!solidPresent(solid, t)) continue
+    if (!solidPresent(solid, t) || barrierOpen(run, solid)) continue
     const at = solidAt(solid, t)
     list.push({ index, box: { x: at.x, y: at.y, w: solid.w, h: solid.h } })
   }
@@ -545,7 +617,9 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   let nextX = run.x + world.speed * TICK
   if (run.x < anchor - EPS) nextX = Math.min(run.x + world.speed * CATCH_UP * TICK, Math.max(anchor, nextX))
   const right = run.x + pw
-  for (const { box } of solidsNear(world, run, run.x, nextX + pw)) {
+  for (const { index, box } of solidsNear(world, run, run.x, nextX + pw)) {
+    // Un nuage n'a pas de côté : on le traverse en courant.
+    if (world.solids[index]!.oneway !== 0) continue
     const vertical = run.y < box.y + box.h - EPS && run.y + ph > box.y + EPS
     // Un mur devant (son côté gauche, atteint pendant ce pas) arrête la course.
     if (vertical && box.x >= right - SURFACE_SLOP && box.x < nextX + pw) nextX = Math.min(nextX, box.x - pw - EPS)
@@ -565,11 +639,15 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
     const horizontal = run.x < box.x + box.w - EPS && run.x + pw > box.x + EPS
     if (!horizontal) continue
     if (nextY + ph > box.y + EPS && nextY < box.y + box.h - EPS) {
+      // Un nuage n'arrête que dans son sens (dessus pour `up`, dessous pour `down`) ; on le traverse sinon.
+      const oneway = world.solids[index]!.oneway
       if (run.vy >= 0 && fromTop + ph <= box.y + SURFACE_SLOP) {
+        if (oneway === -1) continue
         // Arrivée sur le dessus.
         nextY = box.y - ph
         if (run.g === 1) landed = index
       } else if (run.vy <= 0 && fromTop >= box.y + box.h - SURFACE_SLOP) {
+        if (oneway === 1) continue
         // Arrivée par-dessous.
         nextY = box.y + box.h
         if (run.g === -1) landed = index
@@ -583,7 +661,8 @@ export function stepRun(world: GravityWorld, run: GravityRun, input: GravityInpu
   // Encore pris dans un solide (une plateforme mobile s'est refermée) : écrasé. Une dalle spectrale
   // qui réapparaît autour du ninja ne l'écrase pas : il la traverse.
   for (const { index, box } of solidsNear(world, run, run.x, run.x + pw)) {
-    if (world.solids[index]!.kind === 'ghost') continue
+    const solid = world.solids[index]!
+    if (solid.kind === 'ghost' || solid.oneway !== 0) continue
     if (overlaps({ x: run.x + 0.1, y: run.y + 0.1, w: pw - 0.2, h: ph - 0.2 }, box)) {
       die(run, 'crushed')
       return
@@ -668,6 +747,15 @@ function interact(world: GravityWorld, run: GravityRun): void {
         }
       }
     }
+    if (!hit) {
+      for (const index of near(world.grid.kunais, x0, x1)) {
+        const at = kunaiAt(world.kunais[index]!, t)
+        if (at && overlaps(body, { x: at.x - KUNAI_LENGTH / 2, y: at.y - KUNAI_THICKNESS / 2, w: KUNAI_LENGTH, h: KUNAI_THICKNESS })) {
+          hit = 'kunai'
+          break
+        }
+      }
+    }
     if (hit) {
       if (!run.shield) return die(run, hit)
       // Kawarimi : la bûche prend le coup à sa place, et le ninja file, intouchable un instant.
@@ -694,12 +782,34 @@ function interact(world: GravityWorld, run: GravityRun): void {
       run.logs.push(index)
       run.shield = true
       run.events.push({ kind: 'log' })
+    } else if (pickup.kind === 'key') {
+      // Kekkai : le talisman dissout les barrières de son canal.
+      if (!(run.keys & (1 << pickup.channel))) {
+        run.keys |= 1 << pickup.channel
+        run.events.push({ kind: 'key', channel: pickup.channel })
+      }
     } else if (pickup.kind === 'scroll') {
       const rank = scrollRank(world, index)
       if (!(run.scrolls & (1 << rank))) {
         run.scrolls |= 1 << rank
         run.events.push({ kind: 'scroll', index })
       }
+    }
+  }
+
+  // Tremplin : posé dessus (dans le sens de la gravité), le ninja est propulsé loin de la surface.
+  if (run.grounded) {
+    for (const index of near(world.grid.springs, x0, x1)) {
+      const spring = world.springs[index]!
+      if ((spring.dir === 'up') !== (run.g === 1)) continue
+      const onIt = run.g === 1 ? Math.abs(run.y + h - spring.y) < 0.05 : Math.abs(run.y - spring.y) < 0.05
+      if (!onIt || run.x + w * 0.85 < spring.x || run.x + w * 0.15 > spring.x + spring.w) continue
+      run.vy = -run.g * SPRING_V
+      run.grounded = false
+      run.support = -1
+      run.coyote = 0
+      run.events.push({ kind: 'spring' })
+      break
     }
   }
 

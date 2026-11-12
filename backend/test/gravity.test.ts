@@ -143,11 +143,18 @@ describe('gravity — atelier', () => {
         { type: 'flame', x: 50, y: 11, w: 1, reach: 2, dir: 'up', period: 1.6, on: 0.5, phase: 0.25 },
         { type: 'ghost', x: 60, y: 7, w: 6, h: 0.8, period: 1.2, on: 0.5 },
         { type: 'shuriken', x: 80, y: 7, r: 0.7, orbit: 2, period: 2, phase: 0.5 },
+        { type: 'spring', x: 90, y: 11, w: 1.2, dir: 'up' },
+        { type: 'cloud', x: 95, y: 6, w: 8, h: 0.6, dir: 'down' },
+        { type: 'key', x: 100, y: 10.35, channel: 3 },
+        { type: 'barrier', x: 108, y: -3, w: 1.2, h: 20, channel: 3 },
+        { type: 'kunai', x: 115, y: 7, speed: 16, range: 20, period: 4, phase: 0.2 },
       ],
     }
     assert.equal((await admin.request('POST', '/gravity/levels', { level })).status, 201)
     const stored = (await admin.request('GET', '/gravity/levels/atelier-neuf')).body.level as { elements: { type: string }[] }
-    assert.deepEqual(stored.elements.slice(-4).map((element) => element.type), ['warp', 'flame', 'ghost', 'shuriken'])
+    assert.deepEqual(stored.elements.slice(-9).map((element) => element.type), ['warp', 'flame', 'ghost', 'shuriken', 'spring', 'cloud', 'key', 'barrier', 'kunai'])
+    const badKey = { ...sample('casse-talisman'), elements: [{ type: 'key', x: 10, y: 10, channel: 9 }] }
+    assert.equal((await admin.request('POST', '/gravity/levels', { level: badKey })).status, 400, 'canal hors bornes')
     const bad = { ...sample('casse-flamme'), elements: [{ type: 'flame', x: 1, y: 11, w: 1, reach: 2, dir: 'up', period: 1.6, on: 1.4 }] }
     assert.equal((await admin.request('POST', '/gravity/levels', { level: bad })).status, 400, 'un jet allumé plus que tout son cycle')
   })

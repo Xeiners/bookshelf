@@ -4,7 +4,7 @@ import type { SolveReport } from '../../../lib/gravity/solver'
 import { themeOf, type GravityTheme } from '../../../lib/gravity/themes'
 import { Backdrop } from './backdrop'
 import { Ninja, type NinjaPose } from './ninja'
-import { GATE_COLORS, WARP_COLOR, WorldPainter } from './world'
+import { GATE_COLORS, KEKKAI_COLOR, SPRING_COLOR, WARP_COLOR, WorldPainter } from './world'
 
 /*
  * La scène de Gravity Ninja : la simulation (pas fixe) et son rendu (à chaque image), interpolés
@@ -166,6 +166,19 @@ export class GravityScene {
         break
       case 'finish':
         this.sparks(cx, run.y + h / 2, this.theme.accent, 40)
+        break
+      case 'spring': {
+        // Le tremplin claque : un anneau vert sous les pieds, de la poussière.
+        const feet = run.g === 1 ? run.y + h : run.y
+        this.ring(cx, feet, SPRING_COLOR)
+        this.sparks(cx, feet, SPRING_COLOR, 10)
+        this.squash = 0.6
+        break
+      }
+      case 'key':
+        // Le talisman s'embrase : la barrière de son canal se dissout plus loin.
+        this.sparks(cx, run.y + h / 2, KEKKAI_COLOR, 22)
+        this.ring(cx, run.y + h / 2, KEKKAI_COLOR)
         break
       case 'warp': {
         // Un éclair doré au départ et à l'arrivée ; pas d'interpolation à travers la téléportation, la

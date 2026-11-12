@@ -1076,6 +1076,24 @@ export function playGravityWarp(): void {
   bell(e, 2093, at + 0.07, 0.5, 0.03, 0.3)
 }
 
+/** Tremplin : un « boing » qui monte. */
+export function playGravitySpring(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  boom(e, at, 160, 520, 0.18, 0.14)
+  blip(e, 880, at + 0.04, 0.07, 0.02, 'triangle')
+}
+
+/** Talisman du kekkai : deux cloches graves, la barrière se dissout. */
+export function playGravityKey(): void {
+  const e = start()
+  if (!e) return
+  const at = e.ctx.currentTime
+  bell(e, 587.33, at, 0.9, 0.05, -0.3)
+  bell(e, 880, at + 0.08, 1.1, 0.04, 0.3)
+}
+
 /** Arrivée : une fanfare de cloches qui monte. */
 export function playGravityFinish(): void {
   const e = start()

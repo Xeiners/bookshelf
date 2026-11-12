@@ -3,7 +3,7 @@ import { PLAYER_H, PLAYER_W, WORLD_HEIGHT } from '../../lib/gravity/constants'
 import type { SolveReport } from '../../lib/gravity/solver'
 import { themeOf } from '../../lib/gravity/themes'
 import type { GravityLevel } from '../../lib/gravity/types'
-import { GATE_COLORS, WARP_COLOR } from './scene/world'
+import { GATE_COLORS, KEKKAI_COLOR, SPRING_COLOR, WARP_COLOR } from './scene/world'
 
 /**
  * Le niveau entier en une bande : plateformes, pièges, portes, bûches, rouleaux, et le chemin du solveur (la
@@ -67,6 +67,32 @@ export function LevelPreview({ level, report, className }: { level: GravityLevel
         case 'ghost':
           ctx.fillStyle = 'rgba(159,232,255,0.75)'
           ctx.fillRect(element.x * sx, element.y * sy, element.w * sx, Math.max(2, element.h * sy))
+          break
+        case 'spring':
+          ctx.fillStyle = SPRING_COLOR
+          ctx.fillRect(element.x * sx, (element.dir === 'up' ? element.y - 0.6 : element.y) * sy, Math.max(2, element.w * sx), 0.6 * sy)
+          break
+        case 'cloud':
+          ctx.fillStyle = 'rgba(236,244,255,0.8)'
+          ctx.fillRect(element.x * sx, element.y * sy, element.w * sx, Math.max(2, element.h * sy))
+          break
+        case 'barrier':
+          ctx.fillStyle = 'rgba(255,77,109,0.55)'
+          ctx.fillRect(element.x * sx, Math.max(0, element.y) * sy, Math.max(2, element.w * sx), height)
+          break
+        case 'key':
+          ctx.fillStyle = KEKKAI_COLOR
+          ctx.fillRect(element.x * sx - 2, element.y * sy - 3, 4, 6)
+          break
+        case 'kunai':
+          ctx.strokeStyle = 'rgba(255,77,109,0.7)'
+          ctx.lineWidth = 1
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(element.x * sx, element.y * sy)
+          ctx.lineTo((element.x - element.range) * sx, element.y * sy)
+          ctx.stroke()
+          ctx.setLineDash([])
           break
         case 'warp':
           ctx.fillStyle = WARP_COLOR

@@ -1,5 +1,5 @@
 import { CRUMBLE_DELAY, PICKUP_R, SPIKE_H, TICK, WORLD_HEIGHT } from '../../../lib/gravity/constants'
-import { cycleAt, scrollRank, shurikenAt, solidAt, type Flame, type GravityRun, type GravityWorld, type Solid, type Warp } from '../../../lib/gravity/engine'
+import { barrierOpen, cycleAt, kunaiAt, scrollRank, shurikenAt, solidAt, type Flame, type GravityRun, type GravityWorld, type Solid, type Spring, type Warp } from '../../../lib/gravity/engine'
 import type { GravityTheme, Material } from '../../../lib/gravity/themes'
 
 /*
@@ -15,6 +15,9 @@ export const GATE_COLORS = { mini: '#c08bff', full: '#ffb84d' } as const
 /** Hiraishin (sceaux de téléportation), dalles spectrales. */
 export const WARP_COLOR = '#ffd34d'
 export const GHOST_COLOR = '#9fe8ff'
+/** Kekkai (barrière et talisman), tremplins. */
+export const KEKKAI_COLOR = '#ff4d6d'
+export const SPRING_COLOR = '#7fd36b'
 
 /** Avant qu'un jet ne crache (s) : des braises préviennent. */
 const FLAME_WARNING = 0.35
@@ -123,10 +126,18 @@ export class WorldPainter {
       if (solid.kind === 'crumble') this.crumble(ctx, solid, index, run, renderTick)
       else if (solid.kind === 'mover') this.mover(ctx, solid, at.x, at.y, view.time)
       else if (solid.kind === 'ghost') this.ghost(ctx, solid, t)
+      else if (solid.kind === 'cloud') this.cloud(ctx, solid, view.time)
+      else if (solid.kind === 'barrier') this.barrier(ctx, solid, barrierOpen(run, solid), view.time)
       else this.block(ctx, at.x, at.y, solid.w, solid.h)
     })
 
     for (const spike of world.spikes) if (visible(spike.x, spike.x + spike.w)) this.spikes(ctx, spike.x, spike.y, spike.w, spike.dir)
+    for (const spring of world.springs) if (visible(spring.x, spring.x + spring.w)) this.spring(ctx, spring, view.time)
+    for (const kunai of world.kunais) {
+      if (visible(kunai.x - 0.5, kunai.x + 0.5)) this.launcher(ctx, kunai.x, kunai.y)
+      const at = kunaiAt(kunai, t)
+      if (at && visible(at.x - 1, at.x + 1.5)) this.kunai(ctx, at.x, at.y)
+    }
     for (const flame of world.flames) if (visible(flame.x, flame.x + flame.w)) this.flame(ctx, flame, t, view.time)
     for (const flip of world.flips) if (visible(flip.x, flip.x + flip.w)) this.seal(ctx, flip.x, flip.y, flip.w, flip.h, view.time)
     for (const warp of world.warps) {
@@ -140,6 +151,8 @@ export class WorldPainter {
         if (!run.moons.includes(index)) this.moon(ctx, pickup.x, pickup.y + Math.sin(view.time * 3 + index) * 0.12, view.time)
       } else if (pickup.kind === 'log') {
         if (!run.logs.includes(index)) this.log(ctx, pickup.x, pickup.y + Math.sin(view.time * 2.8 + index) * 0.12, view.time)
+      } else if (pickup.kind === 'key') {
+        if (!(run.keys & (1 << pickup.channel))) this.talisman(ctx, pickup.x, pickup.y + Math.sin(view.time * 2.4 + index) * 0.12, view.time)
       } else if (!(run.scrolls & (1 << scrollRank(world, index)))) this.scroll(ctx, pickup.x, pickup.y + Math.sin(view.time * 2.6 + index) * 0.12, view.time)
     })
     for (const shuriken of world.shurikens) {
@@ -467,6 +480,168 @@ export class WorldPainter {
     ctx.arc(cx, cy - 0.58, 0.08, 0, Math.PI * 2)
     ctx.stroke()
     ctx.globalAlpha = 1
+  }
+
+  /**
+   * Nuage : une dalle de brume. La face où l'on se pose est gonflée de volutes ; l'autre, en pointillés
+   * qui dérivent, dit qu'on la traverse.
+   */
+  private cloud(ctx: CanvasRenderingContext2D, solid: Solid, time: number): void {
+    const landing = solid.oneway === 1 ? solid.y : solid.y + solid.h
+    const through = solid.oneway === 1 ? solid.y + solid.h : solid.y
+    ctx.fillStyle = 'rgba(232,242,255,0.78)'
+    ctx.beginPath()
+    if (ctx.roundRect) ctx.roundRect(solid.x, solid.y, solid.w, solid.h, 0.25)
+    else ctx.rect(solid.x, solid.y, solid.w, solid.h)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'
+    for (let x = solid.x + 0.35; x < solid.x + solid.w - 0.15; x += 0.7) {
+      ctx.beginPath()
+      ctx.arc(x, landing, 0.26 + noise(x) * 0.12, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+    ctx.lineWidth = 0.05
+    ctx.setLineDash([0.16, 0.2])
+    ctx.lineDashOffset = -time * 0.6
+    ctx.beginPath()
+    ctx.moveTo(solid.x, through)
+    ctx.lineTo(solid.x + solid.w, through)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.lineDashOffset = 0
+  }
+
+  /**
+   * Kekkai : la barrière, un rideau rouge de formules qui défilent sur toute la hauteur ; dissoute
+   * (talisman pris), il n'en reste qu'un contour pâle.
+   */
+  private barrier(ctx: CanvasRenderingContext2D, solid: Solid, open: boolean, time: number): void {
+    const top = Math.max(-1, solid.y)
+    const bottom = Math.min(WORLD_HEIGHT + 1, solid.y + solid.h)
+    const cx = solid.x + solid.w / 2
+    if (open) {
+      ctx.strokeStyle = 'rgba(255,77,109,0.22)'
+      ctx.lineWidth = 0.05
+      ctx.setLineDash([0.2, 0.3])
+      ctx.strokeRect(solid.x, top, solid.w, bottom - top)
+      ctx.setLineDash([])
+      return
+    }
+    const curtain = ctx.createLinearGradient(solid.x - 0.4, 0, solid.x + solid.w + 0.4, 0)
+    curtain.addColorStop(0, 'rgba(255,77,109,0)')
+    curtain.addColorStop(0.5, 'rgba(255,77,109,0.55)')
+    curtain.addColorStop(1, 'rgba(255,77,109,0)')
+    ctx.fillStyle = curtain
+    ctx.fillRect(solid.x - 0.4, top, solid.w + 0.8, bottom - top)
+    ctx.strokeStyle = '#ffd1da'
+    ctx.lineWidth = 0.05
+    ctx.beginPath()
+    ctx.moveTo(solid.x, top)
+    ctx.lineTo(solid.x, bottom)
+    ctx.moveTo(solid.x + solid.w, top)
+    ctx.lineTo(solid.x + solid.w, bottom)
+    ctx.stroke()
+    // Les formules : des sceaux qui montent lentement.
+    ctx.strokeStyle = KEKKAI_COLOR
+    ctx.lineWidth = 0.06
+    for (let y = top - 2 + ((time * 0.8) % 2); y < bottom; y += 2) {
+      ctx.beginPath()
+      ctx.arc(cx, y, 0.34, 0, Math.PI * 2)
+      ctx.moveTo(cx - 0.2, y)
+      ctx.lineTo(cx + 0.2, y)
+      ctx.moveTo(cx, y - 0.2)
+      ctx.lineTo(cx, y + 0.2)
+      ctx.stroke()
+    }
+  }
+
+  /** Tremplin : un socle, un ressort d'acier et un plateau de bambou, qui frémit. */
+  private spring(ctx: CanvasRenderingContext2D, spring: Spring, time: number): void {
+    const away = spring.dir === 'up' ? -1 : 1
+    const bob = Math.sin(time * 6 + spring.x) * 0.03
+    ctx.fillStyle = '#3b2a1a'
+    ctx.fillRect(spring.x, spring.dir === 'up' ? spring.y - 0.1 : spring.y, spring.w, 0.1)
+    ctx.strokeStyle = '#c9d6e0'
+    ctx.lineWidth = 0.07
+    ctx.beginPath()
+    for (let turn = 0; turn <= 5; turn += 1) {
+      const x = turn % 2 ? spring.x + spring.w - 0.25 : spring.x + 0.25
+      const y = spring.y + away * (0.1 + turn * (0.08 + bob / 5))
+      if (turn === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+    const pad = spring.y + away * (0.55 + bob)
+    ctx.fillStyle = SPRING_COLOR
+    ctx.fillRect(spring.x - 0.05, away < 0 ? pad - 0.14 : pad, spring.w + 0.1, 0.14)
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'
+    ctx.fillRect(spring.x, away < 0 ? pad - 0.12 : pad + 0.02, spring.w, 0.04)
+  }
+
+  /** Kekkai : le talisman, un ofuda de papier au sceau rouge, qui luit. */
+  private talisman(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, 1)
+    glow.addColorStop(0, 'rgba(255,120,140,0.55)')
+    glow.addColorStop(1, 'rgba(255,120,140,0)')
+    ctx.fillStyle = glow
+    ctx.fillRect(x - 1, y - 1, 2, 2)
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(Math.sin(time * 2.2) * 0.15)
+    ctx.fillStyle = '#f6ecd2'
+    ctx.fillRect(-0.18, -0.36, 0.36, 0.72)
+    ctx.strokeStyle = KEKKAI_COLOR
+    ctx.lineWidth = 0.04
+    ctx.strokeRect(-0.15, -0.33, 0.3, 0.66)
+    ctx.beginPath()
+    ctx.arc(0, -0.1, 0.09, 0, Math.PI * 2)
+    ctx.moveTo(0, 0.02)
+    ctx.lineTo(0, 0.26)
+    ctx.moveTo(-0.08, 0.12)
+    ctx.lineTo(0.08, 0.12)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  /** Le lanceur de kunaï : une meurtrière de fer, tournée vers la gauche. */
+  private launcher(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    ctx.fillStyle = '#20202a'
+    ctx.beginPath()
+    ctx.arc(x + 0.2, y, 0.32, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#8a8fa3'
+    ctx.lineWidth = 0.05
+    ctx.stroke()
+    ctx.fillStyle = '#05050a'
+    ctx.fillRect(x - 0.12, y - 0.06, 0.3, 0.12)
+  }
+
+  /** Un kunaï en vol, pointe à gauche, sa traînée derrière lui. */
+  private kunai(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    const trail = ctx.createLinearGradient(x, 0, x + 1.4, 0)
+    trail.addColorStop(0, 'rgba(255,255,255,0.45)')
+    trail.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = trail
+    ctx.fillRect(x, y - 0.05, 1.4, 0.1)
+    ctx.fillStyle = '#d9dde8'
+    ctx.strokeStyle = '#3a3d4a'
+    ctx.lineWidth = 0.03
+    ctx.beginPath()
+    ctx.moveTo(x - 0.45, y)
+    ctx.lineTo(x - 0.05, y - 0.11)
+    ctx.lineTo(x + 0.05, y)
+    ctx.lineTo(x - 0.05, y + 0.11)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#2a1a12'
+    ctx.fillRect(x + 0.05, y - 0.035, 0.3, 0.07)
+    ctx.strokeStyle = '#2a1a12'
+    ctx.lineWidth = 0.035
+    ctx.beginPath()
+    ctx.arc(x + 0.42, y, 0.07, 0, Math.PI * 2)
+    ctx.stroke()
   }
 
   /** Le cercle d'une roue de lames, discret, et son moyeu. */

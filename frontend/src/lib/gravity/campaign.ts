@@ -43,6 +43,28 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
   },
   {
+    // Les premiers tremplins : se laisser porter au-dessus des pics.
+    id: 'premier-bond',
+    seed: 229,
+    plan: {
+      name: 'Premier bond',
+      theme: 'konoha',
+      difficulty: 1,
+      sections: [s('switch', 1), s('runway', 1), s('spring', 1), s('switch', 1), s('spring', 1), s('runway', 1), s('spikes', 1), s('spring', 2), s('switch', 1), s('switch', 1), s('runway', 1), s('spring', 1), s('switch', 1), s('spring', 1), s('runway', 1), s('spikes', 1), s('spring', 2)],
+    },
+  },
+  {
+    // Les nuages, en douceur : monter au travers, puis s’y poser.
+    id: 'mer-de-nuages',
+    seed: 233,
+    plan: {
+      name: 'Mer de nuages',
+      theme: 'mist',
+      difficulty: 1,
+      sections: [s('switch', 1), s('cloud', 1), s('runway', 1), s('switch', 1), s('cloud', 1), s('islands', 1), s('cloud', 2), s('switch', 1), s('cloud', 1)],
+    },
+  },
+  {
     // Les premiers tunnels du mini-ninja, dans la brume.
     id: 'brume-du-matin',
     seed: 67,
@@ -64,6 +86,50 @@ export const CAMPAIGN: CampaignLevel[] = [
       sections: [s('switch', 2), s('islands', 2), s('moon', 2), s('spikes', 2), s('islands', 2), s('kawarimi', 2), s('pad', 2), s('islands', 3), s('moon', 2), s('wall', 2), s('switch', 2), s('islands', 3), s('spikes', 3)],
     },
   },
+  {
+    // Le kekkai découvert : aller chercher le talisman en face.
+    id: 'jardin-des-talismans',
+    seed: 239,
+    plan: {
+      name: 'Le jardin des talismans',
+      theme: 'konoha',
+      difficulty: 2,
+      sections: [s('switch', 1), s('kekkai', 1), s('runway', 1), s('spikes', 2), s('kekkai', 2), s('islands', 2), s('kekkai', 2), s('switch', 2), s('switch', 1), s('kekkai', 1), s('runway', 1), s('spikes', 2), s('kekkai', 2)],
+    },
+  },
+  {
+    // Des tremplins et un nuage le long des bambous.
+    id: 'sentier-des-bambous',
+    seed: 241,
+    plan: {
+      name: 'Le sentier des bambous',
+      theme: 'hunter',
+      difficulty: 2,
+      sections: [s('spring', 2), s('switch', 2), s('spikes', 2), s('spring', 2), s('cloud', 2), s('runway', 1), s('spring', 2), s('islands', 2), s('spring', 2), s('switch', 2), s('spikes', 2), s('spring', 2), s('cloud', 2)],
+    },
+  },
+  {
+    // Nuages, sceaux et un premier talisman.
+    id: 'temple-des-nuages',
+    seed: 251,
+    plan: {
+      name: 'Le temple des nuages',
+      theme: 'mist',
+      difficulty: 2,
+      sections: [s('cloud', 2), s('pad', 2), s('cloud', 2), s('kekkai', 2), s('switch', 2), s('cloud', 2), s('spikes', 2), s('cloud', 2), s('pad', 2)],
+    },
+  },
+  {
+    // Un peu de tout ce qui est nouveau, sous les lanternes.
+    id: 'fete-des-lanternes',
+    seed: 257,
+    plan: {
+      name: 'La fête des lanternes',
+      theme: 'night',
+      difficulty: 2,
+      sections: [s('switch', 2), s('spring', 2), s('kekkai', 2), s('cloud', 2), s('islands', 2), s('spring', 2), s('moon', 2), s('switch', 2), s('switch', 2), s('spring', 2), s('kekkai', 2), s('cloud', 2)],
+    },
+  },
 
   /* ---- Moyen ---- */
   {
@@ -74,6 +140,28 @@ export const CAMPAIGN: CampaignLevel[] = [
       theme: 'hunter',
       difficulty: 3,
       sections: [s('switch', 2), s('spikes', 2), s('islands', 2), s('runway', 2), s('wall', 3), s('pad', 2), s('switch', 3), s('moon', 2), s('runway', 2), s('zigzag', 2), s('spikes', 3), s('islands', 3), s('wall', 3), s('runway', 2), s('switch', 3), s('pad', 3), s('spikes', 3), s('zigzag', 3)],
+    },
+  },
+  {
+    // Les premières volées de kunaï : inverser avant ou après.
+    id: 'archers-de-l-ombre',
+    seed: 263,
+    plan: {
+      name: 'Les archers de l’ombre',
+      theme: 'night',
+      difficulty: 3,
+      sections: [s('switch', 3), s('kunai', 2), s('spikes', 3), s('kunai', 3), s('islands', 3), s('kunai', 3), s('zigzag', 3), s('switch', 3), s('kunai', 2), s('spikes', 3), s('kunai', 3), s('islands', 3), s('kunai', 3)],
+    },
+  },
+  {
+    // Des tremplins à la chaîne, et les premiers pièges.
+    id: 'cascade-de-ressorts',
+    seed: 269,
+    plan: {
+      name: 'Cascade de ressorts',
+      theme: 'sand',
+      difficulty: 3,
+      sections: [s('spring', 3), s('zigzag', 3), s('spring', 3), s('crumble', 3), s('spring', 4), s('islands', 3), s('spring', 4), s('spring', 3), s('zigzag', 3), s('spring', 3)],
     },
   },
   {
@@ -99,6 +187,39 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
   },
   {
+    // Une ville bâtie sur les nuages.
+    id: 'cite-celeste',
+    seed: 271,
+    plan: {
+      name: 'La cité céleste',
+      theme: 'mist',
+      difficulty: 4,
+      sections: [s('cloud', 3), s('islands', 4), s('cloud', 4), s('mover', 3), s('cloud', 4), s('zigzag', 4), s('cloud', 4), s('spikes', 4), s('cloud', 3), s('islands', 4)],
+    },
+  },
+  {
+    // Quatre barrières, quatre talismans à aller chercher.
+    id: 'sanctuaire-scelle',
+    seed: 277,
+    plan: {
+      name: 'Le sanctuaire scellé',
+      theme: 'konoha',
+      difficulty: 4,
+      sections: [s('kekkai', 3), s('spikes', 4), s('kekkai', 4), s('mini', 4), s('kekkai', 4), s('zigzag', 4), s('kekkai', 4), s('pad', 4), s('kekkai', 3), s('spikes', 4), s('kekkai', 4)],
+    },
+  },
+  {
+    // Kunaï et shurikens : une bûche pour souffler.
+    id: 'nid-de-frelons',
+    seed: 281,
+    plan: {
+      name: 'Le nid de frelons',
+      theme: 'hunter',
+      difficulty: 4,
+      sections: [s('kunai', 3), s('shuriken', 4), s('kunai', 4), s('kawarimi', 4), s('kunai', 4), s('zigzag', 4), s('kunai', 5), s('kunai', 3), s('shuriken', 4), s('kunai', 4), s('kawarimi', 4), s('kunai', 4), s('zigzag', 4)],
+    },
+  },
+  {
     id: 'nuit-des-lucioles',
     seed: 37,
     plan: {
@@ -117,6 +238,39 @@ export const CAMPAIGN: CampaignLevel[] = [
       theme: 'sand',
       difficulty: 5,
       sections: [s('switch', 4), s('shuriken', 4), s('mover', 4), s('mini', 5), s('spikes', 5), s('mover', 5), s('kawarimi', 5), s('islands', 5), s('shuriken', 5), s('mini', 5), s('zigzag', 5), s('mover', 5), s('spikes', 6)],
+    },
+  },
+  {
+    // De nuage en nuage, portés par les tremplins.
+    id: 'nuit-des-cerfs-volants',
+    seed: 283,
+    plan: {
+      name: 'La nuit des cerfs-volants',
+      theme: 'night',
+      difficulty: 5,
+      sections: [s('cloud', 4), s('spring', 4), s('cloud', 5), s('kunai', 4), s('cloud', 5), s('moon', 4), s('spring', 5), s('cloud', 5), s('cloud', 4), s('spring', 4)],
+    },
+  },
+  {
+    // Talismans au milieu des flammes.
+    id: 'forge-du-kekkai',
+    seed: 293,
+    plan: {
+      name: 'La forge du kekkai',
+      theme: 'sand',
+      difficulty: 5,
+      sections: [s('kekkai', 4), s('flames', 4), s('kekkai', 5), s('crumble', 5), s('kekkai', 5), s('flames', 5), s('kunai', 5), s('kekkai', 4), s('flames', 4), s('kekkai', 5), s('crumble', 5)],
+    },
+  },
+  {
+    // Des tremplins, des spectres, une barrière.
+    id: 'citrouilles-sauteuses',
+    seed: 307,
+    plan: {
+      name: 'Les citrouilles sauteuses',
+      theme: 'halloween',
+      difficulty: 5,
+      sections: [s('spring', 4), s('crumble', 5), s('spring', 5), s('ghost', 4), s('spring', 5), s('kekkai', 5), s('zigzag', 5), s('spring', 5), s('spring', 4), s('crumble', 5), s('spring', 5), s('ghost', 4)],
     },
   },
 
@@ -163,6 +317,28 @@ export const CAMPAIGN: CampaignLevel[] = [
       theme: 'mist',
       difficulty: 6,
       sections: [s('switch', 5), s('ghost', 4), s('islands', 6), s('spikes', 6), s('ghost', 5), s('zigzag', 6), s('crumble', 6), s('ghost', 6), s('runway', 5), s('mini', 6), s('ghost', 7), s('zigzag', 7)],
+    },
+  },
+  {
+    // Une averse de kunaï, entre deux zigzags.
+    id: 'pluie-de-kunai',
+    seed: 311,
+    plan: {
+      name: 'Pluie de kunaï',
+      theme: 'konoha',
+      difficulty: 6,
+      sections: [s('kunai', 5), s('zigzag', 6), s('kunai', 6), s('spikes', 6), s('kunai', 6), s('islands', 6), s('kunai', 7), s('zigzag', 7), s('kunai', 5), s('zigzag', 6), s('kunai', 6), s('spikes', 6), s('kunai', 6), s('islands', 6), s('kunai', 7)],
+    },
+  },
+  {
+    // Nuages, spectres et tremplins au-dessus du vide.
+    id: 'royaume-des-nuages',
+    seed: 313,
+    plan: {
+      name: 'Le royaume des nuages',
+      theme: 'mist',
+      difficulty: 6,
+      sections: [s('cloud', 6), s('spring', 6), s('cloud', 6), s('ghost', 6), s('cloud', 6), s('kekkai', 6), s('cloud', 7), s('zigzag', 7), s('cloud', 6), s('spring', 6), s('cloud', 6), s('ghost', 6)],
     },
   },
   {
@@ -231,6 +407,39 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
   },
   {
+    // Barrières et téléportations en alternance.
+    id: 'labyrinthe-de-sceaux',
+    seed: 317,
+    plan: {
+      name: 'Le labyrinthe de sceaux',
+      theme: 'night',
+      difficulty: 7,
+      sections: [s('kekkai', 6), s('hiraishin', 6), s('kekkai', 7), s('mini', 7), s('kekkai', 7), s('hiraishin', 7), s('kekkai', 7), s('zigzag', 7), s('kekkai', 6), s('hiraishin', 6), s('kekkai', 7), s('mini', 7)],
+    },
+  },
+  {
+    // Bondir entre les jets de flammes.
+    id: 'tremplins-de-feu',
+    seed: 331,
+    plan: {
+      name: 'Les tremplins de feu',
+      theme: 'halloween',
+      difficulty: 7,
+      sections: [s('spring', 6), s('flames', 6), s('spring', 7), s('crumble', 7), s('spring', 7), s('flames', 7), s('kunai', 7), s('spring', 7), s('spring', 6), s('flames', 6), s('spring', 7)],
+    },
+  },
+  {
+    // Nuages de neige, glace qui cède, kunaï dans la tempête.
+    id: 'ciel-de-neige',
+    seed: 337,
+    plan: {
+      name: 'Ciel de neige',
+      theme: 'christmas',
+      difficulty: 7,
+      sections: [s('cloud', 6), s('crumble', 7), s('cloud', 7), s('ghost', 7), s('spring', 7), s('cloud', 7), s('kunai', 7), s('islands', 7), s('cloud', 6), s('crumble', 7), s('cloud', 7), s('ghost', 7)],
+    },
+  },
+  {
     // La neige cède sous les pas : dalles fragiles, plateformes mobiles, tunnels de glace.
     id: 'col-des-avalanches',
     seed: 101,
@@ -272,6 +481,39 @@ export const CAMPAIGN: CampaignLevel[] = [
       theme: 'hunter',
       difficulty: 8,
       sections: [s('zigzag', 7), s('hiraishin', 7), s('flames', 7), s('ghost', 7), s('orbit', 8), s('kawarimi', 8), s('islands', 8), s('hiraishin', 8), s('flames', 8), s('ghost', 8), s('zigzag', 8)],
+    },
+  },
+  {
+    // Les gardes tirent, les lames tournent, les portes sont scellées.
+    id: 'garde-du-temple',
+    seed: 347,
+    plan: {
+      name: 'La garde du temple',
+      theme: 'mist',
+      difficulty: 8,
+      sections: [s('kunai', 7), s('kekkai', 7), s('orbit', 7), s('kunai', 8), s('kekkai', 8), s('shuriken', 8), s('kunai', 8), s('zigzag', 8), s('kunai', 7), s('kekkai', 7), s('orbit', 7), s('kunai', 8), s('kekkai', 8), s('shuriken', 8), s('kunai', 8), s('zigzag', 8), s('kunai', 8), s('kekkai', 8)],
+    },
+  },
+  {
+    // Grimper de tremplin en nuage jusqu’au sommet.
+    id: 'ascension-du-mont',
+    seed: 349,
+    plan: {
+      name: 'L’ascension du mont',
+      theme: 'sand',
+      difficulty: 8,
+      sections: [s('spring', 7), s('cloud', 8), s('spring', 8), s('mover', 7), s('cloud', 8), s('spring', 8), s('kekkai', 8), s('cloud', 8), s('zigzag', 8), s('spring', 7), s('cloud', 8), s('spring', 8)],
+    },
+  },
+  {
+    // Toutes les nouveautés, avant le palier Extrême.
+    id: 'tour-de-guet',
+    seed: 353,
+    plan: {
+      name: 'La tour de guet',
+      theme: 'hunter',
+      difficulty: 8,
+      sections: [s('kunai', 8), s('cloud', 8), s('kekkai', 8), s('spring', 8), s('ghost', 8), s('kunai', 8), s('hiraishin', 8), s('zigzag', 8), s('kunai', 8), s('cloud', 8), s('kekkai', 8), s('spring', 8), s('ghost', 8)],
     },
   },
 
@@ -353,6 +595,50 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
   },
   {
+    // Kunaï, roues et shurikens : l’acier vole de partout.
+    id: 'tempete-d-acier',
+    seed: 359,
+    plan: {
+      name: 'Tempête d’acier',
+      theme: 'konoha',
+      difficulty: 9,
+      sections: [s('kunai', 9), s('orbit', 9), s('kunai', 9), s('shuriken', 9), s('kunai', 9), s('zigzag', 9), s('kunai', 10), s('spikes', 10), s('kunai', 10), s('kunai', 9), s('orbit', 9), s('kunai', 9), s('shuriken', 9), s('kunai', 9), s('zigzag', 9), s('kunai', 10), s('spikes', 10), s('kunai', 10), s('kunai', 10), s('orbit', 10), s('kunai', 10), s('shuriken', 10), s('kunai', 10), s('zigzag', 10)],
+    },
+  },
+  {
+    // Des îles de nuages, très loin du sol.
+    id: 'archipel-celeste',
+    seed: 367,
+    plan: {
+      name: 'L’archipel céleste',
+      theme: 'mist',
+      difficulty: 9,
+      sections: [s('cloud', 9), s('spring', 9), s('cloud', 9), s('ghost', 9), s('cloud', 9), s('mover', 9), s('cloud', 10), s('spring', 10), s('cloud', 10), s('cloud', 9), s('spring', 9), s('cloud', 9), s('ghost', 9)],
+    },
+  },
+  {
+    // Sept barrières, sept talismans, sans répit.
+    id: 'les-sept-sceaux',
+    seed: 373,
+    plan: {
+      name: 'Les sept sceaux',
+      theme: 'night',
+      difficulty: 9,
+      sections: [s('kekkai', 9), s('zigzag', 9), s('kekkai', 9), s('flames', 9), s('kekkai', 9), s('mini', 9), s('kekkai', 9), s('hiraishin', 9), s('kekkai', 10), s('kekkai', 10), s('kekkai', 10), s('kekkai', 9), s('zigzag', 9), s('flames', 9)],
+    },
+  },
+  {
+    // Tremplins piégés au-dessus des braises.
+    id: 'rebonds-infernaux',
+    seed: 379,
+    plan: {
+      name: 'Rebonds infernaux',
+      theme: 'halloween',
+      difficulty: 9,
+      sections: [s('spring', 9), s('flames', 9), s('spring', 9), s('crumble', 9), s('spring', 10), s('kunai', 9), s('spring', 10), s('ghost', 9), s('spring', 10), s('spring', 9), s('flames', 9)],
+    },
+  },
+  {
     // Sous la terre, presque tout se fait minuscule.
     id: 'terrier-sans-fin',
     seed: 107,
@@ -427,6 +713,50 @@ export const CAMPAIGN: CampaignLevel[] = [
       theme: 'konoha',
       difficulty: 10,
       sections: [s('flames', 10), s('zigzag', 10), s('hiraishin', 10), s('orbit', 10), s('ghost', 10), s('shuriken', 10), s('mini', 10), s('flames', 10), s('hiraishin', 10), s('crumble', 10), s('ghost', 10), s('orbit', 10), s('kawarimi', 10), s('zigzag', 10), s('flames', 10), s('hiraishin', 10)],
+    },
+  },
+  {
+    // Les kunaï filent dans la neige.
+    id: 'blizzard-de-kunai',
+    seed: 383,
+    plan: {
+      name: 'Blizzard de kunaï',
+      theme: 'christmas',
+      difficulty: 10,
+      sections: [s('kunai', 9), s('crumble', 10), s('kunai', 10), s('cloud', 9), s('kunai', 10), s('ghost', 10), s('kunai', 10), s('zigzag', 10), s('kunai', 9), s('crumble', 10), s('kunai', 10), s('cloud', 9), s('kunai', 10), s('ghost', 10), s('kunai', 10), s('zigzag', 10), s('kunai', 10), s('crumble', 10), s('kunai', 10), s('cloud', 10), s('kunai', 10)],
+    },
+  },
+  {
+    // Une forteresse sur les nuages, gardée et scellée.
+    id: 'citadelle-celeste',
+    seed: 389,
+    plan: {
+      name: 'La citadelle céleste',
+      theme: 'sand',
+      difficulty: 10,
+      sections: [s('cloud', 10), s('kekkai', 10), s('spring', 10), s('cloud', 10), s('kunai', 10), s('orbit', 10), s('cloud', 10), s('hiraishin', 10), s('zigzag', 10), s('cloud', 10), s('kekkai', 10), s('spring', 10), s('cloud', 10), s('kunai', 10), s('orbit', 10), s('cloud', 10), s('hiraishin', 10)],
+    },
+  },
+  {
+    // Tous les pièges de la forêt, au plus dur.
+    id: 'chasseur-d-ombres',
+    seed: 397,
+    plan: {
+      name: 'Le chasseur d’ombres',
+      theme: 'hunter',
+      difficulty: 10,
+      sections: [s('kekkai', 10), s('kunai', 10), s('spring', 10), s('ghost', 10), s('flames', 10), s('cloud', 10), s('mini', 10), s('kunai', 10), s('kekkai', 10), s('zigzag', 10), s('kekkai', 10), s('kunai', 10), s('spring', 10), s('ghost', 10), s('flames', 10)],
+    },
+  },
+  {
+    // L’épreuve ultime : tous les mécanismes, sans exception, au plus dur.
+    id: 'la-voie-du-ninja',
+    seed: 401,
+    plan: {
+      name: 'La voie du ninja',
+      theme: 'konoha',
+      difficulty: 10,
+      sections: [s('zigzag', 10), s('spring', 10), s('cloud', 10), s('kekkai', 10), s('kunai', 10), s('hiraishin', 10), s('flames', 10), s('ghost', 10), s('orbit', 10), s('mini', 10), s('crumble', 10), s('kawarimi', 10), s('kunai', 10), s('spring', 10), s('cloud', 10), s('kekkai', 10), s('zigzag', 10)],
     },
   },
 ]

@@ -51,13 +51,17 @@ Sections disponibles (« kind ») :
 - flames : des jets de flammes qui crachent en rythme sur les deux surfaces ; quitter chaque voie avant qu'elle ne crache.
 - ghost : des dalles spectrales qui apparaissent et s'effacent en rythme : s'y poser quand elles sont là, et en repartir aussitôt.
 - orbit : une roue de shurikens qui tourne au milieu de la trajectoire : inverser quand elle laisse un passage.
+- spring : des tremplins qui propulsent le ninja (sans changer la gravité) au-dessus d'une fosse de pics ; plus dur, certains sont piégés et renvoient dans les pics : il faut les éviter en inversant avant.
+- cloud : un nuage, dalle qu'on traverse d'un côté et sur laquelle on se pose de l'autre : on inverse à travers lui, puis on revient se poser dessus.
+- kekkai : une barrière rouge sur toute la hauteur, qu'ouvre seulement un talisman posé sur la voie d'en face (ou sur une dalle) : il faut aller le chercher.
+- kunai : des volées de kunaï lancées en travers de la trajectoire, au milieu de la fenêtre : inverser tôt ou tard.
 
 « intensity » (1 à 10) règle la dureté de chaque section : la fenêtre pour inverser va d'environ 0,8 s (1) à 0,15 s (10), et les respirations raccourcissent.
 
 Bonnes pratiques :
 - Une courbe de difficulté : une mise en jambes, une montée progressive, un pic vers la fin, et une ou deux respirations (runway) après les passages intenses.
 - Varie les sections ; évite plus de deux fois de suite la même.
-- Introduis un mécanisme nouveau (moon, crumble, mover, shuriken, mini, kawarimi, hiraishin, flames, ghost, orbit) à une intensité un peu plus basse que le reste, la première fois.
+- Introduis un mécanisme nouveau (moon, crumble, mover, shuriken, mini, kawarimi, hiraishin, flames, ghost, orbit, spring, cloud, kekkai, kunai) à une intensité un peu plus basse que le reste, la première fois.
 - Pour un niveau facile, privilégie switch, spikes, wall, islands, pad et quelques runway ; garde zigzag, crumble, mover et shuriken pour les niveaux plus durs, et flames, ghost et orbit pour les niveaux difficiles et extrêmes.
 - Le nom est court, en français, évocateur de l'ambiance (40 caractères au plus).
 

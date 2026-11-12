@@ -342,7 +342,7 @@ export const en: Dictionary = {
       gravity: {
         tag: 'New game',
         title: 'Gravity Ninja: flip gravity',
-        text: 'One move: tap the screen and your ninja flips from floor to ceiling. 37 levels from Easy to Extreme, with spikes, shurikens, flames, spectral slabs and teleports. Your first clear of each level earns Stardust ✦ (even more with all its scrolls), every finished tier a booster, and the Extreme tier a Legendary booster.',
+        text: 'One move: tap the screen and your ninja flips from floor to ceiling. 67 levels from Easy to Extreme, with spikes, shurikens, flames, springboards, clouds, kunai and teleports. Your first clear of each level earns Stardust ✦ (even more with all its scrolls), every finished tier a booster, and the Extreme tier a Legendary booster.',
         cta: 'Play',
       },
       jump: {
@@ -964,6 +964,8 @@ export const en: Dictionary = {
         'Log: it takes a trap hit for you.',
         'Golden seal (Hiraishin): it teleports you past a barrier.',
         'Flame jets, spectral slabs, blade wheels: they move in rhythm, watch them before you pass.',
+        'Springboard: it launches you without flipping gravity. Cloud: you pass through it from one side and land on it from the other.',
+        'Red barrier (kekkai): grab the talisman to open it. Kunai: go before or after the volley.',
         'A fall = back to the start. Scrolls count if you finish in the same attempt.',
       ],
       custom: 'Workshop',
@@ -1022,6 +1024,10 @@ export const en: Dictionary = {
         flame: { name: 'Flame jets', text: 'They blaze in rhythm: pass while they sleep.' },
         ghost: { name: 'Spectral slab', text: 'It fades in and out in rhythm: land, then leave fast.' },
         orbit: { name: 'Blade wheel', text: 'The shurikens spin: flip when the wheel opens.' },
+        spring: { name: 'Springboard', text: 'It launches you without flipping gravity: over the spikes… or into them.' },
+        cloud: { name: 'Cloud', text: 'You pass through it from one side and land on it from the other.' },
+        key: { name: 'Kekkai', text: 'Grab the talisman: it dissolves the red barrier ahead.' },
+        kunai: { name: 'Kunai', text: 'Thrown across your path: go before or after them.' },
       },
       logReady: 'Kawarimi ready',
       attempt: (count: number) => `Attempt ${count}`,
@@ -1029,7 +1035,7 @@ export const en: Dictionary = {
     },
     tutorial: {
       open: 'Tutorial',
-      pitch: 'Every mechanic, in one go · 1 min',
+      pitch: 'Every mechanic, in one go · 1.5 min',
       done: 'Done · replay it anytime',
       title: 'Tutorial',
       completeTitle: 'You know it all!',
@@ -1038,7 +1044,7 @@ export const en: Dictionary = {
       replay: 'Replay the tutorial',
       back: 'Back',
       offerTitle: 'First run?',
-      offerText: 'The tutorial is a one-minute run: you keep running, and each mechanic shows up in turn, with the right moment to tap. You can replay it anytime from the mode’s home screen.',
+      offerText: 'The tutorial is a 90-second run: you keep running, and each mechanic shows up in turn, with the right moment to tap. You can replay it anytime from the mode’s home screen.',
       offerYes: 'Take the tutorial',
       offerNo: 'No, just play',
       coach: {
@@ -1063,6 +1069,10 @@ export const en: Dictionary = {
         flames: { title: 'Flame jets', text: 'They blaze in rhythm, embers warn you: leave the lane before it blazes.' },
         ghost: { title: 'Spectral slabs', text: 'It fades in and out in rhythm: land while it glows, leave fast.' },
         orbit: { title: 'Blade wheels', text: 'The shurikens spin: flip when the wheel leaves a gap.' },
+        spring: { title: 'Springboards', text: 'It launches you without flipping gravity: let it carry you over the pit. A springboard followed by spikes is a trap: flip before it.' },
+        cloud: { title: 'Clouds', text: 'You pass through a cloud from one side and land on it from the other: go up through it, then come back down onto it.' },
+        kekkai: { title: 'Kekkai', text: 'The red barrier closes the corridor: grab the talisman across, and it dissolves.' },
+        kunai: { title: 'Kunai', text: 'A volley cuts across your path: flip before or after it passes.' },
       },
     },
     result: {

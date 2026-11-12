@@ -223,13 +223,67 @@ describe('Gravity Ninja — moteur', () => {
     assert.equal(idle(wheel(0.5), startRun(wheel(0.5)), 600).cause, 'shuriken')
   })
 
+  it('tremplin : il fait bondir par-dessus des pics, sans changer la gravité', () => {
+    const pit: LevelElement = { type: 'spikes', x: 13.6, y: 11, w: 1.4, dir: 'up' }
+    const world = buildWorld(level([floor(-4, 80), { type: 'spring', x: 12, y: 11, w: 1.2, dir: 'up' }, pit]))
+    const run = startRun(world)
+    let bounces = 0
+    for (let index = 0; index < 3000 && run.status === 'running'; index += 1) {
+      stepRun(world, run, { press: false, hold: false })
+      bounces += run.events.filter((event) => event.kind === 'spring').length
+      assert.equal(run.g, 1, 'la gravité ne change pas')
+    }
+    assert.equal(run.status, 'finished')
+    assert.equal(bounces, 1)
+    const plain = buildWorld(level([floor(-4, 80), pit]))
+    assert.equal(idle(plain, startRun(plain)).cause, 'spikes', 'sans tremplin, les pics')
+  })
+
+  it('nuage : on le traverse en montant, on se pose dessus en redescendant', () => {
+    const world = buildWorld(level([floor(-4, 30), ceiling(-4, 80), { type: 'cloud', x: 0, y: 7, w: 70, h: 0.6, dir: 'up' }]))
+    const run = startRun(world)
+    stepRun(world, run, { press: true, hold: false })
+    for (let index = 0; index < 90 && !(run.grounded && run.g === -1); index += 1) stepRun(world, run, { press: false, hold: false })
+    assert.equal(run.y, 3, 'traversé : la tête contre le plafond')
+    stepRun(world, run, { press: true, hold: false })
+    for (let index = 0; index < 90 && !(run.grounded && run.g === 1); index += 1) stepRun(world, run, { press: false, hold: false })
+    assert.ok(Math.abs(run.y - (7 - PLAYER_H)) < 1e-6, 'posé sur le nuage')
+    assert.equal(world.solids[run.support]!.kind, 'cloud')
+    assert.equal(idle(world, run).status, 'finished', 'le sol s’arrête, le nuage porte jusqu’à l’arrivée')
+  })
+
+  it('kekkai : le talisman dissout la barrière de son canal, et d’aucun autre', () => {
+    const barrier: LevelElement = { type: 'barrier', x: 30, y: -3, w: 1.2, h: 20, channel: 2 }
+    const run = (elements: LevelElement[]) => {
+      const world = buildWorld(level([floor(-4, 80), barrier, ...elements]))
+      return idle(world, startRun(world))
+    }
+    assert.equal(run([{ type: 'key', x: 15, y: 10.35, channel: 2 }]).status, 'finished')
+    assert.equal(run([]).cause, 'left', 'sans talisman, la barrière arrête tout')
+    assert.equal(run([{ type: 'key', x: 15, y: 10.35, channel: 1 }]).cause, 'left', 'un autre canal ne l’ouvre pas')
+    const world = buildWorld(level([floor(-4, 80), barrier, { type: 'key', x: 15, y: 10.35, channel: 2 }]))
+    const taken = idle(world, startRun(world), 200)
+    assert.equal(taken.keys, 1 << 2)
+    restartRun(world, taken)
+    assert.equal(taken.keys, 0, 'au départ, le talisman est de nouveau à prendre')
+  })
+
+  it('kunaï : il file vers la gauche et touche qui reste sur sa ligne ; sa course a une fin', () => {
+    const shot = (range: number) => buildWorld(level([floor(-4, 80), { type: 'kunai', x: 40, y: 10.35, speed: 15, range, period: 6, phase: 0 }]))
+    assert.equal(idle(shot(30), startRun(shot(30))).cause, 'kunai')
+    assert.equal(idle(shot(10), startRun(shot(10))).status, 'finished', 'trop court : il tombe avant d’arriver')
+    const shielded = buildWorld(level([floor(-4, 80), { type: 'log', x: 8, y: 10.35 }, { type: 'kunai', x: 40, y: 10.35, speed: 15, range: 30, period: 6, phase: 0 }]))
+    assert.equal(idle(shielded, startRun(shielded)).status, 'finished', 'la bûche encaisse un kunaï')
+  })
+
   it('les niveaux intégrés : chaque palier de difficulté en compte au moins trois, et les nouveaux mécanismes y sont', () => {
     const tiers = new Map<string, number>()
     for (const entry of CAMPAIGN) tiers.set(tierOf(entry.plan.difficulty), (tiers.get(tierOf(entry.plan.difficulty)) ?? 0) + 1)
     for (const tier of TIERS) assert.ok((tiers.get(tier) ?? 0) >= 3, tier)
-    assert.ok((tiers.get('hard') ?? 0) >= 14 && (tiers.get('extreme') ?? 0) >= 14, 'dix niveaux de plus en Difficile et en Extrême')
+    assert.ok((tiers.get('hard') ?? 0) >= 22 && (tiers.get('extreme') ?? 0) >= 22, 'Difficile et Extrême bien garnis')
+    assert.ok((tiers.get('easy') ?? 0) >= 10 && (tiers.get('medium') ?? 0) >= 13, 'Facile et Moyen aussi')
     const kinds = new Set(CAMPAIGN.flatMap((entry) => entry.plan.sections.map((section) => section.kind)))
-    for (const kind of ['mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit'] as const) assert.ok(kinds.has(kind), kind)
+    for (const kind of ['mini', 'kawarimi', 'hiraishin', 'flames', 'ghost', 'orbit', 'spring', 'cloud', 'kekkai', 'kunai'] as const) assert.ok(kinds.has(kind), kind)
     assert.equal(new Set(CAMPAIGN.map((entry) => entry.id)).size, CAMPAIGN.length, 'identifiants uniques')
   })
 
@@ -265,6 +319,25 @@ describe('Gravity Ninja — moteur', () => {
       { kind: 'flame', x: 30 },
       { kind: 'ghost', x: 40 },
       { kind: 'orbit', x: 47.3 },
+    ])
+  })
+
+  it('tremplin, nuage, kekkai et kunaï s’expliquent aussi (la barrière avec son talisman)', () => {
+    const world = buildWorld(
+      level([
+        floor(-4, 100),
+        { type: 'kunai', x: 70, y: 7, speed: 15, range: 15, period: 4 },
+        { type: 'barrier', x: 45, y: -3, w: 1.2, h: 20, channel: 0 },
+        { type: 'key', x: 40, y: 10.35, channel: 0 },
+        { type: 'cloud', x: 30, y: 6, w: 6, h: 0.6, dir: 'up' },
+        { type: 'spring', x: 20, y: 11, w: 1.2, dir: 'up' },
+      ]),
+    )
+    assert.deepEqual(introsOf(world), [
+      { kind: 'spring', x: 20 },
+      { kind: 'cloud', x: 30 },
+      { kind: 'key', x: 39.4 },
+      { kind: 'kunai', x: 55 },
     ])
   })
 
@@ -374,6 +447,10 @@ describe('Gravity Ninja — tutoriel', () => {
       ['flames', (element) => element.type === 'flame'],
       ['ghost', (element) => element.type === 'ghost'],
       ['orbit', (element) => element.type === 'shuriken' && !!element.orbit],
+      ['spring', (element) => element.type === 'spring'],
+      ['cloud', (element) => element.type === 'cloud'],
+      ['kekkai', (element) => element.type === 'key'],
+      ['kunai', (element) => element.type === 'kunai'],
     ]
     for (const [id, test] of shows) assert.ok(within(id, test), id)
     assert.equal(TUTORIAL.level.elements.filter((element) => element.type === 'scroll').length, 3)
@@ -444,6 +521,16 @@ describe('Gravity Ninja — lecture des niveaux et des plans', () => {
     const parsed = parseLevel(JSON.parse(JSON.stringify(built)))
     assert.equal(parsed.ok, true)
     if (parsed.ok) assert.deepEqual(parsed.level, built)
+  })
+
+  it('tremplins, nuages, talismans, barrières et kunaï se relisent aussi à l’identique', () => {
+    const entry = CAMPAIGN.find((candidate) => candidate.id === 'la-voie-du-ninja')!
+    const { level: built } = buildLevel(entry.plan, entry.seed, entry.id)
+    const types = new Set(built.elements.map((element) => element.type))
+    for (const type of ['spring', 'cloud', 'key', 'barrier', 'kunai'] as const) assert.ok(types.has(type), type)
+    const parsed = parseLevel(JSON.parse(JSON.stringify(built)))
+    assert.equal(parsed.ok, true)
+    if (parsed.ok) assert.deepEqual(JSON.parse(JSON.stringify(parsed.level)), JSON.parse(JSON.stringify(built)))
   })
 
   it('un plan d’IA est lu (sections inconnues écartées), et bâti en niveau faisable', () => {

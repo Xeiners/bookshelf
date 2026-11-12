@@ -36,6 +36,16 @@ export const MINI_SCALE = 0.55
 /** Kawarimi : après la substitution, le ninja est intouchable par les pièges pendant tant de secondes. */
 export const KAWARIMI_SAFE = 1
 
+/** Tremplin : l'élan qu'il donne (unités/s), loin de la surface. Environ quatre unités de haut. */
+export const SPRING_V = 28
+
+/** Kunaï : sa boîte (longueur, épaisseur). */
+export const KUNAI_LENGTH = 0.9
+export const KUNAI_THICKNESS = 0.24
+
+/** Kekkai : canaux possibles (un talisman ouvre les barrières de son canal). */
+export const KEY_CHANNELS = 8
+
 /** Toucher un peu avant d'atterrir compte (mis en attente), et un peu après avoir quitté un bord. */
 export const FLIP_BUFFER = 0.12
 export const COYOTE = 0.06

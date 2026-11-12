@@ -158,6 +158,63 @@ export interface ScrollElement {
   y: number
 }
 
+/**
+ * Tremplin : posé sur une surface (`up` sur un sol, `down` sous un plafond). Le ninja qui y court
+ * est propulsé loin de la surface, sans changer de gravité, et y retombe plus loin.
+ */
+export interface SpringElement {
+  type: 'spring'
+  x: number
+  y: number
+  w: number
+  dir: 'up' | 'down'
+}
+
+/**
+ * Nuage : une dalle qu'on traverse d'un côté et sur laquelle on se pose de l'autre. `up` : on s'y pose
+ * en tombant vers le bas (et on la traverse en montant) ; `down` : on s'y pose dessous, gravité inversée.
+ */
+export interface CloudElement {
+  type: 'cloud'
+  x: number
+  y: number
+  w: number
+  h: number
+  dir: 'up' | 'down'
+}
+
+/** Kekkai : le talisman (centre). Le prendre dissout les barrières de son canal (0 → 7). */
+export interface KeyElement {
+  type: 'key'
+  x: number
+  y: number
+  channel: number
+}
+
+/** Kekkai : une barrière, solide tant que le talisman de son canal n'a pas été pris. */
+export interface BarrierElement {
+  type: 'barrier'
+  x: number
+  y: number
+  w: number
+  h: number
+  channel: number
+}
+
+/**
+ * Lanceur de kunaï, en (x, y) : à chaque cycle de `period` secondes (décalé de `phase`), un kunaï
+ * part vers la gauche à `speed` unités/s et vole sur `range` unités.
+ */
+export interface KunaiElement {
+  type: 'kunai'
+  x: number
+  y: number
+  speed: number
+  range: number
+  period: number
+  phase?: number
+}
+
 export type LevelElement =
   | BlockElement
   | CrumbleElement
@@ -172,6 +229,11 @@ export type LevelElement =
   | WarpElement
   | FlameElement
   | GhostElement
+  | SpringElement
+  | CloudElement
+  | KeyElement
+  | BarrierElement
+  | KunaiElement
 
 export type ElementType = LevelElement['type']
 
