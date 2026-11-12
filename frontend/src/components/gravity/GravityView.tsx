@@ -21,7 +21,7 @@ import { GravityEmblem } from './GravityEmblem'
 import { GravityGame, type GravityRunResult } from './GravityGame'
 import { GravityWorkshop } from './GravityWorkshop'
 import { enterLandscape, leaveLandscape } from './landscape'
-import { LESSON_IDS, readTutorial, writeTutorial } from '../../lib/gravity/tutorial'
+import { readTutorial, writeTutorial } from '../../lib/gravity/tutorial'
 
 /** Le tutoriel (et ses leçons calculées d'avance) : chargé à la première ouverture. */
 const GravityTutorial = lazy(() => import('./GravityTutorial').then((module) => ({ default: module.GravityTutorial })))
@@ -269,7 +269,7 @@ function GravityHome({
   const tt = t.gravity.tutorial
   const [tutorial, setTutorial] = useState(false)
   const [offer, setOffer] = useState(false)
-  const [lessonsDone, setLessonsDone] = useState(() => readTutorial().done.length)
+  const [tutorialDone, setTutorialDone] = useState(() => readTutorial().done)
   const play = () => {
     if (!readTutorial().offered) {
       vibrate(8)
@@ -278,15 +278,21 @@ function GravityHome({
     }
     go('levels')
   }
+  // Le parcours se joue en plein écran : lancé dans le geste du joueur.
+  const openTutorial = () => {
+    vibrate(10)
+    enterLandscape()
+    setTutorial(true)
+  }
   const answerOffer = (take: boolean) => {
     writeTutorial({ ...readTutorial(), offered: true })
     setOffer(false)
-    if (take) setTutorial(true)
+    if (take) openTutorial()
     else go('levels')
   }
   const closeTutorial = () => {
     setTutorial(false)
-    setLessonsDone(readTutorial().done.length)
+    setTutorialDone(readTutorial().done)
     leaveLandscape()
   }
 
@@ -344,18 +350,15 @@ function GravityHome({
           <button
             data-gravity-in
             type="button"
-            onClick={() => {
-              vibrate(8)
-              setTutorial(true)
-            }}
+            onClick={openTutorial}
             className="flex shrink-0 items-center gap-3 rounded-[1.5rem] border border-[#ffb84d]/25 bg-[#ffb84d]/[0.07] p-4 text-left transition-colors hover:bg-[#ffb84d]/[0.12]"
           >
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#ffb84d]/15 text-[#ffb84d]">
-              <GraduationCap size={20} aria-hidden />
+              {tutorialDone ? <Check size={20} strokeWidth={3} aria-hidden /> : <GraduationCap size={20} aria-hidden />}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-cream">{tt.open}</span>
-              <span className="block text-xs text-cream/60 tabular-nums">{tt.progress(lessonsDone, LESSON_IDS.length)}</span>
+              <span className="block text-xs text-cream/60">{tutorialDone ? tt.done : tt.pitch}</span>
             </span>
             <ChevronRight size={18} className="shrink-0 text-cream/40" aria-hidden />
           </button>

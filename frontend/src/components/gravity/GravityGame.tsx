@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Hand, Moon, Pause, Play, Pointer, RotateCcw, ScrollText, Shield, Skull, Smartphone, X } from 'lucide-react'
+import { Hand, Moon, Pause, Play, Pointer, RotateCcw, ScrollText, Shield, Skull, Smartphone, X, type LucideIcon } from 'lucide-react'
 import { useT } from '../../i18n'
 import { MOON_SECONDS, TICK } from '../../lib/gravity/constants'
-import { buildWorld, progressOf, scrollsIn, type GravityWorld } from '../../lib/gravity/engine'
+import { buildWorld, progressOf, scrollsIn, type Checkpoint, type GravityWorld } from '../../lib/gravity/engine'
 import { introsOf, type IntroKind } from '../../lib/gravity/intros'
 import type { SolveReport } from '../../lib/gravity/solver'
 import type { CoachCue } from '../../lib/gravity/tutorial'
@@ -52,6 +52,19 @@ interface GravityGameProps {
    * ralentit et l'invite « Touche ! » s'affiche.
    */
   coach?: readonly CoachCue[]
+  /**
+   * Tutoriel : ses chapitres. À l'approche de chacun, sa carte s'affiche (et le temps ralentit un
+   * instant pour la lire) ; une chute fait reprendre au début du chapitre en cours.
+   */
+  chapters?: readonly GameChapter[]
+}
+
+export interface GameChapter {
+  x: number
+  title: string
+  text: string
+  icon: LucideIcon
+  checkpoint: Checkpoint
 }
 
 /** Au ralenti, une fenêtre dure environ ce temps réel (s), sans aller plus lent que `SLOWEST`. */
@@ -59,6 +72,9 @@ const COACH_REAL_SECONDS = 1.2
 const SLOWEST = 0.2
 /** Invite du tutoriel : toucher, toucher et maintenir, maintenir jusqu'à se poser. */
 type CoachPrompt = 'press' | 'hold' | 'holding' | null
+/** La carte d'un chapitre s'affiche quand il est à tant de secondes de course ; puis ralenti pour la lire (s réelles, vitesse). */
+const CHAPTER_AHEAD = 1.3
+const CHAPTER_SLOW = { seconds: 1.8, scale: 0.5 }
 
 /** Le bilan d'une partie (en cours ou finie). */
 function resultOf(world: GravityWorld, scene: GravityScene | null, seconds: number, completed: boolean): GravityRunResult {
@@ -81,7 +97,7 @@ const portrait = () => typeof window !== 'undefined' && window.innerHeight > win
  * fait planer. Pas de point de reprise : une chute renvoie au départ, pour une nouvelle tentative
  * (« Tentative n »), et la barre garde la trace du meilleur avancement.
  */
-export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false, solution = null, record = 0, coach }: GravityGameProps) {
+export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false, solution = null, record = 0, coach, chapters }: GravityGameProps) {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<GravityScene | null>(null)
@@ -99,6 +115,8 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
   const pausedRef = useRef(false)
   const [hint, setHint] = useState(!coach)
   const [prompt, setPrompt] = useState<CoachPrompt>(null)
+  /** Le chapitre du tutoriel affiché (et sa « visite » : la carte revient après une reprise). */
+  const [chapter, setChapter] = useState<{ index: number; visit: number } | null>(null)
   const [turn, setTurn] = useState(portrait)
   const input = useRef({ press: false, hold: false })
   const elapsed = useRef(0)
@@ -181,8 +199,9 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
     let finishedFor = -1
     let shownPercent = -1
     let shownBest = -1
-    // Chaque élément particulier s'explique une fois par partie, un peu avant d'entrer dans l'écran.
-    const intros = introsOf(world)
+    // Chaque élément particulier s'explique une fois par partie, un peu avant d'entrer dans l'écran
+    // (le tutoriel a ses propres cartes, plus complètes).
+    const intros = chapters ? [] : introsOf(world)
     let nextIntro = 0
     let shownDeaths = -1
     let shownScrolls = 0
@@ -192,6 +211,10 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
     let holdingCue = false
     let shownPrompt: CoachPrompt = null
     let timeScale = 1
+    // Tutoriel : le prochain chapitre à annoncer, et le temps de lecture (ralenti) qui reste.
+    let nextChapter = 0
+    let chapterVisit = 0
+    let readingLeft = 0
 
     const resize = () => {
       const ratio = Math.min(2, window.devicePixelRatio || 1)
@@ -218,10 +241,18 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
             deadFor += TICK
             if (deadFor >= RESPAWN_DELAY) {
               deadFor = 0
-              scene.restart()
+              // Tutoriel : reprise au début du chapitre où l'on est tombé (sa carte revient) ; sinon, au départ.
+              let at = -1
+              chapters?.forEach((item, index) => {
+                if (item.checkpoint.x <= run.x) at = index
+              })
+              const checkpoint = at >= 0 ? chapters![at]!.checkpoint : undefined
+              scene.restart(checkpoint)
               setAttempt(run.deaths + 1)
-              cueIndex = 0
+              const nextCue = checkpoint && coached ? coached.findIndex((cue) => cue.to >= checkpoint.tick) : 0
+              cueIndex = nextCue < 0 ? (coached?.length ?? 0) : nextCue
               holdingCue = false
+              if (chapters) nextChapter = Math.max(0, at)
             }
             continue
           }
@@ -305,6 +336,20 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         setTip(intros[nextIntro]!.kind)
         nextIntro += 1
       }
+      // Tutoriel : la carte du chapitre qui approche (et un instant de ralenti pour la lire).
+      let target = 1
+      if (chapters && !pausedRef.current) {
+        while (nextChapter < chapters.length && run.status === 'running' && run.x >= chapters[nextChapter]!.x - world.speed * CHAPTER_AHEAD) {
+          chapterVisit += 1
+          setChapter({ index: nextChapter, visit: chapterVisit })
+          readingLeft = CHAPTER_SLOW.seconds
+          nextChapter += 1
+        }
+        if (readingLeft > 0) {
+          readingLeft -= dt
+          target = CHAPTER_SLOW.scale
+        }
+      }
       // Tutoriel : l'invite et le ralenti (il commence un peu avant la fenêtre, et s'en va en douceur).
       if (coached) {
         const cue = coached[cueIndex]
@@ -316,9 +361,9 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
           setPrompt(next)
         }
         const slowing = running && cue !== undefined && run.tick >= cue.from - 6 && run.tick <= cue.to
-        const target = slowing ? Math.max(SLOWEST, Math.min(1, ((cue.to - cue.from + 1) * TICK) / COACH_REAL_SECONDS)) : 1
-        timeScale += (target - timeScale) * Math.min(1, dt * 14)
+        if (slowing) target = Math.min(target, Math.max(SLOWEST, Math.min(1, ((cue.to - cue.from + 1) * TICK) / COACH_REAL_SECONDS)))
       }
+      if (coached || chapters) timeScale += (target - timeScale) * Math.min(1, dt * 14)
       scene.render(ctx, layout, pausedRef.current ? 1 : accumulator / TICK, pausedRef.current ? 0 : gameDt)
 
       // Interface : écrite directement dans le DOM, sans rendu React à chaque image.
@@ -357,7 +402,7 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', resize)
     }
-  }, [world, solution, coach])
+  }, [world, solution, coach, chapters])
 
   const onPointerDown = (event: ReactPointerEvent) => {
     if (paused || (event.target as HTMLElement).closest('button')) return
@@ -446,7 +491,10 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         </span>
       </div>
 
-      {!paused && !solution && (
+      {/* Tutoriel : la carte du chapitre qui arrive (elle revient après une reprise). */}
+      {chapters && chapter && !paused && <ChapterCard key={`${chapter.index}-${chapter.visit}`} chapter={chapters[chapter.index]!} />}
+
+      {!paused && !solution && !chapters && (
         <p
           key={attempt}
           className="pointer-events-none absolute inset-x-0 top-[max(4.5rem,calc(env(safe-area-inset-top)+4rem))] animate-[gravity-banner_1.6s_ease-out_both] text-center font-display text-3xl text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.7)]"
@@ -514,5 +562,26 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
       )}
     </div>,
     document.body,
+  )
+}
+
+/**
+ * La carte d'un chapitre du tutoriel, en haut de l'écran (jamais devant le chemin du ninja) : elle
+ * glisse, reste le temps de la lire, puis s'efface d'elle-même.
+ */
+function ChapterCard({ chapter }: { chapter: GameChapter }) {
+  const Icon = chapter.icon
+  return (
+    <div role="status" className="pointer-events-none absolute inset-x-0 top-[max(3.9rem,calc(env(safe-area-inset-top)+3.4rem))] flex justify-center px-4">
+      <div className="flex w-full max-w-md items-start gap-3 rounded-2xl border border-[#ffb84d]/40 bg-[#120a1f]/90 px-3.5 py-3 text-left shadow-[0_10px_30px_-12px_rgba(0,0,0,0.8)] motion-safe:animate-[gravity-chapter_7s_ease-out_both]">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#ffb84d] text-void">
+          <Icon size={18} aria-hidden />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-display text-lg leading-tight text-white">{chapter.title}</span>
+          <span className="mt-0.5 block text-[13px] leading-snug text-white/85">{chapter.text}</span>
+        </span>
+      </div>
+    </div>
   )
 }

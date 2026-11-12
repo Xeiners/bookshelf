@@ -68,6 +68,14 @@
   100% { transform: scale(1); }
 }
 
+/* Tutoriel de Gravity Ninja : la carte d'un chapitre glisse, reste le temps de la lire, s'efface. */
+@keyframes gravity-chapter {
+  0% { opacity: 0; transform: translateY(-10px); }
+  5% { opacity: 1; transform: translateY(0); }
+  86% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
 @keyframes news-float {
   0%,
   100% {

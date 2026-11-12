@@ -1,68 +1,49 @@
-// i18n-ignore-file : identifiants et plans des leçons (données) ; leurs textes sont dans les dictionnaires (`gravity.tutorial`).
-import { LEVEL_FORMAT, speedFor } from './constants'
-import { buildWorld, cloneRun, startRun, stepRun, type GravityRun, type GravityWorld } from './engine'
-import { buildLevel, type SectionKind } from './generator'
+// i18n-ignore-file : identifiants et plan du parcours (données) ; les textes sont dans les dictionnaires (`gravity.tutorial`).
+import { PLAYER_H, PLAYER_W } from './constants'
+import { buildWorld, cloneRun, startRun, stepRun, type Checkpoint, type GravityRun, type GravityWorld } from './engine'
+import { buildScripted, type ScriptStep, type SectionKind } from './generator'
 import { solveFrom, type Decision } from './solver'
-import type { GravityLevel, LevelElement, ThemeId } from './types'
+import type { GravityLevel } from './types'
 
 /*
- * Le tutoriel de Gravity Ninja : une leçon par mécanisme, sans exception, de l'inversion aux roues
- * de lames. Chaque leçon est un court niveau (bâti par le générateur, donc prouvé faisable, ou posé à
- * la main quand il faut forcer une situation : la bûche qui encaisse un piège). Pour guider le joueur,
- * le tutoriel calcule d'avance, avec le solveur, les instants où toucher réussit : chaque « fenêtre »
- * est l'intervalle de pas où un toucher (maintenu, sous la lune) mène à la suite du niveau. En jeu,
- * le temps ralentit pendant la fenêtre et l'invite « Touche ! » s'affiche. Fonctions pures, testées
- * (`frontend/test/gravity.test.ts`).
+ * Le tutoriel de Gravity Ninja : un seul parcours, d'une traite, où chaque mécanisme arrive à son tour,
+ * sans exception, de l'inversion aux roues de lames. À l'approche de chacun, une carte l'explique
+ * (et le temps ralentit un instant pour la lire) ; une chute fait reprendre au début du mécanisme en
+ * cours, pas au départ. Le parcours est bâti par le générateur (donc prouvé faisable), avec le piège
+ * forcé du kawarimi. Pour guider le joueur, le solveur calcule d'avance les instants où toucher
+ * réussit : chaque « fenêtre » est l'intervalle de pas où un toucher (maintenu, sous la lune) mène à la
+ * suite. En jeu, le temps ralentit pendant la fenêtre et l'invite « Touche ! » s'affiche. Le calcul est
+ * lourd : `npm run gravity:levels` le fait d'avance (`tutorial.data.ts`). Testé dans
+ * `frontend/test/gravity.test.ts`.
  */
 
-export const LESSON_IDS = ['flip', 'edges', 'spikes', 'islands', 'seal', 'crumble', 'mover', 'shuriken', 'moon', 'mini', 'log', 'scrolls', 'warp', 'flames', 'ghost', 'orbit'] as const
-export type LessonId = (typeof LESSON_IDS)[number]
+export const CHAPTER_IDS = ['flip', 'edges', 'spikes', 'islands', 'seal', 'crumble', 'mover', 'shuriken', 'moon', 'mini', 'log', 'scrolls', 'warp', 'flames', 'ghost', 'orbit'] as const
+export type ChapterId = (typeof CHAPTER_IDS)[number]
 
-interface LessonSpec {
-  theme: ThemeId
-  /** Les sections du générateur, douces ; ou des éléments posés à la main. */
-  sections?: [SectionKind, number][]
-  custom?: () => { length: number; elements: LevelElement[] }
-  seed: number
-  /** Les rouleaux restent (la leçon des rouleaux) ; ailleurs, on les retire pour ne pas distraire. */
-  scrolls?: boolean
-}
+const s = (kind: SectionKind, intensity = 1): ScriptStep => ({ kind, intensity })
+/** Avant chaque mécanisme, une ligne droite : le temps de lire sa carte. */
+const breath = [s('runway'), s('runway')]
 
-const SPECS: Record<LessonId, LessonSpec> = {
-  flip: { theme: 'konoha', seed: 3, sections: [['runway', 1], ['switch', 1], ['runway', 1], ['switch', 1], ['switch', 1], ['runway', 1]] },
-  edges: { theme: 'konoha', seed: 5, sections: [['switch', 1], ['wall', 1], ['runway', 1], ['wall', 1], ['switch', 1]] },
-  spikes: { theme: 'night', seed: 7, sections: [['spikes', 1], ['runway', 1], ['spikes', 1], ['spikes', 2]] },
-  islands: { theme: 'hunter', seed: 11, sections: [['islands', 1], ['runway', 1], ['islands', 2]] },
-  seal: { theme: 'mist', seed: 13, sections: [['pad', 1], ['runway', 1], ['pad', 1], ['switch', 1]] },
-  crumble: { theme: 'halloween', seed: 17, sections: [['switch', 1], ['crumble', 1], ['runway', 1], ['crumble', 2]] },
-  mover: { theme: 'sand', seed: 19, sections: [['switch', 1], ['mover', 1], ['runway', 1], ['mover', 2]] },
-  shuriken: { theme: 'konoha', seed: 23, sections: [['switch', 1], ['shuriken', 1], ['runway', 1], ['shuriken', 2]] },
-  moon: { theme: 'night', seed: 29, sections: [['switch', 1], ['moon', 1], ['runway', 1], ['moon', 2]] },
-  mini: { theme: 'mist', seed: 31, sections: [['runway', 1], ['mini', 1], ['runway', 1], ['mini', 2]] },
-  log: { theme: 'hunter', seed: 37, custom: kawarimiLesson },
-  scrolls: { theme: 'konoha', seed: 41, scrolls: true, sections: [['switch', 1], ['spikes', 1], ['islands', 1], ['switch', 1], ['spikes', 1], ['switch', 1], ['runway', 1]] },
-  warp: { theme: 'konoha', seed: 43, sections: [['runway', 1], ['hiraishin', 1], ['runway', 1], ['hiraishin', 4], ['switch', 1]] },
-  flames: { theme: 'sand', seed: 47, sections: [['switch', 1], ['flames', 1], ['runway', 1], ['flames', 2]] },
-  ghost: { theme: 'mist', seed: 53, sections: [['switch', 1], ['ghost', 1], ['runway', 1], ['ghost', 2]] },
-  orbit: { theme: 'hunter', seed: 59, sections: [['switch', 1], ['orbit', 1], ['runway', 1], ['orbit', 2]] },
-}
-
-/**
- * Le kawarimi, posé à la main : la bûche, puis des pics qu'on ne peut pas éviter (elle les encaisse) ;
- * plus loin, d'autres pics à éviter soi-même, la bûche étant partie.
- */
-function kawarimiLesson(): { length: number; elements: LevelElement[] } {
-  return {
-    length: 78,
-    elements: [
-      { type: 'block', x: -4, y: 11, w: 90, h: 6 },
-      { type: 'log', x: 14, y: 10.35 },
-      { type: 'spikes', x: 30, y: 11, w: 1.6, dir: 'up' },
-      { type: 'block', x: 40, y: -3, w: 60, h: 7 },
-      { type: 'spikes', x: 56, y: 11, w: 8, dir: 'up' },
-    ],
-  }
-}
+/** Le parcours : chaque chapitre, ses étapes. */
+const SCRIPT: [ChapterId, ScriptStep[]][] = [
+  ['flip', [...breath, s('runway'), s('switch'), s('runway'), s('switch'), s('switch')]],
+  ['edges', [...breath, s('wall'), s('runway'), s('wall')]],
+  ['spikes', [...breath, s('spikes'), s('spikes')]],
+  ['islands', [...breath, s('islands')]],
+  ['seal', [...breath, s('pad'), s('runway')]],
+  ['crumble', [...breath, s('crumble')]],
+  ['mover', [...breath, s('mover')]],
+  ['shuriken', [...breath, s('shuriken')]],
+  ['moon', [...breath, s('moon')]],
+  ['mini', [...breath, s('mini')]],
+  ['log', [...breath, { kind: 'trap' }]],
+  ['scrolls', [...breath, s('switch'), s('runway'), s('switch'), s('runway'), s('switch'), s('runway')]],
+  ['warp', [...breath, s('hiraishin'), s('runway'), s('hiraishin', 4)]],
+  ['flames', [...breath, s('flames')]],
+  ['ghost', [...breath, s('ghost')]],
+  ['orbit', [...breath, s('orbit'), s('runway'), s('switch'), s('runway')]],
+]
+const SEED = 7
 
 /** Une invite : toucher (et maintenir, sous la lune, jusqu'à se poser) entre les pas `from` et `to`. */
 export interface CoachCue {
@@ -71,19 +52,31 @@ export interface CoachCue {
   hold: boolean
 }
 
-export interface Lesson {
-  id: LessonId
+export interface Chapter {
+  id: ChapterId
+  /** Où il commence (unités) : sa carte s'affiche à l'approche. */
+  x: number
+  /** Où l'on reprend après une chute pendant ce chapitre. */
+  checkpoint: Checkpoint
+}
+
+export interface Tutorial {
   level: GravityLevel
-  /** Les fenêtres où toucher, dans l'ordre, sur le chemin du milieu des fenêtres. */
+  /** Les fenêtres où toucher, dans l'ordre. */
   cues: CoachCue[]
-  /** La démonstration : toucher au milieu de chaque fenêtre (pour l'aperçu animé). */
-  demo: Decision[]
+  chapters: Chapter[]
 }
 
 const IDLE = { press: false, hold: false }
 /** Fenêtre au plus large, avant le toucher du solveur (pas) ; après (le solveur touche tard, à 3 pas près). */
 const WINDOW_BEFORE = 50
 const WINDOW_AFTER = 8
+/** Une fenêtre au plus large (pas) : au ralenti, plus d'une seconde pour toucher. */
+const MAX_WIDTH = 24
+/** Au plus étroit : resserrer une fenêtre s'arrête là. */
+const MIN_WIDTH = 8
+
+const middle = (cue: CoachCue) => Math.round((cue.from + cue.to) / 2)
 
 /** Avance sans toucher jusqu'au pas `tick` ; faux si la partie s'arrête avant. */
 function advanceTo(world: GravityWorld, run: GravityRun, tick: number): boolean {
@@ -134,13 +127,6 @@ function widestWindow(world: GravityWorld, pool: GravityRun[], hold: boolean, fi
   return best
 }
 
-/** Une fenêtre au plus large (pas) : au ralenti, plus d'une seconde pour toucher. */
-const MAX_WIDTH = 24
-/** Au plus étroit : resserrer une fenêtre s'arrête là. */
-const MIN_WIDTH = 8
-
-const middle = (cue: CoachCue) => Math.round((cue.from + cue.to) / 2)
-
 /** Les états du joueur après une invite, selon qu'il a touché au début, au milieu ou à la fin de la fenêtre. */
 function variantsAfter(world: GravityWorld, before: GravityRun, cue: CoachCue): GravityRun[] {
   return [cue.from, middle(cue), cue.to].map((tick) => {
@@ -168,16 +154,15 @@ function cueFor(world: GravityWorld, pool: GravityRun[], run: GravityRun, next: 
 }
 
 /**
- * Les invites d'une leçon. Pas à pas : le solveur trouve le prochain toucher ; on prend autour de lui
+ * Les invites d'un parcours. Pas à pas : le solveur trouve le prochain toucher ; on prend autour de lui
  * la fenêtre des pas où toucher (posé sur une surface) mène encore à la suite, et ce quel que soit
  * l'instant où l'on a touché dans la fenêtre d'avant (début, milieu ou fin). Si aucune fenêtre ne
  * convient à tous (se poser plus tôt sur une dalle fissurée la fait tomber plus tôt), on resserre la
- * fenêtre d'avant. La démonstration touche au milieu de chaque fenêtre. `null` si la leçon ne se guide
- * pas jusqu'au bout.
+ * fenêtre d'avant. `null` si le parcours ne se guide pas jusqu'au bout.
  */
-export function coachOf(world: GravityWorld): { cues: CoachCue[]; demo: Decision[] } | null {
+export function coachOf(world: GravityWorld): CoachCue[] | null {
   const steps: { before: GravityRun; cue: CoachCue }[] = []
-  for (let guard = 0; guard < 200; guard += 1) {
+  for (let guard = 0; guard < 400; guard += 1) {
     const last = steps[steps.length - 1]
     const variants = last ? variantsAfter(world, last.before, last.cue) : [startRun(world)]
     const run = variants[last ? 1 : 0]!
@@ -193,13 +178,19 @@ export function coachOf(world: GravityWorld): { cues: CoachCue[]; demo: Decision
       if (narrow()) continue
       return null
     }
-    const report = solveFrom(world, cloneRun(run), world.length, 80_000)
-    if (!report.ok) return null
-    const next = report.decisions.find((decision) => decision.press && decision.tick >= run.tick)
+    // Le prochain toucher : le solveur regarde d'abord un peu plus loin que la suite immédiate, puis
+    // jusqu'à l'arrivée s'il n'y a rien à toucher sur ce bout.
+    let next: Decision | undefined
+    for (const horizon of [Math.min(world.length, run.x + world.speed * 8), world.length]) {
+      const report = solveFrom(world, cloneRun(run), horizon, 80_000)
+      if (!report.ok) return null
+      next = report.decisions.find((decision) => decision.press && decision.tick >= run.tick)
+      if (next || horizon >= world.length) break
+    }
     if (!next) {
       // Plus rien à toucher : chacun doit filer jusqu'à l'arrivée.
       for (const variant of variants) for (let step = 0; step < 20_000 && variant.status === 'running'; step += 1) stepRun(world, variant, IDLE)
-      if (variants.every((variant) => variant.status === 'finished')) return finish(world, steps)
+      if (variants.every((variant) => variant.status === 'finished')) return steps.map((step) => step.cue)
       if (narrow()) continue
       return null
     }
@@ -217,37 +208,86 @@ export function coachOf(world: GravityWorld): { cues: CoachCue[]; demo: Decision
   return null
 }
 
-/** Les invites, et la démonstration qui touche au milieu de chacune (en lâchant, sous la lune, une fois posé). */
-function finish(world: GravityWorld, steps: { before: GravityRun; cue: CoachCue }[]): { cues: CoachCue[]; demo: Decision[] } {
+/** Le parcours joué en suivant les invites (toucher au début, au milieu ou à la fin de chacune), pas à pas. */
+export function followCues(world: GravityWorld, cues: readonly CoachCue[], where: 'from' | 'middle' | 'to', visit?: (run: GravityRun) => void): GravityRun {
   const run = startRun(world)
-  const demo: Decision[] = []
-  for (const { cue } of steps) {
-    const tick = middle(cue)
-    advanceTo(world, run, tick)
-    demo.push({ tick, press: true, hold: cue.hold })
-    pressNow(world, run, cue.hold)
-    if (cue.hold) demo.push({ tick: run.tick, press: false, hold: false })
+  let cue = 0
+  let holding = false
+  for (let index = 0; index < 100_000 && run.status === 'running'; index += 1) {
+    const current = cues[cue]
+    const at = current ? (where === 'middle' ? middle(current) : current[where]) : -1
+    const press = run.tick === at
+    if (press) {
+      holding = current!.hold
+      cue += 1
+    }
+    if (holding && run.grounded && !press) holding = false
+    stepRun(world, run, { press, hold: holding })
+    visit?.(run)
   }
-  return { cues: steps.map((step) => step.cue), demo }
+  return run
 }
 
 /**
- * Une leçon prête : son niveau et ses invites. `null` : la leçon ne se guide pas. Le calcul est
- * lourd (des centaines de parties simulées) : `npm run gravity:levels` le fait d'avance et l'écrit dans
- * `tutorial.lessons.ts`, que le jeu lit tel quel.
+ * Le tutoriel : le parcours, ses invites, ses chapitres (où chacun commence, où l'on y reprend) et les
+ * trois rouleaux, posés dans leur chapitre là où tout joueur qui suit les invites passe forcément (au
+ * sol, sur la même surface quel que soit l'instant de ses touchers). `null` s'il ne se guide pas.
  */
-export function buildLesson(id: LessonId): Lesson | null {
-  const spec = SPECS[id]
-  let level: GravityLevel
-  if (spec.custom) {
-    const { length, elements } = spec.custom()
-    level = { format: LEVEL_FORMAT, id: `tuto-${id}`, name: id, theme: spec.theme, difficulty: 1, speed: speedFor(1), length, start: { y: 11, g: 1 }, elements }
-  } else {
-    const built = buildLevel({ name: id, theme: spec.theme, difficulty: 1, sections: spec.sections!.map(([kind, intensity]) => ({ kind, intensity })) }, spec.seed, `tuto-${id}`).level
-    level = spec.scrolls ? built : { ...built, elements: built.elements.filter((element) => element.type !== 'scroll') }
+export function buildTutorial(): Tutorial | null {
+  const steps = SCRIPT.flatMap(([, chapterSteps]) => chapterSteps)
+  const result = buildScripted(steps, SEED, { id: 'tutoriel', name: 'Tutoriel', theme: 'konoha', difficulty: 1 })
+  if (!result.report.ok) return null
+  // Les rouleaux du générateur sont retirés : ceux du tutoriel ont leur chapitre.
+  const level: GravityLevel = { ...result.level, elements: result.level.elements.filter((element) => element.type !== 'scroll') }
+  const world = buildWorld(level)
+  const cues = coachOf(world)
+  if (!cues) return null
+
+  // Le début de chaque chapitre : l'abscisse de sa première étape.
+  const starts: { id: ChapterId; x: number }[] = []
+  let index = 0
+  for (const [id, chapterSteps] of SCRIPT) {
+    starts.push({ id, x: result.marks[index]! })
+    index += chapterSteps.length
   }
-  const coach = coachOf(buildWorld(level))
-  return coach ? { id, level, ...coach } : null
+
+  // Les trois parcours (touchers au début, au milieu, à la fin des fenêtres) : où chacun est posé.
+  const grounded = (where: 'from' | 'middle' | 'to') => {
+    const states: (Checkpoint & { solid: boolean; plain: boolean })[] = []
+    followCues(world, cues, where, (run) => {
+      if (!run.grounded) return
+      states.push({
+        x: run.x,
+        y: run.g === 1 ? run.y + PLAYER_H : run.y,
+        g: run.g,
+        tick: run.tick,
+        cameraX: run.cameraX,
+        // Sur un bloc ordinaire (ni fragile, ni mobile, ni spectral) : on peut y reprendre.
+        solid: world.solids[run.support]?.kind === 'block',
+        // Rien en cours : taille normale, pas de bûche (la lune, elle, est simplement oubliée à la reprise).
+        plain: !run.mini && !run.shield,
+      })
+    })
+    return states
+  }
+  const paths = { from: grounded('from'), middle: grounded('middle'), to: grounded('to') }
+  const sameSurface = (x: number, y: number, g: number) =>
+    [paths.from, paths.to].every((path) => path.some((state) => Math.abs(state.x - x) < 0.3 && state.g === g && Math.abs(state.y - y) < 0.01))
+
+  const chapters: Chapter[] = starts.map(({ id, x }) => {
+    // Reprise : le premier instant, à partir du début du chapitre, où le joueur est posé sur un bloc, sans rien en cours.
+    const at = paths.middle.find((state) => state.x >= x && state.solid && state.plain) ?? paths.middle.find((state) => state.x >= x) ?? paths.middle[0]!
+    return { id, x, checkpoint: { x: at.x, y: at.y, g: at.g, tick: at.tick, cameraX: at.cameraX } }
+  })
+
+  // Les rouleaux : dans leur chapitre, sur trois bouts de surface partagés par les trois parcours.
+  const scrollChapter = starts.findIndex((start) => start.id === 'scrolls')
+  const from = starts[scrollChapter]!.x
+  const to = starts[scrollChapter + 1]?.x ?? level.length
+  const spots = paths.middle.filter((state) => state.x > from + 4 && state.x < to - 2 && state.plain && sameSurface(state.x, state.y, state.g))
+  const picks = spots.length >= 3 ? [0.2, 0.55, 0.9].map((mark) => spots[Math.min(spots.length - 1, Math.floor(mark * spots.length))]!) : []
+  const scrolls = picks.map((state) => ({ type: 'scroll' as const, x: Math.round((state.x + PLAYER_W / 2) * 100) / 100, y: Math.round((state.g === 1 ? state.y - PLAYER_H / 2 : state.y + PLAYER_H / 2) * 100) / 100 }))
+  return { level: { ...level, elements: [...level.elements, ...scrolls] }, cues, chapters }
 }
 
 /* ---- Progression du tutoriel (sur l'appareil) ---------------------------------------------- */
@@ -257,18 +297,17 @@ const KEY = 'bookshelf:gravity:tutorial'
 export interface TutorialProgress {
   /** Le tutoriel a été proposé (au premier « Jouer ») : on ne le propose plus. */
   offered: boolean
-  /** Leçons réussies. */
-  done: LessonId[]
+  /** Le parcours a été fini au moins une fois. */
+  done: boolean
 }
 
 export function readTutorial(): TutorialProgress {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<TutorialProgress> | null
-    const done = Array.isArray(raw?.done) ? raw.done.filter((id): id is LessonId => (LESSON_IDS as readonly string[]).includes(id as string)) : []
-    return { offered: raw?.offered === true, done }
+    return { offered: raw?.offered === true, done: raw?.done === true }
   } catch {
-    // Stockage indisponible : le tutoriel reste proposé, sans mémoire des leçons.
-    return { offered: false, done: [] }
+    // Stockage indisponible : le tutoriel reste proposé, sans mémoire.
+    return { offered: false, done: false }
   }
 }
 

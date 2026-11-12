@@ -3,14 +3,14 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { CAMPAIGN } from '../src/lib/gravity/campaign'
 import { PLAYER_H, START_X, TICK, TIERS, tierOf } from '../src/lib/gravity/constants'
-import { buildWorld, cloneRun, restartRun, shurikenAt, sizeOf, startRun, stepRun, type GravityRun, type GravityWorld } from '../src/lib/gravity/engine'
+import { buildWorld, cloneRun, respawnRun, restartRun, shurikenAt, sizeOf, startRun, stepRun, type GravityRun, type GravityWorld } from '../src/lib/gravity/engine'
 import { buildLevel, generateLevel } from '../src/lib/gravity/generator'
 import { introsOf } from '../src/lib/gravity/intros'
 import { solveLevel } from '../src/lib/gravity/solver'
 import type { GravityLevel, LevelElement } from '../src/lib/gravity/types'
 import { parseLevel, parsePlan } from '../src/lib/gravity/validate'
-import { LESSON_IDS, buildLesson, type LessonId } from '../src/lib/gravity/tutorial'
-import { LESSONS } from '../src/lib/gravity/tutorial.lessons'
+import { CHAPTER_IDS, buildTutorial, followCues, type ChapterId } from '../src/lib/gravity/tutorial'
+import { TUTORIAL } from '../src/lib/gravity/tutorial.data'
 import { fr } from '../src/i18n/fr'
 import { apiErrorMessage } from '../src/lib/apiErrors'
 import { ApiError } from '../src/services/api'
@@ -346,10 +346,21 @@ describe('Gravity Ninja — solveur et générateur', () => {
 })
 
 describe('Gravity Ninja — tutoriel', () => {
-  it('une leçon par mécanisme, sans exception, chacune montrant le sien', () => {
-    assert.deepEqual(LESSONS.map((lesson) => lesson.id), [...LESSON_IDS])
-    const has = (id: LessonId, test: (element: LevelElement) => boolean) => LESSONS.find((lesson) => lesson.id === id)!.level.elements.some(test)
-    const shows: [LessonId, (element: LevelElement) => boolean][] = [
+  const world = buildWorld(TUTORIAL.level)
+
+  it('un seul parcours : chaque mécanisme, sans exception, a son chapitre, dans l’ordre, et y apparaît', () => {
+    assert.deepEqual(TUTORIAL.chapters.map((chapter) => chapter.id), [...CHAPTER_IDS])
+    const xs = TUTORIAL.chapters.map((chapter) => chapter.x)
+    assert.deepEqual(xs, [...xs].sort((a, b) => a - b), 'les chapitres se suivent')
+    // Chaque mécanisme est bien dans SON chapitre (entre son début et celui du suivant).
+    const within = (id: ChapterId, test: (element: LevelElement) => boolean) => {
+      const index = TUTORIAL.chapters.findIndex((chapter) => chapter.id === id)
+      const from = TUTORIAL.chapters[index]!.x
+      const to = TUTORIAL.chapters[index + 1]?.x ?? TUTORIAL.level.length
+      return TUTORIAL.level.elements.some((element) => test(element) && element.x >= from - 1 && element.x < to)
+    }
+    const shows: [ChapterId, (element: LevelElement) => boolean][] = [
+      ['edges', (element) => element.type === 'block' && element.h >= 2 && element.h <= 4 && element.w < 3],
       ['spikes', (element) => element.type === 'spikes'],
       ['seal', (element) => element.type === 'flip'],
       ['crumble', (element) => element.type === 'crumble'],
@@ -364,40 +375,53 @@ describe('Gravity Ninja — tutoriel', () => {
       ['ghost', (element) => element.type === 'ghost'],
       ['orbit', (element) => element.type === 'shuriken' && !!element.orbit],
     ]
-    for (const [id, test] of shows) assert.ok(has(id, test), id)
-    // Les rouleaux n'apparaissent que dans leur leçon ; la lune apprend à maintenir.
-    assert.ok(LESSONS.filter((lesson) => lesson.id !== 'scrolls').every((lesson) => lesson.level.elements.every((element) => element.type !== 'scroll')))
-    assert.ok(LESSONS.find((lesson) => lesson.id === 'moon')!.cues.some((cue) => cue.hold))
+    for (const [id, test] of shows) assert.ok(within(id, test), id)
+    assert.equal(TUTORIAL.level.elements.filter((element) => element.type === 'scroll').length, 3)
+    assert.ok(TUTORIAL.cues.some((cue) => cue.hold), 'la lune apprend à maintenir')
   })
 
-  it('suivre les invites finit chaque leçon, qu’on touche au début, au milieu ou à la fin de chaque fenêtre', () => {
-    for (const lesson of LESSONS) {
-      const world = buildWorld(lesson.level)
-      assert.ok(lesson.cues.length > 0, lesson.id)
-      for (const where of ['from', 'middle', 'to'] as const) {
-        const run = startRun(world)
-        let cue = 0
-        let holding = false
-        for (let index = 0; index < 20_000 && run.status === 'running'; index += 1) {
-          const current = lesson.cues[cue]
-          const at = current ? (where === 'middle' ? Math.round((current.from + current.to) / 2) : current[where]) : -1
-          const press = run.tick === at
-          if (press) {
-            holding = current!.hold
-            cue += 1
-          }
-          if (holding && run.grounded && !press) holding = false
-          stepRun(world, run, { press, hold: holding })
+  it('suivre les invites finit le parcours avec les trois rouleaux, qu’on touche au début, au milieu ou à la fin', () => {
+    for (const where of ['from', 'middle', 'to'] as const) {
+      let substituted = 0
+      const run = followCues(world, TUTORIAL.cues, where, (state) => {
+        substituted += state.events.filter((event) => event.kind === 'substitute').length
+      })
+      assert.equal(run.status, 'finished', `${where} : ${run.cause}`)
+      assert.equal(run.deaths, 0)
+      assert.equal(run.scrolls, 0b111, `${where} : les trois rouleaux`)
+      assert.equal(substituted, 1, 'la bûche encaisse les pics du kawarimi')
+    }
+    // Assez de temps pour réagir : au ralenti, au moins une demi-seconde par fenêtre.
+    assert.ok(TUTORIAL.cues.every((cue) => cue.to - cue.from + 1 >= 8))
+  })
+
+  it('après une chute, on reprend au début du chapitre, et les invites suivantes mènent à l’arrivée', () => {
+    for (const chapter of TUTORIAL.chapters) {
+      const run = startRun(world)
+      run.deaths = 1
+      respawnRun(world, run, chapter.checkpoint)
+      assert.equal(run.grounded, true, chapter.id)
+      assert.equal(run.deaths, 1, 'les chutes restent comptées')
+      const cues = TUTORIAL.cues.filter((cue) => cue.to >= chapter.checkpoint.tick)
+      let index = 0
+      let holding = false
+      for (let step = 0; step < 100_000 && run.status === 'running'; step += 1) {
+        const cue = cues[index]
+        const press = cue !== undefined && run.tick === Math.max(cue.from, Math.round((cue.from + cue.to) / 2))
+        if (press) {
+          holding = cue.hold
+          index += 1
         }
-        assert.equal(run.status, 'finished', `${lesson.id} (${where}) : ${run.cause}`)
+        if (holding && run.grounded && !press) holding = false
+        stepRun(world, run, { press, hold: holding })
       }
-      // Assez de temps pour réagir : au ralenti, au moins une demi-seconde par fenêtre.
-      assert.ok(lesson.cues.every((cue) => cue.to - cue.from + 1 >= 8), lesson.id)
+      assert.equal(run.status, 'finished', `reprise ${chapter.id} : ${run.cause}`)
     }
   })
 
-  it('les leçons livrées sont à jour (relancer npm run gravity:levels -w frontend)', () => {
-    for (const lesson of LESSONS) assert.deepEqual(buildLesson(lesson.id), lesson, lesson.id)
+  it('le parcours livré est à jour (relancer npm run gravity:levels -w frontend)', () => {
+    // Comparé tel qu'il est écrit (JSON : un -0 du générateur y devient 0).
+    assert.deepEqual(JSON.parse(JSON.stringify(buildTutorial())), TUTORIAL)
   })
 })
 

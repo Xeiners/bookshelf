@@ -11,11 +11,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CAMPAIGN } from '../src/lib/gravity/campaign'
 import { buildLevel } from '../src/lib/gravity/generator'
-import { LESSON_IDS, buildLesson } from '../src/lib/gravity/tutorial'
+import { buildTutorial } from '../src/lib/gravity/tutorial'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const TARGET = join(HERE, '..', '..', 'backend', 'src', 'modules', 'gravity', 'gravity.levels.ts')
-const LESSONS_TARGET = join(HERE, '..', 'src', 'lib', 'gravity', 'tutorial.lessons.ts')
+const TUTORIAL_TARGET = join(HERE, '..', 'src', 'lib', 'gravity', 'tutorial.data.ts')
 
 const levels = CAMPAIGN.map(({ id, seed, plan }) => {
   const { level, report, softened, sections } = buildLevel(plan, seed, id)
@@ -36,23 +36,20 @@ export const BUILTIN_LEVELS: readonly unknown[] = ${JSON.stringify(levels)}
 )
 console.log(`Écrit : ${TARGET}`)
 
-// Le tutoriel : chaque leçon, ses invites (fenêtres où toucher) et sa démonstration, calculées d'avance.
-const lessons = LESSON_IDS.map((id) => {
-  const lesson = buildLesson(id)
-  if (!lesson) throw new Error(`leçon ${id} : impossible à guider jusqu'au bout`)
-  console.log(`leçon ${id} : ${lesson.cues.length} invite(s), ~${Math.round(lesson.level.length / lesson.level.speed)} s`)
-  return lesson
-})
+// Le tutoriel : le parcours, ses invites (fenêtres où toucher) et ses chapitres, calculés d'avance.
+const tutorial = buildTutorial()
+if (!tutorial) throw new Error("tutoriel : impossible à guider jusqu'au bout")
+console.log(`tutoriel : ${tutorial.chapters.length} chapitres, ${tutorial.cues.length} invites, ~${Math.round(tutorial.level.length / tutorial.level.speed)} s`)
 writeFileSync(
-  LESSONS_TARGET,
+  TUTORIAL_TARGET,
   `// i18n-ignore-file : données générées.
 /*
- * Leçons du tutoriel de Gravity Ninja — FICHIER GÉNÉRÉ par \`npm run gravity:levels -w frontend\`
+ * Le parcours du tutoriel de Gravity Ninja — FICHIER GÉNÉRÉ par \`npm run gravity:levels -w frontend\`
  * depuis \`tutorial.ts\`. Ne pas modifier à la main.
  */
-import type { Lesson } from './tutorial'
+import type { Tutorial } from './tutorial'
 
-export const LESSONS: readonly Lesson[] = ${JSON.stringify(lessons)}
+export const TUTORIAL: Tutorial = ${JSON.stringify(tutorial)}
 `,
 )
-console.log(`Écrit : ${LESSONS_TARGET}`)
+console.log(`Écrit : ${TUTORIAL_TARGET}`)

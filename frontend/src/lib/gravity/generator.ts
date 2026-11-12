@@ -548,6 +548,23 @@ class Builder {
     this.cursor = exitX + PLAYER_W + Math.max(react, this.speed * lerp(0.45, 0.22, k))
   }
 
+  /**
+   * Le piège du kawarimi (tutoriel) : une bûche sur la voie, puis une rangée de pics qu'on ne peut pas
+   * éviter (rien en face) : la bûche les encaisse, et l'on file, intouchable un instant.
+   */
+  trap(): void {
+    const lane = this.lane
+    if (lane.kind !== 'block') {
+      this.cursor += this.speed * 0.5
+      return
+    }
+    const logX = this.cursor + 0.5
+    this.elements.push({ type: 'log', x: round(logX), y: round(lane.g === 1 ? lane.y - PLAYER_H / 2 : lane.y + PLAYER_H / 2) })
+    const spikesX = logX + this.speed * 0.9
+    this.elements.push({ type: 'spikes', x: round(spikesX), y: lane.y, w: 1.6, dir: lane.g === 1 ? 'up' : 'down' })
+    this.cursor = spikesX + 1.6 + this.speed * 0.6
+  }
+
   /** Le niveau : la voie finale se prolonge au-delà de l'arrivée. */
   finish(meta: { id: string; name: string; theme: ThemeId }): GravityLevel {
     const length = round(this.cursor + this.speed * 0.8)
@@ -727,4 +744,37 @@ export function buildLevel(plan: LevelPlan, seed: number, id?: string): BuildRes
   return assemble(plan.difficulty, seed, meta, timed, (builder) => {
     for (const section of plan.sections) placeSection(builder, section.kind, section.intensity, meta)
   })
+}
+
+/** Une étape d'un parcours écrit (le tutoriel) : une section, ou le piège du kawarimi. */
+export type ScriptStep = PlanSection | { kind: 'trap' }
+
+export interface ScriptedResult extends BuildResult {
+  /** L'abscisse où commence chaque étape (là où sa première action devient possible). */
+  marks: number[]
+}
+
+/** Pose le piège du kawarimi ; s'il ne tient pas (une voie mobile…), une simple course à la place. */
+function placeTrap(builder: Builder, meta: { theme: ThemeId }): void {
+  const before = builder.snapshot()
+  const entry = { x: builder.cursor - Math.min(2, builder.speed * 0.2), y: builder.lane.y, g: builder.lane.g }
+  builder.trap()
+  if (sectionHolds(builder, entry, meta)) return
+  builder.restore(before)
+  builder.cursor += builder.speed
+}
+
+/** Un parcours écrit étape par étape (le tutoriel), avec l'abscisse où commence chacune. */
+export function buildScripted(steps: ScriptStep[], seed: number, meta: { id: string; name: string; theme: ThemeId; difficulty: number }): ScriptedResult {
+  let marks: number[] = []
+  const timed = steps.some((step) => step.kind !== 'trap' && TIMED_SECTIONS.has(step.kind))
+  const result = assemble(meta.difficulty, seed, meta, timed, (builder) => {
+    marks = []
+    for (const step of steps) {
+      marks.push(round(builder.cursor))
+      if (step.kind === 'trap') placeTrap(builder, meta)
+      else placeSection(builder, step.kind, step.intensity, meta)
+    }
+  })
+  return { ...result, marks }
 }

@@ -423,6 +423,28 @@ export function restartRun(world: GravityWorld, run: GravityRun): void {
   Object.assign(run, { ...startRun(world), deaths: run.deaths, maxX: run.maxX })
 }
 
+/**
+ * Un point de reprise (tutoriel seulement) : posé sur la surface `y`, gravité `g`, au pas `tick`, la
+ * caméra en `cameraX` (après un mur, le ninja peut avoir un peu de retard sur elle).
+ */
+export interface Checkpoint {
+  x: number
+  y: number
+  g: Gravity
+  tick: number
+  cameraX: number
+}
+
+/**
+ * Le tutoriel reprend au début de la leçon en cours plutôt qu'au départ : le ninja y réapparaît, au
+ * pas où il y passait (les mobiles, flammes et spectrales y sont donc au même point). Les niveaux, eux,
+ * n'ont jamais de point de reprise (`restartRun`).
+ */
+export function respawnRun(world: GravityWorld, run: GravityRun, at: Checkpoint): void {
+  Object.assign(run, { ...spawnAt(world, at.x, at.y, at.g), tick: at.tick, cameraX: at.cameraX, deaths: run.deaths, maxX: run.maxX })
+  settle(world, run)
+}
+
 /** Pose le ninja sur sa surface (contact), sans bouger. */
 function settle(world: GravityWorld, run: GravityRun): void {
   const contact = supportOf(world, run)

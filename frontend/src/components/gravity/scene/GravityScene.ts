@@ -1,5 +1,5 @@
 import { MINI_SCALE, PLAYER_H, PLAYER_W, TICK, WORLD_HEIGHT, MOON_SECONDS } from '../../../lib/gravity/constants'
-import { restartRun, sizeOf, startRun, stepRun, type GravityEvent, type GravityInput, type GravityRun, type GravityWorld } from '../../../lib/gravity/engine'
+import { respawnRun, restartRun, sizeOf, startRun, stepRun, type Checkpoint, type GravityEvent, type GravityInput, type GravityRun, type GravityWorld } from '../../../lib/gravity/engine'
 import type { SolveReport } from '../../../lib/gravity/solver'
 import { themeOf, type GravityTheme } from '../../../lib/gravity/themes'
 import { Backdrop } from './backdrop'
@@ -107,9 +107,10 @@ export class GravityScene {
     return { press: decision?.press ?? false, hold: solution.hold }
   }
 
-  /** Une nouvelle tentative : retour au départ, dans un nuage de fumée. */
-  restart(): void {
-    restartRun(this.world, this.run)
+  /** Une nouvelle tentative : retour au départ (ou, dans le tutoriel, au point de reprise), dans un nuage de fumée. */
+  restart(at?: Checkpoint): void {
+    if (at) respawnRun(this.world, this.run, at)
+    else restartRun(this.world, this.run)
     if (this.solution) this.solution.hold = false
     this.prev = { x: this.run.x, y: this.run.y, cameraX: this.run.cameraX }
     this.vanished = false
