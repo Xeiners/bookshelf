@@ -154,6 +154,9 @@ export default function App() {
   useEffect(() => {
     if (siteTheme === 'none') delete document.documentElement.dataset.theme
     else document.documentElement.dataset.theme = siteTheme
+    // L'icône de l'onglet suit le thème : le logo de Noël pendant les fêtes.
+    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"][type="image/svg+xml"]')
+    if (icon) icon.href = siteTheme === 'christmas' ? '/favicon-christmas.svg' : '/favicon.svg'
   }, [siteTheme])
 
   // Lien de profil partagé (`?u=<id>`) : ouvert une fois, puis retiré de l'adresse.

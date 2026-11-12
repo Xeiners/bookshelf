@@ -4,7 +4,11 @@
  * La forme sombre du dessin original est éclaircie pour rester lisible sur le
  * fond d'application. Le SVG source reste ainsi l'unique source de géométrie.
  *
- *   npm run icons
+ *   npm run icons                  icônes de toujours
+ *   npm run icons -- --christmas   icônes de Noël (`public/favicon-christmas.svg`), le temps des fêtes
+ *
+ * L'icône de l'app installée ne suit pas le thème du site : elle se change ici, au
+ * déploiement (relancer `npm run icons` après les fêtes pour revenir à l'habituelle).
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -12,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public')
-const SOURCE_PATH = join(PUBLIC_DIR, 'favicon.svg')
+const SOURCE_PATH = join(PUBLIC_DIR, process.argv.includes('--christmas') ? 'favicon-christmas.svg' : 'favicon.svg')
 const BACKGROUND = '#09090b'
 const LIGHT_INK = '#f7f5f0'
 

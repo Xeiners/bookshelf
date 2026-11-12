@@ -61,6 +61,13 @@
   100% { opacity: 0; transform: translateY(-6px) scale(1); }
 }
 
+/* Tutoriel de Gravity Ninja : le doigt qui tape (transform seulement). */
+@keyframes gravity-tap {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.84); }
+  100% { transform: scale(1); }
+}
+
 @keyframes news-float {
   0%,
   100% {

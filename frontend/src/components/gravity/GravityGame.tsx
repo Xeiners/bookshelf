@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Moon, Pause, Play, RotateCcw, ScrollText, Shield, Skull, Smartphone, X } from 'lucide-react'
+import { Hand, Moon, Pause, Play, Pointer, RotateCcw, ScrollText, Shield, Skull, Smartphone, X } from 'lucide-react'
 import { useT } from '../../i18n'
 import { MOON_SECONDS, TICK } from '../../lib/gravity/constants'
 import { buildWorld, progressOf, scrollsIn, type GravityWorld } from '../../lib/gravity/engine'
 import { introsOf, type IntroKind } from '../../lib/gravity/intros'
 import type { SolveReport } from '../../lib/gravity/solver'
+import type { CoachCue } from '../../lib/gravity/tutorial'
 import type { GravityLevel } from '../../lib/gravity/types'
 import { vibrate } from '../../lib/haptics'
 import { playGravityFinish, playGravityFlip, playGravityLand, playGravityLog, playGravityMoon, playGravityPoof, playGravityScroll, playGravitySize, playGravityWarp } from '../../lib/sfx'
@@ -46,7 +47,18 @@ interface GravityGameProps {
   solution?: SolveReport | null
   /** Meilleur avancement déjà enregistré (0 → 100) : repéré sur la barre de progression. */
   record?: number
+  /**
+   * Tutoriel : les fenêtres où toucher (cf. `lib/gravity/tutorial.ts`). Pendant chacune, le temps
+   * ralentit et l'invite « Touche ! » s'affiche.
+   */
+  coach?: readonly CoachCue[]
 }
+
+/** Au ralenti, une fenêtre dure environ ce temps réel (s), sans aller plus lent que `SLOWEST`. */
+const COACH_REAL_SECONDS = 1.2
+const SLOWEST = 0.2
+/** Invite du tutoriel : toucher, toucher et maintenir, maintenir jusqu'à se poser. */
+type CoachPrompt = 'press' | 'hold' | 'holding' | null
 
 /** Le bilan d'une partie (en cours ou finie). */
 function resultOf(world: GravityWorld, scene: GravityScene | null, seconds: number, completed: boolean): GravityRunResult {
@@ -69,7 +81,7 @@ const portrait = () => typeof window !== 'undefined' && window.innerHeight > win
  * fait planer. Pas de point de reprise : une chute renvoie au départ, pour une nouvelle tentative
  * (« Tentative n »), et la barre garde la trace du meilleur avancement.
  */
-export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false, solution = null, record = 0 }: GravityGameProps) {
+export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false, solution = null, record = 0, coach }: GravityGameProps) {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<GravityScene | null>(null)
@@ -85,7 +97,8 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
   const [tip, setTip] = useState<IntroKind | null>(null)
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef(false)
-  const [hint, setHint] = useState(true)
+  const [hint, setHint] = useState(!coach)
+  const [prompt, setPrompt] = useState<CoachPrompt>(null)
   const [turn, setTurn] = useState(portrait)
   const input = useRef({ press: false, hold: false })
   const elapsed = useRef(0)
@@ -173,6 +186,12 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
     let nextIntro = 0
     let shownDeaths = -1
     let shownScrolls = 0
+    // Tutoriel : la prochaine fenêtre où toucher, un toucher maintenu en cours (lune), le ralenti.
+    const coached = coach && !solution ? coach : null
+    let cueIndex = 0
+    let holdingCue = false
+    let shownPrompt: CoachPrompt = null
+    let timeScale = 1
 
     const resize = () => {
       const ratio = Math.min(2, window.devicePixelRatio || 1)
@@ -188,9 +207,11 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
       const run = scene.run
+      // Au ralenti pendant une fenêtre du tutoriel : la simulation et les effets suivent le même temps.
+      const gameDt = dt * timeScale
       if (!pausedRef.current) {
-        if (run.status === 'running') elapsed.current += dt
-        accumulator = Math.min(accumulator + dt, TICK * MAX_STEPS)
+        if (run.status === 'running') elapsed.current += gameDt
+        accumulator = Math.min(accumulator + gameDt, TICK * MAX_STEPS)
         while (accumulator >= TICK) {
           accumulator -= TICK
           if (run.status === 'dead') {
@@ -199,6 +220,8 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
               deadFor = 0
               scene.restart()
               setAttempt(run.deaths + 1)
+              cueIndex = 0
+              holdingCue = false
             }
             continue
           }
@@ -206,8 +229,19 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
             if (finishedFor < 0) finishedFor = 0
             continue
           }
+          const pressed = input.current.press
+          const tickBefore = run.tick
           const events = scene.step({ press: input.current.press, hold: input.current.hold })
           input.current.press = false
+          if (coached) {
+            // Un toucher dans la fenêtre la valide ; une fenêtre passée sans toucher est perdue.
+            const cue = coached[cueIndex]
+            if (cue && pressed && tickBefore >= cue.from && tickBefore <= cue.to) {
+              cueIndex += 1
+              holdingCue = cue.hold
+            } else if (cue && tickBefore > cue.to) cueIndex += 1
+            if (holdingCue && run.grounded && !pressed) holdingCue = false
+          }
           for (const event of events) {
             switch (event.kind) {
               case 'flip':
@@ -271,7 +305,21 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         setTip(intros[nextIntro]!.kind)
         nextIntro += 1
       }
-      scene.render(ctx, layout, pausedRef.current ? 1 : accumulator / TICK, pausedRef.current ? 0 : dt)
+      // Tutoriel : l'invite et le ralenti (il commence un peu avant la fenêtre, et s'en va en douceur).
+      if (coached) {
+        const cue = coached[cueIndex]
+        const running = run.status === 'running'
+        const inWindow = running && cue !== undefined && run.tick >= cue.from && run.tick <= cue.to
+        const next: CoachPrompt = inWindow ? (cue.hold ? 'hold' : 'press') : holdingCue && running ? 'holding' : null
+        if (next !== shownPrompt) {
+          shownPrompt = next
+          setPrompt(next)
+        }
+        const slowing = running && cue !== undefined && run.tick >= cue.from - 6 && run.tick <= cue.to
+        const target = slowing ? Math.max(SLOWEST, Math.min(1, ((cue.to - cue.from + 1) * TICK) / COACH_REAL_SECONDS)) : 1
+        timeScale += (target - timeScale) * Math.min(1, dt * 14)
+      }
+      scene.render(ctx, layout, pausedRef.current ? 1 : accumulator / TICK, pausedRef.current ? 0 : gameDt)
 
       // Interface : écrite directement dans le DOM, sans rendu React à chaque image.
       const percent = run.status === 'finished' ? 100 : progressOf(world, run.x)
@@ -309,7 +357,7 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', resize)
     }
-  }, [world, solution])
+  }, [world, solution, coach])
 
   const onPointerDown = (event: ReactPointerEvent) => {
     if (paused || (event.target as HTMLElement).closest('button')) return
@@ -348,7 +396,9 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         <div className="mx-1 mt-1 flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center justify-between text-[11px] font-semibold text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
             <span className="truncate">
-              {(trial || solution) && <span className="mr-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] tracking-[0.14em] uppercase">{solution ? t.gravity.game.demo : t.gravity.game.trial}</span>}
+              {(trial || solution || coach) && (
+                <span className="mr-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] tracking-[0.14em] uppercase">{solution ? t.gravity.game.demo : coach ? t.gravity.game.tutorial : t.gravity.game.trial}</span>
+              )}
               {level.name}
             </span>
             <span ref={percentRef} className="tabular-nums">
@@ -403,6 +453,18 @@ export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false,
         >
           {t.gravity.game.attempt(attempt)}
         </p>
+      )}
+
+      {/* Tutoriel : quand toucher (et maintenir), au ralenti. */}
+      {prompt && !paused && (
+        <div role="status" className="pointer-events-none absolute inset-x-0 bottom-[max(1.75rem,calc(env(safe-area-inset-bottom)+1rem))] flex flex-col items-center gap-2">
+          <span
+            className={`grid size-16 place-items-center rounded-full bg-white text-void shadow-[0_0_0_10px_rgba(255,255,255,0.18)] ${prompt === 'holding' ? '' : 'motion-safe:animate-[gravity-tap_0.7s_ease-out_infinite]'}`}
+          >
+            {prompt === 'press' ? <Pointer size={30} aria-hidden /> : <Hand size={30} aria-hidden />}
+          </span>
+          <span className="rounded-full bg-black/65 px-4 py-1.5 font-display text-xl text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.6)]">{t.gravity.tutorial.coach[prompt]}</span>
+        </div>
       )}
 
       {hint && !paused && !solution && (

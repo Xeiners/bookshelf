@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronLeft, Gamepad2, Gift, Home, Loader2, Play, RotateCcw, ScrollText, Skull, SkipForward, Sparkle, Timer, Trash2, Wand2 } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Gamepad2, Gift, GraduationCap, Home, Loader2, Play, RotateCcw, ScrollText, Skull, SkipForward, Sparkle, Timer, Trash2, Wand2 } from 'lucide-react'
 import { CLEAR_STARDUST, TIERS, tierOf, type Tier } from '../../lib/gravity/constants'
 import { useT } from '../../i18n'
 import { apiErrorMessage } from '../../lib/apiErrors'
@@ -20,6 +20,11 @@ import { DleBar } from '../dle/DleBar'
 import { GravityEmblem } from './GravityEmblem'
 import { GravityGame, type GravityRunResult } from './GravityGame'
 import { GravityWorkshop } from './GravityWorkshop'
+import { enterLandscape, leaveLandscape } from './landscape'
+import { LESSON_IDS, readTutorial, writeTutorial } from '../../lib/gravity/tutorial'
+
+/** Le tutoriel (et ses leçons calculées d'avance) : chargé à la première ouverture. */
+const GravityTutorial = lazy(() => import('./GravityTutorial').then((module) => ({ default: module.GravityTutorial })))
 
 /** Le bilan d'une partie finie : la partie, puis la progression et la récompense rendues par le serveur. */
 interface RunResult {
@@ -35,30 +40,6 @@ interface Session {
   trial: boolean
   /** Démonstration du solveur. */
   solution?: SolveReport
-}
-
-/**
- * Sur téléphone, le jeu se joue mieux en paysage : plein écran et orientation verrouillée quand le
- * navigateur le permet (Android), sans effet ailleurs. Appelé dans le geste qui lance le niveau.
- */
-function enterLandscape(): void {
-  if (!window.matchMedia('(pointer: coarse)').matches) return
-  const root = document.documentElement
-  const lock = () => {
-    const orientation = screen.orientation as ScreenOrientation & { lock?: (orientation: string) => Promise<void> }
-    void orientation.lock?.('landscape').catch(() => undefined)
-  }
-  if (!document.fullscreenElement && root.requestFullscreen) void root.requestFullscreen().then(lock).catch(() => undefined)
-  else lock()
-}
-
-function leaveLandscape(): void {
-  try {
-    screen.orientation.unlock?.()
-  } catch {
-    // Rien à déverrouiller.
-  }
-  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
 }
 
 /**
@@ -284,6 +265,31 @@ function GravityHome({
     ref.current?.scrollTo({ top: 0 })
   }
 
+  // Le tutoriel : proposé au premier « Jouer » (une fois par appareil), relançable depuis l'accueil.
+  const tt = t.gravity.tutorial
+  const [tutorial, setTutorial] = useState(false)
+  const [offer, setOffer] = useState(false)
+  const [lessonsDone, setLessonsDone] = useState(() => readTutorial().done.length)
+  const play = () => {
+    if (!readTutorial().offered) {
+      vibrate(8)
+      setOffer(true)
+      return
+    }
+    go('levels')
+  }
+  const answerOffer = (take: boolean) => {
+    writeTutorial({ ...readTutorial(), offered: true })
+    setOffer(false)
+    if (take) setTutorial(true)
+    else go('levels')
+  }
+  const closeTutorial = () => {
+    setTutorial(false)
+    setLessonsDone(readTutorial().done.length)
+    leaveLandscape()
+  }
+
   return (
     <div ref={ref} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-28">
       {screen === 'home' ? (
@@ -300,7 +306,7 @@ function GravityHome({
             <div className="flex flex-col gap-3 px-4 pt-1 pb-4">
               <button
                 type="button"
-                onClick={() => go('levels')}
+                onClick={play}
                 disabled={!overview}
                 className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[#ffb84d] font-display text-xl text-void shadow-[0_4px_0_#b8642f] transition-transform active:translate-y-1 active:shadow-none disabled:opacity-50"
               >
@@ -334,6 +340,25 @@ function GravityHome({
               {g.failed}
             </button>
           )}
+
+          <button
+            data-gravity-in
+            type="button"
+            onClick={() => {
+              vibrate(8)
+              setTutorial(true)
+            }}
+            className="flex shrink-0 items-center gap-3 rounded-[1.5rem] border border-[#ffb84d]/25 bg-[#ffb84d]/[0.07] p-4 text-left transition-colors hover:bg-[#ffb84d]/[0.12]"
+          >
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#ffb84d]/15 text-[#ffb84d]">
+              <GraduationCap size={20} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-cream">{tt.open}</span>
+              <span className="block text-xs text-cream/60 tabular-nums">{tt.progress(lessonsDone, LESSON_IDS.length)}</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-cream/40" aria-hidden />
+          </button>
 
           <RewardsGuide />
 
@@ -418,6 +443,42 @@ function GravityHome({
             />
           )}
         </>
+      )}
+
+      {/* Premier « Jouer » : le tutoriel est proposé, une seule fois. */}
+      {offer &&
+        createPortal(
+          <div className="fixed inset-0 z-[96] grid place-items-center bg-black/65 px-5" role="dialog" aria-modal="true" aria-label={tt.offerTitle}>
+            <div className="flex w-full max-w-sm flex-col items-center gap-3 rounded-[1.75rem] border border-[#ff8a6b]/30 bg-[#170c26] p-5 text-center">
+              <span className="grid size-14 place-items-center rounded-full bg-[#ffb84d]/15 text-[#ffb84d]">
+                <GraduationCap size={28} aria-hidden />
+              </span>
+              <h2 className="font-display text-2xl leading-none text-cream">{tt.offerTitle}</h2>
+              <p className="text-sm leading-relaxed text-cream/70">{tt.offerText}</p>
+              <div className="mt-1 flex w-full flex-col gap-2">
+                <button type="button" onClick={() => answerOffer(true)} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#ffb84d] text-sm font-bold text-void">
+                  <GraduationCap size={17} aria-hidden />
+                  {tt.offerYes}
+                </button>
+                <button type="button" onClick={() => answerOffer(false)} className="h-11 rounded-full border border-white/15 bg-white/[0.05] text-sm font-semibold text-cream/85">
+                  {tt.offerNo}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {tutorial && (
+        <Suspense fallback={null}>
+          <GravityTutorial
+            onClose={closeTutorial}
+            onPlayLevels={() => {
+              closeTutorial()
+              go('levels')
+            }}
+          />
+        </Suspense>
       )}
     </div>
   )

@@ -55,6 +55,7 @@ const SHELL_URLS = [
   './index.html',
   './manifest.webmanifest',
   './favicon.svg',
+  './favicon-christmas.svg',
   './favicon.ico',
   './apple-touch-icon.png',
   './pwa-192x192.png',

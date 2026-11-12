@@ -96,7 +96,7 @@ export class GravityScene {
   /** Démonstration : le chemin du solveur rejoué d'une traite (atelier, « Voir la solution »). */
   private solution: { decisions: Map<number, { press: boolean; hold: boolean }>; hold: boolean } | null = null
 
-  playSolution(report: SolveReport): void {
+  playSolution(report: Pick<SolveReport, 'decisions'>): void {
     this.solution = { decisions: new Map(report.decisions.map((decision) => [decision.tick, decision])), hold: false }
   }
 

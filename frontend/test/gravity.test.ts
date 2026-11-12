@@ -9,6 +9,8 @@ import { introsOf } from '../src/lib/gravity/intros'
 import { solveLevel } from '../src/lib/gravity/solver'
 import type { GravityLevel, LevelElement } from '../src/lib/gravity/types'
 import { parseLevel, parsePlan } from '../src/lib/gravity/validate'
+import { LESSON_IDS, buildLesson, type LessonId } from '../src/lib/gravity/tutorial'
+import { LESSONS } from '../src/lib/gravity/tutorial.lessons'
 import { fr } from '../src/i18n/fr'
 import { apiErrorMessage } from '../src/lib/apiErrors'
 import { ApiError } from '../src/services/api'
@@ -340,6 +342,62 @@ describe('Gravity Ninja — solveur et générateur', () => {
     })
     const difficulties = shipped.map((built) => built.difficulty)
     assert.deepEqual(difficulties, [...difficulties].sort((a, b) => a - b), 'la difficulté monte de niveau en niveau')
+  })
+})
+
+describe('Gravity Ninja — tutoriel', () => {
+  it('une leçon par mécanisme, sans exception, chacune montrant le sien', () => {
+    assert.deepEqual(LESSONS.map((lesson) => lesson.id), [...LESSON_IDS])
+    const has = (id: LessonId, test: (element: LevelElement) => boolean) => LESSONS.find((lesson) => lesson.id === id)!.level.elements.some(test)
+    const shows: [LessonId, (element: LevelElement) => boolean][] = [
+      ['spikes', (element) => element.type === 'spikes'],
+      ['seal', (element) => element.type === 'flip'],
+      ['crumble', (element) => element.type === 'crumble'],
+      ['mover', (element) => element.type === 'mover'],
+      ['shuriken', (element) => element.type === 'shuriken' && !element.orbit],
+      ['moon', (element) => element.type === 'moon'],
+      ['mini', (element) => element.type === 'size' && element.mini],
+      ['log', (element) => element.type === 'log'],
+      ['scrolls', (element) => element.type === 'scroll'],
+      ['warp', (element) => element.type === 'warp'],
+      ['flames', (element) => element.type === 'flame'],
+      ['ghost', (element) => element.type === 'ghost'],
+      ['orbit', (element) => element.type === 'shuriken' && !!element.orbit],
+    ]
+    for (const [id, test] of shows) assert.ok(has(id, test), id)
+    // Les rouleaux n'apparaissent que dans leur leçon ; la lune apprend à maintenir.
+    assert.ok(LESSONS.filter((lesson) => lesson.id !== 'scrolls').every((lesson) => lesson.level.elements.every((element) => element.type !== 'scroll')))
+    assert.ok(LESSONS.find((lesson) => lesson.id === 'moon')!.cues.some((cue) => cue.hold))
+  })
+
+  it('suivre les invites finit chaque leçon, qu’on touche au début, au milieu ou à la fin de chaque fenêtre', () => {
+    for (const lesson of LESSONS) {
+      const world = buildWorld(lesson.level)
+      assert.ok(lesson.cues.length > 0, lesson.id)
+      for (const where of ['from', 'middle', 'to'] as const) {
+        const run = startRun(world)
+        let cue = 0
+        let holding = false
+        for (let index = 0; index < 20_000 && run.status === 'running'; index += 1) {
+          const current = lesson.cues[cue]
+          const at = current ? (where === 'middle' ? Math.round((current.from + current.to) / 2) : current[where]) : -1
+          const press = run.tick === at
+          if (press) {
+            holding = current!.hold
+            cue += 1
+          }
+          if (holding && run.grounded && !press) holding = false
+          stepRun(world, run, { press, hold: holding })
+        }
+        assert.equal(run.status, 'finished', `${lesson.id} (${where}) : ${run.cause}`)
+      }
+      // Assez de temps pour réagir : au ralenti, au moins une demi-seconde par fenêtre.
+      assert.ok(lesson.cues.every((cue) => cue.to - cue.from + 1 >= 8), lesson.id)
+    }
+  })
+
+  it('les leçons livrées sont à jour (relancer npm run gravity:levels -w frontend)', () => {
+    for (const lesson of LESSONS) assert.deepEqual(buildLesson(lesson.id), lesson, lesson.id)
   })
 })
 
