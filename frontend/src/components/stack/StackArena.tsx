@@ -1,3 +1,4 @@
+import { useCoverScreen } from '../../hooks/useCoverScreen'
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useT } from '../../i18n'
@@ -36,6 +37,8 @@ interface Panel {
  */
 export function StackArena({ room, meId, onLeave }: StackArenaProps) {
   const t = useT()
+  // Plein écran opaque : le décor de fond de l'app, caché dessous, ne tourne plus pendant la partie.
+  useCoverScreen()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [count, setCount] = useState<string | null>(null)
   const roomRef = useRef(room)

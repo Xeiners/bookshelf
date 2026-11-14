@@ -1,3 +1,4 @@
+import { useCoverScreen } from '../../hooks/useCoverScreen'
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Hand, LogOut, Pause, Play, Smartphone } from 'lucide-react'
 import { requestTiltPermission } from '../../hooks/useHoloTilt'
@@ -116,6 +117,8 @@ interface JumpGameProps {
  */
 export function JumpGame({ character, onOver, onQuit }: JumpGameProps) {
   const t = useT()
+  // Plein écran opaque : le décor de fond de l'app, caché dessous, ne tourne plus pendant la partie.
+  useCoverScreen()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const scoreRef = useRef<HTMLParagraphElement>(null)
   const heightRef = useRef<HTMLParagraphElement>(null)

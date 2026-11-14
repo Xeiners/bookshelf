@@ -1,3 +1,4 @@
+import { useCoverScreen } from '../../hooks/useCoverScreen'
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Hand, Moon, Pause, Play, Pointer, RotateCcw, ScrollText, Shield, Skull, Smartphone, X, type LucideIcon } from 'lucide-react'
@@ -99,6 +100,8 @@ const portrait = () => typeof window !== 'undefined' && window.innerHeight > win
  */
 export function GravityGame({ level, onFinish, onQuit, onRestart, trial = false, solution = null, record = 0, coach, chapters }: GravityGameProps) {
   const t = useT()
+  // Plein écran opaque : le décor de fond de l'app, caché dessous, ne tourne plus pendant la partie.
+  useCoverScreen()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<GravityScene | null>(null)
   const progressRef = useRef<HTMLDivElement>(null)

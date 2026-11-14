@@ -1,3 +1,4 @@
+import { useCoverScreen } from '../../hooks/useCoverScreen'
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronsUp, Cloud, Crosshair, Loader2, Flame, Magnet, Mountain, Pause, Play, Sparkles, X } from 'lucide-react'
 import { useT } from '../../i18n'
@@ -80,6 +81,8 @@ const PORTAL_NOTICE = 90
  */
 export function RunnerGame({ seed, look, assets, buttons, lite, universes, onOver, revival, onQuit }: RunnerGameProps) {
   const t = useT()
+  // Plein écran opaque : le décor de fond de l'app, caché dessous, ne tourne plus pendant la partie.
+  useCoverScreen()
   const outfit = useRunnerWardrobe((state) => state.outfit)
   const [initial] = useState(() => createRun(seed))
   const state = useRef<RunState>(initial)

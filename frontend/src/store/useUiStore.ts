@@ -76,6 +76,13 @@ interface UiState {
   reviewOpen: boolean
   /** Fil « Edits » (vidéos verticales d'anime) : en essai, administrateurs seulement. */
   editsOpen: boolean
+  /**
+   * Écrans opaques en plein écran ouverts (parties des jeux, la Toile…) : tant qu'il y en a un, le
+   * décor de fond, caché dessous, cesse de s'animer (cf. `useCoverScreen`).
+   */
+  screenCovers: number
+  /** Un écran plein écran s'ouvre ; la fonction rendue le referme (une seule fois). */
+  coverScreen: () => () => void
 
   setView: (view: ViewId) => void
   openDetail: (book: Book) => void
@@ -165,6 +172,7 @@ export const useUiStore = create<UiState>((set) => ({
   adminOpen: false,
   reviewOpen: false,
   editsOpen: false,
+  screenCovers: 0,
 
   // Changer de vue redéplie l'en-tête : il ne se replie que dans la Recherche, défilée.
   setView: (view) => set({ view, chromeCollapsed: false }),
@@ -216,6 +224,15 @@ export const useUiStore = create<UiState>((set) => ({
   closeReview: () => set({ reviewOpen: false }),
   openEdits: () => set({ editsOpen: true, settingsOpen: false, musicOpen: false, notificationsOpen: false, detail: null }),
   closeEdits: () => set({ editsOpen: false }),
+  coverScreen: () => {
+    set((state) => ({ screenCovers: state.screenCovers + 1 }))
+    let open = true
+    return () => {
+      if (!open) return
+      open = false
+      set((state) => ({ screenCovers: Math.max(0, state.screenCovers - 1) }))
+    }
+  },
   setChromeCollapsed: (chromeCollapsed) => set((state) => (state.chromeCollapsed === chromeCollapsed ? state : { chromeCollapsed })),
 
   notify: (message, tone = 'neutral') => {

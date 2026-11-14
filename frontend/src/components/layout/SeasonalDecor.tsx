@@ -1,22 +1,34 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import moonUrl from '../../assets/moon-soul-eater.svg'
 import { useT } from '../../i18n'
 import { useThemeStore } from '../../store/useThemeStore'
+import { useUiStore } from '../../store/useUiStore'
 import { ChristmasTree, Garland, Holly, Santa, SantaHat, Sleigh, SnowCap } from './ChristmasArt'
 
 /**
  * Décor du thème saisonnier, choisi par l'administration (cf. `useThemeStore`) : Halloween ici,
  * Noël avec ses dessins dans `ChristmasArt.tsx`. Tout passe
  * DERRIÈRE l'interface (aucun bouton ni texte masqué) et ne coûte presque rien : des tracés
- * SVG peints une fois, aucun flou ni particule ; seuls quelques petits éléments s'animent, en
- * CSS (`transform`), et rien ne bouge si l'appareil demande moins d'animations.
+ * SVG peints une fois, aucun flou ; seuls quelques petits éléments s'animent, en CSS
+ * (`transform`), et rien ne bouge si l'appareil demande moins d'animations.
+ *
+ * Retiré dès qu'un écran opaque le recouvre (partie d'un jeu, la Toile, ouverture d'un booster,
+ * lecteur, administration…) : invisible, il continuait de s'animer sous le jeu, et la carte
+ * graphique recomposait les deux à chaque image — le téléphone chauffait, la partie ralentissait.
  */
 export function SeasonalDecor() {
   const theme = useThemeStore((state) => state.theme)
+  const covered = useUiStore(
+    (state) => state.screenCovers > 0 || state.boosterOpen || state.reader !== null || state.editsOpen || state.adminOpen || state.reviewOpen,
+  )
+  if (covered) return null
   if (theme === 'halloween') return <HalloweenDecor />
   if (theme === 'christmas') return <ChristmasDecor />
   return null
 }
+
+/** Le calque du décor : fixé derrière l'interface, isolé (ce qui s'y passe ne relance ni mise en page ni peinture ailleurs). */
+const DECOR_LAYER = 'pointer-events-none fixed inset-0 -z-[4] overflow-hidden [contain:strict]' // i18n-ignore : classes CSS
 
 /**
  * Noël : une guirlande lumineuse tout le long du haut de l'écran, le sapin voilé dans le coin
@@ -25,7 +37,7 @@ export function SeasonalDecor() {
  */
 function ChristmasDecor() {
   return (
-    <div aria-hidden data-seasonal-decor className="pointer-events-none fixed inset-0 -z-[4] overflow-hidden">
+    <div aria-hidden data-seasonal-decor className={DECOR_LAYER}>
       {/* Ciel : une lueur dorée en haut, un voile de sapin en bas. */}
       <div
         className="absolute inset-0"
@@ -41,58 +53,76 @@ function ChristmasDecor() {
 /**
  * Les flocons du fond, tirés une fois (toujours les mêmes, à des places irrégulières) : la
  * profondeur (`depth`, 0 au loin → 1 tout près) règle leur taille, leur éclat et leur vitesse ;
- * chacun a son balancement et son moment de départ.
+ * chacun a son moment de départ. Une vingtaine suffit (il y en avait 30, à deux animations
+ * chacun : autant de calques que la carte graphique recompose à chaque image).
  */
 const FLAKES = (() => {
   let seed = 20251224
   const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-  return Array.from({ length: 30 }, (_, index) => {
+  return Array.from({ length: 20 }, () => {
     const depth = random() ** 1.6
     return {
       left: random() * 100,
-      size: 2.2 + depth * 5,
-      opacity: 0.3 + depth * 0.55,
+      size: 2.4 + depth * 5,
+      opacity: 0.34 + depth * 0.55,
       fall: 30 - depth * 15 + random() * 6,
       delay: -random() * 36,
-      sway: ['s', 'm', 'l'][index % 3]!,
-      swayTime: 3.2 + random() * 2.6,
     }
   })
 })()
 
 /**
- * Il neige doucement : chaque flocon descend (`translate`) en se balançant (`transform`) — deux
- * propriétés distinctes, deux animations sur un même élément, toutes deux confiées à la carte
- * graphique (un calque par flocon). Un disque aux bords doux (dégradé : aucun flou).
+ * Il neige doucement : chaque flocon descend en se balançant, une seule animation (`snow-fall`,
+ * sur `translate` : confiée à la carte graphique). La moitié des flocons tombe dans un calque
+ * retourné : leur balancement part de l'autre côté. Un disque aux bords doux (dégradé : aucun flou).
  */
 function Snowfall() {
+  const half = FLAKES.length / 2
   return (
-    <div className="absolute inset-0">
-      {FLAKES.map((flake, index) => (
-        <div
-          key={index}
-          data-seasonal-motion
-          className="absolute top-0 rounded-full"
-          style={{
-            left: `${flake.left}%`,
-            width: flake.size,
-            height: flake.size,
-            opacity: flake.opacity,
-            background: 'radial-gradient(circle, #ffffff 0 38%, rgba(255,255,255,0.5) 62%, rgba(255,255,255,0) 72%)',
-            animation: `snow-fall ${flake.fall.toFixed(1)}s linear ${flake.delay.toFixed(1)}s infinite, snow-sway-${flake.sway} ${flake.swayTime.toFixed(1)}s ease-in-out ${(index * -0.7).toFixed(1)}s infinite alternate`,
-          }}
-        />
+    <>
+      {[FLAKES.slice(0, half), FLAKES.slice(half)].map((flakes, mirrored) => (
+        <div key={mirrored} className={`absolute inset-0 ${mirrored ? '-scale-x-100' : ''}`}>
+          {flakes.map((flake, index) => (
+            <div
+              key={index}
+              data-seasonal-motion
+              className="absolute top-0 rounded-full"
+              style={{
+                left: `${flake.left}%`,
+                width: flake.size,
+                height: flake.size,
+                opacity: flake.opacity,
+                background: 'radial-gradient(circle, #ffffff 0 38%, rgba(255,255,255,0.5) 62%, rgba(255,255,255,0) 72%)',
+                animation: `snow-fall ${flake.fall.toFixed(1)}s linear ${flake.delay.toFixed(1)}s infinite`,
+              }}
+            />
+          ))}
+        </div>
       ))}
-    </div>
+    </>
   )
+}
+
+/** Largeur d'un feston de la guirlande du haut (px). */
+const SWAG_WIDTH = 84
+
+/**
+ * Festons qu'il faut pour couvrir l'écran dans sa plus grande largeur (l'appareil tourné compris),
+ * pas plus : un téléphone en dessine 6 ou 7 au lieu de 30 (et autant d'ampoules en moins).
+ */
+function swagsToCover(): number {
+  if (typeof window === 'undefined') return 30
+  const widest = Math.max(window.innerWidth, window.innerHeight, window.screen?.width ?? 0, window.screen?.height ?? 0)
+  return Math.min(30, Math.max(6, Math.ceil(widest / SWAG_WIDTH) + 1))
 }
 
 /** La guirlande en haut, et le traîneau qui passe (`sleigh` : il passe aussi). */
 function LightsAndSleigh({ sleigh = true }: { sleigh?: boolean }) {
+  const [swags] = useState(swagsToCover)
   return (
     <>
       <div className="absolute inset-x-0 top-0 overflow-hidden">
-        <Garland swags={30} className="block h-auto max-w-none" style={{ width: 30 * 84 }} />
+        <Garland swags={swags} className="block h-auto max-w-none" style={{ width: swags * SWAG_WIDTH }} />
       </div>
       {sleigh && (
         <div data-seasonal-motion className="absolute top-[14%] left-0" style={{ animation: 'sleigh-cross 36s linear -9s infinite' }}>
@@ -115,7 +145,7 @@ const BATS = [
 
 function HalloweenDecor() {
   return (
-    <div aria-hidden data-seasonal-decor className="pointer-events-none fixed inset-0 -z-[4] overflow-hidden">
+    <div aria-hidden data-seasonal-decor className={DECOR_LAYER}>
       {/* Ciel : une lueur orangée en haut, une brume violette en bas. */}
       <div
         className="absolute inset-0"

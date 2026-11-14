@@ -1,3 +1,4 @@
+import { useCoverScreen } from '../../hooks/useCoverScreen'
 import { useEffect, useRef, useState } from 'react'
 import { Flame, X } from 'lucide-react'
 import { useT } from '../../i18n'
@@ -26,6 +27,8 @@ interface StackGameProps {
  */
 export function StackGame({ onOver, onQuit }: StackGameProps) {
   const t = useT()
+  // Plein écran opaque : le décor de fond de l'app, caché dessous, ne tourne plus pendant la partie.
+  useCoverScreen()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const scoreRef = useRef<HTMLParagraphElement>(null)
   const boardRef = useRef<Board | null>(null)

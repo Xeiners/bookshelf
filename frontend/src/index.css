@@ -496,42 +496,108 @@
   --shop-chip-ink: #ffe9ec;
 }
 
-/* Il neige doucement sur le fond de l'app : chaque flocon tombe du haut au bas de l'écran
-   (`snow-fall`, par `translate`) en se balançant (`snow-sway-*`, par `transform`, trois amplitudes).
-   Deux propriétés distinctes : les deux animations vont sur le même élément, composées. */
+/* Il neige doucement sur le fond de l'app : chaque flocon tombe du haut au bas de l'écran en se
+   balançant (quatre allers-retours par chute). Une seule animation par flocon, sur `translate`
+   (confiée à la carte graphique) : la chute et le balancement sont dans les mêmes étapes. */
 @keyframes snow-fall {
-  from {
-    translate: 0 -3vh;
+  0% {
+    translate: 0 -3.00vh;
   }
-  to {
-    translate: 0 103vh;
+  3.125% {
+    translate: 8.5px 0.31vh;
   }
-}
-
-@keyframes snow-sway-s {
-  from {
-    transform: translateX(-7px);
+  6.25% {
+    translate: 12.0px 3.63vh;
   }
-  to {
-    transform: translateX(7px);
+  9.375% {
+    translate: 8.5px 6.94vh;
   }
-}
-
-@keyframes snow-sway-m {
-  from {
-    transform: translateX(-13px);
+  12.5% {
+    translate: 0 10.25vh;
   }
-  to {
-    transform: translateX(13px);
+  15.625% {
+    translate: -8.5px 13.56vh;
   }
-}
-
-@keyframes snow-sway-l {
-  from {
-    transform: translateX(-20px);
+  18.75% {
+    translate: -12.0px 16.88vh;
   }
-  to {
-    transform: translateX(20px);
+  21.875% {
+    translate: -8.5px 20.19vh;
+  }
+  25% {
+    translate: 0 23.50vh;
+  }
+  28.125% {
+    translate: 8.5px 26.81vh;
+  }
+  31.25% {
+    translate: 12.0px 30.13vh;
+  }
+  34.375% {
+    translate: 8.5px 33.44vh;
+  }
+  37.5% {
+    translate: 0 36.75vh;
+  }
+  40.625% {
+    translate: -8.5px 40.06vh;
+  }
+  43.75% {
+    translate: -12.0px 43.38vh;
+  }
+  46.875% {
+    translate: -8.5px 46.69vh;
+  }
+  50% {
+    translate: 0 50.00vh;
+  }
+  53.125% {
+    translate: 8.5px 53.31vh;
+  }
+  56.25% {
+    translate: 12.0px 56.63vh;
+  }
+  59.375% {
+    translate: 8.5px 59.94vh;
+  }
+  62.5% {
+    translate: 0 63.25vh;
+  }
+  65.625% {
+    translate: -8.5px 66.56vh;
+  }
+  68.75% {
+    translate: -12.0px 69.88vh;
+  }
+  71.875% {
+    translate: -8.5px 73.19vh;
+  }
+  75% {
+    translate: 0 76.50vh;
+  }
+  78.125% {
+    translate: 8.5px 79.81vh;
+  }
+  81.25% {
+    translate: 12.0px 83.13vh;
+  }
+  84.375% {
+    translate: 8.5px 86.44vh;
+  }
+  87.5% {
+    translate: 0 89.75vh;
+  }
+  90.625% {
+    translate: -8.5px 93.06vh;
+  }
+  93.75% {
+    translate: -12.0px 96.38vh;
+  }
+  96.875% {
+    translate: -8.5px 99.69vh;
+  }
+  100% {
+    translate: 0 103.00vh;
   }
 }
 

@@ -1,3 +1,4 @@
+import { useCoverScreen } from '../../hooks/useCoverScreen'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Loader2, Lock, WifiOff } from 'lucide-react'
@@ -39,6 +40,8 @@ const useDesktop = () => useSyncExternalStore(subscribeDesktop, () => window.mat
 
 export function CanvasView() {
   const t = useT()
+  // Plein écran opaque : le décor de fond de l'app, caché dessous, ne tourne plus pendant qu'on dessine.
+  useCoverScreen()
   const desktop = useDesktop()
   const container = useRef<HTMLDivElement>(null)
   const base = useRef<HTMLCanvasElement>(null)

@@ -584,14 +584,42 @@ export function setStackSeason(next: StackSeason): void {
 }
 
 const BULB_COLORS = ['#ff4d5e', '#ffd35c', '#5fe08a', '#6cc8ff']
+const WINDOW_GLOW: Rgb = [255, 190, 100]
+
+const haloCache = new Map<string, HTMLCanvasElement>()
+const HALO_SIZE = 64
+
+/**
+ * Un halo de lumière (dégradé radial jusqu'au transparent) de rayon `radius` en (x, y). Préparé
+ * une fois par couleur dans une petite image, puis recopié : le recréer à chaque dessin coûtait une
+ * vingtaine de dégradés par image (ampoules, fenêtres, étoiles). Suit l'opacité du contexte.
+ * `band` (0 → 1) : seule la bande centrale de cette hauteur relative est dessinée (halo coupé net en haut et en bas).
+ */
+function lightHalo(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: Rgb, alpha: number, band = 1): void {
+  const key = `${color.join()}|${alpha}`
+  let sprite = haloCache.get(key)
+  if (!sprite) {
+    sprite = document.createElement('canvas')
+    sprite.width = HALO_SIZE
+    sprite.height = HALO_SIZE
+    const sctx = sprite.getContext('2d')
+    if (sctx) {
+      const center = HALO_SIZE / 2
+      const gradient = sctx.createRadialGradient(center, center, 0, center, center, center)
+      gradient.addColorStop(0, rgba(color, alpha))
+      gradient.addColorStop(1, rgba(color, 0))
+      sctx.fillStyle = gradient
+      sctx.fillRect(0, 0, HALO_SIZE, HALO_SIZE)
+    }
+    haloCache.set(key, sprite)
+  }
+  const sourceHeight = HALO_SIZE * band
+  ctx.drawImage(sprite, 0, (HALO_SIZE - sourceHeight) / 2, HALO_SIZE, sourceHeight, x - radius, y - radius * band, radius * 2, radius * 2 * band)
+}
 
 /** Une étoile à cinq branches, sur son halo. */
 function star5(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: Rgb, glow = 2.6): void {
-  const halo = ctx.createRadialGradient(x, y, 0, x, y, radius * glow)
-  halo.addColorStop(0, rgba(color, 0.45))
-  halo.addColorStop(1, rgba(color, 0))
-  ctx.fillStyle = halo
-  ctx.fillRect(x - radius * glow, y - radius * glow, radius * glow * 2, radius * glow * 2)
+  lightHalo(ctx, x, y, radius * glow, color, 0.45)
   ctx.fillStyle = rgba(color)
   ctx.beginPath()
   for (let point = 0; point < 10; point += 1) {
@@ -667,11 +695,8 @@ function chalet(ctx: CanvasRenderingContext2D, x: number, base: number, size: nu
   ctx.fillRect(x + w * 0.18, eave - roof * 0.88, w * 0.16, size * 0.035)
   for (const dx of [-0.25, 0.25]) {
     const wx = x + dx * w
-    const glow = ctx.createRadialGradient(wx, base - h * 0.5, 0, wx, base - h * 0.5, w * 0.3)
-    glow.addColorStop(0, 'rgba(255,190,100,0.45)')
-    glow.addColorStop(1, 'rgba(255,190,100,0)')
-    ctx.fillStyle = glow
-    ctx.fillRect(wx - w * 0.3, base - h * 0.8, w * 0.6, h * 0.6)
+    // Le halo de la fenêtre, coupé à la hauteur du mur (bande de h × 0,6 sur un rayon de w × 0,3).
+    lightHalo(ctx, wx, base - h * 0.5, w * 0.3, WINDOW_GLOW, 0.45, h / w)
     ctx.fillStyle = 'rgba(255,214,140,0.95)'
     ctx.fillRect(wx - w * 0.08, base - h * 0.66, w * 0.16, h * 0.3)
     ctx.fillStyle = rgba(color)
@@ -720,11 +745,7 @@ function bulbGarland(ctx: CanvasRenderingContext2D, view: WorldView, y: number, 
     const on = Math.floor(time * 2 + index) % 3 !== 0
     ctx.globalAlpha = alpha * (on ? 1 : 0.35)
     const color = hex(BULB_COLORS[index % BULB_COLORS.length]!)
-    const halo = ctx.createRadialGradient(x, by, 0, x, by, view.stage * 0.035)
-    halo.addColorStop(0, rgba(color, 0.55))
-    halo.addColorStop(1, rgba(color, 0))
-    ctx.fillStyle = halo
-    ctx.fillRect(x - view.stage * 0.035, by - view.stage * 0.035, view.stage * 0.07, view.stage * 0.07)
+    lightHalo(ctx, x, by, view.stage * 0.035, color, 0.55)
     ctx.fillStyle = rgba(color)
     ctx.beginPath()
     ctx.ellipse(x, by, view.stage * 0.009, view.stage * 0.014, 0, 0, Math.PI * 2)
